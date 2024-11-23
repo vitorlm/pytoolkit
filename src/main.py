@@ -1,123 +1,95 @@
-# Importing libraries
+import argparse
+import importlib
 import logging
 import os
+import pkgutil
+import sys
 
-import boto3
+# Ensure `src` is in sys.path to enable imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_path = os.path.abspath(os.path.join(current_dir, "..", "src"))
 
-from utils.logging_config import configure_logging
+# Insert `src` at the start of sys.path, giving it priority in the import search
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
 
-configure_logging()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
-
-# AWS and DynamoDB configuration
-AWS_REGION = "your-aws-region"
-LOCAL_DYNAMODB_ENDPOINT = "http://localhost:8000"
-
-# Initializing DynamoDB clients
-aws_dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION)
-local_dynamodb = boto3.resource("dynamodb", endpoint_url=LOCAL_DYNAMODB_ENDPOINT)
-
-# Defining table names
-AGRO_OPERATIONS_TABLE = os.getenv("AGRO_OPERATIONS_TABLE", "cws-agro-operations-devenv")
-REVERSED_KEYS_TABLE = os.getenv(
-    "REVERSED_KEYS_TABLE", "cws-agro-operations-reversed-keys-devenv"
-)
-PRODUCT_TYPE_TABLE = os.getenv("PRODUCT_TYPE_TABLE", "cws-product-type-devenv")
-SUMMARIZED_AGRO_OP_TABLE = os.getenv(
-    "SUMMARIZED_AGRO_OP_TABLE", "cws-summarized-agro-operations-devenv"
-)
-
-
-def migrate_table(source_table_name, target_table_name, limit=100):
-    """
-    Migrates data from a source table to a target table in DynamoDB.
-    """
-    logger.info(
-        f"Migrating data from table: {source_table_name} to {target_table_name}"
-    )
-    source_table = aws_dynamodb.Table(source_table_name)
-    target_table = local_dynamodb.Table(target_table_name)
-
-    response = source_table.scan(Limit=limit)
-    items = response.get("Items", [])
-
-    with target_table.batch_writer() as batch:
-        for item in items:
-            batch.put_item(Item=item)
-            logger.info(f"Migrated item: {item}")
-
-    logger.info(
-        f"{len(items)} items migrated from table {source_table_name} to {target_table_name}"
-    )
-    return items
-
-
-def migrate_agro_operations():
-    """
-    Migrates the Agro Operations table and returns the operation IDs.
-    """
-    logger.info("Starting migration of Agro Operations table")
-    return migrate_table(AGRO_OPERATIONS_TABLE, AGRO_OPERATIONS_TABLE)
-
-
-def migrate_reverse_keys(agro_operation_ids):
-    """
-    Migrates data from the Reversed Keys table related to Agro Operations.
-    """
-    logger.info("Migrating reversed keys related to Agro Operations")
-    source_table = aws_dynamodb.Table(REVERSED_KEYS_TABLE)
-    target_table = local_dynamodb.Table(REVERSED_KEYS_TABLE)
-
-    migrated_count = 0
-    with target_table.batch_writer() as batch:
-        for operation_id in agro_operation_ids:
-            response = source_table.query(
-                IndexName="agOpIdIndex",  # Name of the GSI, adjust as needed
-                KeyConditionExpression=boto3.dynamodb.conditions.Key("operation_id").eq(
-                    operation_id
-                ),
-            )
-            items = response.get("Items", [])
-            for item in items:
-                batch.put_item(Item=item)
-                migrated_count += 1
-                logger.info(f"Migrated reversed key: {item}")
-
-    logger.info(
-        f"{migrated_count} reversed keys migrated from table {REVERSED_KEYS_TABLE}"
-    )
-
-
-def migrate_product_type_table():
-    """
-    Migrates the Product Type table.
-    """
-    logger.info("Starting migration of Product Type table")
-    migrate_table(PRODUCT_TYPE_TABLE, PRODUCT_TYPE_TABLE)
-
-
-def migrate_summarized_agro_operations():
-    """
-    Migrates the Summarized Agro Operations table.
-    """
-    logger.info("Starting migration of Summarized Agro Operations table")
-    migrate_table(SUMMARIZED_AGRO_OP_TABLE, SUMMARIZED_AGRO_OP_TABLE)
 
 
 def main():
     """
-    Main function that coordinates the migration process of DynamoDB tables.
+    Main function to handle CLI commands.
     """
-    logger.info("Starting the migration process of all DynamoDB tables")
-    agro_operations = migrate_agro_operations()
-    agro_operation_ids = [
-        item["operation_id"] for item in agro_operations if "operation_id" in item
-    ]
+    parser = argparse.ArgumentParser(
+        description="CLI tool for various domain commands."
+    )
+    subparsers = parser.add_subparsers(dest="domain", help="Available domains")
 
-    migrate_reverse_keys(agro_operation_ids)
-    migrate_product_type_table()
-    migrate_summarized_agro_operations()
-    logger.info("Migration process completed")
+    # Path to the domains directory
+    domains_path = os.path.join("src", "domains")
+
+    # Check if domains path exists
+    if not os.path.exists(domains_path):
+        logger.error(
+            f"Domains path '{domains_path}' does not exist. Please check the directory structure."
+        )
+        return
+
+    # Dynamically load domains and their commands
+    for _, domain_name, ispkg in pkgutil.iter_modules([domains_path]):
+        if ispkg:
+            domain_parser = subparsers.add_parser(
+                domain_name, help=f"{domain_name} domain commands"
+            )
+            domain_subparsers = domain_parser.add_subparsers(
+                dest="command", help="Available commands"
+            )
+
+            # Load commands within the domain
+            domain_module_path = os.path.join(domains_path, domain_name)
+            for _, module_name, _ in pkgutil.iter_modules([domain_module_path]):
+                module_path = f"domains.{domain_name}.{module_name}"
+
+                try:
+                    # Import the module dynamically
+                    module = importlib.import_module(module_path)
+
+                    # Check if the module has a main function
+                    if hasattr(module, "main"):
+                        command_parser = domain_subparsers.add_parser(
+                            module_name, help=module.main.__doc__
+                        )
+
+                        # Add arguments if the module provides a 'get_arguments' function
+                        if hasattr(module, "get_arguments"):
+                            module.get_arguments(command_parser)
+
+                        command_parser.set_defaults(func=module.main)
+                    else:
+                        logger.info(
+                            f"Ignoring module '{module_path}' as it does not have a 'main' function."
+                        )
+                except ImportError as e:
+                    logger.error(f"Could not import module '{module_path}': {e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error importing '{module_path}': {e}")
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return
+
+    # Execute the selected command with its arguments
+    try:
+        args.func(args)
+    except Exception as e:
+        logger.error(f"An error occurred while executing the command: {e}")
 
 
 if __name__ == "__main__":

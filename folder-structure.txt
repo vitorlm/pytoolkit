@@ -1,14 +1,16 @@
 .
+├── README.md
 ├── folder-structure.txt
 ├── logs
 ├── requirements.txt
 ├── setup.py
 └── src
     ├── __init__.py
-    ├── cli.py
     ├── domains
-    │   └── ag-operation
+    │   ├── __init__.py
+    │   └── ag_operation
     │       ├── __init__.py
+    │       ├── config_copy_data.py
     │       └── copy_data.py
     ├── main.py
     └── utils
@@ -16,4 +18,4 @@
         ├── dynamodb_manager.py
         └── logging_config.py
 
-6 directories, 11 files
+6 directories, 13 files
