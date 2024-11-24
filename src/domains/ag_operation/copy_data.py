@@ -7,7 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from domains.ag_operation.config_copy_data import Config
 from utils.dynamodb_manager import DynamoDBManager
 
-# Initialize logging
+# Initialize logging - this is required to see the logs in the console
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
