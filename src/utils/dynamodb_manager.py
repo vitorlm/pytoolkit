@@ -10,73 +10,58 @@ logger = logging.getLogger(__name__)
 
 
 class DynamoDBManager:
-    def __init__(self, connections=None):
+    def __init__(self):
         """
-        Initializes the DynamoDBManager with a list of DynamoDB connections.
-
-        Args:
-            connections (list of dict): A list of connection configurations.
-                                        Each dictionary can have different keys
-                                        based on the connection type and should
-                                        contain a "name" key.
-                                        Example:
-                                        [
-                                            {
-                                                "name": "source",
-                                                "region_name": "us-east-1",
-                                                "aws_access_key_id": "YOUR_ACCESS_KEY_ID",
-                                                "aws_secret_access_key": "YOUR_SECRET_ACCESS_KEY"
-                                            },
-                                            {
-                                                "name": "target",
-                                                "region_name": "us-west-2",
-                                                "profile_name": "your-aws-profile"
-                                            },
-                                            {
-                                                "name": "local",
-                                                "endpoint_url": "http://localhost:4566"
-                                            }
-                                        ]
+        Initializes the DynamoDBManager without creating connections initially.
+        Connections will be established lazily when required.
         """
         self.connections = {}
-        if connections:
-            self._create_connections(connections)
+        self.connection_configs = {}
 
-    def _create_connections(self, connections):
+    def add_connection_config(self, conn_config):
         """
-        Creates and stores DynamoDB connections based on provided configurations.
-        """
-        for conn_config in connections:
-            try:
-                name = conn_config.pop("name")
-                if "endpoint_url" in conn_config:
-                    conn = boto3.resource("dynamodb", **conn_config)
-                else:
-                    conn = boto3.resource("dynamodb", **conn_config)
-                self.connections[name] = conn
-                logger.info(f"Established connection '{name}' successfully.")
-            except Exception as e:
-                logger.error(f"Error creating connection '{name}': {e}")
-
-    def add_connection(self, conn_config):
-        """
-        Adds a new DynamoDB connection to the manager.
+        Adds a new DynamoDB connection configuration to the manager.
 
         Args:
             conn_config (dict): Configuration for the new DynamoDB connection.
-                                 Must contain a "name" key.
+                                Must contain a "name" key.
         """
         try:
             name = conn_config["name"]
-            if name in self.connections:
-                raise ValueError(f"Connection with name '{name}' already exists.")
-            self._create_connections([conn_config])  # Use existing method
+            if name in self.connection_configs:
+                raise ValueError(
+                    f"Connection configuration with name '{name}' already exists."
+                )
+            self.connection_configs[name] = conn_config
+            logger.info(f"Added configuration for connection '{name}'.")
         except Exception as e:
-            logger.error(f"Error adding connection '{name}': {e}")
+            logger.error(f"Error adding connection configuration '{name}': {e}")
+
+    def _initialize_connection(self, name):
+        """
+        Initializes a DynamoDB connection based on the stored configuration.
+
+        Args:
+            name (str): The name of the connection to initialize.
+        """
+        if name not in self.connection_configs:
+            raise ValueError(f"No connection configuration found with name '{name}'.")
+
+        try:
+            conn_config = self.connection_configs[name]
+            if "endpoint_url" in conn_config:
+                conn = boto3.resource("dynamodb", **conn_config)
+            else:
+                conn = boto3.resource("dynamodb", **conn_config)
+            self.connections[name] = conn
+            logger.info(f"Connection '{name}' initialized successfully.")
+        except Exception as e:
+            logger.error(f"Error initializing connection '{name}': {e}")
+            raise
 
     def get_connection(self, name):
         """
-        Retrieves a DynamoDB connection by its name.
+        Retrieves a DynamoDB connection by its name, initializing it if necessary.
 
         Args:
             name (str): The name of the connection.
@@ -84,10 +69,9 @@ class DynamoDBManager:
         Returns:
             boto3.resources.dynamodb.ServiceResource: The DynamoDB connection.
         """
-        try:
-            return self.connections[name]
-        except KeyError:
-            raise ValueError(f"No connection found with name '{name}'")
+        if name not in self.connections:
+            self._initialize_connection(name)
+        return self.connections[name]
 
     def copy_table_data(
         self, source_name, source_table_name, target_name, target_table_name, limit=100
