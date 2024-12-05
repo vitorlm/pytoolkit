@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from domains.syngenta.ag_operation.config_copy_data import Config
+from domains.syngenta.ag_operation.config import Config
 from utils.dynamodb_manager import DynamoDBManager
 
 # Initialize logging
