@@ -1,0 +1,28 @@
+networks:
+  ollama_network:
+
+services:
+  ollama:
+    build: .
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - ollama_network
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_LOG_LEVEL=info
+      - OLLAMA_TIMEOUT=30
+      - CUDA_VISIBLE_DEVICES="-1"
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    ports:
+      - 3000:8080
+    container_name: openwebui
+    restart: always
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_AUTH=False
+    networks:
+      - ollama_network
