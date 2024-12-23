@@ -1,12 +1,39 @@
-import logging
+import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, Dict, List, Tuple
 
 import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger(__name__)
+from log_config import log_manager
+
+logger = log_manager.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+
+
+class CompositeKey:
+    separator = "#"
+    secondary_separator = "/"
+
+    @staticmethod
+    def create(*entries: str, use_secondary: bool = False) -> str:
+        separator = (
+            CompositeKey.secondary_separator
+            if use_secondary
+            else CompositeKey.separator
+        )
+        return separator.join(entries)
+
+    @staticmethod
+    def get_keys(key: str, use_secondary: bool = False) -> Tuple[str, ...]:
+        separator = (
+            CompositeKey.secondary_separator
+            if use_secondary
+            else CompositeKey.separator
+        )
+        return tuple(key.split(separator))
 
 
 class DynamoDBManager:
@@ -45,14 +72,13 @@ class DynamoDBManager:
             name (str): The name of the connection to initialize.
         """
         if name not in self.connection_configs:
-            raise ValueError(f"No connection configuration found with name '{name}'.")
+            logger.error(f"No connection configuration found with name '{name}'.")
+            return
 
         try:
             conn_config = self.connection_configs[name]
-            if "endpoint_url" in conn_config:
-                conn = boto3.resource("dynamodb", **conn_config)
-            else:
-                conn = boto3.resource("dynamodb", **conn_config)
+            conn_config.pop("name", None)
+            conn = boto3.resource("dynamodb", **conn_config)
             self.connections[name] = conn
             logger.info(f"Connection '{name}' initialized successfully.")
         except Exception as e:
@@ -93,16 +119,14 @@ class DynamoDBManager:
         source_table = self.get_connection(source_name).Table(source_table_name)
         target_table = self.get_connection(target_name).Table(target_table_name)
 
-        response = source_table.scan(
-            Limit=min(100, limit)
-        )  # Initial scan with up to 100 items
+        response = source_table.scan(Limit=limit)
         total_copied = 0
 
         while response.get("Items", []) and total_copied < limit:
             items = response.get("Items", [])
 
             # Calculate how many items to copy in this batch
-            items_to_copy = min(len(items), limit - total_copied)
+            items_to_copy = limit - total_copied
 
             with target_table.batch_writer() as batch:
                 for item in items[:items_to_copy]:
@@ -127,12 +151,13 @@ class DynamoDBManager:
 
             # Continue scanning the next batch of items
             response = source_table.scan(
-                Limit=min(100, limit - total_copied),
+                Limit=limit - total_copied,
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
 
         logger.info(
-            f"Data copied from table {source_table_name} to {target_table_name}. Total items copied: {total_copied}"
+            f"Data copied from table {source_name}.{source_table_name} to "
+            f"{target_name}.{target_table_name}. Total items copied: {total_copied}"
         )
 
     def copy_related_data(
@@ -144,7 +169,6 @@ class DynamoDBManager:
         foreign_key,
         foreign_key_value,
         index_name,
-        limit=100,
     ):
         """
         Copies related data from a source table to a target table based on a foreign key.
@@ -169,7 +193,6 @@ class DynamoDBManager:
         response = source_table.query(
             IndexName=index_name,
             KeyConditionExpression=Key(foreign_key).eq(foreign_key_value),
-            Limit=limit,
         )
 
         while True:
@@ -184,7 +207,6 @@ class DynamoDBManager:
             response = source_table.query(
                 IndexName=index_name,
                 KeyConditionExpression=Key(foreign_key).eq(foreign_key_value),
-                Limit=limit,
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
 
@@ -230,24 +252,43 @@ class DynamoDBManager:
                 raise
 
     def _filter_table_structure(self, table_structure):
-        # Filtra os parâmetros válidos da estrutura da tabela
-        valid_params = {
+        """
+        Filters the table structure to remove unnecessary attributes.
+
+        Args:
+            table_structure (dict): The original table structure.
+
+        Returns:
+            dict: The filtered table structure.
+        """
+        # Retain only necessary attributes for table creation
+        keys_to_retain = {
             "AttributeDefinitions",
             "TableName",
             "KeySchema",
-            "LocalSecondaryIndexes",
-            "GlobalSecondaryIndexes",
-            "BillingMode",
             "ProvisionedThroughput",
+            "GlobalSecondaryIndexes",
+            "LocalSecondaryIndexes",
             "StreamSpecification",
-            "SSESpecification",
-            "Tags",
-            "TableClass",
-            "DeletionProtectionEnabled",
         }
-        return {k: v for k, v in table_structure.items() if k in valid_params}
+        return {
+            key: table_structure[key]
+            for key in keys_to_retain
+            if key in table_structure
+        }
 
-    def _clean_indexes(self, filtered_structure):
+    def _clean_indexes(self, filtered_structure: Dict[str, Any]):
+        """
+        Cleans and normalizes the index metadata within the given table structure.
+
+        This method iterates through the GlobalSecondaryIndexes and LocalSecondaryIndexes
+        in the provided table structure and removes unnecessary attributes that are not
+        needed when creating a new table. It also ensures that the ProvisionedThroughput
+        settings have sensible minimum values.
+
+        Args:
+            filtered_structure (dict): The table structure containing indexes to be cleaned.
+        """
         for index_type in ["GlobalSecondaryIndexes", "LocalSecondaryIndexes"]:
             if index_type in filtered_structure:
                 for index in filtered_structure[index_type]:
@@ -273,11 +314,30 @@ class DynamoDBManager:
                             index["ProvisionedThroughput"].get("WriteCapacityUnits", 5),
                         )
 
+    def _clean_provisioned_throughput(self, structure: Dict[str, Any]) -> None:
+        """
+        Cleans the ProvisionedThroughput settings within the given table structure.
+
+        This method removes the NumberOfDecreasesToday attribute from the ProvisionedThroughput
+        settings and ensures that the ReadCapacityUnits and WriteCapacityUnits have sensible minimum values.
+
+        Args:
+            structure (dict): The table structure containing ProvisionedThroughput to be cleaned.
+        """
+        if "ProvisionedThroughput" in structure:
+            structure["ProvisionedThroughput"].pop("NumberOfDecreasesToday", None)
+            structure["ProvisionedThroughput"]["ReadCapacityUnits"] = max(
+                1, structure["ProvisionedThroughput"].get("ReadCapacityUnits", 5)
+            )
+            structure["ProvisionedThroughput"]["WriteCapacityUnits"] = max(
+                1, structure["ProvisionedThroughput"].get("WriteCapacityUnits", 5)
+            )
+
     def copy_table_structure(
         self, source_name, source_table_name, target_name, target_table_name
     ):
         """
-        Copies the structure of a DynamoDB table from the source to the target.
+        Copies the structure of a source DynamoDB table to a target DynamoDB table.
 
         Args:
             source_name (str): The name of the source connection.
@@ -286,11 +346,11 @@ class DynamoDBManager:
             target_table_name (str): The name of the target table.
         """
         logger.info(
-            f"Copying table structure from: {source_table_name} to {target_table_name}"
+            f"Copying table structure from: {source_name}.{source_table_name} to {target_name}.{target_table_name}"
         )
 
         try:
-            # Obtenha conexões de uma vez e reutilize
+            # Get connections once and reuse
             source_connection = self.get_connection(source_name)
             target_connection = self.get_connection(target_name)
 
@@ -300,32 +360,25 @@ class DynamoDBManager:
             )
             table_structure = response["Table"]
 
-            # Filtrar a estrutura
+            # Filter the structure
             filtered_structure = self._filter_table_structure(table_structure)
 
-            # Limpar índices globais
+            # Clean indexes
             self._clean_indexes(filtered_structure)
 
-            # Remover explicitamente StreamSpecification
+            # Clean ProvisionedThroughput for the table itself
+            self._clean_provisioned_throughput(filtered_structure)
+
+            # Remove StreamSpecification explicitly
             filtered_structure.pop("StreamSpecification", None)
 
-            # Ajustar throughput para ambientes locais
-            if source_connection == target_connection:
-                filtered_structure["ProvisionedThroughput"] = {
-                    "ReadCapacityUnits": 5,
-                    "WriteCapacityUnits": 5,
-                }
-
-            # Criar tabela no destino
+            # Create the new table with the cleaned structure
             target_connection.create_table(**filtered_structure)
             logger.info(
-                f"Table structure copied from {source_table_name} to {target_table_name}"
+                f"Table {target_table_name} created successfully in {target_name}."
             )
-
         except Exception as e:
-            logger.exception(
-                f"Unexpected error copying table structure from {source_table_name} to {target_name}: {e}"
-            )
+            logger.error(f"Error copying table structure: {e}")
             raise
 
     def get_data_with_filter(
@@ -372,3 +425,199 @@ class DynamoDBManager:
         except Exception as e:
             logger.error(f"Error retrieving data from table: {e}")
             raise
+
+    def get_items_in_batches(
+        self,
+        connection_name: str,
+        table_name: str,
+        projection_expression: str,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Retrieve items from a DynamoDB table in batches.
+
+        Args:
+            connection_name (str): The name of the DynamoDB connection.
+            table_name (str): The name of the table to retrieve items from.
+            projection_expression (str): The projection expression to specify the attributes to retrieve.
+            limit (int): The maximum number of items to retrieve in each batch.
+
+        Returns:
+            List[Dict[str, Any]]: List of items from the table.
+        """
+        table = self.get_connection(connection_name).Table(table_name)
+        response = table.scan(
+            ProjectionExpression=projection_expression,
+            Limit=min(100, limit),
+        )
+        items = response.get("Items", [])
+
+        while "LastEvaluatedKey" in response:
+            response = table.scan(
+                ProjectionExpression=projection_expression,
+                ExclusiveStartKey=response["LastEvaluatedKey"],
+                Limit=min(100, limit),
+            )
+            items.extend(response.get("Items", []))
+
+        return items
+
+    def query_partition_keys(self, connection_name, table_name, partition_keys):
+        """
+        Query DynamoDB using a list of partition keys.
+
+        Args:
+            connection_name (str): Connection name.
+            table_name (str): DynamoDB table name.
+            partition_keys (list): List of partition keys.
+
+        Returns:
+            list: Combined results from all partition key queries.
+        """
+        connection = self.get_connection(connection_name)
+        table = connection.Table(table_name)
+        results = []
+
+        for pk in partition_keys:
+            logger.info(f"Querying for partition key: {pk}")
+            response = table.query(KeyConditionExpression=Key("pk").eq(pk))
+            results.extend(response.get("Items", []))
+
+            while "LastEvaluatedKey" in response:
+                response = table.query(
+                    KeyConditionExpression=Key("pk").eq(pk),
+                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                )
+                results.extend(response.get("Items", []))
+        return results
+
+    def query_partition_keys_parallel(
+        self, connection_name, table_name, partition_keys
+    ):
+        """
+        Parallelized version to query DynamoDB using multiple partition keys.
+
+        Args:
+            connection_name (str): Connection name.
+            table_name (str): DynamoDB table name.
+            partition_keys (list): List of partition keys.
+
+        Returns:
+            list: Combined results from all partition key queries.
+        """
+        connection = self.get_connection(connection_name)
+        table = connection.Table(table_name)
+        results = []
+
+        def query_pk(pk):
+            logger.info(f"Querying for partition key: {pk}")
+            response = table.query(KeyConditionExpression=Key("pk").eq(pk))
+            items = response.get("Items", [])
+
+            while "LastEvaluatedKey" in response:
+                response = table.query(
+                    KeyConditionExpression=Key("pk").eq(pk),
+                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                )
+                items.extend(response.get("Items", []))
+            return items
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(query_pk, pk) for pk in partition_keys]
+            for future in futures:
+                results.extend(future.result())
+
+        return results
+
+    def insert_record(
+        self, connection_name: str, table_name: str, record: Dict[str, Any]
+    ) -> None:
+        """
+        Inserts a single record into the specified DynamoDB table.
+
+        Args:
+            connection_name (str): Name of the DynamoDB connection.
+            table_name (str): Name of the table to insert into.
+            record (Dict[str, Any]): The record to insert.
+        """
+        try:
+            table = self.get_connection(connection_name).Table(table_name)
+            table.put_item(Item=record)
+            logger.info(f"Inserted record into {table_name}: {record}")
+        except ClientError as e:
+            logger.error(f"Error inserting record into {table_name}: {e}")
+            raise
+
+    def insert_records_in_bulk(
+        self, connection_name: str, table_name: str, records: List[Dict[str, Any]]
+    ) -> None:
+        """
+        Inserts multiple records into a DynamoDB table in bulk, with progress updates.
+
+        Args:
+            connection_name (str): Name of the DynamoDB connection.
+            table_name (str): Name of the table to insert into.
+            records (List[Dict[str, Any]]): List of records to insert.
+        """
+        try:
+            table = self.get_connection(connection_name).Table(table_name)
+            total_records = len(records)
+            with table.batch_writer() as batch:
+                for i, record in enumerate(records, start=1):
+                    batch.put_item(Item=record)
+                    if i % 10 == 0 or i == total_records:
+                        progress = (i / total_records) * 100
+                        sys.stdout.write(
+                            f"\rProgress: {i}/{total_records} records inserted ({progress:.2f}%)"
+                        )
+                        sys.stdout.flush()
+            logger.info(
+                f"Successfully inserted {total_records} records into {table_name}."
+            )
+        except ClientError as e:
+            logger.error(f"Error during bulk insert into {table_name}: {e}")
+            raise
+
+    def insert_records_with_retries(
+        self,
+        connection_name: str,
+        table_name: str,
+        records: List[Dict[str, Any]],
+        retries: int = 3,
+    ) -> None:
+        """
+        Inserts multiple records into a DynamoDB table with retries for unprocessed items, with progress updates.
+
+        Args:
+            connection_name (str): Name of the DynamoDB connection.
+            table_name (str): Name of the table to insert into.
+            records (List[Dict[str, Any]]): List of records to insert.
+            retries (int): Number of retries for unprocessed items.
+        """
+        chunk_size = 25
+        total_records = len(records)
+        for start_idx in range(0, total_records, chunk_size):
+            chunk = records[start_idx : start_idx + chunk_size]
+            attempt = 0
+
+            while attempt <= retries:
+                try:
+                    self.insert_records_in_bulk(connection_name, table_name, chunk)
+                    progress = ((start_idx + len(chunk)) / total_records) * 100
+                    sys.stdout.write(
+                        f"\rProgress: {start_idx + len(chunk)}/{total_records} records processed ({progress:.2f}%)"
+                    )
+                    sys.stdout.flush()
+                    break  # Exit retry loop if successful
+                except Exception as e:
+                    attempt += 1
+                    if attempt > retries:
+                        logger.error(
+                            f"Failed to insert records after {retries} retries: {chunk}"
+                        )
+                        raise
+                    logger.warning(
+                        f"Retrying batch insert ({attempt}/{retries}) due to error: {e}"
+                    )
+                    time.sleep(2**attempt)
+        sys.stdout.write("\n")

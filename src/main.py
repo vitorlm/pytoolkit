@@ -1,23 +1,11 @@
 import argparse
 import importlib
-import logging
 import os
 import pkgutil
-import sys
 
-# Ensure `src` is in sys.path to enable imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_path = os.path.abspath(os.path.join(current_dir, "src"))
+from log_config import log_manager
 
-# Insert `src` at the start of sys.path, giving it priority in the import search
-if src_path not in sys.path:
-    sys.path.insert(0, src_path)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = log_manager.get_logger(__name__)
 
 
 def main():
