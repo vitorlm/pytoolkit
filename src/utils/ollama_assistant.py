@@ -5,7 +5,10 @@ from ollama import ChatResponse, Client, ResponseError
 
 from log_config import log_manager
 
-logger = log_manager.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+logger = log_manager.get_logger(
+    module_name=os.path.splitext(os.path.basename(__file__))[0]
+)
+log_manager.add_custom_handler(logger_name="httpx", replace_existing=True)
 
 
 class OllamaAssistant:
@@ -104,10 +107,17 @@ class OllamaAssistant:
             messages = [
                 {
                     "role": "system",
-                    "content": f"You are a translator to {target_language}.",
+                    "content": (
+                        f"You are a translator who translates text directly into {target_language} "
+                        "without providing explanations, introductions, or additional context."
+                    ),
                 },
-                {"role": "user", "content": f"Translate this text: {text}"},
+                {
+                    "role": "user",
+                    "content": f"Translate this text to {target_language}: {text}",
+                },
             ]
+
             return self.generate_text(messages)
         except Exception as e:
             self.logger.error(f"Error in translate_text: {e}", exc_info=True)

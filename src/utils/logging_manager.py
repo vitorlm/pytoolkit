@@ -48,7 +48,7 @@ class LevelFilter(logging.Filter):
 
 class ColorFormatter(logging.Formatter):
     """
-    A logging formatter that applies colors to log messages based on level and module name.
+    A logging formatter that applies colors to log messages based on level and a unique identifier.
     """
 
     LEVEL_COLORS = {
@@ -66,30 +66,30 @@ class ColorFormatter(logging.Formatter):
         "\033[93m",  # Yellow
         "\033[92m",  # Green
         "\033[94m",  # Blue
+        "\033[90m",  # Gray
+        "\033[91m",  # Red
+        "\033[97m",  # White
+        "\033[36m",  # Bright Cyan
+        "\033[35m",  # Bright Purple
+        "\033[34m",  # Bright Blue
+        "\033[33m",  # Bright Yellow
+        "\033[32m",  # Bright Green
+        "\033[31m",  # Bright Red
     ]
 
-    # Map log levels from .env to LogLevel Enum
-    LOG_LEVEL_MAP = {
-        "DEBUG": LogLevel.DEBUG,
-        "INFO": LogLevel.INFO,
-        "WARNING": LogLevel.WARNING,
-        "ERROR": LogLevel.ERROR,
-        "CRITICAL": LogLevel.CRITICAL,
-    }
-
-    def __init__(self, module_index: int = 0):
+    def __init__(self, logger_number: int):
         """
-        Initializes the formatter with a specific module color.
+        Initializes the formatter with a specific color based on a unique logger number.
 
         Args:
-            module_index (int): Index to determine the module color from MODULE_COLORS.
+            logger_number (int): Unique identifier for assigning a color.
         """
         super().__init__()
-        self.module_color = self.MODULE_COLORS[module_index % len(self.MODULE_COLORS)]
+        self.color = self.MODULE_COLORS[logger_number % len(self.MODULE_COLORS)]
 
     def format(self, record):
         """
-        Formats the log record with level-based and module-based colors.
+        Formats the log record with level-based and unique color.
 
         Args:
             record (logging.LogRecord): The log record to format.
@@ -100,16 +100,53 @@ class ColorFormatter(logging.Formatter):
         log_fmt = (
             self.LEVEL_COLORS.get(record.levelno, self.LEVEL_COLORS["RESET"])
             + "[%(asctime)s]"
-            + self.LEVEL_COLORS[self.LOG_LEVEL_MAP.get(record.levelname)]
+            + self.LEVEL_COLORS.get(record.levelname, self.LEVEL_COLORS["RESET"])
             + "[%(levelname)s]"
             + self.LEVEL_COLORS["RESET"]
-            + self.module_color
-            + f"[{record.name}]"
+            + self.color
+            + "[%(name)s]"
             + self.LEVEL_COLORS["RESET"]
             + ": %(message)s"
         )
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
+
+
+class CustomLogHandler(logging.Handler):
+    """
+    A custom logging handler to intercept logs from specific libraries and apply a custom format.
+    """
+
+    def __init__(self, formatter: Optional[logging.Formatter] = None):
+        """
+        Initializes the custom log handler.
+
+        Args:
+            formatter (logging.Formatter, optional): The formatter to use. Defaults to None.
+        """
+        super().__init__()
+        self.formatter = formatter
+
+    def setFormatter(self, formatter: logging.Formatter):
+        """
+        Sets the formatter for the handler.
+
+        Args:
+            formatter (logging.Formatter): The formatter to set.
+        """
+        self.formatter = formatter
+
+    def emit(self, record: logging.LogRecord):
+        """
+        Emits a log record using the provided formatter.
+
+        Args:
+            record (logging.LogRecord): The log record to process.
+        """
+        if self.formatter is None:
+            raise ValueError("No formatter set for the CustomLogHandler.")
+        log_message = self.format(record)
+        print(log_message)
 
 
 class LogManager:
@@ -160,6 +197,7 @@ class LogManager:
         self.default_level = default_level
         self.use_filter = use_filter
         self.loggers = {}
+        self.custom_handlers = {}
 
         os.makedirs(self.log_dir, exist_ok=True)
         self._initialize_logger(self.main_name)
@@ -187,7 +225,7 @@ class LogManager:
 
         # Console handler
         console_handler = logging.StreamHandler()
-        console_handler.setFormatter(ColorFormatter(module_index))
+        console_handler.setFormatter(ColorFormatter(logger_number=module_index))
         logger.addHandler(console_handler)
 
         # File handler
@@ -197,7 +235,7 @@ class LogManager:
         )
         file_handler.setFormatter(
             logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
                 datefmt="%Y-%m-%d %H:%M:%S",
             )
         )
@@ -211,27 +249,42 @@ class LogManager:
 
         self.loggers[name] = logger
 
-    def get_logger(self, module_name: Optional[str] = None) -> Logger:
+    def get_logger(
+        self,
+        name: Optional[str] = None,
+        module_name: Optional[str] = None,
+    ) -> Logger:
         """
-        Retrieves or creates a logger for the main or module-specific purpose.
+        Retrieves or creates a logger instance. If a logger with the specified name already exists,
+        it reuses it; otherwise, it creates a new one, including support for module-specific logging.
 
         Args:
-            module_name (str, optional): The name of the module. Defaults to None.
+            name (str, optional): The base name of the logger. Defaults to None, which uses the main logger name.
+            module_name (str, optional): The name of the module for the logger. If provided, the logger will
+            include the module name.
 
         Returns:
             Logger: The configured logger instance.
         """
-        if module_name is None or module_name == self.main_name:
-            name = self.main_name
+        # Determine the logger's base name
+        logger_name = name if isinstance(name, str) and name.strip() else self.main_name
+
+        # Append module name if provided
+        if module_name:
+            logger_name = f"{logger_name}.{module_name}"
+
+        # Retrieve or create the logger
+        if logger_name in self.loggers:
+            return self.loggers[logger_name]
+        elif logger_name in logging.Logger.manager.loggerDict:
+            logger = logging.getLogger(logger_name)
+            self.loggers[logger_name] = logger
         else:
-            name = f"{self.main_name}.{module_name}"
+            module_index = len(self.loggers)
+            self._initialize_logger(logger_name, module_index)
+            logger = self.loggers[logger_name]
 
-        if name in self.loggers:
-            return self.loggers[name]
-
-        module_index = len(self.loggers)
-        self._initialize_logger(name, module_index)
-        return self.loggers[name]
+        return logger
 
     def set_logger_level(self, module_name: Optional[str], level: int):
         """
@@ -241,7 +294,7 @@ class LogManager:
             module_name (str, optional): The name of the module. Defaults to None for the main logger.
             level (int): The logging level to set.
         """
-        logger = self.get_logger(module_name)
+        logger = self.get_logger(module_name=module_name)
         logger.setLevel(level)
 
         for handler in logger.handlers:
@@ -255,7 +308,7 @@ class LogManager:
             module_name (str, optional): The name of the module. Defaults to None for the main logger.
             level (int): The logging level to filter.
         """
-        logger = self.get_logger(module_name)
+        logger = self.get_logger(module_name=module_name)
         for handler in logger.handlers:
             handler.addFilter(LevelFilter(level))
 
@@ -266,9 +319,59 @@ class LogManager:
         Args:
             module_name (str, optional): The name of the module. Defaults to None for the main logger.
         """
-        logger = self.get_logger(module_name)
+        logger = self.get_logger(module_name=module_name)
         for handler in logger.handlers:
             handler.filters.clear()
+
+    def add_custom_handler(
+        self,
+        logger_name: str,
+        replace_existing: bool = False,
+        disable_propagation: bool = True,
+    ):
+        """
+        Adds a custom logging handler to a specific logger. Optionally replaces existing handlers and disables propagation.
+
+        Args:
+            logger_name (str): The name of the logger to add the handler to.
+            module_index (int): Index for assigning module colors for the formatter.
+            replace_existing (bool, optional): If True, removes existing handlers before adding the new one.
+            disable_propagation (bool, optional): If True, disables propagation to the root logger.
+
+        Raises:
+            ValueError: If the logger cannot be retrieved or created.
+            RuntimeError: If adding the handler fails.
+        """
+        try:
+            # Retrieve or create the logger
+            logger = self.get_logger(name=logger_name)
+            if logger is None:
+                raise ValueError(
+                    f"Logger with name '{logger_name}' could not be found or created."
+                )
+
+            # Replace existing handlers if the flag is set
+            if replace_existing:
+                while logger.handlers:
+                    logger.removeHandler(logger.handlers[0])
+
+            # Create and configure the custom handler with ColorFormatter
+            formatter = ColorFormatter(logger_number=99)
+            handler = CustomLogHandler(formatter=formatter)
+
+            # Add the custom handler to the logger
+            self.custom_handlers[logger_name] = handler
+            logger.setLevel(self.default_level)
+            logger.addHandler(handler)
+
+            # Disable propagation if required
+            if disable_propagation:
+                logger.propagate = False
+
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to add custom handler to logger '{logger_name}': {e}"
+            ) from e
 
     def cleanup_old_logs(self):
         """

@@ -1,5 +1,7 @@
+import logging
+
 from config import Config
-from utils.logging_manager import LogLevel, LogManager
+from utils.logging_manager import CustomLogHandler, LogLevel, LogManager
 
 # Map log levels from .env to LogLevel Enum
 LOG_LEVEL_MAP = {
@@ -17,4 +19,12 @@ log_manager = LogManager(
     log_retention_hours=Config.LOG_RETENTION_HOURS,
     default_level=LOG_LEVEL_MAP.get(Config.LOG_LEVEL, LogLevel.INFO).value,
     use_filter=Config.USE_FILTER == "true",
+)
+
+custom_handler = CustomLogHandler()
+custom_handler.setFormatter(
+    logging.Formatter(
+        "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 )

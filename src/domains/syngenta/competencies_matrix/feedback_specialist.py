@@ -1,10 +1,14 @@
 import os
 from typing import Dict, List, Optional
 
+from langdetect import detect_langs
+
 from log_config import log_manager
 from utils.ollama_assistant import OllamaAssistant
 
-logger = log_manager.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+logger = log_manager.get_logger(
+    module_name=os.path.splitext(os.path.basename(__file__))[0]
+)
 
 
 class FeedbackSpecialist(OllamaAssistant):
@@ -126,8 +130,8 @@ class FeedbackSpecialist(OllamaAssistant):
         if not isinstance(member_name, str):
             raise ValueError("member_name must be a string.")
 
-        self._validate_competency_data(competency_data)
         self.logger.info(f"Generating feedback for {member_name}.")
+
         feedback_messages = self._create_feedback_prompt(member_name, competency_data)
 
         try:
@@ -247,3 +251,54 @@ class FeedbackSpecialist(OllamaAssistant):
             results[member_name] = self.generate_feedback(member_name, data)
         self.logger.info("Analysis of competency matrix completed.")
         return results
+
+    def translate_evidence(self, evidence: str, expected_language: str = "en") -> str:
+        """
+        Translates the given evidence to the expected language if necessary.
+
+        This method detects the language of the provided evidence and translates it to the
+        expected language if the detected language is different. It supports translation to
+        English, Spanish, and Portuguese.
+
+        Args:
+            evidence (str): The evidence text to be translated.
+            expected_language (str): The expected language for the translation. Must be one of 'en', 'es', or 'pt'.
+                                    Default is 'en' (English).
+
+        Returns:
+            str: The translated evidence text if translation was necessary, otherwise the original evidence text.
+
+        Raises:
+            ValueError: If the evidence is not a string or if the expected_language is not one of 'en', 'es', or 'pt'.
+        """
+        if not isinstance(evidence, str):
+            raise ValueError("evidence must be a string.")
+
+        if not isinstance(expected_language, str) and expected_language not in (
+            "en",
+            "es",
+            "pt",
+        ):
+            raise ValueError("expected_language must be 'en', 'es', or 'pt'.")
+
+        languages = {"en": "English", "es": "Spanish", "pt": "Portuguese"}
+
+        self.logger.info("Detecting language of evidence:")
+        detected_languages = detect_langs(evidence)
+        lang_scores = {lang.lang: lang.prob for lang in detected_languages}
+
+        expected_language = languages.get(expected_language.lower())
+
+        if lang_scores.get(expected_language, 0) > 0.9:
+            self.logger.info(f"Evidence is already in {expected_language}.")
+            return evidence
+        else:
+            self.logger.info(f"Translating evidence to {expected_language}.")
+
+            try:
+                translation = self.translate_text(evidence, expected_language)
+                self.logger.debug("Translation successful.")
+                return translation
+            except Exception as e:
+                self.logger.error(f"Error translating evidence: {e}", exc_info=True)
+                return f"Error translating evidence: {e}"

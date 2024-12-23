@@ -2,111 +2,112 @@ import logging
 from typing import List
 
 from domains.syngenta.ag_operation.config import Config
-from utils.dynamodb_manager import DynamoDBManager
+from utils.dynamodb_manager import CompositeKey, DynamoDBManager
 
-# Initialize logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Initialize DynamoDBManager without any configurations
-manager = DynamoDBManager()
 
+class DataCopyManager:
+    def __init__(self, manager: DynamoDBManager):
+        self.manager = manager
 
-def _ensure_connection(name: str, config: dict) -> None:
-    """
-    Ensures that a connection is configured and available.
+    def ensure_connection(self, name: str, config: dict) -> None:
+        """
+        Ensure a DynamoDB connection is configured.
+        """
+        if name not in self.manager.connection_configs:
+            logger.info(f"Adding connection configuration for '{name}'.")
+            self.manager.add_connection_config({"name": name, **config})
 
-    Args:
-        name (str): Name of the connection (e.g., 'source', 'target').
-        config (dict): Configuration for the connection.
-    """
-    if name not in manager.connection_configs:
-        logger.info(f"Adding connection configuration for '{name}'.")
-        manager.add_connection_config({"name": name, **config})
+    def ensure_table_exists_and_copy_structure(self, table_name: str) -> None:
+        """
+        Ensure a table exists in the target and copy its structure if necessary.
+        """
+        if not self.manager.table_exists(table_name, "target"):
+            logger.info(f"Table {table_name} does not exist. Creating...")
+            self.manager.copy_table_structure(
+                "source", table_name, "target", table_name
+            )
 
+    def copy_table_data(self, table_name: str, limit: int) -> None:
+        """
+        Copy data from the source table to the target table.
+        """
+        logger.info(f"Starting copy of {table_name} table")
+        self.ensure_table_exists_and_copy_structure(table_name)
+        self.manager.copy_table_data("source", table_name, "target", table_name, limit)
 
-def _copy_table_if_not_exists(table_name: str) -> None:
-    """
-    Copy the table structure and data if the table doesn't exist in the target.
-
-    Args:
-        table_name (str): The name of the table to copy.
-    """
-    _ensure_connection("source", Config.SOURCE_CONFIG)
-    _ensure_connection("target", Config.TARGET_CONFIG)
-
-    if not manager.table_exists(table_name, "target"):
-        logger.info(f"Table {table_name} does not exist. Creating...")
-        manager.copy_table_structure("source", table_name, "target", table_name)
-    manager.copy_table_data("source", table_name, "target", table_name)
-
-
-def _get_operation_ids_batch() -> List[str]:
-    """
-    Retrieve all operation IDs from the Agro Operations table in batches.
-
-    Returns:
-        List[str]: List of operation IDs from the source table.
-    """
-    _ensure_connection("source", Config.SOURCE_CONFIG)
-
-    table = manager.get_connection("source").Table(Config.AGRO_OPERATIONS_TABLE)
-    response = table.scan(ProjectionExpression="operation_id")
-    operation_ids = response.get("Items", [])
-
-    while "LastEvaluatedKey" in response:
-        response = table.scan(
-            ProjectionExpression="operation_id",
-            ExclusiveStartKey=response["LastEvaluatedKey"],
+    def process_and_insert_operations(
+        self, org_ids: List[str], table_name: str
+    ) -> None:
+        """
+        Process and insert operations for a list of organization IDs.
+        """
+        logger.info("Processing operations and summaries...")
+        sum_pks = [CompositeKey.create(org_id, "SUM") for org_id in org_ids]
+        pks = sum_pks + org_ids
+        operation_records = self.manager.query_partition_keys_parallel(
+            "source", table_name, pks
         )
-        operation_ids.extend(response.get("Items", []))
+        logger.info(f"Retrieved {len(operation_records)} operations and summaries.")
 
-    return [item["operation_id"] for item in operation_ids]
-
-
-def _copy_agro_operations() -> None:
-    """
-    Copies the Agro Operations table.
-    """
-    logger.info("Starting copy of Agro Operations table")
-    _copy_table_if_not_exists(Config.AGRO_OPERATIONS_TABLE)
-
-
-def _copy_reverse_keys() -> None:
-    """
-    Copies data from the Reversed Keys table related to Agro Operations.
-    """
-    logger.info("Copying reversed keys related to Agro Operations")
-    _copy_table_if_not_exists(Config.REVERSED_KEYS_TABLE)
-
-    operation_ids = _get_operation_ids_batch()
-    for operation_id in operation_ids:
-        _ensure_connection("source", Config.SOURCE_CONFIG)
-        _ensure_connection("target", Config.TARGET_CONFIG)
-
-        manager.copy_related_data(
-            source_name="source",
-            source_table_name=Config.REVERSED_KEYS_TABLE,
-            target_name="target",
-            target_table_name=Config.REVERSED_KEYS_TABLE,
-            foreign_key="operation_id",
-            foreign_key_value=operation_id,
-            index_name="agOpIdIndex",
+        logger.info("Inserting operations and summaries into target.")
+        self.manager.insert_records_with_retries(
+            "target", table_name, operation_records
         )
+        logger.info("Operations and summaries inserted successfully.")
+
+        logger.info("Processing work orders and records...")
+        work = []
+        for operation in operation_records:
+            if not operation["pk"].endswith("#SUM"):
+                ag_operation_id = operation["sf_ago_id"]
+                logger.info(
+                    f"Processing work orders and records for org_id: {ag_operation_id}"
+                )
+                suffixes = ["WR", "WO"]
+                prefixes = ["", "DEL#"]
+                # Generate partition keys
+                for prefix in prefixes:
+                    for suffix in suffixes:
+                        work.append(
+                            CompositeKey.create(prefix, ag_operation_id, suffix)
+                        )
+        logger.info(f"Retrieved {len(work)} work orders and records.")
+        work_records = self.manager.query_partition_keys_parallel(
+            "source", table_name, work
+        )
+        logger.info("Inserting work orders and records into target.")
+        self.manager.insert_records_with_retries("target", table_name, work_records)
+        logger.info("Work orders and records inserted successfully.")
 
 
 def main(args=None):
     """
-    Main function to orchestrate the copying of all the required tables.
-
-    Args:
-        args (Any, optional): Arguments passed to the script.
+    Main function to orchestrate the copying of all required tables.
     """
     logger.info("Starting the data copy process")
-    _copy_agro_operations()
-    _copy_reverse_keys()
+
+    manager = DynamoDBManager()
+    copy_manager = DataCopyManager(manager)
+
+    # Ensure connections
+    copy_manager.ensure_connection("source", Config.SOURCE_CONFIG)
+    copy_manager.ensure_connection("target", Config.TARGET_CONFIG)
+
+    # Copy Agro Operations table
+    table_name = Config.AGRO_OPERATIONS_TABLE
+    org_ids = [
+        "069ad19f-dd28-4b3b-8bc4-30a5620b6cc7",
+        "b8bf3cd9-853f-4455-875a-a4e6866855c8",
+    ]
+
+    copy_manager.ensure_table_exists_and_copy_structure(table_name)
+    copy_manager.process_and_insert_operations(org_ids, table_name)
+
     logger.info("Data copy process completed successfully")
 
 

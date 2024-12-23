@@ -11,7 +11,9 @@ from .config import Config
 from .feedback_specialist import FeedbackSpecialist
 
 # Configure logger
-logger = log_manager.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+logger = log_manager.get_logger(
+    module_name=os.path.splitext(os.path.basename(__file__))[0]
+)
 
 # Initialize FeedbackSpecialist
 feedback_specialist = FeedbackSpecialist(
@@ -88,6 +90,8 @@ def process_files(folder_path):
                         last_criteria = criteria
 
                     if criteria and indicator and level is not None:
+                        if evidence:
+                            evidence = feedback_specialist.translate_evidence(evidence)
                         competency_matrix[member_name].setdefault(criteria, []).append(
                             {
                                 "indicator": indicator,

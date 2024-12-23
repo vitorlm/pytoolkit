@@ -10,7 +10,9 @@ from botocore.exceptions import ClientError
 
 from log_config import log_manager
 
-logger = log_manager.get_logger(os.path.splitext(os.path.basename(__file__))[0])
+logger = log_manager.get_logger(
+    module_name=os.path.splitext(os.path.basename(__file__))[0]
+)
 
 
 class CompositeKey:

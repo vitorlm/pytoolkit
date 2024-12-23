@@ -5,7 +5,7 @@ import pkgutil
 
 from log_config import log_manager
 
-logger = log_manager.get_logger(__name__)
+logger = log_manager.get_logger(name=__name__)
 
 
 def main():
