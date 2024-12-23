@@ -252,7 +252,9 @@ class FeedbackSpecialist(OllamaAssistant):
         self.logger.info("Analysis of competency matrix completed.")
         return results
 
-    def translate_evidence(self, evidence: str, expected_language: str = "en") -> str:
+    def translate_evidence(
+        self, evidence: str, expected_language_code: str = "en"
+    ) -> str:
         """
         Translates the given evidence to the expected language if necessary.
 
@@ -262,7 +264,7 @@ class FeedbackSpecialist(OllamaAssistant):
 
         Args:
             evidence (str): The evidence text to be translated.
-            expected_language (str): The expected language for the translation. Must be one of 'en', 'es', or 'pt'.
+            expected_language_code (str): The expected language for the translation. Must be one of 'en', 'es', or 'pt'.
                                     Default is 'en' (English).
 
         Returns:
@@ -274,12 +276,14 @@ class FeedbackSpecialist(OllamaAssistant):
         if not isinstance(evidence, str):
             raise ValueError("evidence must be a string.")
 
-        if not isinstance(expected_language, str) and expected_language not in (
+        if not isinstance(
+            expected_language_code, str
+        ) and expected_language_code not in (
             "en",
             "es",
             "pt",
         ):
-            raise ValueError("expected_language must be 'en', 'es', or 'pt'.")
+            raise ValueError("expected_language_code must be 'en', 'es', or 'pt'.")
 
         languages = {"en": "English", "es": "Spanish", "pt": "Portuguese"}
 
@@ -287,9 +291,9 @@ class FeedbackSpecialist(OllamaAssistant):
         detected_languages = detect_langs(evidence)
         lang_scores = {lang.lang: lang.prob for lang in detected_languages}
 
-        expected_language = languages.get(expected_language.lower())
+        expected_language = languages.get(expected_language_code.lower())
 
-        if lang_scores.get(expected_language, 0) > 0.9:
+        if lang_scores.get(expected_language_code, 0) > 0.9:
             self.logger.info(f"Evidence is already in {expected_language}.")
             return evidence
         else:

@@ -5,11 +5,6 @@ from ollama import ChatResponse, Client, ResponseError
 
 from log_config import log_manager
 
-logger = log_manager.get_logger(
-    module_name=os.path.splitext(os.path.basename(__file__))[0]
-)
-log_manager.add_custom_handler(logger_name="httpx", replace_existing=True)
-
 
 class OllamaAssistant:
     """
@@ -17,6 +12,11 @@ class OllamaAssistant:
     Includes core methods for text generation, summarization, translation, and custom queries.
     Designed to be extensible for specialized assistants.
     """
+
+    _logger = log_manager.get_logger(
+        module_name=os.path.splitext(os.path.basename(__file__))[0]
+    )
+    log_manager.add_custom_handler(logger_name="httpx", replace_existing=True)
 
     def __init__(
         self,
@@ -35,7 +35,6 @@ class OllamaAssistant:
         self.client = Client(host=host)
         self.model = model
         self.config = kwargs
-        self.logger = logger
 
     def generate_text(self, messages: List[Dict[str, str]]) -> str:
         """
@@ -47,21 +46,21 @@ class OllamaAssistant:
         Returns:
             str: The generated text response.
         """
-        self.logger.info(f"Generating text with model {self.model}")
+        self._logger.info(f"Generating text with model {self.model}")
         try:
             response: ChatResponse = self.client.chat(
                 model=self.model, messages=messages, options=self.config
             )
-            self.logger.debug(f"Generated response: {response.message['content']}")
+            self._logger.debug(f"Generated response: {response.message['content']}")
             return response.message["content"]
         except ResponseError as e:
-            self.logger.error(
+            self._logger.error(
                 f"Ollama API error: {e.error} (Status Code: {e.status_code})",
                 exc_info=True,
             )
             raise
         except Exception as e:
-            self.logger.error(f"Unexpected error in generate_text: {e}", exc_info=True)
+            self._logger.error(f"Unexpected error in generate_text: {e}", exc_info=True)
             raise
 
     def summarize_text(self, text: str, context: Optional[str] = None) -> str:
@@ -75,7 +74,7 @@ class OllamaAssistant:
         Returns:
             str: The summarized text.
         """
-        self.logger.info("Summarizing text")
+        self._logger.info("Summarizing text")
         try:
             messages = [
                 {
@@ -88,7 +87,7 @@ class OllamaAssistant:
                 messages.insert(1, {"role": "user", "content": f"Context: {context}"})
             return self.generate_text(messages)
         except Exception as e:
-            self.logger.error(f"Error in summarize_text: {e}", exc_info=True)
+            self._logger.error(f"Error in summarize_text: {e}", exc_info=True)
             raise
 
     def translate_text(self, text: str, target_language: str) -> str:
@@ -102,7 +101,7 @@ class OllamaAssistant:
         Returns:
             str: The translated text.
         """
-        self.logger.info(f"Translating text to {target_language}")
+        self._logger.info(f"Translating text to {target_language}")
         try:
             messages = [
                 {
@@ -120,7 +119,7 @@ class OllamaAssistant:
 
             return self.generate_text(messages)
         except Exception as e:
-            self.logger.error(f"Error in translate_text: {e}", exc_info=True)
+            self._logger.error(f"Error in translate_text: {e}", exc_info=True)
             raise
 
     def identify_languages(self, text: str) -> List[str]:
@@ -133,7 +132,7 @@ class OllamaAssistant:
         Returns:
             List[str]: A list of detected languages.
         """
-        self.logger.info("Identifying all languages in the given text")
+        self._logger.info("Identifying all languages in the given text")
         try:
             messages = [
                 {
@@ -157,5 +156,5 @@ class OllamaAssistant:
                 lang.strip() for lang in languages
             ]  # Clean whitespace around language names
         except Exception as e:
-            self.logger.error(f"Error in identify_languages: {e}", exc_info=True)
+            self._logger.error(f"Error in identify_languages: {e}", exc_info=True)
             raise
