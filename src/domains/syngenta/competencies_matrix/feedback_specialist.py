@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from langdetect import detect_langs
 
@@ -94,10 +94,10 @@ class FeedbackSpecialist(OllamaAssistant):
                 "role": "system",
                 "content": (
                     "You are an HR feedback specialist focusing on software engineering competencies. "
-                    "Your task is to analyze the provided information and generate a comprehensive evaluation of the individual's"
-                    "performance, highlighting their overall strengths, areas for growth, and potential for development. "
-                    "The feedback should be written in a cohesive and explanatory manner, avoiding direct references to specific "
-                    "criteria or indicators. "
+                    "Your task is to analyze the provided information and generate a comprehensive evaluation of "
+                    "the individual's performance, highlighting their overall strengths, areas for growth, and potential "
+                    "for development. The feedback should be written in a cohesive and explanatory manner, avoiding direct "
+                    "references to specific criteria or indicators. "
                     "Ensure the response is professional, detailed, and captures the nuances of their performance. "
                     "Provide all feedback in English, regardless of the input language. The response should not include bullet "
                     "points, lists, or segmented sections, and instead flow naturally as a narrative."
@@ -105,7 +105,7 @@ class FeedbackSpecialist(OllamaAssistant):
             },
             {
                 "role": "user",
-                "content": f"Generate feedback for {member_name} based on this data:\n{competency_data}",
+                "content": f"Generate feedback based on this data:\n{competency_data}",
             },
         ]
 
@@ -174,56 +174,126 @@ class FeedbackSpecialist(OllamaAssistant):
             return {"error": str(e)}
 
     def summarize_evidence(
-        self, evidence_list: List[str], criteria: str, current_level: int
+        self,
+        evaluatee_name: str,
+        criteria: str,
+        indicator: str,
+        data: Dict[
+            str, Union[List[Dict[str, Union[int, str]]], float, Dict[str, float]]
+        ],
     ) -> str:
         """
-        Summarizes evidence for a specific competency.
+        Summarizes evidence for a specific indicator within a criterion.
 
         Args:
-            evidence_list: List of evidence strings.
-            criteria: The competency criteria being evaluated.
-            current_level: Current competency level (1-5).
+            evaluatee_name (str): The name of the individual being evaluated.
+            criteria (str): The name of the competency criterion being evaluated.
+            indicator (str): The specific indicator for the criterion.
+            data (Dict[str, Union[List[Dict[str, Union[int, str]]], float, Dict[str, float]]]):
+                A dictionary containing:
+                    - "evidence_list" (List[Dict[str, Union[int, str]]]):
+                        List of dictionaries with "level" and "text".
+                    - "average" (float): The average level for the indicator.
+                    - "highest" (float): The highest level for the indicator.
+                    - "lowest" (float): The lowest level for the indicator.
+                    - "team_comparison" (Dict[str, float]):
+                        Comparison values for "average", "highest", and "lowest".
 
         Returns:
-            Summarized evidence string.
+            str: Summarized evidence string.
 
         Raises:
-            ValueError: If evidence_list is not a list or criteria is not a string.
+            ValueError: If input types are not as expected.
         """
-        if not isinstance(evidence_list, list):
-            raise ValueError("evidence_list must be a list.")
+        # Input validation
+        if not isinstance(evaluatee_name, str):
+            raise ValueError("evaluatee_name must be a string.")
         if not isinstance(criteria, str):
             raise ValueError("criteria must be a string.")
+        if not isinstance(indicator, str):
+            raise ValueError("indicator must be a string.")
+        if not isinstance(data, dict):
+            raise ValueError("data must be a dictionary.")
+
+        evidence_list = data.get("evidence_list")
+        average = data.get("average")
+        highest = data.get("highest")
+        lowest = data.get("lowest")
+        team_comparison = data.get("team_comparison")
+
+        if not isinstance(evidence_list, list) or not all(
+            isinstance(item, dict) and "level" in item and "text" in item
+            for item in evidence_list
+        ):
+            raise ValueError(
+                "evidence_list must be a list of dictionaries containing 'level' and 'text'."
+            )
+
+        if (
+            not isinstance(average, (float, int))
+            or not isinstance(highest, (float, int))
+            or not isinstance(lowest, (float, int))
+        ):
+            raise ValueError("average, highest, and lowest must be numeric values.")
+
+        if not isinstance(team_comparison, dict) or not all(
+            key in team_comparison for key in ["average", "highest", "lowest"]
+        ):
+            raise ValueError(
+                "team_comparison must be a dictionary containing 'average', 'highest', and 'lowest'."
+            )
 
         if not evidence_list:
-            self.logger.warning(f"No evidence provided for criteria: {criteria}")
-            return "No evidence provided."
+            self.logger.warning(f"No evidence provided for indicator: {indicator}")
+            return f"No evidence provided for {evaluatee_name}."
 
-        evidence_text = "\n".join(evidence_list)
-        self.logger.info(
-            f"Summarizing evidence for criteria: {criteria} at level {current_level}."
+        # Preparing evidence text for summarization
+        evidence_text = "\n".join(
+            f"Level {item['level']}: {item['text']} (justifying the assigned level)"
+            for item in evidence_list
         )
+
+        self.logger.info(
+            f"Summarizing evidence for {evaluatee_name} on indicator: {indicator} in criteria: {criteria}."
+        )
+
+        # Constructing prompt for summarization
         summary_messages = [
             {
                 "role": "system",
                 "content": (
-                    f"Summarize the evidence for the {criteria} competency at Level {current_level}."
-                    " Highlight achievements, areas for improvement, and growth opportunities."
+                    f"You are an expert in evaluating and summarizing performance evidence. Your task is to analyze the "
+                    f"evidence provided for the indicator '{indicator}' within the criterion '{criteria}' for the individual "
+                    f"'{evaluatee_name}'. Use the following data for context:\n"
+                    f"- Average Level: {average}\n"
+                    f"- Highest Level: {highest}\n"
+                    f"- Lowest Level: {lowest}\n"
+                    f"- Team Comparison (Average): {team_comparison['average']}\n"
+                    f"- Team Comparison (Highest): {team_comparison['highest']}\n"
+                    f"- Team Comparison (Lowest): {team_comparison['lowest']}\n"
+                    f"Your summary should highlight how each piece of evidence justifies the assigned level, reflect the "
+                    f"individual's performance relative to the team's metrics, and identify any notable patterns or trends. "
+                    f"Ensure the summary is detailed, capturing the nuances of the evidence, and provides a clear and "
+                    f"comprehensive evaluation of {evaluatee_name}'s performance. Avoid introductions or additional context, "
+                    f"and focus solely on summarizing the evidence effectively."
                 ),
             },
             {"role": "user", "content": f"Summarize this evidence:\n{evidence_text}"},
         ]
 
         try:
+            # Generating summary using the assistant
             summary = self.generate_text(summary_messages)
-            self.logger.debug(f"Evidence summary: {summary}")
+            self.logger.debug(
+                f"Evidence summary for {evaluatee_name} on {indicator}: {summary}"
+            )
             return summary
         except Exception as e:
             self.logger.error(
-                f"Error summarizing evidence for criteria '{criteria}': {e}",
+                f"Error summarizing evidence for {evaluatee_name} on indicator '{indicator}' in criteria '{criteria}': {e}",
                 exc_info=True,
             )
-            return f"Error summarizing evidence: {e}"
+            return f"Error summarizing evidence for {evaluatee_name}: {e}"
 
     def analyze_matrix(self, competency_matrix: Dict[str, Dict]) -> Dict[str, str]:
         """

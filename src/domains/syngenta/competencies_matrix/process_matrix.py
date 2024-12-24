@@ -132,8 +132,8 @@ def calculate_team_statistics(competency_matrix: Dict[str, Dict]) -> Dict[str, D
         "criteria_stats": {},
     }
 
-    for member_data in competency_matrix.values():
-        for _, criteria in member_data.items():
+    for evaluatee in competency_matrix.values():
+        for _, criteria in evaluatee.items():
             for criterion, indicators in criteria.items():
                 if criterion not in team_stats["criteria_stats"]:
                     team_stats["criteria_stats"][criterion] = {
@@ -216,12 +216,12 @@ def calculate_individual_statistics(
     """
     analysis_results = {}
 
-    for member_name, member_data in competency_matrix.items():
-        member_stats = {}
+    for evaluatee_name, evaluatee_data in competency_matrix.items():
+        evaluatee_stats = {}
         criterion_stats = {}
         overall_levels = []
 
-        for _, criteria in member_data.items():
+        for _, criteria in evaluatee_data.items():
             for criterion, indicators in criteria.items():
                 if criterion not in criterion_stats:
                     criterion_stats[criterion] = {
@@ -242,17 +242,24 @@ def calculate_individual_statistics(
                             indicator_name
                         ] = {
                             "levels": [],
+                            "evidence_list": [],
                             "average": 0.0,
                             "highest": 0,
                             "lowest": 0,
                             "team_comparison": {},
                         }
                     level = indicator.get("level")
-                    if level is not None:
+                    evidence_item = indicator.get("evidence")
+                    if evidence_item and isinstance(evidence_item, str):
+                        criterion_stats[criterion]["indicator_stats"][indicator_name][
+                            "evidence_list"
+                        ].append({"level": level, "text": evidence_item})
+                    if level and isinstance(level, int):
                         criterion_stats[criterion]["levels"].append(level)
                         criterion_stats[criterion]["indicator_stats"][indicator_name][
                             "levels"
                         ].append(level)
+
                         overall_levels.append(level)
 
         # Calculate statistics for each criterion for the member
@@ -278,62 +285,72 @@ def calculate_individual_statistics(
                     ),
                 }
 
-                for indicator, indicator_stats in stats["indicator_stats"].items():
-                    indicator_levels = indicator_stats["levels"]
+                for indicator_name, indicator_data in stats["indicator_stats"].items():
+                    indicator_levels = indicator_data["levels"]
                     if indicator_levels:
-                        indicator_stats["average"] = round(
+                        indicator_data["average"] = round(
                             sum(indicator_levels) / len(indicator_levels), 2
                         )
-                        indicator_stats["highest"] = max(indicator_levels)
-                        indicator_stats["lowest"] = min(indicator_levels)
-                        indicator_stats.pop("levels")
+                        indicator_data["highest"] = max(indicator_levels)
+                        indicator_data["lowest"] = min(indicator_levels)
+                        indicator_data.pop("levels")
 
                         # Add team comparison
                         team_indicator = (
                             team_stats["criteria_stats"]
                             .get(criterion, {})
                             .get("indicator_stats", {})
-                            .get(indicator, {})
+                            .get(indicator_name, {})
                         )
-                        indicator_stats["team_comparison"] = {
+                        indicator_data["team_comparison"] = {
                             "average": round(
                                 team_indicator.get("average", 0)
-                                - indicator_stats["average"],
+                                - indicator_data["average"],
                                 2,
                             ),
                             "highest": round(
                                 team_indicator.get("highest", 0)
-                                - indicator_stats["highest"],
+                                - indicator_data["highest"],
                                 2,
                             ),
                             "lowest": round(
                                 team_indicator.get("lowest", 0)
-                                - indicator_stats["lowest"],
+                                - indicator_data["lowest"],
                                 2,
                             ),
                         }
+                    logger.debug(f"Summarizing evidence for {indicator_name}")
+                    indicator_data["evidence_summarized"] = (
+                        feedback_specialist.summarize_evidence(
+                            evaluatee_name, criterion, indicator_name, indicator_data
+                        )
+                    )
+                    indicator_data.pop("evidence_list")
+                    logger.debug(
+                        f"Evidence summarized for {indicator_name}: {indicator_data['evidence_summarized']}"
+                    )
 
         # Overall stats for the member
         if overall_levels:
-            member_stats["average_level"] = round(
+            evaluatee_stats["average_level"] = round(
                 sum(overall_levels) / len(overall_levels), 2
             )
-            member_stats["highest_level"] = max(overall_levels)
-            member_stats["lowest_level"] = min(overall_levels)
-            member_stats["team_comparison"] = {
+            evaluatee_stats["highest_level"] = max(overall_levels)
+            evaluatee_stats["lowest_level"] = min(overall_levels)
+            evaluatee_stats["team_comparison"] = {
                 "average": round(
-                    team_stats["average_level"] - member_stats["average_level"], 2
+                    team_stats["average_level"] - evaluatee_stats["average_level"], 2
                 ),
                 "highest": round(
-                    team_stats["highest_level"] - member_stats["highest_level"], 2
+                    team_stats["highest_level"] - evaluatee_stats["highest_level"], 2
                 ),
                 "lowest": round(
-                    team_stats["lowest_level"] - member_stats["lowest_level"], 2
+                    team_stats["lowest_level"] - evaluatee_stats["lowest_level"], 2
                 ),
             }
 
-        member_stats["criteria_statistics"] = criterion_stats
-        analysis_results[member_name] = member_stats
+        evaluatee_stats["criteria_statistics"] = criterion_stats
+        analysis_results[evaluatee_name] = evaluatee_stats
 
     return analysis_results
 
@@ -375,7 +392,7 @@ def main(args: argparse.Namespace):
     try:
         logger.info("Starting competencies matrix processing...")
         competency_matrix = process_files(folder_path)
-
+        JSONManager.write_json(competency_matrix, "competency_matrix.json")
         team_stats = calculate_team_statistics(competency_matrix)
         individual_stats = calculate_individual_statistics(
             competency_matrix, team_stats
