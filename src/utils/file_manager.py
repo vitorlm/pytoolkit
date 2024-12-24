@@ -12,17 +12,17 @@ class FileManager:
     @staticmethod
     def list_files(directory: str, extension: Optional[str] = None) -> List[str]:
         """
-        Lista todos os arquivos em um diretório com um filtro opcional por extensão.
+        Lists all files in a directory with an optional filter by extension.
 
         Args:
-            directory (str): Caminho do diretório.
-            extension (Optional[str]): Extensão dos arquivos para filtrar (ex.: ".json").
+            directory (str): Path to the directory.
+            extension (Optional[str]): File extension to filter by (e.g., ".json").
 
         Returns:
-            List[str]: Lista de caminhos dos arquivos que atendem ao filtro.
+            List[str]: List of file paths that match the filter.
 
         Raises:
-            FileNotFoundError: Se o diretório não existir.
+            FileNotFoundError: If the directory does not exist.
         """
         if not os.path.exists(directory):
             raise FileNotFoundError(f"Directory not found: {directory}")
@@ -36,16 +36,16 @@ class FileManager:
     @staticmethod
     def read_file(file_path: str) -> List[str]:
         """
-        Lê o conteúdo de um arquivo.
+        Reads the content of a file.
 
         Args:
-            file_path (str): Caminho do arquivo.
+            file_path (str): Path to the file.
 
         Returns:
-            List[str]: Conteúdo do arquivo como uma lista de linhas.
+            List[str]: Content of the file as a list of lines.
 
         Raises:
-            FileNotFoundError: Se o arquivo não existir.
+            FileNotFoundError: If the file does not exist.
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -55,13 +55,13 @@ class FileManager:
     @staticmethod
     def delete_file(file_path: str):
         """
-        Deleta um arquivo.
+        Deletes a file.
 
         Args:
-            file_path (str): Caminho do arquivo a ser deletado.
+            file_path (str): Path to the file to be deleted.
 
         Raises:
-            FileNotFoundError: Se o arquivo não existir.
+            FileNotFoundError: If the file does not exist.
         """
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -74,7 +74,7 @@ class FileManager:
         suffix: Optional[str] = None,
         extension: str = ".txt",
         include_timestamp: bool = True,
-        timestamp_format: str = "%Y%m%d_%H%M%S",
+        timestamp_format: str = "%Y%m%d%H%M%S",
         is_log_file: bool = False,
     ) -> str:
         """
@@ -86,6 +86,7 @@ class FileManager:
             extension (str): File extension including the dot (e.g., ".log", ".json"). Default is ".txt".
             include_timestamp (bool): Whether to include a timestamp in the file name. Default is True.
             timestamp_format (str): Format for the timestamp, following `datetime.strftime` conventions.
+                                    Default is "%Y%m%d%H%M%S".
             is_log_file (bool): If True, generates a log file name with a standard format.
 
         Returns:
@@ -96,7 +97,7 @@ class FileManager:
         """
         # If is_log_file is True, enforce standard log file naming
         if is_log_file:
-            timestamp = datetime.datetime.now().strftime(timestamp_format)
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             return f"log_{timestamp}.log"
 
         # Validate inputs

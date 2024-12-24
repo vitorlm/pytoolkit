@@ -16,7 +16,9 @@ class OllamaAssistant:
     _logger = log_manager.get_logger(
         module_name=os.path.splitext(os.path.basename(__file__))[0]
     )
-    log_manager.add_custom_handler(logger_name="httpx", replace_existing=True)
+    log_manager.add_custom_handler(
+        logger_name="httpx", replace_existing=True, handler_id="ollama_httpx"
+    )
 
     def __init__(
         self,
@@ -31,10 +33,30 @@ class OllamaAssistant:
             host (str): The address of the Ollama instance.
             model (str): The name of the Ollama model to use.
             **kwargs: Additional configuration parameters.
+
+        Raises:
+            ValueError: If the model configuration is invalid.
         """
+        self._validate_model_configuration(host, model)
         self.client = Client(host=host)
         self.model = model
         self.config = kwargs
+
+    def _validate_model_configuration(self, host: str, model: str) -> None:
+        """
+        Validates the model configuration before initializing the assistant.
+
+        Args:
+            host (str): The address of the Ollama instance.
+            model (str): The name of the Ollama model to use.
+
+        Raises:
+            ValueError: If the host or model is invalid.
+        """
+        if not isinstance(host, str) or not host.startswith("http"):
+            raise ValueError("Invalid host URL provided for Ollama instance.")
+        if not isinstance(model, str) or not model:
+            raise ValueError("Model name must be a non-empty string.")
 
     def generate_text(self, messages: List[Dict[str, str]]) -> str:
         """
@@ -45,6 +67,10 @@ class OllamaAssistant:
 
         Returns:
             str: The generated text response.
+
+        Raises:
+            ResponseError: If the Ollama API returns an error.
+            Exception: For other unexpected errors.
         """
         self._logger.info(f"Generating text with model {self.model}")
         try:
@@ -73,7 +99,14 @@ class OllamaAssistant:
 
         Returns:
             str: The summarized text.
+
+        Raises:
+            ValueError: If the input text is not a valid string.
+            Exception: For unexpected errors during summarization.
         """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Input text must be a non-empty string.")
+
         self._logger.info("Summarizing text")
         try:
             messages = [
@@ -86,8 +119,13 @@ class OllamaAssistant:
             if context:
                 messages.insert(1, {"role": "user", "content": f"Context: {context}"})
             return self.generate_text(messages)
+        except ValueError as e:
+            self._logger.error(f"Invalid input for summarization: {e}", exc_info=True)
+            raise
         except Exception as e:
-            self._logger.error(f"Error in summarize_text: {e}", exc_info=True)
+            self._logger.error(
+                f"Unexpected error in summarize_text: {e}", exc_info=True
+            )
             raise
 
     def translate_text(self, text: str, target_language: str) -> str:
@@ -100,7 +138,16 @@ class OllamaAssistant:
 
         Returns:
             str: The translated text.
+
+        Raises:
+            ValueError: If the input text or target language is invalid.
+            Exception: For unexpected errors during translation.
         """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Input text must be a non-empty string.")
+        if not isinstance(target_language, str) or not target_language.strip():
+            raise ValueError("Target language must be a valid string.")
+
         self._logger.info(f"Translating text to {target_language}")
         try:
             messages = [
@@ -131,7 +178,14 @@ class OllamaAssistant:
 
         Returns:
             List[str]: A list of detected languages.
+
+        Raises:
+            ValueError: If the input text is invalid.
+            Exception: For unexpected errors during language identification.
         """
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("Input text must be a non-empty string.")
+
         self._logger.info("Identifying all languages in the given text")
         try:
             messages = [

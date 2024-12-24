@@ -1,7 +1,7 @@
 import logging
 
 from config import Config
-from utils.logging_manager import CustomLogHandler, LogLevel, LogManager
+from utils.logging_manager import LogLevel, LogManager
 
 # Map log levels from .env to LogLevel Enum
 LOG_LEVEL_MAP = {
@@ -12,7 +12,12 @@ LOG_LEVEL_MAP = {
     "CRITICAL": LogLevel.CRITICAL,
 }
 
-# Instantiate the LogManager singleton using environment variables
+if Config.LOG_LEVEL not in LOG_LEVEL_MAP:
+    raise ValueError(
+        f"Invalid LOG_LEVEL: {Config.LOG_LEVEL}. Must be one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'."
+    )
+
+# Instantiate the LogManager singleton using validated environment variables
 log_manager = LogManager(
     log_dir=Config.LOG_DIR,
     log_file=Config.LOG_FILE,
@@ -21,7 +26,8 @@ log_manager = LogManager(
     use_filter=Config.USE_FILTER == "true",
 )
 
-custom_handler = CustomLogHandler()
+# Custom handler with validated configurations
+custom_handler = logging.StreamHandler()
 custom_handler.setFormatter(
     logging.Formatter(
         "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",

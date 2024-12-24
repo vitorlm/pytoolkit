@@ -12,7 +12,7 @@ class ExcelManager:
     @staticmethod
     def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
         """
-        Read an Excel file and return the specified sheet as a DataFrame.
+        Reads an Excel file and returns the specified sheet as a DataFrame.
 
         Args:
             file_path (str): Path to the Excel file.
@@ -30,9 +30,11 @@ class ExcelManager:
         return pd.read_excel(file_path, sheet_name=sheet_name)
 
     @staticmethod
-    def write_excel(data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1"):
+    def write_excel(
+        data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1"
+    ) -> None:
         """
-        Write a DataFrame to an Excel file.
+        Writes a DataFrame to an Excel file.
 
         Args:
             data (pd.DataFrame): Data to be written to Excel.
@@ -45,7 +47,7 @@ class ExcelManager:
     @staticmethod
     def list_excel_sheets(file_path: str) -> List[str]:
         """
-        List all sheet names in an Excel file.
+        Lists all sheet names in an Excel file.
 
         Args:
             file_path (str): Path to the Excel file.
@@ -82,13 +84,19 @@ class ExcelManager:
             raise FileNotFoundError(f"The folder '{folder_path}' does not exist.")
 
         excel_files = []
+        errors = []
+
         for file_name in os.listdir(folder_path):
             if file_name.endswith(file_extension):
                 file_path = os.path.join(folder_path, file_name)
                 try:
                     excel_files.append((file_name, pd.ExcelFile(file_path)))
                 except Exception as e:
-                    print(f"Error loading file '{file_name}': {e}")
+                    errors.append((file_name, str(e)))
+
+        if errors:
+            for file_name, error_message in errors:
+                print(f"Error loading file '{file_name}': {error_message}")
 
         if not excel_files:
             raise ValueError(
