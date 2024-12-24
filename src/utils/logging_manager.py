@@ -1,10 +1,11 @@
-import datetime
 import logging
 import os
 from enum import Enum
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
-from typing import Optional
+from typing import List, Optional
+
+from utils.file_manager import FileManager
 
 
 class LogLevel(Enum):
@@ -199,7 +200,7 @@ class LogManager:
         self.loggers = {}
         self.custom_handlers = {}
 
-        os.makedirs(self.log_dir, exist_ok=True)
+        FileManager.create_folder(self.log_dir)
         self._initialize_logger(self.main_name)
         self._initialized = True
 
@@ -373,27 +374,40 @@ class LogManager:
                 f"Failed to add custom handler to logger '{logger_name}': {e}"
             ) from e
 
-    def cleanup_old_logs(self):
+    def list_log_files(self, extension: str = ".log") -> List[str]:
         """
-        Removes old log files based on the configured retention period.
+        Lists all log files in the configured log directory.
+
+        Args:
+            extension (str): Extension of the files to be listed. Default is ".log".
+
+        Returns:
+            List[str]: A list of paths to the log files.
         """
-        now = datetime.datetime.now()
-        for filename in os.listdir(self.log_dir):
-            file_path = os.path.join(self.log_dir, filename)
-            if os.path.isfile(file_path) and filename.startswith(
-                self.log_file.split(".")[0]
-            ):
-                file_creation_time = datetime.datetime.fromtimestamp(
-                    os.path.getctime(file_path)
-                )
-                elapsed_time = (now - file_creation_time).total_seconds() / 3600
-                if elapsed_time > self.log_retention_hours:
-                    try:
-                        os.remove(file_path)
-                        self.loggers[self.main_name].info(
-                            f"Old log file '{filename}' removed."
-                        )
-                    except OSError as e:
-                        self.loggers[self.main_name].warning(
-                            f"Failed to remove old log file '{filename}': {e}"
-                        )
+        return FileManager.list_files(self.log_dir, extension)
+
+    def read_log_file(self, file_name: str) -> List[str]:
+        """
+        Reads the content of a log file.
+
+        Args:
+            file_name (str): Name of the log file.
+
+        Returns:
+            List[str]: Content of the file as a list of lines.
+        """
+        file_path = os.path.join(self.log_dir, file_name)
+        return FileManager.read_file(file_path)
+
+    def delete_log_file(self, file_name: str):
+        """
+        Deletes a log file.
+
+        Args:
+            file_name (str): Name of the log file.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+        """
+        file_path = os.path.join(self.log_dir, file_name)
+        FileManager.delete_file(file_path)

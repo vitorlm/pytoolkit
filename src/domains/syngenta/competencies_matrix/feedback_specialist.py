@@ -6,9 +6,11 @@ from langdetect import detect_langs
 from log_config import log_manager
 from utils.ollama_assistant import OllamaAssistant
 
-logger = log_manager.get_logger(
-    module_name=os.path.splitext(os.path.basename(__file__))[0]
-)
+# Module name
+module_name = os.path.splitext(os.path.basename(__file__))[0]
+
+# Configure logger
+logger = log_manager.get_logger(module_name)
 
 
 class FeedbackSpecialist(OllamaAssistant):
@@ -287,21 +289,21 @@ class FeedbackSpecialist(OllamaAssistant):
 
         languages = {"en": "English", "es": "Spanish", "pt": "Portuguese"}
 
-        self.logger.info("Detecting language of evidence:")
+        self.logger.debug("Detecting language of evidence:")
         detected_languages = detect_langs(evidence)
         lang_scores = {lang.lang: lang.prob for lang in detected_languages}
 
         expected_language = languages.get(expected_language_code.lower())
 
         if lang_scores.get(expected_language_code, 0) > 0.9:
-            self.logger.info(f"Evidence is already in {expected_language}.")
+            self.logger.debug(f"Evidence is already in {expected_language}.")
             return evidence
         else:
             self.logger.info(f"Translating evidence to {expected_language}.")
 
             try:
                 translation = self.translate_text(evidence, expected_language)
-                self.logger.debug("Translation successful.")
+                self.logger.info("Translation successful.")
                 return translation
             except Exception as e:
                 self.logger.error(f"Error translating evidence: {e}", exc_info=True)
