@@ -169,7 +169,8 @@ class FeedbackSpecialist(OllamaAssistant):
 
         except Exception as e:
             self.logger.error(
-                f"Error generating feedback for {member_name}: {e}", exc_info=True
+                f"Error generating feedback for {member_name}: {e}",
+                exc_info=True,
             )
             return {"error": str(e)}
 
@@ -179,7 +180,8 @@ class FeedbackSpecialist(OllamaAssistant):
         criteria: str,
         indicator: str,
         data: Dict[
-            str, Union[List[Dict[str, Union[int, str]]], float, Dict[str, float]]
+            str,
+            Union[List[Dict[str, Union[int, str]]], float, Dict[str, float]],
         ],
     ) -> str:
         """
@@ -278,7 +280,10 @@ class FeedbackSpecialist(OllamaAssistant):
                     f"and focus solely on summarizing the evidence effectively."
                 ),
             },
-            {"role": "user", "content": f"Summarize this evidence:\n{evidence_text}"},
+            {
+                "role": "user",
+                "content": f"Summarize this evidence:\n{evidence_text}",
+            },
         ]
 
         try:

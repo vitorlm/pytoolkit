@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
@@ -7,6 +6,7 @@ from pydantic import BaseModel
 
 from log_config import log_manager
 from utils.excel_manager import ExcelManager
+from utils.file_manager import FileManager
 
 # Type aliases for better readability
 CompetencyMatrix = Dict[str, Dict]
@@ -36,11 +36,9 @@ class CompetencyProcessor:
         """
         Initializes the CompetencyProcessor with logging.
         """
-        self.logger = log_manager.get_logger(
-            module_name=os.path.splitext(os.path.basename(__file__))[0]
-        )
+        self.logger = log_manager.get_logger(module_name=FileManager.get_module_name(__file__))
 
-    def process_excel_files(self, folder_path: Union[str, Path]) -> CompetencyMatrix:
+    def process_folder(self, folder_path: Union[str, Path]) -> CompetencyMatrix:
         """
         Processes all Excel files in the specified folder for competency data.
 
@@ -57,8 +55,8 @@ class CompetencyProcessor:
         folder_path = Path(folder_path)
         self.logger.info(f"Loading Excel files from {folder_path}")
 
-        if not folder_path.exists():
-            raise FileNotFoundError(f"Folder '{folder_path}' does not exist.")
+        # Validate folder path
+        FileManager.validate_folder(folder_path)
 
         excel_files = ExcelManager.load_multiple_excel_files(folder_path)
         competency_matrix: CompetencyMatrix = {}
@@ -68,9 +66,7 @@ class CompetencyProcessor:
                 self.logger.debug(f"Processing file: {file_name}")
                 self._process_file(file_name, excel_data, competency_matrix)
             except ValueError as e:
-                self.logger.error(
-                    f"Error processing file '{file_name}': {e}", exc_info=True
-                )
+                self.logger.error(f"Error processing file '{file_name}': {e}", exc_info=True)
                 raise
 
         return competency_matrix
@@ -128,9 +124,7 @@ class CompetencyProcessor:
         if evaluated_name not in competency_matrix:
             competency_matrix[evaluated_name] = {}
 
-        evaluator_data = competency_matrix[evaluated_name].setdefault(
-            evaluator_name, {}
-        )
+        evaluator_data = competency_matrix[evaluated_name].setdefault(evaluator_name, {})
         last_criteria = None
 
         for _, row in df.iterrows():
@@ -140,9 +134,7 @@ class CompetencyProcessor:
                 if indicator_data:
                     evaluator_data.setdefault(criteria, []).append(indicator_data)
 
-    def _validate_field(
-        self, field: Any, allow_digits: bool = False
-    ) -> Optional[Union[str, int]]:
+    def _validate_field(self, field: Any, allow_digits: bool = False) -> Optional[Union[str, int]]:
         """
         Validates and processes a single field value from the Excel data.
 
@@ -178,7 +170,8 @@ class CompetencyProcessor:
             last_criteria (Optional[str]): Previously processed criteria name.
 
         Returns:
-            Tuple[Optional[str], Optional[Dict]]: Tuple of criteria name and processed indicator data.
+            Tuple[Optional[str], Optional[Dict]]: Tuple of criteria name and processed
+            indicator data.
         """
         criteria = self._validate_field(row.iloc[0])
         if criteria == "Criteria":

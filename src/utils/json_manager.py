@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Any, Dict
+import jsonpickle
 
 
 class JSONManager:
@@ -31,14 +32,27 @@ class JSONManager:
     @staticmethod
     def write_json(data: Any, file_path: str) -> None:
         """
-        Writes data to a JSON file.
+        Writes data to a JSON file. If the data is not natively serializable,
+        it uses jsonpickle to serialize the object.
 
         Args:
             data (Any): Data to be written in JSON format.
             file_path (str): Path to save the JSON file.
         """
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump(data, file, indent=4, ensure_ascii=False)
+        try:
+            # Attempt to serialize the data with the default json module
+            with open(file_path, "w", encoding="utf-8") as file:
+                json.dump(data, file, indent=4, ensure_ascii=False)
+        except TypeError as e:
+            if "is not JSON serializable" in str(e) or "Object of type" in str(e):
+                with open(file_path, "w", encoding="utf-8") as file:
+                    serialized_data = jsonpickle.encode(data, unpicklable=False)
+                    final_data = json.dumps(
+                        json.loads(serialized_data), indent=4, ensure_ascii=False
+                    )
+                    file.write(final_data)
+            else:
+                raise
 
     @staticmethod
     def append_or_update_json(file_path: str, updates: Dict) -> None:

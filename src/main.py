@@ -12,9 +12,7 @@ def main():
     """
     Main function to handle CLI commands with dynamic module loading.
     """
-    parser = argparse.ArgumentParser(
-        description="CLI tool for various domain commands."
-    )
+    parser = argparse.ArgumentParser(description="CLI tool for various domain commands.")
     subparsers = parser.add_subparsers(dest="domain", help="Available domains")
 
     # Path to the domains directory
@@ -41,36 +39,30 @@ def main():
 
                 domain_module_path = os.path.join(domains_path, domain_name)
 
-                for _, subdomain_name, subpkg in pkgutil.iter_modules(
-                    [domain_module_path]
-                ):
+                for _, subdomain_name, subpkg in pkgutil.iter_modules([domain_module_path]):
                     if subpkg:
                         subdomain_name = subdomain_name.strip()
                         subdomain_parser = subdomain_subparsers.add_parser(
-                            subdomain_name, help=f"{subdomain_name} subdomain commands"
+                            subdomain_name,
+                            help=f"{subdomain_name} subdomain commands",
                         )
                         command_subparsers = subdomain_parser.add_subparsers(
                             dest="command", help="Available commands"
                         )
 
-                        subdomain_module_path = os.path.join(
-                            domain_module_path, subdomain_name
-                        )
+                        subdomain_module_path = os.path.join(domain_module_path, subdomain_name)
 
-                        for _, module_name, _ in pkgutil.iter_modules(
-                            [subdomain_module_path]
-                        ):
+                        for _, module_name, _ in pkgutil.iter_modules([subdomain_module_path]):
                             module_name = module_name.strip()
-                            module_path = (
-                                f"domains.{domain_name}.{subdomain_name}.{module_name}"
-                            )
+                            module_path = f"domains.{domain_name}.{subdomain_name}.{module_name}"
 
                             try:
                                 module = importlib.import_module(module_path)
 
                                 if hasattr(module, "main"):
                                     command_parser = command_subparsers.add_parser(
-                                        module_name, help=module.main.__doc__
+                                        module_name,
+                                        help=module.main.__doc__,
                                     )
 
                                     if hasattr(module, "get_arguments"):
@@ -78,20 +70,20 @@ def main():
 
                                     command_parser.set_defaults(func=module.main)
                                 else:
-                                    logger.info(
-                                        f"Module '{module_path}' does not have a 'main' function, skipping."
+                                    logger.warning(
+                                        f"Module '{module_path}' does not have a 'main' "
+                                        "function, skipping."
                                     )
                             except ImportError as e:
                                 logger.warning(
                                     f"Could not import module '{module_path}': {e}. Using fallback."
                                 )
                             except Exception as e:
-                                logger.error(
-                                    f"Unexpected error importing '{module_path}': {e}"
-                                )
+                                logger.error(f"Unexpected error importing '{module_path}': {e}")
             except Exception as e:
                 logger.error(
-                    f"Error processing domain '{domain_name}': {e}", exc_info=True
+                    f"Error processing domain '{domain_name}': {e}",
+                    exc_info=True,
                 )
 
     # Parse arguments
@@ -105,9 +97,7 @@ def main():
     try:
         args.func(args)
     except Exception as e:
-        logger.error(
-            f"An error occurred while executing the command: {e}", exc_info=True
-        )
+        logger.error(f"An error occurred while executing the command: {e}", exc_info=True)
 
 
 if __name__ == "__main__":

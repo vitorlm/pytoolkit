@@ -243,9 +243,7 @@ class LogManager:
 
         # File handler
         log_file_path = os.path.join(self.log_dir, self.log_file)
-        file_handler = TimedRotatingFileHandler(
-            log_file_path, when="h", interval=1, backupCount=0
-        )
+        file_handler = TimedRotatingFileHandler(log_file_path, when="h", interval=1, backupCount=0)
         file_handler.setFormatter(
             logging.Formatter(
                 "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
@@ -319,9 +317,7 @@ class LogManager:
         try:
             logger = self.get_logger(name=logger_name)
             if not logger:
-                raise ValueError(
-                    f"Logger with name '{logger_name}' could not be found or created."
-                )
+                raise ValueError(f"Logger with name '{logger_name}' could not be found or created.")
 
             if replace_existing:
                 while logger.handlers:

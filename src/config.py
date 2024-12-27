@@ -34,6 +34,4 @@ class Config:
 
     USE_FILTER = os.getenv("USE_FILTER")
     if USE_FILTER and USE_FILTER.lower() not in {"true", "false"}:
-        raise ValueError(
-            f"Invalid USE_FILTER: {USE_FILTER}. Must be 'true' or 'false'."
-        )
+        raise ValueError(f"Invalid USE_FILTER: {USE_FILTER}. Must be 'true' or 'false'.")

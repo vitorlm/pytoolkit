@@ -1,5 +1,6 @@
 import os
-from typing import List, Optional, Tuple
+import re
+from typing import List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -27,12 +28,11 @@ class ExcelManager:
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Excel file not found: {file_path}")
-        return pd.read_excel(file_path, sheet_name=sheet_name)
+
+        return pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine="calamine")
 
     @staticmethod
-    def write_excel(
-        data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1"
-    ) -> None:
+    def write_excel(data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1") -> None:
         """
         Writes a DataFrame to an Excel file.
 
@@ -74,7 +74,8 @@ class ExcelManager:
             file_extension (str): File extension to filter (default is '.xlsx').
 
         Returns:
-            List[Tuple[str, pd.ExcelFile]]: A list of tuples with file names and their respective Excel objects.
+            List[Tuple[str, pd.ExcelFile]]: A list of tuples with file names and their
+                                            respective Excel objects.
 
         Raises:
             FileNotFoundError: If the specified folder does not exist.
@@ -104,3 +105,78 @@ class ExcelManager:
             )
 
         return excel_files
+
+    @staticmethod
+    def filter_sheets_by_pattern(file_path: str, pattern: str) -> List[str]:
+        """
+        Filters sheet names in an Excel file based on a regex pattern.
+        Supports inclusion or exclusion patterns.
+
+        Args:
+            file_path (str): Path to the Excel file.
+            pattern (str): Regex pattern to match sheet names.
+                        Use negative lookahead for exclusions.
+
+        Returns:
+            List[str]: List of matching sheet names.
+        """
+        sheets = ExcelManager.list_excel_sheets(file_path)
+
+        # Compile the regex pattern
+        regex = re.compile(pattern, re.IGNORECASE)
+
+        # Filter sheets based on the regex pattern
+        return [sheet for sheet in sheets if regex.search(sheet)]
+
+    @staticmethod
+    def extract_range_by_indices(
+        df: pd.DataFrame, start_row: int, end_row: int, start_col: int, end_col: int
+    ) -> pd.DataFrame:
+        """
+        Extracts a range of data from a DataFrame using row and column indices.
+
+        Args:
+            df (pd.DataFrame): DataFrame to extract data from.
+            start_row (int): Starting row index.
+            end_row (int): Ending row index.
+            start_col (int): Starting column index.
+            end_col (int): Ending column index.
+
+        Returns:
+            pd.DataFrame: Extracted range as a new DataFrame.
+        """
+        return df.iloc[start_row:end_row, start_col:end_col].dropna(how="all")
+
+    @staticmethod
+    def get_non_empty_values(
+        df: pd.DataFrame, row_start: int, col_start: int, col_end: int
+    ) -> List[str]:
+        """
+        Extracts non-empty values from a specific row range in the DataFrame.
+
+        Args:
+            df (pd.DataFrame): DataFrame to extract from.
+            row_start (int): Row start index.
+            col_start (int): Column start index.
+            col_end (int): Column end index.
+
+        Returns:
+            List[str]: List of non-empty values.
+        """
+        return df.iloc[row_start:, col_start:col_end].dropna(axis=1).values.flatten().tolist()
+
+    @staticmethod
+    def read_excel_as_list(file_path: str, sheet_name: str) -> List[List[Union[str, None]]]:
+        """
+        Reads an Excel sheet and returns its data as a list of lists.
+
+        Args:
+            file_path (str): Path to the Excel file.
+            sheet_name (str): Name of the sheet to read.
+
+        Returns:
+            List[List[Union[str, None]]]: Sheet data as rows of values.
+        """
+        df = ExcelManager.read_excel(file_path, sheet_name)
+        df_filled = df.fillna("")
+        return df_filled.values.tolist()
