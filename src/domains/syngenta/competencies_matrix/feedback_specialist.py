@@ -19,9 +19,7 @@ class FeedbackSpecialist(OllamaAssistant):
     Focuses on competency matrices and provides structured feedback with actionable insights.
     """
 
-    def __init__(
-        self, host: Optional[str] = None, model: Optional[str] = None, **kwargs
-    ):
+    def __init__(self, host: Optional[str] = None, model: Optional[str] = None, **kwargs):
         """
         Initialize the FeedbackSpecialist with customizable OllamaAssistant configurations.
 
@@ -62,9 +60,7 @@ class FeedbackSpecialist(OllamaAssistant):
             if not isinstance(key, str):
                 raise ValueError(f"Key '{key}' in competency_data must be a string.")
             if not isinstance(value, list):
-                raise ValueError(
-                    f"Value for key '{key}' in competency_data must be a list."
-                )
+                raise ValueError(f"Value for key '{key}' in competency_data must be a list.")
 
     def _create_feedback_prompt(
         self, member_name: str, competency_data: Dict
@@ -224,8 +220,7 @@ class FeedbackSpecialist(OllamaAssistant):
         team_comparison = data.get("team_comparison")
 
         if not isinstance(evidence_list, list) or not all(
-            isinstance(item, dict) and "level" in item and "text" in item
-            for item in evidence_list
+            isinstance(item, dict) and "level" in item and "text" in item for item in evidence_list
         ):
             raise ValueError(
                 "evidence_list must be a list of dictionaries containing 'level' and 'text'."
@@ -289,9 +284,7 @@ class FeedbackSpecialist(OllamaAssistant):
         try:
             # Generating summary using the assistant
             summary = self.generate_text(summary_messages)
-            self.logger.debug(
-                f"Evidence summary for {evaluatee_name} on {indicator}: {summary}"
-            )
+            self.logger.debug(f"Evidence summary for {evaluatee_name} on {indicator}: {summary}")
             return summary
         except Exception as e:
             self.logger.error(
@@ -320,18 +313,14 @@ class FeedbackSpecialist(OllamaAssistant):
         results = {}
         for member_name, data in competency_matrix.items():
             if not isinstance(member_name, str):
-                raise ValueError(
-                    "Each member_name in competency_matrix must be a string."
-                )
+                raise ValueError("Each member_name in competency_matrix must be a string.")
 
             self.logger.info(f"Processing feedback for {member_name}.")
             results[member_name] = self.generate_feedback(member_name, data)
         self.logger.info("Analysis of competency matrix completed.")
         return results
 
-    def translate_evidence(
-        self, evidence: str, expected_language_code: str = "en"
-    ) -> str:
+    def translate_evidence(self, evidence: str, expected_language_code: str = "en") -> str:
         """
         Translates the given evidence to the expected language if necessary.
 
@@ -353,9 +342,7 @@ class FeedbackSpecialist(OllamaAssistant):
         if not isinstance(evidence, str):
             raise ValueError("evidence must be a string.")
 
-        if not isinstance(
-            expected_language_code, str
-        ) and expected_language_code not in (
+        if not isinstance(expected_language_code, str) and expected_language_code not in (
             "en",
             "es",
             "pt",
