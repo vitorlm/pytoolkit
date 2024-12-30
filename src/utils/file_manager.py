@@ -126,6 +126,19 @@ class FileManager:
         return "_".join(parts) + extension
 
     @staticmethod
+    def is_folder(path: str) -> bool:
+        """
+        Checks if the given path is a folder.
+
+        Args:
+            path (str): The path to validate.
+
+        Returns:
+            bool: True if the path is a folder, False otherwise.
+        """
+        return os.path.isdir(path)
+
+    @staticmethod
     def create_folder(folder_path: str, exist_ok: Optional[bool] = True) -> None:
         """
         Creates a directory.

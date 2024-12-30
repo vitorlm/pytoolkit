@@ -14,7 +14,8 @@ LOG_LEVEL_MAP = {
 
 if Config.LOG_LEVEL not in LOG_LEVEL_MAP:
     raise ValueError(
-        f"Invalid LOG_LEVEL: {Config.LOG_LEVEL}. Must be one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'."
+        f"Invalid LOG_LEVEL: {Config.LOG_LEVEL}. "
+        "Must be one of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'."
     )
 
 # Instantiate the LogManager singleton using validated environment variables
