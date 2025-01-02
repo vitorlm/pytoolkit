@@ -1,8 +1,9 @@
 from typing import List, Dict
 from utils.file_manager import FileManager
-from log_config import log_manager
 import re
 import pdfplumber
+
+from utils.logging_manager import LogManager
 
 
 class PayrollStatementProcessor:
@@ -10,10 +11,11 @@ class PayrollStatementProcessor:
     Processor for extracting relevant data from payroll statements for IRPF calculations.
     """
 
-    log_manager.add_custom_handler(logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2")
+    _logger = LogManager.get_instance().get_logger("PayrollStatementProcessor")
+    LogManager.add_custom_handler(logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2")
 
     def __init__(self):
-        self.logger = log_manager.get_logger(module_name=FileManager.get_module_name(__file__))
+
         self.data = []
 
     def process_pdf(self, file_path: str) -> List[Dict[str, str]]:
@@ -27,7 +29,7 @@ class PayrollStatementProcessor:
             List[Dict[str, str]]: A list of dictionaries containing extracted data
                                   for each payroll statement.
         """
-        self.logger.info(f"Processing PDF file: {file_path}")
+        self._logger.info(f"Processing PDF file: {file_path}")
         FileManager.validate_file(file_path, allowed_extensions=[".pdf"])
 
         output = self._extract_from_pdf(file_path)
@@ -56,7 +58,7 @@ class PayrollStatementProcessor:
         # if current_statement:
         #     payroll_statements.append(current_statement)
 
-        # self.logger.info(f"Extracted {len(payroll_statements)} payroll statements from the PDF.")
+        # self._logger.info(f"Extracted {len(payroll_statements)} payroll statements from the PDF.")
         # return payroll_statements
 
     def process_folder(self, folder_path: str) -> List[Dict[str, str]]:
@@ -70,7 +72,7 @@ class PayrollStatementProcessor:
             List[Dict[str, str]]: A list of dictionaries containing extracted data
                                   for all payroll statements.
         """
-        self.logger.info(f"Processing all PDF files in folder: {folder_path}")
+        self._logger.info(f"Processing all PDF files in folder: {folder_path}")
         FileManager.validate_folder(folder_path)
 
         all_statements = []
@@ -80,9 +82,9 @@ class PayrollStatementProcessor:
                 statements = self.process_pdf(pdf_file)
                 all_statements.extend(statements)
             except Exception as e:
-                self.logger.error(f"Error processing file {pdf_file}: {e}", exc_info=True)
+                self._logger.error(f"Error processing file {pdf_file}: {e}", exc_info=True)
 
-        self.logger.info(
+        self._logger.info(
             f"Processed {len(pdf_files)} files with {len(all_statements)} "
             "payroll statements extracted."
         )

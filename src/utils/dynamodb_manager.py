@@ -1,4 +1,3 @@
-import os
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -8,9 +7,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from log_config import log_manager
-
-logger = log_manager.get_logger(module_name=os.path.splitext(os.path.basename(__file__))[0])
+from utils.logging_manager import LogManager
 
 
 class CompositeKey:
@@ -29,6 +26,9 @@ class CompositeKey:
 
 
 class DynamoDBManager:
+
+    _logger = LogManager.get_instance().get_logger("DynamoDBManager")
+
     def __init__(self):
         """
         Initializes the DynamoDBManager without creating connections initially.
@@ -50,9 +50,9 @@ class DynamoDBManager:
             if name in self.connection_configs:
                 raise ValueError(f"Connection configuration with name '{name}' already exists.")
             self.connection_configs[name] = conn_config
-            logger.info(f"Added configuration for connection '{name}'.")
+            self._logger.info(f"Added configuration for connection '{name}'.")
         except Exception as e:
-            logger.error(f"Error adding connection configuration '{name}': {e}")
+            self._logger.error(f"Error adding connection configuration '{name}': {e}")
 
     def _initialize_connection(self, name):
         """
@@ -62,7 +62,7 @@ class DynamoDBManager:
             name (str): The name of the connection to initialize.
         """
         if name not in self.connection_configs:
-            logger.error(f"No connection configuration found with name '{name}'.")
+            self._logger.error(f"No connection configuration found with name '{name}'.")
             return
 
         try:
@@ -70,9 +70,9 @@ class DynamoDBManager:
             conn_config.pop("name", None)
             conn = boto3.resource("dynamodb", **conn_config)
             self.connections[name] = conn
-            logger.info(f"Connection '{name}' initialized successfully.")
+            self._logger.info(f"Connection '{name}' initialized successfully.")
         except Exception as e:
-            logger.error(f"Error initializing connection '{name}': {e}")
+            self._logger.error(f"Error initializing connection '{name}': {e}")
             raise
 
     def get_connection(self, name):
@@ -107,7 +107,7 @@ class DynamoDBManager:
             target_table_name (str): The name of the target table.
             limit (int): Maximum number of items to copy.
         """
-        logger.info(
+        self._logger.info(
             f"Copying data from table: {source_table_name} to {target_table_name}, "
             f"limit: {limit} items"
         )
@@ -129,7 +129,7 @@ class DynamoDBManager:
                     self._retry_put_item(batch, item)
                     total_copied += 1
 
-                    # Print progress using logger in the same line
+                    # Print progress using self._logger in the same line
                     log_message = f"Progress: {total_copied}/{limit} items copied"
                     sys.stdout.write(
                         f"\r{time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - {log_message}"
@@ -139,7 +139,7 @@ class DynamoDBManager:
                     # Stop if we've reached the limit
                     if total_copied >= limit:
                         sys.stdout.write("\n")
-                        logger.info("Reached the copy limit.")
+                        self._logger.info("Reached the copy limit.")
                         break
 
             if total_copied >= limit or "LastEvaluatedKey" not in response:
@@ -151,7 +151,7 @@ class DynamoDBManager:
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
 
-        logger.info(
+        self._logger.info(
             f"Data copied from table {source_name}.{source_table_name} to "
             f"{target_name}.{target_table_name}. Total items copied: {total_copied}"
         )
@@ -179,7 +179,7 @@ class DynamoDBManager:
             index_name (str): The index name to use for the query.
             limit (int): Maximum number of items to query at a time.
         """
-        logger.info(
+        self._logger.info(
             f"Copying related data from {source_table_name} to {target_table_name} based "
             f"on foreign key: {foreign_key}"
         )
@@ -207,7 +207,9 @@ class DynamoDBManager:
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
 
-        logger.info(f"Related data copied from table {source_table_name} to {target_table_name}")
+        self._logger.info(
+            f"Related data copied from table {source_table_name} to {target_table_name}"
+        )
 
     def _retry_put_item(self, batch, item):
         """
@@ -219,9 +221,9 @@ class DynamoDBManager:
         """
         try:
             batch.put_item(Item=item)
-            logger.debug(f"Copied item: {item}")
+            self._logger.debug(f"Copied item: {item}")
         except ClientError as e:
-            logger.error(f"Error putting item: {item}, Error: {e}")
+            self._logger.error(f"Error putting item: {item}, Error: {e}")
             raise
 
     def table_exists(self, table_name, connection_name):
@@ -243,7 +245,7 @@ class DynamoDBManager:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
                 return False
             else:
-                logger.error(f"Error checking table existence for {table_name}: {e}")
+                self._logger.error(f"Error checking table existence for {table_name}: {e}")
                 raise
 
     def _filter_table_structure(self, table_structure):
@@ -335,7 +337,7 @@ class DynamoDBManager:
             target_name (str): The name of the target connection.
             target_table_name (str): The name of the target table.
         """
-        logger.info(
+        self._logger.info(
             f"Copying table structure from: {source_name}.{source_table_name} "
             f"to {target_name}.{target_table_name}"
         )
@@ -363,9 +365,9 @@ class DynamoDBManager:
 
             # Create the new table with the cleaned structure
             target_connection.create_table(**filtered_structure)
-            logger.info(f"Table {target_table_name} created successfully in {target_name}.")
+            self._logger.info(f"Table {target_table_name} created successfully in {target_name}.")
         except Exception as e:
-            logger.error(f"Error copying table structure: {e}")
+            self._logger.error(f"Error copying table structure: {e}")
             raise
 
     def get_data_with_filter(self, connection_name, table_name, filter_expression=None, limit=None):
@@ -408,7 +410,7 @@ class DynamoDBManager:
             return items
 
         except Exception as e:
-            logger.error(f"Error retrieving data from table: {e}")
+            self._logger.error(f"Error retrieving data from table: {e}")
             raise
 
     def get_items_in_batches(
@@ -465,7 +467,7 @@ class DynamoDBManager:
         results = []
 
         for pk in partition_keys:
-            logger.info(f"Querying for partition key: {pk}")
+            self._logger.info(f"Querying for partition key: {pk}")
             response = table.query(KeyConditionExpression=Key("pk").eq(pk))
             results.extend(response.get("Items", []))
 
@@ -494,7 +496,7 @@ class DynamoDBManager:
         results = []
 
         def query_pk(pk):
-            logger.info(f"Querying for partition key: {pk}")
+            self._logger.info(f"Querying for partition key: {pk}")
             response = table.query(KeyConditionExpression=Key("pk").eq(pk))
             items = response.get("Items", [])
 
@@ -525,9 +527,9 @@ class DynamoDBManager:
         try:
             table = self.get_connection(connection_name).Table(table_name)
             table.put_item(Item=record)
-            logger.info(f"Inserted record into {table_name}: {record}")
+            self._logger.info(f"Inserted record into {table_name}: {record}")
         except ClientError as e:
-            logger.error(f"Error inserting record into {table_name}: {e}")
+            self._logger.error(f"Error inserting record into {table_name}: {e}")
             raise
 
     def insert_records_in_bulk(
@@ -556,9 +558,9 @@ class DynamoDBManager:
                             f"\rProgress: {i}/{total_records} records inserted ({progress:.2f}%)"
                         )
                         sys.stdout.flush()
-            logger.info(f"Successfully inserted {total_records} records into {table_name}.")
+            self._logger.info(f"Successfully inserted {total_records} records into {table_name}.")
         except ClientError as e:
-            logger.error(f"Error during bulk insert into {table_name}: {e}")
+            self._logger.error(f"Error during bulk insert into {table_name}: {e}")
             raise
 
     def insert_records_with_retries(
@@ -597,8 +599,12 @@ class DynamoDBManager:
                 except Exception as e:
                     attempt += 1
                     if attempt > retries:
-                        logger.error(f"Failed to insert records after {retries} retries: {chunk}")
+                        self._logger.error(
+                            f"Failed to insert records after {retries} retries: {chunk}"
+                        )
                         raise
-                    logger.warning(f"Retrying batch insert ({attempt}/{retries}) due to error: {e}")
+                    self._logger.warning(
+                        f"Retrying batch insert ({attempt}/{retries}) due to error: {e}"
+                    )
                     time.sleep(2**attempt)
         sys.stdout.write("\n")

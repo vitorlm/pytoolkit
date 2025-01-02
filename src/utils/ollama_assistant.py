@@ -1,9 +1,8 @@
-import os
 from typing import Dict, List, Optional
 
 from ollama import ChatResponse, Client, ResponseError
 
-from log_config import log_manager
+from utils.logging_manager import LogManager
 
 
 class OllamaAssistant:
@@ -13,8 +12,8 @@ class OllamaAssistant:
     Designed to be extensible for specialized assistants.
     """
 
-    _logger = log_manager.get_logger(module_name=os.path.splitext(os.path.basename(__file__))[0])
-    log_manager.add_custom_handler(
+    _logger = LogManager.get_instance().get_logger("OllamaAssistant")
+    LogManager.add_custom_handler(
         logger_name="httpx", replace_existing=True, handler_id="ollama_httpx"
     )
 

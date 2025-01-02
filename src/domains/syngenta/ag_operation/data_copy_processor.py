@@ -1,17 +1,12 @@
-import logging
+from utils.dynamodb_manager import DynamoDBManager, CompositeKey
+from utils.logging_manager import LogManager
 from typing import List
 
-from domains.syngenta.ag_operation.config import Config
-from utils.dynamodb_manager import CompositeKey, DynamoDBManager
-
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
+# Configure logger
+logger = LogManager.get_instance().get_logger("DataCopyProcessor")
 
 
-class DataCopyManager:
+class DataCopyProcessor:
     def __init__(self, manager: DynamoDBManager):
         self.manager = manager
 
@@ -70,33 +65,3 @@ class DataCopyManager:
         logger.info("Inserting work orders and records into target.")
         self.manager.insert_records_with_retries("target", table_name, work_records)
         logger.info("Work orders and records inserted successfully.")
-
-
-def main(args=None):
-    """
-    Main function to orchestrate the copying of all required tables.
-    """
-    logger.info("Starting the data copy process")
-
-    manager = DynamoDBManager()
-    copy_manager = DataCopyManager(manager)
-
-    # Ensure connections
-    copy_manager.ensure_connection("source", Config.SOURCE_CONFIG)
-    copy_manager.ensure_connection("target", Config.TARGET_CONFIG)
-
-    # Copy Agro Operations table
-    table_name = Config.AGRO_OPERATIONS_TABLE
-    org_ids = [
-        "069ad19f-dd28-4b3b-8bc4-30a5620b6cc7",
-        "b8bf3cd9-853f-4455-875a-a4e6866855c8",
-    ]
-
-    copy_manager.ensure_table_exists_and_copy_structure(table_name)
-    copy_manager.process_and_insert_operations(org_ids, table_name)
-
-    logger.info("Data copy process completed successfully")
-
-
-if __name__ == "__main__":
-    main()

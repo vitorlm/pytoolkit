@@ -231,7 +231,7 @@ class FileManager:
                 raise ValueError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
 
     @staticmethod
-    def get_module_name(file_name: str) -> str:
+    def get_file_name(file_name: str) -> str:
         """
         Extracts the module name from a file name.
 

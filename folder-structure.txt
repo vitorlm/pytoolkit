@@ -1,0 +1,73 @@
+.
+├── README.md
+├── folder-structure.txt
+├── logs
+│   ├── pytoolkit.log
+├── output.json
+├── poetry.lock
+├── pyproject.toml
+├── requirements.txt
+└── src
+    ├── __init__.py
+    ├── cli_loader.py
+    ├── config.py
+    ├── domains
+    │   ├── __init__.py
+    │   ├── personal_finance
+    │   │   ├── __init__.py
+    │   │   └── payroll_statement
+    │   │       ├── __init__.py
+    │   │       ├── payroll_process.py
+    │   │       └── payroll_statement_processor.py
+    │   └── syngenta
+    │       ├── __init__.py
+    │       ├── ag_operation
+    │       │   ├── __init__.py
+    │       │   ├── config.py
+    │       │   ├── copy_data.py
+    │       │   └── docker-compose.yml
+    │       ├── competencies_matrix
+    │       │   ├── Dockerfile
+    │       │   ├── Modelfile
+    │       │   ├── __init__.py
+    │       │   ├── core
+    │       │   │   ├── __init__.py
+    │       │   │   ├── config.py
+    │       │   │   ├── health_check.py
+    │       │   │   ├── indicators.py
+    │       │   │   ├── member.py
+    │       │   │   ├── statistics.py
+    │       │   │   ├── task.py
+    │       │   │   └── validations.py
+    │       │   ├── docker-compose.yml
+    │       │   ├── entrypoint.sh
+    │       │   ├── process_matrix.py
+    │       │   ├── processors
+    │       │   │   ├── __init__.py
+    │       │   │   ├── base_processor.py
+    │       │   │   ├── competency_processor.py
+    │       │   │   ├── health_check_processor.py
+    │       │   │   └── task_processor.py
+    │       │   └── services
+    │       │       ├── __init__.py
+    │       │       ├── competency_analyzer.py
+    │       │       └── feedback_specialist.py
+    │       └── jira
+    │           └── __init__.py
+    ├── log_config.py
+    ├── main.py
+    └── utils
+        ├── __init__.py
+        ├── base_command.py
+        ├── cache_manager.py
+        ├── dynamodb_manager.py
+        ├── error_manager.py
+        ├── excel_manager.py
+        ├── file_manager.py
+        ├── jira_manager.py
+        ├── json_manager.py
+        ├── logging_manager.py
+        ├── ollama_assistant.py
+        └── string_utils.py
+
+14 directories, 71 files

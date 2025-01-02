@@ -167,6 +167,40 @@ class LogManager:
 
     _instance = None
 
+    @staticmethod
+    def initialize(
+        log_dir: str,
+        log_file: str,
+        log_retention_hours: int,
+        default_level: LogLevel = LogLevel.INFO,
+        use_filter: bool = False,
+    ):
+        """
+        Initializes the singleton instance of LogManager.
+
+        Args:
+            log_dir (str): Directory where log files are saved.
+            log_file (str): Name of the log file.
+            log_retention_hours (int): Retention period for old logs in hours.
+            default_level (LogLevel): Default logging level. Defaults to LogLevel.INFO.
+            use_filter (bool): Whether to use level-based filtering. Defaults to False.
+        """
+        if LogManager._instance is None:
+            LogManager._instance = LogManager(
+                log_dir, log_file, log_retention_hours, default_level, use_filter
+            )
+
+    @staticmethod
+    def get_instance():
+        """
+        Returns the singleton instance of LogManager.
+        """
+        if LogManager._instance is None:
+            raise RuntimeError(
+                "LogManager is not initialized. Call `LogManager.initialize()` first."
+            )
+        return LogManager._instance
+
     def __new__(cls, *args, **kwargs):
         if cls._instance is None:
             cls._instance = super(LogManager, cls).__new__(cls)
@@ -269,9 +303,10 @@ class LogManager:
         Retrieves or creates a logger instance.
 
         Args:
-            name (Optional[str]): The base name of the logger. Defaults to None, which uses the main logger name.
-            module_name (Optional[str]): The name of the module for the logger. If provided, the logger will
-                include the module name.
+            name (Optional[str]): The base name of the logger. Defaults to None, which uses the
+                                  main logger name.
+            module_name (Optional[str]): The name of the module for the logger. If provided,
+                                         the logger will include the module name.
 
         Returns:
             Logger: The configured logger instance.
@@ -293,8 +328,8 @@ class LogManager:
 
         return logger
 
+    @staticmethod
     def add_custom_handler(
-        self,
         logger_name: str,
         formatter: Optional[logging.Formatter] = None,
         replace_existing: bool = False,
@@ -306,16 +341,21 @@ class LogManager:
 
         Args:
             logger_name (str): The name of the logger to add the handler to.
-            formatter (Optional[logging.Formatter]): Formatter to apply to the custom handler. Defaults to None.
-            replace_existing (bool): If True, removes existing handlers before adding the new one. Defaults to False.
-            disable_propagation (bool): If True, disables propagation to the root logger. Defaults to True.
-            handler_id (Optional[str]): Unique identifier for the handler, for managing multiple handlers. Defaults to None.
+            formatter (Optional[logging.Formatter]): Formatter to apply to the custom handler.
+                                                     Defaults to None.
+            replace_existing (bool): If True, removes existing handlers before adding the new one.
+                                     Defaults to False.
+            disable_propagation (bool): If True, disables propagation to the root logger.
+                                        Defaults to True.
+            handler_id (Optional[str]): Unique identifier for the handler,
+                                        for managing multiple handlers. Defaults to None.
 
         Raises:
             ValueError: If the logger cannot be retrieved or created.
         """
         try:
-            logger = self.get_logger(name=logger_name)
+            log_manager = LogManager.get_instance()
+            logger = log_manager.get_logger(logger_name)
             if not logger:
                 raise ValueError(f"Logger with name '{logger_name}' could not be found or created.")
 
@@ -330,9 +370,9 @@ class LogManager:
 
             # Store the handler with a unique identifier
             if handler_id:
-                self.custom_handlers[handler_id] = handler
+                log_manager.custom_handlers[handler_id] = handler
 
-            logger.setLevel(self.default_level)
+            logger.setLevel(log_manager.default_level)
             logger.addHandler(handler)
 
             if disable_propagation:

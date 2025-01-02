@@ -11,7 +11,7 @@ class ExcelManager:
     """
 
     @staticmethod
-    def read_excel(file_path: str, sheet_name: Optional[str] = None) -> pd.DataFrame:
+    def read_excel(file_path: str) -> pd.DataFrame:
         """
         Reads an Excel file and returns the specified sheet as a DataFrame.
 
@@ -29,7 +29,7 @@ class ExcelManager:
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Excel file not found: {file_path}")
 
-        return pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine="calamine")
+        return pd.ExcelFile(file_path, engine="calamine")
 
     @staticmethod
     def write_excel(data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1") -> None:
@@ -177,6 +177,6 @@ class ExcelManager:
         Returns:
             List[List[Union[str, None]]]: Sheet data as rows of values.
         """
-        df = ExcelManager.read_excel(file_path, sheet_name)
+        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine="calamine")
         df_filled = df.fillna("")
         return df_filled.values.tolist()

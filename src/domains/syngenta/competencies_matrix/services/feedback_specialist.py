@@ -1,16 +1,12 @@
-import os
 from typing import Dict, List, Optional, Union
 
 from langdetect import detect_langs
 
-from log_config import log_manager
+from utils.logging_manager import LogManager
 from utils.ollama_assistant import OllamaAssistant
 
-# Module name
-module_name = os.path.splitext(os.path.basename(__file__))[0]
-
 # Configure logger
-logger = log_manager.get_logger(module_name)
+logger = LogManager.get_instance().get_logger("FeedbackSpecialist")
 
 
 class FeedbackSpecialist(OllamaAssistant):
@@ -89,14 +85,19 @@ class FeedbackSpecialist(OllamaAssistant):
             {
                 "role": "system",
                 "content": (
-                    "You are an HR feedback specialist focusing on software engineering competencies. "
-                    "Your task is to analyze the provided information and generate a comprehensive evaluation of "
-                    "the individual's performance, highlighting their overall strengths, areas for growth, and potential "
-                    "for development. The feedback should be written in a cohesive and explanatory manner, avoiding direct "
-                    "references to specific criteria or indicators. "
-                    "Ensure the response is professional, detailed, and captures the nuances of their performance. "
-                    "Provide all feedback in English, regardless of the input language. The response should not include bullet "
-                    "points, lists, or segmented sections, and instead flow naturally as a narrative."
+                    "You are an HR feedback specialist focusing on software engineering "
+                    "competencies. "
+                    "Your task is to analyze the provided information and generate a "
+                    "comprehensive evaluation of the individual's performance, highlighting "
+                    "their overall strengths, areas for growth, and potential for development. "
+                    "The feedback should be written in a cohesive and explanatory manner, "
+                    "avoiding direct references to specific criteria or indicators. "
+                    "Ensure the response is professional, detailed, and captures the nuances "
+                    "of their performance. "
+                    "Provide all feedback in English, regardless of the input language. "
+                    "The response should not include bullet "
+                    "points, lists, or segmented sections, and instead flow naturally "
+                    "as a narrative."
                 ),
             },
             {
@@ -143,7 +144,8 @@ class FeedbackSpecialist(OllamaAssistant):
                     {
                         "role": "system",
                         "content": (
-                            "Based on the feedback, provide actionable growth recommendations for the individual."
+                            "Based on the feedback, provide actionable growth recommendations for "
+                            "the individual."
                             " Include:\n"
                             "- Short-term actions (1-3 months)\n"
                             "- Medium-term goals (3-6 months)\n"
@@ -153,7 +155,8 @@ class FeedbackSpecialist(OllamaAssistant):
                     {"role": "assistant", "content": feedback},
                     {
                         "role": "user",
-                        "content": f"What specific growth recommendations would you suggest for {member_name}?",
+                        "content": "What specific growth recommendations "
+                        f"would you suggest for {member_name}?",
                     },
                 ]
 
@@ -237,7 +240,8 @@ class FeedbackSpecialist(OllamaAssistant):
             key in team_comparison for key in ["average", "highest", "lowest"]
         ):
             raise ValueError(
-                "team_comparison must be a dictionary containing 'average', 'highest', and 'lowest'."
+                "team_comparison must be a dictionary containing 'average', 'highest', "
+                "and 'lowest'."
             )
 
         if not evidence_list:
@@ -251,7 +255,8 @@ class FeedbackSpecialist(OllamaAssistant):
         )
 
         self.logger.info(
-            f"Summarizing evidence for {evaluatee_name} on indicator: {indicator} in criteria: {criteria}."
+            f"Summarizing evidence for {evaluatee_name} on indicator: {indicator} "
+            f"in criteria: {criteria}."
         )
 
         # Constructing prompt for summarization
@@ -259,8 +264,9 @@ class FeedbackSpecialist(OllamaAssistant):
             {
                 "role": "system",
                 "content": (
-                    f"You are an expert in evaluating and summarizing performance evidence. Your task is to analyze the "
-                    f"evidence provided for the indicator '{indicator}' within the criterion '{criteria}' for the individual "
+                    "You are an expert in evaluating and summarizing performance evidence. "
+                    "Your task is to analyze the evidence provided for the indicator "
+                    f"'{indicator}' within the criterion '{criteria}' for the individual "
                     f"'{evaluatee_name}'. Use the following data for context:\n"
                     f"- Average Level: {average}\n"
                     f"- Highest Level: {highest}\n"
@@ -268,11 +274,13 @@ class FeedbackSpecialist(OllamaAssistant):
                     f"- Team Comparison (Average): {team_comparison['average']}\n"
                     f"- Team Comparison (Highest): {team_comparison['highest']}\n"
                     f"- Team Comparison (Lowest): {team_comparison['lowest']}\n"
-                    f"Your summary should highlight how each piece of evidence justifies the assigned level, reflect the "
-                    f"individual's performance relative to the team's metrics, and identify any notable patterns or trends. "
-                    f"Ensure the summary is detailed, capturing the nuances of the evidence, and provides a clear and "
-                    f"comprehensive evaluation of {evaluatee_name}'s performance. Avoid introductions or additional context, "
-                    f"and focus solely on summarizing the evidence effectively."
+                    "Your summary should highlight how each piece of evidence justifies "
+                    "the assigned level, reflect the individual's performance relative to "
+                    "the team's metrics, and identify any notable patterns or trends. "
+                    "Ensure the summary is detailed, capturing the nuances of the evidence, "
+                    f"and provides a clear and comprehensive evaluation of {evaluatee_name}'s "
+                    "performance. Avoid introductions or additional context, "
+                    "and focus solely on summarizing the evidence effectively."
                 ),
             },
             {
@@ -288,7 +296,8 @@ class FeedbackSpecialist(OllamaAssistant):
             return summary
         except Exception as e:
             self.logger.error(
-                f"Error summarizing evidence for {evaluatee_name} on indicator '{indicator}' in criteria '{criteria}': {e}",
+                f"Error summarizing evidence for {evaluatee_name} on indicator '{indicator}' "
+                f"in criteria '{criteria}': {e}",
                 exc_info=True,
             )
             return f"Error summarizing evidence for {evaluatee_name}: {e}"
@@ -330,14 +339,17 @@ class FeedbackSpecialist(OllamaAssistant):
 
         Args:
             evidence (str): The evidence text to be translated.
-            expected_language_code (str): The expected language for the translation. Must be one of 'en', 'es', or 'pt'.
-                                    Default is 'en' (English).
+            expected_language_code (str): The expected language for the translation.
+                                          Must be one of 'en', 'es', or 'pt'.
+                                          Default is 'en' (English).
 
         Returns:
-            str: The translated evidence text if translation was necessary, otherwise the original evidence text.
+            str: The translated evidence text if translation was necessary,
+                 otherwise the original evidence text.
 
         Raises:
-            ValueError: If the evidence is not a string or if the expected_language is not one of 'en', 'es', or 'pt'.
+            ValueError: If the evidence is not a string or if the expected_language
+                        is not one of 'en', 'es', or 'pt'.
         """
         if not isinstance(evidence, str):
             raise ValueError("evidence must be a string.")
