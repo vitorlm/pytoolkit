@@ -1,21 +1,22 @@
-from typing import List, Optional, Dict
-import numpy as np
+from typing import List, Dict, Optional
+from pydantic import BaseModel, Field
 from log_config import LogManager
-from .indicators import Indicator
-import statistics
 
+from .indicators import Indicator
+import numpy as np
+import statistics
 
 # Configure logger
 logger = LogManager.get_instance().get_logger("StatisticsHelper")
 
 
-class BaseStatistics:
+class BaseStatistics(BaseModel):
     """
     Base class to store shared statistical attributes and methods.
     """
 
-    overall_levels: List[int] = []
-    criteria_stats: Dict[str, Dict] = {}
+    overall_levels: List[int] = Field(default_factory=list)
+    criteria_stats: Dict[str, Dict] = Field(default_factory=dict)
     average_level: float = 0.0
     highest_level: int = 0
     lowest_level: int = 0
@@ -41,7 +42,7 @@ class TeamStatistics(BaseStatistics):
         outliers: Dictionary of identified outliers and their statistics.
     """
 
-    outliers: Dict = {}
+    outliers: Dict = Field(default_factory=dict)
 
 
 class IndividualStatistics(BaseStatistics):
@@ -54,7 +55,9 @@ class IndividualStatistics(BaseStatistics):
     """
 
     weighted_average: float = 0.0
-    insights = {"strengths": [], "opportunities": []}
+    insights: Dict[str, List[Dict[str, str]]] = Field(
+        default_factory=lambda: {"strengths": [], "opportunities": []}
+    )
 
     def _calculate_weighted_average(self, criteria_weights: Dict[str, float]) -> None:
         """
@@ -127,8 +130,7 @@ class StatisticsHelper:
             logger.warning("Invalid input for correlation calculation.")
             return None
 
-        levels = [indicator.level for indicator in indicators]
-        correlation = np.corrcoef(levels, reference)[0, 1]
+        correlation = np.corrcoef(indicators, reference)[0, 1]
         logger.info(f"Computed correlation: {correlation}")
         return round(correlation, 2)
 

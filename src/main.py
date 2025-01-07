@@ -1,8 +1,7 @@
-import argparse
-from cli_loader import load_commands
 from utils.error_manager import handle_generic_exception
 from log_config import LogManager
 import os
+from utils.command_manager import CommandManager
 
 logger = LogManager.get_instance().get_logger("CLI")
 
@@ -12,22 +11,21 @@ def main():
     Entry point for the CLI application. Loads commands dynamically and executes
     the requested command.
     """
-    parser = argparse.ArgumentParser(description="CLI tool for dynamic commands.")
-    # Ensure the base path is relative to this script's location
-    commands_base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "domains"))
 
-    # Load commands dynamically from the base path
-    try:
-        load_commands(parser, commands_base_path)
-    except ValueError as e:
-        logger.error(f"Failed to load commands: {e}")
-        return
+    command_manager = CommandManager(os.path.join(os.path.dirname(__file__), "domains"))
+    command_manager.load_commands()
+    parser = command_manager.build_parser()
 
     # Parse command-line arguments
-    args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
 
-    # If no command is provided, print the help message
-    if not hasattr(args, "func"):
+    # Handle global or hierarchical help
+    if "help" in unknown:
+        parser.print_help()
+        return
+
+    # If no command is provided, show general help
+    if not hasattr(args, "func") or args.func is None:
         parser.print_help()
         return
 

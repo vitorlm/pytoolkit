@@ -13,7 +13,7 @@ class JiraAssistant:
     """
 
     _logger = LogManager.get_instance().get_logger("JiraAssistant")
-    _cache_manager = CacheManager.get_instance()
+    # _cache_manager = CacheManager.get_instance()
 
     def __init__(self, cache_expiration: int = 60):
         """
@@ -23,7 +23,7 @@ class JiraAssistant:
             client_type (str): The type of Jira client to use.
             cache_expiration (int): Cache expiration time in minutes.
         """
-        self.cache_manager = CacheManager()
+        # self.cache_manager = CacheManager()
         self.cache_expiration = cache_expiration
 
     def _generate_cache_key(self, prefix: str, **kwargs) -> str:

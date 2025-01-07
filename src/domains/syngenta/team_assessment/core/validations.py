@@ -1,8 +1,8 @@
 from typing import Any, Dict, List, Union, Optional
 from utils.logging_manager import LogManager
 from utils.error_manager import handle_generic_exception
-from utils.cache_manager import CacheManager
 from .indicators import Indicator
+from .health_check import FeedbackAssessment
 
 # Initialize logger
 logger = LogManager.get_instance().get_logger("ValidationHelper")
@@ -154,34 +154,29 @@ class ValidationHelper:
         Raises:
             ValidationError: If health check data does not meet the expected structure.
         """
-        cache_key = "health_check_validation"
-        cache_manager = CacheManager.get_instance()
-
-        logger.info("Starting validation for health check data.")
-
-        # Try to load from cache
-        cached_data = cache_manager.load(cache_key)
-        if cached_data:
-            logger.info("Using cached validation result for health check data.")
-            return
-
         try:
             if not isinstance(health_check_data, list):
                 raise ValidationError("Health check data must be a list of dictionaries.")
 
             for entry in health_check_data:
-                if not isinstance(entry, dict):
-                    raise ValidationError("Each health check entry must be a dictionary.")
-                if "date" not in entry or not isinstance(entry["date"], str):
-                    raise ValidationError("Each health check entry must have a string 'date'.")
-                if "effort" in entry and not isinstance(entry["effort"], int):
+                if not isinstance(entry, FeedbackAssessment):
+                    raise ValidationError(
+                        "Each health check entry must be an instance of FeedbackAssessment."
+                    )
+                if hasattr(entry, "impact") and entry.impact and not isinstance(entry.impact, int):
+                    raise ValidationError("'impact' must be an integer if present")
+                if hasattr(entry, "effort") and entry.effort and not isinstance(entry.effort, int):
                     raise ValidationError("'effort' must be an integer if present.")
-                if "morale" in entry and not isinstance(entry["morale"], int):
+                if hasattr(entry, "morale") and entry.morale and not isinstance(entry.morale, int):
                     raise ValidationError("'morale' must be an integer if present.")
+                if (
+                    hasattr(entry, "retention")
+                    and entry.retention
+                    and not isinstance(entry.retention, int)
+                ):
+                    raise ValidationError("'retention' must be an integer if present.")
 
             logger.info("Health check data validation completed successfully.")
 
-            # Save validation in cache
-            cache_manager.save(cache_key, {"status": "validated"})
         except Exception as e:
             handle_generic_exception(e, "Error validating health check data")

@@ -84,7 +84,13 @@ class TaskProcessor(BaseProcessor):
         header_map = {}
         for row_idx in range(Config.ROW_HEADER_START, Config.ROW_HEADER_END + 1):
             for col_idx, cell_value in enumerate(sheet_data[row_idx - 1]):
-                if cell_value.lower() in ["code", "jira", "subject", "type"]:
+                # Ensure cell_value is a string before calling .lower()
+                if isinstance(cell_value, str) and cell_value.lower() in [
+                    "code",
+                    "jira",
+                    "subject",
+                    "type",
+                ]:
                     header_map[cell_value.lower()] = col_idx
                     if len(header_map) == 4:
                         return header_map
@@ -166,7 +172,11 @@ class TaskProcessor(BaseProcessor):
         task_codes = {cell for cell in task_row[col_start_idx:col_end_idx] if cell}
 
         tasks_to_remove = {t.lower() for t in Config.TASKS_TO_IGNORE or []}
-        filtered_task_codes = {code for code in task_codes if code.lower() not in tasks_to_remove}
+        filtered_task_codes = {
+            code
+            for code in task_codes
+            if isinstance(code, str) and code.lower() not in tasks_to_remove
+        }
 
         matched_tasks = {task for task in tasks_backlog if task.code in filtered_task_codes}
 

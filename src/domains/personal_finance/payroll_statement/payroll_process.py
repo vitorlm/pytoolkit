@@ -1,53 +1,62 @@
-import argparse
-import os
-from .payroll_statement_processor import PayrollStatementProcessor
+from argparse import ArgumentParser, Namespace
+from utils.base_command import BaseCommand
 from utils.json_manager import JSONManager
-from log_config import log_manager
 from utils.file_manager import FileManager
+from log_config import LogManager
+from .payroll_statement_processor import PayrollStatementProcessor
 
 # Configure logger
-logger = log_manager.get_logger(module_name=os.path.splitext(os.path.basename(__file__))[0])
+logger = LogManager.get_instance().get_logger("PayrollProcessCommand")
 
 
-def get_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--input",
-        type=str,
-        required=False,
-        help="Path to a single PDF file or a folder containing PDF files",
-    )
-    parser.add_argument("--output", type=str, required=True, help="Path to the output JSON file")
-
-
-def main(args: argparse.Namespace) -> None:
+class PayrollProcessCommand(BaseCommand):
     """
-    Main function to process payroll statements and save the extracted data as JSON.
+    Command to process payroll statements into JSON format.
     """
 
-    processor = PayrollStatementProcessor()
-    try:
-        if FileManager.is_folder(args.input):
-            data = processor.process_folder(args.input)
-        else:
-            data = processor.process_pdf(args.input)
+    @staticmethod
+    def get_name() -> str:
+        return "payroll_process"
 
-        JSONManager.write_json(data, args.output)
-        log_manager.get_logger(module_name="payroll_statement_main").info(
-            f"Payroll statement data saved to {args.output}"
+    @staticmethod
+    def get_description() -> str:
+        return "Processes payroll statements and extracts data into a JSON file."
+
+    @staticmethod
+    def get_help() -> str:
+        return (
+            "This command processes payroll statements from PDFs in a folder or single file "
+            "and outputs the extracted data in JSON format."
         )
-    except Exception as e:
-        log_manager.get_logger(module_name="payroll_statement_main").error(
-            f"An error occurred: {e}", exc_info=True
+
+    @staticmethod
+    def get_arguments(parser: ArgumentParser) -> None:
+        parser.add_argument(
+            "--input",
+            type=str,
+            required=False,
+            help="Path to a single PDF file or a folder containing payroll PDFs.",
         )
-        raise
+        parser.add_argument(
+            "--output",
+            type=str,
+            required=True,
+            help="Path to save the extracted payroll data as JSON.",
+        )
 
+    @staticmethod
+    def main(args: Namespace) -> None:
+        processor = PayrollStatementProcessor()
+        try:
+            if FileManager.is_folder(args.input):
+                logger.debug(f"Processing all files in folder: {args.input}")
+                data = processor.process_folder(args.input)
+            else:
+                logger.debug(f"Processing single file: {args.input}")
+                data = processor.process_pdf(args.input)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process competencies matrix")
-    get_arguments(parser)
-    args = parser.parse_args()
-
-    try:
-        main(args)
-    except Exception as e:
-        logger.critical(f"Critical failure in process_matrix: {e}", exc_info=True)
+            JSONManager.write_json(data, args.output)
+            logger.info(f"Payroll data successfully saved to {args.output}")
+        except Exception as e:
+            logger.error(f"An error occurred during payroll processing: {e}", exc_info=True)
+            raise
