@@ -1,5 +1,5 @@
 from argparse import ArgumentParser, Namespace
-from utils.base_command import BaseCommand
+from utils.command.base_command import BaseCommand
 from log_config import LogManager
 from .assessment_generator import AssessmentGenerator
 

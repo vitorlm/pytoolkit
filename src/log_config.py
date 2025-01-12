@@ -1,7 +1,7 @@
 import logging
 
 from config import Config
-from utils.logging_manager import LogLevel, LogManager
+from utils.logging.logging_manager import LogLevel, LogManager
 
 # Map log levels from .env to LogLevel Enum
 LOG_LEVEL_MAP = {

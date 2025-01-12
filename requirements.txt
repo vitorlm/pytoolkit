@@ -4,8 +4,12 @@ black==24.10.0
 boto3==1.35.67
 botocore==1.35.67
 certifi==2024.8.30
+cffi==1.17.1
+charset-normalizer==3.4.1
 click==8.1.8
+cryptography==44.0.0
 et_xmlfile==2.0.0
+filelock==3.16.1
 flake8==6.1.0
 h11==0.14.0
 httpcore==1.0.7
@@ -23,16 +27,23 @@ openpyxl==3.1.5
 packaging==24.2
 pandas==2.2.3
 pathspec==0.12.1
+pdfminer.six==20231228
+pdfplumber==0.11.4
+pillow==11.0.0
 platformdirs==4.3.6
 pycodestyle==2.11.1
+pycparser==2.22
 pydantic==2.10.3
 pydantic_core==2.27.1
 pyflakes==3.1.0
+PyPDF2==3.0.1
+pypdfium2==4.30.1
 python-calamine==0.3.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
--e git+https://github.com/vitorlm/pytoolkit.git@c58bd0b77b3022bea583e45152ad9f9c1c98312d#egg=PyToolkit
+-e git+https://github.com/vitorlm/pytoolkit.git@cfb998432086180f09bb65678c25c79dce1defa4#egg=PyToolkit
 pytz==2024.2
+requests==2.32.3
 s3transfer==0.10.4
 six==1.16.0
 sniffio==1.3.1

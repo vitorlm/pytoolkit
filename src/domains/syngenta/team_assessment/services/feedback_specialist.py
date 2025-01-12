@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Union
 
 from langdetect import detect_langs
 
-from utils.logging_manager import LogManager
+from utils.logging.logging_manager import LogManager
 from utils.ollama_assistant import OllamaAssistant
 
 # Configure logger

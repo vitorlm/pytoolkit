@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Dict, List, Union, Set
-from utils.excel_manager import ExcelManager
+from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 from ..core.config import Config
 from .base_processor import BaseProcessor

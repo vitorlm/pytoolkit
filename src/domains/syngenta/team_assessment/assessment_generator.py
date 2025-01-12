@@ -1,6 +1,6 @@
-from utils.json_manager import JSONManager
+from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
-from utils.logging_manager import LogManager
+from utils.logging.logging_manager import LogManager
 from utils.string_utils import StringUtils
 
 from .processors.task_processor import TaskProcessor

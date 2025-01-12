@@ -7,7 +7,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from utils.logging_manager import LogManager
+from utils.logging.logging_manager import LogManager
 
 
 class CompositeKey:

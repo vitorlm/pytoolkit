@@ -1,7 +1,7 @@
-from utils.error_manager import handle_generic_exception
+from utils.error.error_manager import handle_generic_exception
 from log_config import LogManager
 import os
-from utils.command_manager import CommandManager
+from utils.command.command_manager import CommandManager
 
 logger = LogManager.get_instance().get_logger("CLI")
 

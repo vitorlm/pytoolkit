@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Union, Optional
-from utils.logging_manager import LogManager
-from utils.error_manager import handle_generic_exception
+from utils.logging.logging_manager import LogManager
+from utils.error.error_manager import handle_generic_exception
 from .indicators import Indicator
 from .health_check import FeedbackAssessment
 

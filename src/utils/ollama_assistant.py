@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 
 from ollama import ChatResponse, Client, ResponseError
 
-from utils.logging_manager import LogManager
+from utils.logging.logging_manager import LogManager
 
 
 class OllamaAssistant:

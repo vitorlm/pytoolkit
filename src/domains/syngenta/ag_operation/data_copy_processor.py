@@ -1,5 +1,5 @@
-from utils.dynamodb_manager import DynamoDBManager, CompositeKey
-from utils.logging_manager import LogManager
+from utils.data.dynamodb_manager import DynamoDBManager, CompositeKey
+from utils.logging.logging_manager import LogManager
 from typing import List
 
 # Configure logger

@@ -10,7 +10,7 @@ from ..core.health_check import (
     MemberHealthCheck,
 )
 from ..core.validations import ValidationHelper
-from utils.excel_manager import ExcelManager
+from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 
 

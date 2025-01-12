@@ -5,7 +5,7 @@ import pandas as pd
 from .base_processor import BaseProcessor
 from ..core.indicators import IndicatorStatistics, Indicator
 from ..core.validations import ValidationHelper
-from utils.excel_manager import ExcelManager
+from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 
 # Type aliases for better readability

@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, Namespace
-from utils.base_command import BaseCommand
-from utils.json_manager import JSONManager
+from utils.command.base_command import BaseCommand
+from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
 from log_config import LogManager
 from .payroll_statement_processor import PayrollStatementProcessor

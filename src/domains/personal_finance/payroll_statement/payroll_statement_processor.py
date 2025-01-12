@@ -3,7 +3,7 @@ from utils.file_manager import FileManager
 import re
 import pdfplumber
 
-from utils.logging_manager import LogManager
+from utils.logging.logging_manager import LogManager
 
 
 class PayrollStatementProcessor:

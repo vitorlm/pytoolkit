@@ -205,3 +205,6 @@ out/
 cache/
 logs/
 output.json
+
+*.json.lock
+*.json.bak

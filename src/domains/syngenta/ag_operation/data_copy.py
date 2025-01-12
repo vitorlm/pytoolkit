@@ -1,7 +1,7 @@
 from argparse import ArgumentParser, Namespace
-from utils.base_command import BaseCommand
+from utils.command.base_command import BaseCommand
 from .data_copy_processor import DataCopyProcessor
-from utils.dynamodb_manager import DynamoDBManager
+from utils.data.dynamodb_manager import DynamoDBManager
 from log_config import LogManager
 from .config import Config
 

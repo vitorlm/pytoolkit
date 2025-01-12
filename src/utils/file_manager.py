@@ -1,12 +1,12 @@
 import datetime
 import os
-import shutil
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 class FileManager:
     """
-    General file management operations including listing and deleting files.
+    General file management operations including listing, reading, deleting files,
+    and retrieving metadata.
     """
 
     @staticmethod
@@ -53,7 +53,7 @@ class FileManager:
             return file.readlines()
 
     @staticmethod
-    def delete_file(file_path: str):
+    def delete_file(file_path: str) -> None:
         """
         Deletes a file.
 
@@ -69,61 +69,105 @@ class FileManager:
             raise FileNotFoundError(f"File not found: {file_path}")
 
     @staticmethod
+    def batch_delete_files(file_paths: List[str]) -> None:
+        """
+        Deletes multiple files at once.
+
+        Args:
+            file_paths (List[str]): List of file paths to delete.
+
+        Raises:
+            FileNotFoundError: If any file in the list does not exist.
+        """
+        for file_path in file_paths:
+            FileManager.delete_file(file_path)
+
+    @staticmethod
     def generate_file_name(
         module: Optional[str] = None,
         suffix: Optional[str] = None,
         extension: str = ".txt",
         include_timestamp: bool = True,
         timestamp_format: str = "%Y%m%d%H%M%S",
-        is_log_file: bool = False,
     ) -> str:
         """
         Generates a standardized and flexible file name.
 
         Args:
-            module (Optional[str]): Name of the module or context (e.g., "logs", "reports").
-            suffix (Optional[str]): Additional identifier or purpose for the file
-                                   (e.g., "error", "summary").
-            extension (str): File extension including the dot (e.g., ".log", ".json").
-                             Default is ".txt".
-            include_timestamp (bool): Whether to include a timestamp in the file name.
-                                      Default is True.
-            timestamp_format (str): Format for the timestamp, following `datetime.strftime`
-                                    conventions.
-                                    Default is "%Y%m%d%H%M%S".
-            is_log_file (bool): If True, generates a log file name with a standard format.
+            module (Optional[str]): Module or context name.
+            suffix (Optional[str]): Additional identifier.
+            extension (str): File extension (e.g., ".log").
+            include_timestamp (bool): Whether to include a timestamp.
+            timestamp_format (str): Format for the timestamp.
 
         Returns:
             str: The generated file name.
+        """
+        if not extension.startswith("."):
+            raise ValueError("Extension must start with a dot.")
+        parts = [
+            module.replace(" ", "_") if module else None,
+            datetime.datetime.now().strftime(timestamp_format) if include_timestamp else None,
+            suffix.replace(" ", "_") if suffix else None,
+        ]
+        return "_".join(filter(None, parts)) + extension
+
+    @staticmethod
+    def retrieve_metadata(file_path: str) -> Dict[str, str]:
+        """
+        Retrieves metadata of a file.
+
+        Args:
+            file_path (str): Path to the file.
+
+        Returns:
+            Dict[str, str]: File metadata including size, creation, and modification date.
 
         Raises:
-            ValueError: If `extension` is invalid.
+            FileNotFoundError: If the file does not exist.
         """
-        # If is_log_file is True, enforce standard log file naming
-        if is_log_file:
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            return f"log_{timestamp}.log"
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        stats = os.stat(file_path)
+        return {
+            "size": f"{stats.st_size} bytes",
+            "created": datetime.datetime.fromtimestamp(stats.st_ctime).isoformat(),
+            "modified": datetime.datetime.fromtimestamp(stats.st_mtime).isoformat(),
+        }
 
-        # Validate inputs
-        if not extension.startswith("."):
-            raise ValueError("Extension must start with a dot (e.g., '.txt').")
+    @staticmethod
+    def create_folder(folder_path: str, exist_ok: bool = True) -> None:
+        """
+        Creates a folder.
 
-        # Sanitize inputs to avoid illegal characters in file names
-        module = module.strip().replace(" ", "_") if module else None
-        suffix = suffix.strip().replace(" ", "_") if suffix else None
+        Args:
+            folder_path (str): Path of the folder to create.
+            exist_ok (bool): If True, suppresses errors if the folder exists.
 
-        # Determine parts of the file name
-        timestamp = datetime.datetime.now().strftime(timestamp_format) if include_timestamp else ""
-        parts = []
-        if module:
-            parts.append(module)
-        if timestamp:
-            parts.append(timestamp)
-        if suffix:
-            parts.append(suffix)
+        Raises:
+            OSError: If the folder cannot be created.
+        """
+        os.makedirs(folder_path, exist_ok=exist_ok)
 
-        # Join parts and append the extension
-        return "_".join(parts) + extension
+    @staticmethod
+    def validate_file(file_path: str, allowed_extensions: Optional[List[str]] = None) -> None:
+        """
+        Validates file existence and extension.
+
+        Args:
+            file_path (str): Path to the file.
+            allowed_extensions (Optional[List[str]]): Valid extensions.
+
+        Raises:
+            FileNotFoundError: If the file does not exist.
+            ValueError: If the file extension is invalid.
+        """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+        if allowed_extensions:
+            _, ext = os.path.splitext(file_path)
+            if ext.lower() not in allowed_extensions:
+                raise ValueError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
 
     @staticmethod
     def is_folder(path: str) -> bool:
@@ -139,64 +183,6 @@ class FileManager:
         return os.path.isdir(path)
 
     @staticmethod
-    def create_folder(folder_path: str, exist_ok: Optional[bool] = True) -> None:
-        """
-        Creates a directory.
-
-        Args:
-            folder_path (str): Path of the folder to create.
-            exist_ok (bool): If True, no error will be raised if the folder already exists.
-                             Default is True.
-
-        Raises:
-            OSError: If the directory cannot be created.
-        """
-        try:
-            os.makedirs(folder_path, exist_ok=exist_ok)
-        except OSError as e:
-            raise OSError(f"Failed to create directory '{folder_path}': {e}")
-
-    @staticmethod
-    def delete_folder(
-        folder_path: str,
-        recursive: Optional[bool] = False,
-        force: Optional[bool] = False,
-    ) -> None:
-        """
-        Deletes a directory.
-
-        Args:
-            folder_path (str): Path of the folder to delete.
-            recursive (bool): If True, delete the folder and all its contents. Default is False.
-            force (bool): If True, delete even if the folder contains files. Default is False.
-
-        Raises:
-            FileNotFoundError: If the folder does not exist.
-            OSError: If the folder cannot be deleted.
-        """
-        if not os.path.exists(folder_path):
-            raise FileNotFoundError(f"Folder not found: {folder_path}")
-
-        if recursive:
-            try:
-                shutil.rmtree(folder_path)
-            except OSError as e:
-                raise OSError(f"Failed to delete directory '{folder_path}' recursively: {e}")
-        else:
-            try:
-                if force:
-                    # Remove all files in the folder
-                    for file_name in os.listdir(folder_path):
-                        file_path = os.path.join(folder_path, file_name)
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                        elif os.path.isdir(file_path):
-                            raise OSError(f"Subdirectory found in non-recursive mode: {file_path}")
-                os.rmdir(folder_path)
-            except OSError as e:
-                raise OSError(f"Failed to delete directory '{folder_path}': {e}")
-
-    @staticmethod
     def validate_folder(folder_path: str) -> None:
         """
         Validates if a folder exists.
@@ -209,26 +195,6 @@ class FileManager:
         """
         if not os.path.exists(folder_path):
             raise FileNotFoundError(f"Folder not found: {folder_path}")
-
-    @staticmethod
-    def validate_file(file_path: str, allowed_extensions: Optional[List[str]] = None) -> None:
-        """
-        Validates if a file exists and optionally checks for allowed extensions.
-
-        Args:
-            file_path (str): Path to the file to validate.
-            allowed_extensions (Optional[List[str]]): List of allowed extensions.
-
-        Raises:
-            FileNotFoundError: If the file does not exist.
-            ValueError: If the file's extension is not allowed.
-        """
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found: {file_path}")
-        if allowed_extensions:
-            _, ext = os.path.splitext(file_path)
-            if ext.lower() not in allowed_extensions:
-                raise ValueError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
 
     @staticmethod
     def get_file_name(file_name: str) -> str:
