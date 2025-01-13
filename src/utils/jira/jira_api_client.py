@@ -109,14 +109,6 @@ class JiraApiClient:
             response.raise_for_status()
             logger.debug(f"PUT response: {response.json()}")
             return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"PUT request failed: {e}")
-            raise JiraApiRequestError(
-                message="Failed to execute PUT request",
-                endpoint=endpoint,
-                payload=payload,
-                status_code=response.status_code if "response" in locals() else None,
-            )
         except Exception as e:
             logger.error(f"PUT request failed: {e}")
             raise JiraApiRequestError(
