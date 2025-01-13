@@ -3,6 +3,7 @@ from requests.auth import HTTPBasicAuth
 from utils.jira.error import JiraApiRequestError
 from utils.logging.logging_manager import LogManager
 
+
 # Configure logging
 logger = LogManager.get_instance().get_logger("JiraApiClient")
 
@@ -28,6 +29,72 @@ class JiraApiClient:
             "Content-Type": "application/json",
         }
 
+    def _handle_response(self, response):
+        """
+        Handle the HTTP response from the Jira API.
+
+        Args:
+            response (requests.Response): The HTTP response object.
+
+        Returns:
+            dict or None: Parsed JSON response, or None if no content.
+
+        Raises:
+            JiraApiRequestError: For unexpected status codes or invalid responses.
+        """
+        logger.debug(f"HTTP Status: {response.status_code}")
+        logger.debug(f"Response Headers: {response.headers}")
+
+        if response.status_code == 204:
+            logger.info("Received 204 No Content.")
+            return None
+
+        if response.headers.get("Content-Type", "").startswith("application/json"):
+            try:
+                return response.json()
+            except ValueError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                logger.debug(f"Response Content: {response.content}")
+                raise JiraApiRequestError(
+                    message="Invalid JSON in response",
+                    endpoint=response.url,
+                    status_code=response.status_code,
+                )
+
+        # Handle unexpected content types
+        logger.warning(f"Unexpected content type: {response.headers.get('Content-Type')}")
+        return {"raw_response": response.content.decode("utf-8", errors="replace")}
+
+    def _request(self, method: str, endpoint: str, **kwargs):
+        """
+        Make an HTTP request to the Jira API.
+
+        Args:
+            method (str): HTTP method ('GET', 'POST', 'PUT', etc.).
+            endpoint (str): The API endpoint to call.
+
+        Returns:
+            dict or None: Parsed JSON response or None if no content.
+
+        Raises:
+            JiraApiRequestError: If the request fails or the response is invalid.
+        """
+        url = f"{self.base_url}{endpoint}"
+        try:
+            logger.info(f"Sending {method.upper()} request to {url} with kwargs {kwargs}")
+            response = requests.request(method, url, headers=self.headers, auth=self.auth, **kwargs)
+            response.raise_for_status()
+            return self._handle_response(response)
+        except requests.RequestException as e:
+            logger.error(f"{method.upper()} request failed: {e}")
+            raise JiraApiRequestError(
+                message=f"Failed to execute {method.upper()} request",
+                endpoint=endpoint,
+                params=kwargs.get("params"),
+                payload=kwargs.get("json"),
+                status_code=getattr(e.response, "status_code", None),
+            )
+
     def get(self, endpoint: str, params: dict = None):
         """
         Make a GET request to the Jira API.
@@ -37,26 +104,9 @@ class JiraApiClient:
             params (dict): Query parameters to include in the request (optional).
 
         Returns:
-            dict: The JSON response from the API.
-
-        Raises:
-            JiraApiRequestError: If the request fails.
+            dict or None: The JSON response from the API.
         """
-        url = f"{self.base_url}{endpoint}"
-        try:
-            logger.info(f"Sending GET request to {url} with params {params}")
-            response = requests.get(url, headers=self.headers, params=params, auth=self.auth)
-            response.raise_for_status()
-            logger.debug(f"GET response: {response.json()}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"GET request failed: {e}")
-            raise JiraApiRequestError(
-                message="Failed to execute GET request",
-                endpoint=endpoint,
-                params=params,
-                status_code=response.status_code if "response" in locals() else None,
-            )
+        return self._request("GET", endpoint, params=params)
 
     def post(self, endpoint: str, payload: dict):
         """
@@ -67,26 +117,9 @@ class JiraApiClient:
             payload (dict): The JSON payload to send in the request body.
 
         Returns:
-            dict: The JSON response from the API.
-
-        Raises:
-            JiraApiRequestError: If the request fails.
+            dict or None: The JSON response from the API.
         """
-        url = f"{self.base_url}{endpoint}"
-        try:
-            logger.info(f"Sending POST request to {url} with payload {payload}")
-            response = requests.post(url, headers=self.headers, json=payload, auth=self.auth)
-            response.raise_for_status()
-            logger.debug(f"POST response: {response.json()}")
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error(f"POST request failed: {e}")
-            raise JiraApiRequestError(
-                message="Failed to execute POST request",
-                endpoint=endpoint,
-                payload=payload,
-                status_code=response.status_code if "response" in locals() else None,
-            )
+        return self._request("POST", endpoint, json=payload)
 
     def put(self, endpoint: str, payload: dict):
         """
@@ -97,23 +130,6 @@ class JiraApiClient:
             payload (dict): The JSON payload to send in the request body.
 
         Returns:
-            dict: The JSON response from the API.
-
-        Raises:
-            JiraApiRequestError: If the request fails.
+            dict or None: The JSON response from the API.
         """
-        url = f"{self.base_url}{endpoint}"
-        try:
-            logger.info(f"Sending PUT request to {url} with payload {payload}")
-            response = requests.put(url, headers=self.headers, json=payload, auth=self.auth)
-            response.raise_for_status()
-            logger.debug(f"PUT response: {response.json()}")
-            return response.json()
-        except Exception as e:
-            logger.error(f"PUT request failed: {e}")
-            raise JiraApiRequestError(
-                message="An unexpected error occurred during PUT request",
-                endpoint=endpoint,
-                payload=payload,
-                status_code=None,
-            )
+        return self._request("PUT", endpoint, json=payload)
