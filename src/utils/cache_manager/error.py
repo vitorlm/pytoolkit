@@ -1,4 +1,4 @@
-from utils.error import BaseCustomError
+from utils.error.base_custom_error import BaseCustomError
 
 
 class CacheManagerError(BaseCustomError):

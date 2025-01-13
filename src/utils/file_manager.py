@@ -208,3 +208,16 @@ class FileManager:
             str: Module name extracted from the file name.
         """
         return os.path.splitext(os.path.basename(file_name))[0]
+
+    @staticmethod
+    def file_exists(file_path: str) -> bool:
+        """
+        Checks if a file exists.
+
+        Args:
+            file_path (str): Path to the file.
+
+        Returns:
+            bool: True if the file exists, False otherwise.
+        """
+        return os.path.isfile(file_path)

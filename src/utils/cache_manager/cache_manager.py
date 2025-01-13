@@ -2,6 +2,7 @@ import os
 from typing import Any, Optional
 from src.log_config import log_manager
 from utils.cache_manager.error import CacheManagerError
+from utils.cache_manager.file_cache import FileCacheBackend
 
 
 class CacheManager:
@@ -29,7 +30,7 @@ class CacheManager:
         Raises:
             CacheManagerError: If the backend is unsupported.
         """
-        if hasattr(self, "_initialized") and self._initialized:
+        if getattr(self, "_initialized", False):
             return  # Avoid reinitialization
 
         self.cache_backend = cache_backend
@@ -57,16 +58,39 @@ class CacheManager:
         try:
             if cache_backend == "file":
                 cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "../../cache")
-                raise CacheManagerError(
-                    f"Unsupported cache backend: {cache_backend}", backend=cache_backend
-                )
+
+                # Ensure the cache directory exists
+                os.makedirs(cache_dir, exist_ok=True)
+
+                return FileCacheBackend(cache_dir)
+
+            raise CacheManagerError(
+                f"Unsupported cache backend: {cache_backend}", backend=cache_backend
+            )
         except Exception as e:
+            self._logger.error(f"Failed to initialize backend '{cache_backend}': {e}")
             raise CacheManagerError(
                 f"Failed to initialize backend '{cache_backend}'",
                 backend=cache_backend,
                 cache_dir=cache_dir,
                 error=str(e),
             )
+
+    @classmethod
+    def get_instance(cls, *args, **kwargs):
+        """
+        Get the singleton instance of the CacheManager.
+
+        Args:
+            *args: Positional arguments for CacheManager initialization.
+            **kwargs: Keyword arguments for CacheManager initialization.
+
+        Returns:
+            CacheManager: The singleton instance of CacheManager.
+        """
+        if cls._instance is None:
+            cls._instance = cls(*args, **kwargs)
+        return cls._instance
 
     def load(self, key: str, expiration_minutes: Optional[int] = None) -> Optional[Any]:
         """
@@ -80,10 +104,11 @@ class CacheManager:
             Optional[Any]: The cached data if valid, otherwise None.
         """
         try:
+            self._logger.debug(f"Loading cache for key: {key}")
             return self._backend.load(key, expiration_minutes)
         except Exception as e:
             self._logger.error(f"Failed to load cache for key '{key}': {e}")
-            raise
+            raise CacheManagerError(f"Error loading cache for key '{key}'", error=str(e))
 
     def save(self, key: str, data: Any):
         """
@@ -94,10 +119,11 @@ class CacheManager:
             data (Any): The data to be cached.
         """
         try:
+            self._logger.debug(f"Saving data to cache for key: {key}")
             self._backend.save(key, data)
         except Exception as e:
             self._logger.error(f"Failed to save cache for key '{key}': {e}")
-            raise
+            raise CacheManagerError(f"Error saving cache for key '{key}'", error=str(e))
 
     def invalidate(self, key: str):
         """
@@ -107,7 +133,19 @@ class CacheManager:
             key (str): The cache key to invalidate.
         """
         try:
+            self._logger.debug(f"Invalidating cache for key: {key}")
             self._backend.invalidate(key)
         except Exception as e:
             self._logger.error(f"Failed to invalidate cache for key '{key}': {e}")
-            raise
+            raise CacheManagerError(f"Error invalidating cache for key '{key}'", error=str(e))
+
+    def clear_all(self):
+        """
+        Clears all cache entries for the backend.
+        """
+        try:
+            self._logger.debug("Clearing all cache entries")
+            self._backend.clear_all()
+        except Exception as e:
+            self._logger.error(f"Failed to clear cache: {e}")
+            raise CacheManagerError("Error clearing all cache entries", error=str(e))

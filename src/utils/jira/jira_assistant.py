@@ -1,13 +1,17 @@
 from datetime import datetime
+import hashlib
 from typing import Dict, List, Optional
+from utils.data.json_manager import JSONManager
+from utils.jira.jira_api_client import JiraApiClient
 from utils.logging.logging_manager import LogManager
 from utils.cache_manager.cache_manager import CacheManager
-from utils.error.jira_assistant_errors import (
+from utils.jira.error import (
     JiraQueryError,
     JiraIssueCreationError,
     JiraComponentFetchError,
     JiraMetadataFetchError,
 )
+from utils.jira.jira_config import JiraConfig
 
 
 class JiraAssistant:
@@ -19,15 +23,15 @@ class JiraAssistant:
 
     _logger = LogManager.get_instance().get_logger("JiraAssistant")
 
-    def __init__(self, client, cache_expiration: int = 60):
+    def __init__(self, cache_expiration: int = 60):
         """
         Initializes the JiraAssistant with specified parameters.
 
         Args:
-            client: The Jira client to use for API interactions.
             cache_expiration (int): Cache expiration time in minutes.
         """
-        self.client = client
+        jira_config = JiraConfig()
+        self.client = JiraApiClient(jira_config.base_url, jira_config.email, jira_config.api_token)
         self.cache_manager = CacheManager.get_instance()
         self.cache_expiration = cache_expiration
 
@@ -42,7 +46,13 @@ class JiraAssistant:
         Returns:
             str: The generated cache key.
         """
-        return f"{prefix}_{hash(frozenset(kwargs.items()))}"
+        # Sort the items and convert them to a JSON string for deterministic ordering
+        sorted_items = JSONManager.create_json(kwargs)
+        # Create a consistent hash using SHA-256
+        hash_object = hashlib.sha256(sorted_items.encode("utf-8"))
+        # Convert the hash to a hexadecimal string
+        hash_hex = hash_object.hexdigest()
+        return f"{prefix}_{hash_hex}"
 
     def _load_from_cache(self, cache_key: str) -> Optional[Dict]:
         """
@@ -73,79 +83,6 @@ class JiraAssistant:
             self._logger.info(f"Data cached under key: {cache_key}")
         except Exception as e:
             self._logger.error(f"Failed to cache data for key '{cache_key}': {e}")
-
-    def fetch_issues(
-        self,
-        jql_query: str,
-        fields: str = "*",
-        max_results: int = 100,
-        expand_changelog: bool = False,
-    ) -> List[Dict]:
-        """
-        Fetch issues from Jira using a JQL query.
-
-        Args:
-            jql_query (str): The JQL query to execute.
-            fields (str): Fields to include in the response.
-            max_results (int): Maximum number of results to fetch.
-            expand_changelog (bool): Whether to include changelog data.
-
-        Returns:
-            List[Dict]: A list of issues.
-        """
-        try:
-            if expand_changelog:
-                fields += ",changelog"
-
-            issues = []
-            start_at = 0
-
-            while True:
-                cache_key = self._generate_cache_key(
-                    "issues",
-                    jql=jql_query,
-                    fields=fields,
-                    start_at=start_at,
-                    max_results=max_results,
-                )
-                cached_data = self._load_from_cache(cache_key)
-                if cached_data:
-                    self._logger.info(
-                        f"Loaded issues from cache for JQL: {jql_query} (start_at={start_at})"
-                    )
-                    issues.extend(cached_data.get("issues", []))
-                    if len(issues) >= cached_data.get("total", 0):
-                        break
-                    start_at += max_results
-                    continue
-
-                self._logger.info(f"Fetching issues with JQL: {jql_query} (start_at={start_at})")
-                response = self.client.get(
-                    "search",
-                    params={
-                        "jql": jql_query,
-                        "fields": fields,
-                        "startAt": start_at,
-                        "maxResults": max_results,
-                    },
-                )
-
-                if not response:
-                    raise JiraQueryError("No response received from Jira API.", jql=jql_query)
-
-                self._save_to_cache(cache_key, response)
-                issues.extend(response.get("issues", []))
-
-                if len(issues) >= response.get("total", 0):
-                    break
-                start_at += max_results
-
-            return issues
-        except JiraQueryError as e:
-            self._logger.error(e)
-            raise
-        except Exception as e:
-            raise JiraQueryError("Error fetching issues.", jql=jql_query, error=str(e)) from e
 
     def fetch_project_components(self, project_key: str) -> List[Dict]:
         """
@@ -350,3 +287,76 @@ class JiraAssistant:
                 "with fix version '{fix_version}'.",
                 error=str(e),
             ) from e
+
+    def fetch_issues(
+        self,
+        jql_query: str,
+        fields: str = "*",
+        max_results: int = 100,
+        expand_changelog: bool = False,
+    ) -> List[Dict]:
+        """
+        Fetch issues from Jira using a JQL query.
+
+        Args:
+            jql_query (str): The JQL query to execute.
+            fields (str): Fields to include in the response.
+            max_results (int): Maximum number of results to fetch.
+            expand_changelog (bool): Whether to include changelog data.
+
+        Returns:
+            List[Dict]: A list of issues.
+        """
+        try:
+            issues = []
+            start_at = 0
+            expand = ["changelog"] if expand_changelog else []
+
+            while True:
+                cache_key = self._generate_cache_key(
+                    "issues",
+                    jql=jql_query,
+                    fields=fields,
+                    start_at=start_at,
+                    max_results=max_results,
+                    expand=",".join(expand),
+                )
+                cached_data = self._load_from_cache(cache_key)
+                if cached_data:
+                    self._logger.info(
+                        f"Loaded issues from cache for JQL: {jql_query} (start_at={start_at})"
+                    )
+                    issues.extend(cached_data.get("issues", []))
+                    if len(issues) >= cached_data.get("total", 0):
+                        break
+                    start_at += max_results
+                    continue
+
+                self._logger.info(f"Fetching issues with JQL: {jql_query} (start_at={start_at})")
+                response = self.client.get(
+                    "search",
+                    params={
+                        "jql": jql_query,
+                        "fields": fields,
+                        "startAt": start_at,
+                        "maxResults": max_results,
+                        "expand": ",".join(expand),
+                    },
+                )
+
+                if not response:
+                    raise JiraQueryError("No response received from Jira API.", jql=jql_query)
+
+                self._save_to_cache(cache_key, response)
+                issues.extend(response.get("issues", []))
+
+                if len(issues) >= response.get("total", 0):
+                    break
+                start_at += max_results
+
+            return issues
+        except JiraQueryError as e:
+            self._logger.error(e)
+            raise
+        except Exception as e:
+            raise JiraQueryError("Error fetching issues.", jql=jql_query, error=str(e)) from e

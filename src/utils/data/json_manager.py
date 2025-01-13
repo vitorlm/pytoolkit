@@ -36,6 +36,28 @@ class JSONManager:
             return json.load(file)
 
     @staticmethod
+    def create_json(data: Any, **kwargs) -> str:
+        """
+        Convert a Python object into a JSON string.
+        Args:
+            data (Any): The Python object to be converted into JSON format.
+        Returns:
+            str: A JSON formatted string representation of the input data.
+        """
+        # Ensure default values for indent and ensure_ascii if not provided in kwargs
+        if "indent" not in kwargs:
+            kwargs["indent"] = 4
+        if "ensure_ascii" not in kwargs:
+            kwargs["ensure_ascii"] = False
+        if "sort_keys" not in kwargs:
+            kwargs["sort_keys"] = True
+
+        try:
+            return json.dumps(data, **kwargs)
+        except TypeError as e:
+            raise ValueError(f"Error in JSON serialization parameters: {e}")
+
+    @staticmethod
     def write_json(data: Any, file_path: str) -> bool:
         """
         Writes data to a JSON file. Creates a backup of the file if it already exists.
@@ -47,13 +69,15 @@ class JSONManager:
         Returns:
             bool: True if the operation is successful.
         """
+
         lock = FileLock(f"{file_path}.lock")
         with lock:
             if os.path.exists(file_path):
                 backup_path = f"{file_path}.bak"
                 os.replace(file_path, backup_path)
             with open(file_path, "w", encoding="utf-8") as file:
-                json.dump(data, file, indent=4, ensure_ascii=False)
+                json.dump(data, file, sort_keys=True, indent=4, ensure_ascii=False)
+
         return True
 
     @staticmethod

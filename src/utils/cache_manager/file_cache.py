@@ -35,10 +35,10 @@ class FileCacheBackend(CacheBackend):
     def load(self, key: str, expiration_minutes: Optional[int] = None) -> Optional[Any]:
         file_path = self._get_file_path(key)
         try:
-            if not FileManager.validate_file(file_path, allowed_extensions=[".json"]):
+            if not FileManager.file_exists(file_path):
                 return None
 
-            cache_data = JSONManager.read_json(file_path)
+            cache_data = JSONManager.read_json(file_path, default={})
             if expiration_minutes:
                 cached_time = datetime.fromisoformat(cache_data["_cached_at"])
                 if (datetime.now() - cached_time).total_seconds() > expiration_minutes * 60:
@@ -46,6 +46,8 @@ class FileCacheBackend(CacheBackend):
                     return None
 
             return cache_data.get("data")
+        except FileNotFoundError:
+            return None
         except Exception as e:
             raise FileCacheError(
                 f"Failed to load cache for key '{key}'",

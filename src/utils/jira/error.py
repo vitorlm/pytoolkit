@@ -1,4 +1,4 @@
-from .base_custom_error import BaseCustomError
+from utils.error.base_custom_error import BaseCustomError
 
 
 class JiraManagerError(BaseCustomError):
@@ -52,3 +52,26 @@ class JiraMetadataFetchError(JiraManagerError):
 
     def __init__(self, message: str = "Failed to fetch metadata for issue type", **metadata):
         super().__init__(message, **metadata)
+
+
+class JiraApiClientError(BaseCustomError):
+    """
+    Base exception class for JiraApiClient.
+    """
+
+    pass
+
+
+class JiraApiRequestError(JiraApiClientError):
+    """
+    Raised for errors during API requests.
+    """
+
+    def __init__(self, message: str, endpoint: str, payload=None, params=None, status_code=None):
+        super().__init__(
+            message,
+            endpoint=endpoint,
+            payload=payload,
+            params=params,
+            status_code=status_code,
+        )
