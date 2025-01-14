@@ -96,9 +96,11 @@ class JiraProcessor:
                 if (
                     "fields" in epic
                     and "customfield_10015" in epic["fields"]
-                    and not epic["fields"]["customfield_10015"]
                     and "customfield_10233" in epic["fields"]
-                    and not epic["fields"]["customfield_10233"]
+                    and (
+                        not epic["fields"]["customfield_10015"]
+                        or not epic["fields"]["customfield_10233"]
+                    )
                 ):
                     start_date, end_date = self._analyze_changelog(changelog)
                     if start_date or end_date:
