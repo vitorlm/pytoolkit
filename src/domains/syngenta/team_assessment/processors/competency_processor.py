@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Union, Dict, Optional, Any
 import pandas as pd
 
-from .base_processor import BaseProcessor
+from utils.base_processor import BaseProcessor
 from ..core.indicators import IndicatorStatistics, Indicator
 from ..core.validations import ValidationHelper
 from utils.data.excel_manager import ExcelManager

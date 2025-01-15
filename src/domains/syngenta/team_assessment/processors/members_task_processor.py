@@ -3,11 +3,11 @@ from typing import Dict, List, Union, Set
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 from ..core.config import Config
-from .base_processor import BaseProcessor
+from utils.base_processor import BaseProcessor
 from ..core.task import Task
 
 
-class TaskProcessor(BaseProcessor):
+class MembersTaskProcessor(BaseProcessor):
     """
     Processor for extracting task/epic allocation from Excel files.
     """
@@ -61,7 +61,7 @@ class TaskProcessor(BaseProcessor):
 
         self.logger.info(f"Processing {len(members)} members and {len(tasks_backlog)} tasks")
         for row_idx, member in enumerate(members):
-            member_row_idx = Config.ROW_MEMBERS_START - 1 + row_idx
+            member_row_idx = Config.row_members_start - 1 + row_idx
             tasks = self._extract_tasks_per_member(sheet_data, member_row_idx, tasks_backlog)
 
             if member not in self.task_map:
@@ -82,7 +82,7 @@ class TaskProcessor(BaseProcessor):
             Dict[str, int]: A dictionary with header items as keys and column indices as values.
         """
         header_map = {}
-        for row_idx in range(Config.ROW_HEADER_START, Config.ROW_HEADER_END + 1):
+        for row_idx in range(Config.row_header_start, Config.row_epics_end):
             for col_idx, cell_value in enumerate(sheet_data[row_idx - 1]):
                 # Ensure cell_value is a string before calling .lower()
                 if isinstance(cell_value, str) and cell_value.lower() in [
@@ -106,10 +106,10 @@ class TaskProcessor(BaseProcessor):
         Returns:
             List[str]: List of member names.
         """
-        col_idx = ord(Config.COL_MEMBERS.upper()) - ord("A")
+        col_idx = Config.col_member_idx
         return [
             row[col_idx]
-            for row in sheet_data[Config.ROW_MEMBERS_START - 1 : Config.ROW_MEMBERS_END]
+            for row in sheet_data[Config.row_members_start : Config.row_members_end]
             if row[col_idx]
         ]
 
@@ -127,13 +127,13 @@ class TaskProcessor(BaseProcessor):
         Returns:
             Set[Task]: A set of unique Task objects.
         """
-        row_idx_tasks_start = Config.ROW_TASKS_ASSIGNMENT_START - 1
-        row_idx_tasks_end = Config.ROW_TASKS_ASSIGNMENT_END
+        row_idx_tasks_start = Config.row_epics_assignment_start
+        row_idx_tasks_end = Config.row_epics_assignment_end
 
         tasks = set()
         for row in sheet_data[row_idx_tasks_start:row_idx_tasks_end]:
             code = row[header_idxs.get("code")]
-            if code and code.lower() not in (task.lower() for task in Config.TASKS_TO_IGNORE):
+            if code and code.lower() not in (task.lower() for task in Config.epics_to_ignore):
                 jira = row[header_idxs.get("jira")] if row[header_idxs.get("jira")] != "" else None
                 description = (
                     row[header_idxs.get("subject")]
@@ -166,12 +166,12 @@ class TaskProcessor(BaseProcessor):
             Set[Task]: A set of unique Task objects assigned to the member.
         """
         task_row = sheet_data[member_row_idx]
-        col_start_idx = ord(Config.COL_TASKS_ASSIGNMENT_START.upper()) - ord("A")
+        col_start_idx = Config.col_epics_assignment_start_idx
         col_end_idx = self._find_last_day_column(sheet_data)
 
         task_codes = {cell for cell in task_row[col_start_idx:col_end_idx] if cell}
 
-        tasks_to_remove = {t.lower() for t in Config.TASKS_TO_IGNORE or []}
+        tasks_to_remove = {t.lower() for t in Config.epics_to_ignore or []}
         filtered_task_codes = {
             code
             for code in task_codes
@@ -192,8 +192,8 @@ class TaskProcessor(BaseProcessor):
         Returns:
             int: The index of the last valid column.
         """
-        col_idx_tasks_assignment_start = ord(Config.COL_TASKS_ASSIGNMENT_START.upper()) - ord("A")
-        days_row = sheet_data[Config.ROW_DAYS - 1]
+        col_idx_tasks_assignment_start = Config.col_epics_assignment_start_idx
+        days_row = sheet_data[Config.row_days]
         for idx, cell in enumerate(
             days_row[col_idx_tasks_assignment_start:], start=col_idx_tasks_assignment_start
         ):

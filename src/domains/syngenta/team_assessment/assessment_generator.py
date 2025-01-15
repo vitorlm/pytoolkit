@@ -3,7 +3,7 @@ from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 from utils.string_utils import StringUtils
 
-from .processors.task_processor import TaskProcessor
+from .processors.members_task_processor import MembersTaskProcessor
 from .processors.competency_processor import CompetencyProcessor
 from .processors.health_check_processor import HealthCheckProcessor
 from .services.competency_analyzer import CompetencyAnalyzer
@@ -28,7 +28,7 @@ class AssessmentGenerator:
         self.output_path = output_path
 
         self.members = {}
-        self.task_processor = TaskProcessor()
+        self.task_processor = MembersTaskProcessor()
         self.competency_processor = CompetencyProcessor()
         self.health_check_processor = HealthCheckProcessor()
         self.feedback_specialist = FeedbackSpecialist()

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Optional
 from pydantic import BaseModel
 
@@ -11,12 +12,18 @@ class Task(BaseModel):
         jira (Optional[str]): JIRA issue key.
         description (Optional[str]): Task description.
         type (Literal["Eng", "Prod", "Day-by-Day", "Out", "Bug"]): Task type.
+        start_date (Optional[date]): Task start date.
+        end_date (Optional[date]): Task end date.
+        execution_duration (Optional[int]): Task execution duration in days.
     """
 
     code: str
-    jira: Optional[str]
-    description: Optional[str]
+    jira: Optional[str] = None
+    description: Optional[str] = None
     type: str
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    execution_duration: Optional[int] = None
 
     def __hash__(self):
         """

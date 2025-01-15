@@ -50,7 +50,7 @@ class CompetencyAnalyzer:
 
         team_stats = self._calculate_team_statistics(competency_matrix)
         individual_stats = self._calculate_individual_statistics(competency_matrix, team_stats)
-        team_stats.outliers = self._detect_outliers(individual_stats, Config.OUTLIER_THRESHOLD)
+        team_stats.outliers = self._detect_outliers(individual_stats, Config.outlier_threshold)
 
         self.logger.info("Completed analysis of the competency matrix.")
 
@@ -180,7 +180,7 @@ class CompetencyAnalyzer:
                             ind_stats["levels"].append(level)
 
             self._finalize_statistics_for_criteria(individual_stats.criteria_stats)
-            individual_stats.finalize_statistics(Config.CRITERIA_WEIGHTS, team_stats)
+            individual_stats.finalize_statistics(Config.criteria_weights, team_stats)
 
             team_member_statistics[evaluatee_name] = individual_stats
 

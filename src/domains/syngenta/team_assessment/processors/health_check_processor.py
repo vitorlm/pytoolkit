@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict, List, Union, Any, Optional
 from datetime import datetime
-from .base_processor import BaseProcessor
+from utils.base_processor import BaseProcessor
 from ..core.statistics import StatisticsHelper
 from ..core.health_check import (
     FeedbackAssessment,
