@@ -41,11 +41,11 @@ class MembersTaskProcessor(BaseProcessor):
         for sheet_name in relevant_sheets:
             sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
             self.logger.info(f"Processing sheet: {sheet_name}")
-            self.process_sheet(sheet_data)
+            self.process_cycle(sheet_data)
 
         return self.task_map
 
-    def process_sheet(self, sheet_data: List[List[Union[str, None]]]):
+    def process_cycle(self, sheet_data: List[List[Union[str, None]]]):
         """
         Processes a single sheet to map tasks to team members.
 

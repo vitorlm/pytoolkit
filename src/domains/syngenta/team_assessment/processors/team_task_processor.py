@@ -1,15 +1,28 @@
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta
+import json
 from pathlib import Path
-from typing import Dict, List, Union, Set
+from typing import Dict, List, Optional, Union
 
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 from ..core.config import Config
 from utils.base_processor import BaseProcessor
-from ..core.task import Task
+from ..core.task import TaskSummary
+from ..core.team_summary import TeamSummary
+from ..core.cycle import Cycle
 
-# Configure logger
 logger = LogManager.get_instance().get_logger("TeamTaskProcessor")
+
+
+@dataclass
+class TaskDetail:
+    code: str = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    execution_duration: int = 0
+    member_list: List[str] = field(default_factory=list)
 
 
 class TeamTaskProcessor(BaseProcessor):
@@ -20,9 +33,9 @@ class TeamTaskProcessor(BaseProcessor):
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsm", ".xlsx"])
         self.config = Config()
-        self.backlog = Set[Task]
+        self.team_summary = TeamSummary()
 
-    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Set[Task]]:
+    def process_file(self, file_path: Union[str, Path]) -> TeamSummary:
         """
         Processes an Excel file to extract task allocations for team members.
 
@@ -30,53 +43,90 @@ class TeamTaskProcessor(BaseProcessor):
             file_path (Union[str, Path]): Path to the Excel file.
 
         Returns:
-            Dict[str, Set[Task]]: Task map with members as keys and their tasks as values.
+            TeamSummary: Summary of the team's task data.
 
         Raises:
             ValueError: If the file contains invalid data.
         """
         file_path = Path(file_path)
-
-        # Validate file extension
         FileManager.validate_file(file_path, allowed_extensions=self.allowed_extensions)
 
-        # Filter sheets to process based on naming convention
         relevant_sheets = ExcelManager.filter_sheets_by_pattern(file_path, pattern=r"Q[1-4]-C[1-2]")
+        logger.info(f"Processing {len(relevant_sheets)} relevant sheets from {file_path}")
 
-        self.logger.info(f"Processing {len(relevant_sheets)} relevant sheets from {file_path}")
         for sheet_name in relevant_sheets:
             sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
-            self.logger.info(f"Processing sheet: {sheet_name}")
-            self.process_sheet(sheet_data)
+            logger.info(f"Processing sheet: {sheet_name}")
+            self.process_sheet(sheet_name, sheet_data)
 
-        return self.task_map
+        output = json.dumps(
+            self.team_summary,
+            default=lambda o: (
+                o.__dict__ if not isinstance(o, (date, datetime)) else o.strftime("%Y-%m-%d")
+            ),
+            ensure_ascii=False,
+        )
 
-    def process_sheet(self, sheet_data: List[List[Union[str, None]]]):
+        self.team_summary.summarize()
+
+        return self.team_summary
+
+    def process_sheet(self, cycle_name: str, cycle_data: List[List[Union[str, None]]]):
         """
-        Processes a single sheet to map tasks to team members.
+        Processes a single cycle and updates the team summary.
 
         Args:
-            sheet_data (List[List[Union[str, None]]]): The sheet data as rows of values.
+            cycle_name (str): The name of the cycle.
+            cycle_data (List[List[Union[str, None]]]): The sheet data as rows of values.
         """
-        header_idxs = self._extract_header(sheet_data)
-        # members = self._extract_members(sheet_data)
-        self.backlog = self._create_backlog(sheet_data, header_idxs)
-        self._extract_task_duration(sheet_data)
+        header_idxs = self._extract_header(cycle_data)
+        cycle = Cycle(cycle_name, self.config)
+
+        self._find_cycle_dates(cycle, cycle_data)
+        self._extract_members(cycle, cycle_data)
+
+        cycle_duration = (cycle.end_date - cycle.start_date).days + 1
+        weekdays = sum(
+            1 for i in range(cycle_duration) if (cycle.start_date + timedelta(days=i)).weekday() < 5
+        )
+        cycle.effective_duration = weekdays * len(cycle.member_list)
+        self._create_backlog(cycle, cycle_data, header_idxs)
+
+        self._extract_task_durations(
+            cycle,
+            cycle_data,
+            self.config.row_planned_epics_assignment_start,
+            self.config.row_planned_epics_assignment_end,
+            cycle.planned_tasks,
+        )
+
+        self._extract_task_durations(
+            cycle,
+            cycle_data,
+            self.config.row_epics_assignment_start,
+            self.config.row_epics_assignment_end,
+            cycle.executed_tasks,
+        )
+
+        cycle.summarize_tasks()
+
+        cycle.summarize()
+
+        self.team_summary.add_cycle(cycle_name, cycle)
 
     def _extract_header(self, sheet_data: List[List[Union[str, None]]]) -> Dict[str, int]:
         """
-        Extracts the header row from the sheet data and returns a dictionary
-        mapping header items to their column indices.
+        Extracts the header row from the sheet data.
 
         Args:
             sheet_data (List[List[Union[str, None]]]): The sheet data.
 
         Returns:
-            Dict[str, int]: A dictionary with header items as keys and column indices as values.
+            Dict[str, int]: A dictionary mapping header items to their column indices.
         """
         header_map = {}
         for row_idx in range(self.config.row_header_start, self.config.row_header_end):
-            for col_idx, cell_value in enumerate(sheet_data[row_idx - 1]):
+            for col_idx, cell_value in enumerate(sheet_data[row_idx]):
                 if isinstance(cell_value, str) and cell_value.lower() in [
                     "code",
                     "jira",
@@ -88,112 +138,92 @@ class TeamTaskProcessor(BaseProcessor):
                         return header_map
         return header_map
 
-    def _extract_members(self, sheet_data: List[List[Union[str, None]]]) -> List[str]:
+    def _extract_members(self, cycle: Cycle, sheet_data: List[List[Union[str, None]]]):
         """
-        Extracts member names from the configured range.
+        Extracts member names from the sheet data.
 
         Args:
+            cycle (Cycle): The cycle object to update.
             sheet_data (List[List[Union[str, None]]]): The sheet data.
-
-        Returns:
-            List[str]: List of member names.
         """
         col_idx = self.config.col_member_idx
-        return [
+        cycle.member_list = [
             row[col_idx]
-            for row in sheet_data[self.config.row_members_start - 1 : self.config.row_members_end]
+            for row in sheet_data[self.config.row_members_start : self.config.row_members_end]
             if row[col_idx]
         ]
 
     def _create_backlog(
-        self,
-        sheet_data: List[List[Union[str, None]]],
-        header_idxs: Dict[str, int],
-    ) -> Dict[str, Task]:
+        self, cycle: Cycle, sheet_data: List[List[Union[str, None]]], header_idxs: Dict[str, int]
+    ):
         """
-        Extracts tasks from the sheet data.
+        Creates a backlog of tasks from the sheet data.
 
         Args:
+            cycle (Cycle): The cycle object to update.
             sheet_data (List[List[Union[str, None]]]): The sheet data.
-
-        Returns:
-            Set[Task]: A set of unique Task objects.
+            header_idxs (Dict[str, int]): Column indices for key headers.
         """
-
-        tasks = {}
         for row in sheet_data[self.config.row_epics_start : self.config.row_epics_end]:
             code = row[header_idxs.get("code")]
-            if code and code.lower() not in (task.lower() for task in self.config.epics_to_ignore):
-                jira = row[header_idxs.get("jira")] if row[header_idxs.get("jira")] != "" else None
-                description = (
-                    row[header_idxs.get("subject")]
-                    if row[header_idxs.get("subject")] != ""
-                    else None
-                )
-                task_type = (
-                    row[header_idxs.get("type")] if row[header_idxs.get("type")] != "" else None
-                )
-                if code:
-                    tasks[code] = Task(
+            if code:
+                jira = row[header_idxs.get("jira")]
+                description = row[header_idxs.get("subject")]
+                task_type = row[header_idxs.get("type")]
+
+                if code not in cycle.backlog:
+                    cycle.backlog[code] = TaskSummary(
                         code=code, jira=jira, description=description, type=task_type
                     )
+                else:
+                    logger.warning(f"Duplicate task code found: {code}")
 
-        return tasks
-
-    def _find_last_day_column(self, sheet_data: List[List[Union[str, None]]]) -> int:
+    def _find_cycle_dates(self, cycle: Cycle, sheet_data: List[List[Union[str, None]]]):
         """
-        Finds the last valid column based on task cycle days.
+        Determines the start and end dates of a cycle from the sheet data.
 
         Args:
+            cycle (Cycle): The cycle object to update.
             sheet_data (List[List[Union[str, None]]]): The sheet data.
-
-        Returns:
-            int: The index of the last valid column.
         """
-
         days_row = sheet_data[self.config.row_days]
-        for idx, cell in enumerate(
-            days_row[self.config.col_epics_assignment_start_idx :],
-            start=self.config.col_epics_assignment_start_idx,
-        ):
-            if cell is None or cell == "":
-                return idx
-        return len(days_row)
+        dates = [cell for cell in days_row if isinstance(cell, date)]
+        if dates:
+            cycle.start_date, cycle.end_date = min(dates), max(dates)
 
-    def _extract_task_duration(self, sheet_data: List[List[Union[str, None]]]) -> None:
+    def _extract_task_durations(
+        self,
+        cycle: Cycle,
+        sheet_data: List[List[Union[str, None]]],
+        row_start: int,
+        row_end: int,
+        task_map: Dict[str, TaskDetail],
+    ):
         """
-        Extracts the duration of each task, identifying the first and last day
-        the task appears in the worksheet.
+        Extracts task durations and updates the task map.
 
         Args:
+            cycle (Cycle): The cycle object to update.
             sheet_data (List[List[Union[str, None]]]): The sheet data.
-
-        Returns:
-            Dict[str, Tuple[str, str]]: A dictionary with the task as the key
-                                        and a tuple (start_date, end_date) as the value.
+            row_start (int): Start row for task data.
+            row_end (int): End row for task data.
+            task_map (Dict[str, TaskDetail]): TaskDetail map to update.
         """
         col_start_idx = self.config.col_epics_assignment_start_idx
-        col_end_idx = self._find_last_day_column(sheet_data)
+        col_end_idx = len(sheet_data[self.config.row_days])
 
-        epics_to_remove = {t.lower() for t in self.config.epics_to_ignore or []}
-
-        for row in sheet_data[
-            self.config.row_epics_assignment_start : self.config.row_epics_assignment_end
-        ]:
+        for row in sheet_data[row_start:row_end]:
+            member = row[self.config.col_member_idx]
             for col_idx in range(col_start_idx, col_end_idx):
-                epic = row[col_idx]
-                if epic and epic.lower() not in epics_to_remove:
-                    new_date = sheet_data[self.config.row_days][col_idx]
-                    task = self.backlog.get(epic)
-                    if not task:
-                        logger.debug(f"Task {epic} not found in the backlog.")
-                        continue
-
-                    task.execution_duration = (
-                        task.execution_duration + 1 if task.execution_duration else 1
-                    )
-
-                    if task.start_date is None or new_date < task.start_date:
-                        task.start_date = new_date
-                    if task.end_date is None or new_date > task.end_date:
-                        task.end_date = new_date
+                task_code = row[col_idx]
+                if task_code and task_code in cycle.backlog:
+                    date_cell = sheet_data[self.config.row_days][col_idx]
+                    if isinstance(date_cell, date):
+                        task_detail = task_map.get(task_code, TaskDetail())
+                        task_detail.code = task_code
+                        task_detail.start_date = min(task_detail.start_date or date_cell, date_cell)
+                        task_detail.end_date = max(task_detail.end_date or date_cell, date_cell)
+                        task_detail.execution_duration += 1
+                        if member and member not in task_detail.member_list:
+                            task_detail.member_list.append(member)
+                        task_map[task_code] = task_detail

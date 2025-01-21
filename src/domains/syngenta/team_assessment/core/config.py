@@ -13,9 +13,12 @@ class Config:
         self._row_members_start = int(os.getenv("ROW_MEMBERS_START")) - 1
         self._row_members_end = int(os.getenv("ROW_MEMBERS_END"))
         self._row_days = int(os.getenv("ROW_DAYS")) - 1
-        self._epics_to_ignore = [
-            task.strip().lower() for task in os.getenv("EPICS_TO_IGNORE", "").split(",")
+        self._epics_helper_codes = [
+            task.strip().lower() for task in os.getenv("EPICS_HELPER_CODES", "").split(",")
         ]
+        self._epic_bug = os.getenv("EPIC_BUG").strip().lower()
+        self._epic_out = os.getenv("EPIC_OUT").strip().lower()
+        self._epic_spillover = os.getenv("EPIC_SPILLOVER").strip().lower()
         self._col_epics_start = os.getenv("COL_EPICS_START")
         self._col_epics_end = os.getenv("COL_EPICS_END")
         self._col_epics_assignment_start = os.getenv("COL_EPICS_ASSIGNMENT_START")
@@ -29,6 +32,14 @@ class Config:
         self._row_header_end = int(os.getenv("ROW_HEADER_END"))
         self._row_epics_start = int(os.getenv("ROW_EPICS_START")) - 1
         self._row_epics_end = int(os.getenv("ROW_EPICS_END"))
+
+        # Calculate column indices only once
+        self._col_member_idx = ord(self._col_members.upper()) - ord("A")
+        self._col_epics_start_idx = ord(self._col_epics_start.upper()) - ord("A")
+        self._col_epics_end_idx = ord(self._col_epics_end.upper()) - ord("A")
+        self._col_epics_assignment_start_idx = ord(self._col_epics_assignment_start.upper()) - ord(
+            "A"
+        )
 
         # Conexão Ollama
         self._ollama_host = os.getenv("OLLAMA_HOST")
@@ -56,15 +67,15 @@ class Config:
         self._percentile_q1 = int(os.getenv("PERCENTILE_Q1"))
         self._percentile_q3 = int(os.getenv("PERCENTILE_Q3"))
 
-        # Calculate column indices only once
-        self._col_member_idx = ord(self._col_members.upper()) - ord("A")
-        self._col_epics_start_idx = ord(self._col_epics_start.upper()) - ord("A")
-        self._col_epics_end_idx = ord(self._col_epics_end.upper()) - ord("A")
-        self._col_epics_assignment_start_idx = ord(self._col_epics_assignment_start.upper()) - ord(
-            "A"
-        )
-
     # --- Properties for data extraction ---
+    @property
+    def row_planned_epics_assignment_start(self):
+        return self._row_planned_epics_assignment_start
+
+    @property
+    def row_planned_epics_assignment_end(self):
+        return self._row_planned_epics_assignment_end
+
     @property
     def row_epics_assignment_start(self):
         return self._row_epics_assignment_start
@@ -106,8 +117,8 @@ class Config:
         return self._row_days
 
     @property
-    def epics_to_ignore(self):
-        return self._epics_to_ignore
+    def epics_helper_codes(self):
+        return self._epics_helper_codes
 
     @property
     def col_epics_start(self):
@@ -136,6 +147,18 @@ class Config:
     @property
     def row_header_end(self):
         return self._row_header_end
+
+    @property
+    def epic_bug(self):
+        return self._epic_bug
+
+    @property
+    def epic_out(self):
+        return self._epic_out
+
+    @property
+    def epic_spillover(self):
+        return self._epic_spillover
 
     # --- Properties for Ollama connection ---
     @property
