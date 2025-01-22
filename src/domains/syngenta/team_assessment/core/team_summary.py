@@ -1,15 +1,17 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 from datetime import date
+from typing import Dict, List, Optional
 from .cycle import Cycle
 
 
 @dataclass
 class TeamSummary:
     _cycles: Dict[str, "Cycle"] = field(default_factory=dict)
-    _total_days: int = 0
+    _cycle_count: Optional[int] = None
+    _total_cycle_work_days: Optional[int] = None
     _start_date: Optional[date] = None
     _end_date: Optional[date] = None
+    _total_work_days: Optional[int] = None
     _member_list: List[str] = field(default_factory=list)
     _summary: Optional[dict] = None
 
@@ -23,13 +25,10 @@ class TeamSummary:
             for date in (cycle.start_date, cycle.end_date)
             if date
         ]
-        all_members = {member for cycle in self._cycles.values() for member in cycle.member_list}
-
         self._start_date = min(all_dates) if all_dates else None
         self._end_date = max(all_dates) if all_dates else None
-        self._total_days = (
-            (self._end_date - self._start_date).days if self._start_date and self._end_date else 0
-        )
+
+        all_members = {member for cycle in self._cycles.values() for member in cycle.member_list}
         self._member_list = sorted(all_members)
 
     def summarize(self) -> None:
@@ -38,9 +37,8 @@ class TeamSummary:
         from individual cycles.
         """
         self._calculate_attributes()
-        total_cycles = len(self._cycles)
 
-        if total_cycles == 0:
+        if self._cycle_count == 0:
             self._summary = {}
             return
 
@@ -54,6 +52,7 @@ class TeamSummary:
             "time_spent_bug": 0,
             "time_spent_spillover": 0,
             "time_spent_out": 0,
+            "total_cycle_days": 0,
         }
 
         adherence_categories = {"Excellent": 0, "Good": 0, "Fair": 0, "Poor": 0}
@@ -62,6 +61,7 @@ class TeamSummary:
 
         for cycle in self._cycles.values():
             summary = cycle.summary
+            summary_aggregations["total_cycle_days"] += cycle.cycle_work_days
             summary_aggregations["total_tasks"] += summary.get("total_tasks", 0)
             summary_aggregations["total_planned_duration"] += summary.get(
                 "total_planned_duration", 0
@@ -96,33 +96,111 @@ class TeamSummary:
                 )
 
         average_tasks_per_cycle = (
-            summary_aggregations["total_tasks"] / total_cycles if total_cycles else 0
+            summary_aggregations["total_tasks"] / self._cycle_count if self._cycle_count else 0
         )
 
         average_time_spent_bugs_per_cycle = (
-            summary_aggregations["time_spent_bug"] / total_cycles if total_cycles else 0
+            summary_aggregations["time_spent_bug"] / self._cycle_count if self._cycle_count else 0
         )
 
         average_time_spent_spillover_per_cycle = (
-            summary_aggregations["time_spent_spillover"] / total_cycles if total_cycles else 0
+            summary_aggregations["time_spent_spillover"] / self._cycle_count
+            if self._cycle_count
+            else 0
         )
 
         average_time_spent_out_per_cycle = (
-            summary_aggregations["time_spent_out"] / total_cycles if total_cycles else 0
+            summary_aggregations["time_spent_out"] / self._cycle_count if self._cycle_count else 0
+        )
+
+        total_working_days = (
+            summary_aggregations["total_cycle_days"] - summary_aggregations["time_spent_out"]
+        )
+
+        efficiency = (
+            (
+                summary_aggregations["total_actual_duration"]
+                / summary_aggregations["total_cycle_days"]
+            )
+            * 100
+            if summary_aggregations["total_cycle_days"]
+            else 0
+        )
+        bug_ratio = (
+            (summary_aggregations["time_spent_bug"] / summary_aggregations["total_cycle_days"])
+            * 100
+            if summary_aggregations["total_cycle_days"]
+            else 0
+        )
+        spillover_ratio = (
+            (
+                summary_aggregations["time_spent_spillover"]
+                / summary_aggregations["total_cycle_days"]
+            )
+            * 100
+            if summary_aggregations["total_cycle_days"]
+            else 0
+        )
+        effective_availability = (
+            (total_working_days / summary_aggregations["total_cycle_days"]) * 100
+            if summary_aggregations["total_cycle_days"]
+            else 0
+        )
+        productivity_per_day = (
+            summary_aggregations["total_actual_duration"] / total_working_days
+            if total_working_days
+            else 0
+        )
+        avg_time_per_task = (
+            summary_aggregations["total_actual_duration"] / summary_aggregations["total_tasks"]
+            if summary_aggregations["total_tasks"]
+            else 0
+        )
+
+        balance_time = {
+            "task_time_ratio": (
+                (
+                    summary_aggregations["total_actual_duration"]
+                    / summary_aggregations["total_cycle_days"]
+                )
+                * 100
+                if summary_aggregations["total_cycle_days"]
+                else 0
+            ),
+            "bug_time_ratio": (
+                (summary_aggregations["time_spent_bug"] / summary_aggregations["total_cycle_days"])
+                * 100
+                if summary_aggregations["total_cycle_days"]
+                else 0
+            ),
+            "out_time_ratio": (
+                (summary_aggregations["time_spent_out"] / summary_aggregations["total_cycle_days"])
+                * 100
+                if summary_aggregations["total_cycle_days"]
+                else 0
+            ),
+        }
+
+        impact_days_off = (
+            (summary_aggregations["time_spent_out"] / summary_aggregations["total_cycle_days"])
+            * 100
+            if summary_aggregations["total_cycle_days"]
+            else 0
         )
 
         self._summary = {
-            "total_cycles": total_cycles,
+            "cycle_count": self._cycle_count,
+            "total_cycle_days": summary_aggregations["total_cycle_days"],
             "total_tasks": summary_aggregations["total_tasks"],
             "average_tasks_per_cycle": average_tasks_per_cycle,
             "total_planned_duration": summary_aggregations["total_planned_duration"],
             "total_actual_duration": summary_aggregations["total_actual_duration"],
             "average_adherence_to_dates": summary_aggregations["average_adherence_to_dates"]
-            / total_cycles,
+            / self._cycle_count,
             "adherence_categories": adherence_categories,
-            "average_efficiency": summary_aggregations["average_efficiency"] / total_cycles,
+            "average_efficiency": summary_aggregations["average_efficiency"] / self._cycle_count,
             "average_resource_utilization": summary_aggregations["average_resource_utilization"]
-            / total_cycles,
+            / self._cycle_count,
             "tasks_by_type": tasks_by_type,
             "members_contribution": members_contribution,
             "total_members": len(self._member_list),
@@ -132,11 +210,23 @@ class TeamSummary:
             "average_time_spent_bugs_per_cycle": average_time_spent_bugs_per_cycle,
             "average_time_spent_spillover_per_cycle": average_time_spent_spillover_per_cycle,
             "average_time_spent_out_per_cycle": average_time_spent_out_per_cycle,
+            "efficiency": efficiency,
+            "bug_ratio": bug_ratio,
+            "spillover_ratio": spillover_ratio,
+            "effective_availability": effective_availability,
+            "productivity_per_day": productivity_per_day,
+            "avg_time_per_task": avg_time_per_task,
+            "balance_time": balance_time,
+            "impact_days_off": impact_days_off,
         }
 
     @property
     def cycles(self) -> Dict[str, "Cycle"]:
         return self._cycles
+
+    @property
+    def cycle_count(self) -> int:
+        return len(self._cycles)
 
     def add_cycle(self, name: str, cycle: "Cycle") -> None:
         """
@@ -146,8 +236,8 @@ class TeamSummary:
         self._cycles[name] = cycle
 
     @property
-    def total_days(self) -> int:
-        return self._total_days
+    def cycleDurationInDays(self) -> int:
+        return self._total_cycle_work_days
 
     @property
     def start_date(self) -> Optional[date]:
@@ -156,6 +246,10 @@ class TeamSummary:
     @property
     def end_date(self) -> Optional[date]:
         return self._end_date
+
+    @property
+    def total_work_days(self) -> Optional[int]:
+        return self._total_work_days
 
     @property
     def member_list(self) -> List[str]:

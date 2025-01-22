@@ -21,7 +21,7 @@ class TaskDetail:
     code: str = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    execution_duration: int = 0
+    task_total_days: int = 0
     member_list: List[str] = field(default_factory=list)
 
 
@@ -59,6 +59,8 @@ class TeamTaskProcessor(BaseProcessor):
             logger.info(f"Processing sheet: {sheet_name}")
             self.process_sheet(sheet_name, sheet_data)
 
+        self.team_summary.summarize()
+
         output = json.dumps(
             self.team_summary,
             default=lambda o: (
@@ -66,8 +68,6 @@ class TeamTaskProcessor(BaseProcessor):
             ),
             ensure_ascii=False,
         )
-
-        self.team_summary.summarize()
 
         return self.team_summary
 
@@ -82,14 +82,10 @@ class TeamTaskProcessor(BaseProcessor):
         header_idxs = self._extract_header(cycle_data)
         cycle = Cycle(cycle_name, self.config)
 
-        self._find_cycle_dates(cycle, cycle_data)
         self._extract_members(cycle, cycle_data)
 
-        cycle_duration = (cycle.end_date - cycle.start_date).days + 1
-        weekdays = sum(
-            1 for i in range(cycle_duration) if (cycle.start_date + timedelta(days=i)).weekday() < 5
-        )
-        cycle.effective_duration = weekdays * len(cycle.member_list)
+        self._find_cycle_dates(cycle, cycle_data)
+
         self._create_backlog(cycle, cycle_data, header_idxs)
 
         self._extract_task_durations(
@@ -223,7 +219,7 @@ class TeamTaskProcessor(BaseProcessor):
                         task_detail.code = task_code
                         task_detail.start_date = min(task_detail.start_date or date_cell, date_cell)
                         task_detail.end_date = max(task_detail.end_date or date_cell, date_cell)
-                        task_detail.execution_duration += 1
+                        task_detail.task_total_days += 1
                         if member and member not in task_detail.member_list:
                             task_detail.member_list.append(member)
                         task_map[task_code] = task_detail

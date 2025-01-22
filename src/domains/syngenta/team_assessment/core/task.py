@@ -43,8 +43,8 @@ class TaskSummary(Task):
     actual_start_date: Optional[date] = None
     planned_end_date: Optional[date] = None
     actual_end_date: Optional[date] = None
-    planned_duration: Optional[int] = None
-    actual_duration: Optional[int] = None
+    planned_task_days: Optional[int] = None
+    executed_task_days: Optional[int] = None
     planned_resources: Optional[int] = None
     actual_resources: Optional[int] = None
 
@@ -84,8 +84,8 @@ class TaskSummary(Task):
         Returns:
             float: Adherence percentage (actual duration / planned duration * 100).
         """
-        if self.planned_duration and self.planned_duration > 0:
-            return (self.actual_duration / self.planned_duration) * 100
+        if self.planned_task_days and self.planned_task_days > 0:
+            return (self.executed_task_days / self.planned_task_days) * 100
         return 0.0
 
     @property
@@ -128,8 +128,8 @@ class TaskSummary(Task):
         total_deviation = start_deviation + end_deviation
 
         if unit == "percentage":
-            if self.planned_duration and self.planned_duration > 0:
-                return (total_deviation / self.planned_duration) * 100
+            if self.planned_task_days and self.planned_task_days > 0:
+                return (total_deviation / self.planned_task_days) * 100
             return 0.0
 
         return total_deviation
@@ -154,8 +154,8 @@ class TaskSummary(Task):
         Returns:
             float: Relative delay percentage (delay in days / planned duration * 100).
         """
-        if self.planned_duration and self.planned_duration > 0:
-            return (self.delay_in_days / self.planned_duration) * 100
+        if self.planned_task_days and self.planned_task_days > 0:
+            return (self.delay_in_days / self.planned_task_days) * 100
         return 0
 
     @property
@@ -167,8 +167,8 @@ class TaskSummary(Task):
             int: Number of days the actual duration is above or below the planned duration
                  (actual duration - planned duration).
         """
-        if self.actual_duration and self.planned_duration:
-            return self.actual_duration - self.planned_duration
+        if self.executed_task_days and self.planned_task_days:
+            return self.executed_task_days - self.planned_task_days
         return 0
 
     @property
@@ -180,8 +180,10 @@ class TaskSummary(Task):
             float: Deviation percentage
                    ((actual duration - planned duration) / planned duration * 100).
         """
-        if self.planned_duration and self.planned_duration > 0:
-            return ((self.actual_duration - self.planned_duration) / self.planned_duration) * 100
+        if self.planned_task_days and self.planned_task_days > 0:
+            return (
+                (self.executed_task_days - self.planned_task_days) / self.planned_task_days
+            ) * 100
         return 0.0
 
     @property
@@ -192,8 +194,8 @@ class TaskSummary(Task):
         Returns:
             float: Execution ratio (actual duration / planned duration).
         """
-        if self.planned_duration and self.planned_duration > 0:
-            return self.actual_duration / self.planned_duration
+        if self.planned_task_days and self.planned_task_days > 0:
+            return self.executed_task_days / self.planned_task_days
         return 0.0
 
     @property
@@ -204,8 +206,8 @@ class TaskSummary(Task):
         Returns:
             int: Exceeded time in days. Returns 0 if the task was completed on time or early.
         """
-        if self.actual_duration and self.planned_duration:
-            return max(0, self.actual_duration - self.planned_duration)
+        if self.executed_task_days and self.planned_task_days:
+            return max(0, self.executed_task_days - self.planned_task_days)
         return 0
 
     @property
@@ -216,8 +218,8 @@ class TaskSummary(Task):
         Returns:
             int: Saved time in days. Returns 0 if the task took longer than planned.
         """
-        if self.actual_duration and self.planned_duration:
-            return max(0, self.planned_duration - self.actual_duration)
+        if self.executed_task_days and self.planned_task_days:
+            return max(0, self.planned_task_days - self.executed_task_days)
         return 0
 
     @property
@@ -238,8 +240,8 @@ class TaskSummary(Task):
         duration_efficiency = 0.0
         resource_efficiency = 0.0
 
-        if self.actual_duration and self.planned_duration and self.actual_duration > 0:
-            duration_efficiency = (self.planned_duration / self.actual_duration) * 100
+        if self.executed_task_days and self.planned_task_days and self.executed_task_days > 0:
+            duration_efficiency = (self.planned_task_days / self.executed_task_days) * 100
 
         if self.actual_resources and self.planned_resources and self.actual_resources > 0:
             resource_efficiency = (self.planned_resources / self.actual_resources) * 100
@@ -297,8 +299,8 @@ class TaskSummary(Task):
         Returns:
             float: Efficiency index. Values >1 indicate higher output per resource.
         """
-        if self.actual_resources and self.actual_duration and self.actual_resources > 0:
-            return self.actual_duration / self.actual_resources
+        if self.actual_resources and self.executed_task_days and self.actual_resources > 0:
+            return self.executed_task_days / self.actual_resources
         return None
 
     @model_validator(mode="after")
@@ -334,10 +336,10 @@ class TaskSummary(Task):
         ):
             raise ValueError("Both actual start and end dates must be provided.")
 
-        if self.planned_duration and self.planned_duration <= 0:
+        if self.planned_task_days and self.planned_task_days <= 0:
             raise ValueError("Planned duration must be a positive value.")
 
-        if self.actual_duration and self.actual_duration <= 0:
+        if self.executed_task_days and self.executed_task_days <= 0:
             raise ValueError("Actual duration must be a positive value.")
 
         return self
