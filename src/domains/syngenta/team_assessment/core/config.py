@@ -13,12 +13,12 @@ class Config:
         self._row_members_start = int(os.getenv("ROW_MEMBERS_START")) - 1
         self._row_members_end = int(os.getenv("ROW_MEMBERS_END"))
         self._row_days = int(os.getenv("ROW_DAYS")) - 1
-        self._epics_helper_codes = [
-            task.strip().lower() for task in os.getenv("EPICS_HELPER_CODES", "").split(",")
+        self._issue_helper_codes = [
+            issue.strip().lower() for issue in os.getenv("ISSUES_HELPER_CODES", "").split(",")
         ]
-        self._epic_bug = os.getenv("EPIC_BUG").strip().lower()
-        self._epic_out = os.getenv("EPIC_OUT").strip().lower()
-        self._epic_spillover = os.getenv("EPIC_SPILLOVER").strip().lower()
+        self._issue_type_bug = os.getenv("ISSUE_TYPE_BUG").strip().lower()
+        self._issue_type_off = os.getenv("ISSUE_TYPE_OFF").strip().lower()
+        self._issue_type_spillover = os.getenv("ISSUE_TYPE_SPILLOVER").strip().lower()
         self._col_epics_start = os.getenv("COL_EPICS_START")
         self._col_epics_end = os.getenv("COL_EPICS_END")
         self._col_epics_assignment_start = os.getenv("COL_EPICS_ASSIGNMENT_START")
@@ -117,8 +117,8 @@ class Config:
         return self._row_days
 
     @property
-    def epics_helper_codes(self):
-        return self._epics_helper_codes
+    def issue_helper_codes(self):
+        return self._issue_helper_codes
 
     @property
     def col_epics_start(self):
@@ -149,16 +149,16 @@ class Config:
         return self._row_header_end
 
     @property
-    def epic_bug(self):
-        return self._epic_bug
+    def issue_type_bug(self):
+        return self._issue_type_bug
 
     @property
-    def epic_out(self):
-        return self._epic_out
+    def issue_type_off(self):
+        return self._issue_type_off
 
     @property
-    def epic_spillover(self):
-        return self._epic_spillover
+    def issue_type_spillover(self):
+        return self._issue_type_spillover
 
     # --- Properties for Ollama connection ---
     @property

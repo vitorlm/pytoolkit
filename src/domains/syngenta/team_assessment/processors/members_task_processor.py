@@ -4,7 +4,7 @@ from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 from ..core.config import Config
 from utils.base_processor import BaseProcessor
-from ..core.task import Task
+from ..core.issue import Issue
 
 
 class MembersTaskProcessor(BaseProcessor):
@@ -14,9 +14,9 @@ class MembersTaskProcessor(BaseProcessor):
 
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsm", ".xlsx"])
-        self.task_map: Dict[str, Set[Task]] = {}
+        self.task_map: Dict[str, Set[Issue]] = {}
 
-    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Set[Task]]:
+    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Set[Issue]]:
         """
         Processes an Excel file to extract task allocations for team members.
 
@@ -117,7 +117,7 @@ class MembersTaskProcessor(BaseProcessor):
         self,
         sheet_data: List[List[Union[str, None]]],
         header_idxs: Dict[str, int],
-    ) -> Set[Task]:
+    ) -> Set[Issue]:
         """
         Extracts tasks from the sheet data.
 
@@ -133,7 +133,7 @@ class MembersTaskProcessor(BaseProcessor):
         tasks = set()
         for row in sheet_data[row_idx_tasks_start:row_idx_tasks_end]:
             code = row[header_idxs.get("code")]
-            if code and code.lower() not in (task.lower() for task in Config.epics_to_ignore):
+            if code and code not in (task.lower() for task in Config.epics_to_ignore):
                 jira = row[header_idxs.get("jira")] if row[header_idxs.get("jira")] != "" else None
                 description = (
                     row[header_idxs.get("subject")]
@@ -144,7 +144,7 @@ class MembersTaskProcessor(BaseProcessor):
                     row[header_idxs.get("type")] if row[header_idxs.get("type")] != "" else None
                 )
                 if code:
-                    tasks.add(Task(code=code, jira=jira, description=description, type=task_type))
+                    tasks.add(Issue(code=code, jira=jira, description=description, type=task_type))
 
         return tasks
 
@@ -152,8 +152,8 @@ class MembersTaskProcessor(BaseProcessor):
         self,
         sheet_data: List[List[Union[str, None]]],
         member_row_idx: int,
-        tasks_backlog: Set[Task],
-    ) -> Set[Task]:
+        tasks_backlog: Set[Issue],
+    ) -> Set[Issue]:
         """
         Extracts Task objects from a specific row in the sheet, matching
         task codes with the list of tasks, and excludes tasks that should be ignored.
@@ -173,9 +173,7 @@ class MembersTaskProcessor(BaseProcessor):
 
         tasks_to_remove = {t.lower() for t in Config.epics_to_ignore or []}
         filtered_task_codes = {
-            code
-            for code in task_codes
-            if isinstance(code, str) and code.lower() not in tasks_to_remove
+            code for code in task_codes if isinstance(code, str) and code not in tasks_to_remove
         }
 
         matched_tasks = {task for task in tasks_backlog if task.code in filtered_task_codes}

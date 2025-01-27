@@ -25,12 +25,13 @@ class BaseProcessor(ABC):
         # Set allowed file extensions
         self.allowed_extensions = allowed_extensions or ["*"]
 
-    def process_folder(self, folder_path: Union[str, Path]) -> Dict[str, Any]:
+    def process_folder(self, folder_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
         """
-        Processes all files in a given folder.
+        Processes all files in a given folder with additional parameters.
 
         Args:
             folder_path (Union[str, Path]): Path to the folder.
+            **kwargs: Additional parameters to pass to the file processing method.
 
         Returns:
             Dict[str, Any]: Aggregated data from all processed files.
@@ -49,7 +50,7 @@ class BaseProcessor(ABC):
 
             try:
                 self.logger.info(f"Processing file: {file_path} with {self.__class__.__name__}")
-                file_data = self.process_file(file_path)
+                file_data = self.process_file(file_path, **kwargs)
 
                 for key, value in file_data.items():
                     if isinstance(value, dict) and isinstance(data.get(key), dict):
@@ -62,7 +63,7 @@ class BaseProcessor(ABC):
         return data
 
     @abstractmethod
-    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+    def process_file(self, file_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
         """
         Processes a single file.
 
@@ -75,7 +76,7 @@ class BaseProcessor(ABC):
         pass
 
     @abstractmethod
-    def process_sheet(self, sheet_data: Any) -> Any:
+    def process_sheet(self, sheet_data: Any, **kwargs) -> Any:
         """
         Processes a single sheet of data.
 

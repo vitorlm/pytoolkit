@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from .statistics import IndividualStatistics
 from .health_check import MemberHealthCheck
 from .indicators import Indicator
-from .task import Task
+from .issue import Issue
 
 
 class Member(BaseModel):
@@ -23,7 +23,7 @@ class Member(BaseModel):
     last_name: Optional[str] = None
     feedback: Optional[Dict[str, Dict[str, List[Indicator]]]] = Field(default_factory=dict)
     feedback_stats: Optional[IndividualStatistics] = None  # Added this field
-    tasks: Optional[List[Task]] = Field(default_factory=list)
+    tasks: Optional[List[Issue]] = Field(default_factory=list)
     health_check: Optional[MemberHealthCheck] = None
 
     @classmethod
@@ -33,7 +33,7 @@ class Member(BaseModel):
         last_name: Optional[str] = None,
         feedback: Optional[Dict[str, Dict[str, List[Indicator]]]] = None,
         feedback_stats: Optional[IndividualStatistics] = None,
-        tasks: Optional[List[Task]] = None,
+        tasks: Optional[List[Issue]] = None,
         health_check: Optional[MemberHealthCheck] = None,
     ) -> "Member":
         """
