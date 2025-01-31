@@ -1,3 +1,5 @@
+import os
+from domains.syngenta.team_assessment.services.team_analyzer import TeamAnalyzer
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
@@ -46,6 +48,13 @@ class AssessmentGenerator:
         self._update_members_with_feedback(competency_matrix)
         team_stats, members_stats = self.competency_analyzer.analyze(competency_matrix)
         self._update_members_with_stats(members_stats)
+
+        team_analyzer = TeamAnalyzer(team_stats)
+        team_analyzer.output_path = self.output_path
+        team_analyzer.plot_boxplot()
+        team_analyzer.plot_radar_chart()
+        team_analyzer.plot_indicator_bars()
+
         self._generate_output(team_stats)
 
     def _validate_input_folders(self):
@@ -160,15 +169,25 @@ class AssessmentGenerator:
         Generates the final output report.
         """
         self._logger.info(f"Generating output report at {self.output_path}")
-        members_data = [
-            {
-                "name": m.name,
-                "tasks": m.tasks,
-                "health_check": m.health_check,
-                "feedback": m.feedback,
-                "feedback_stats": m.feedback_stats,
+
+        # Create a directory for member outputs
+        members_output_path = os.path.join(self.output_path, "members")
+        FileManager.create_folder(members_output_path)
+
+        # Store each member's data in a separate file
+        for member in self.members.values():
+            member_data = {
+                "name": member.name,
+                "tasks": member.tasks,
+                "health_check": member.health_check,
+                "feedback": member.feedback,
+                "feedback_stats": member.feedback_stats,
             }
-            for m in self.members.values()
-        ]
-        JSONManager.write_json({"team": team_stats, "members": members_data}, self.output_path)
+            member_file_path = os.path.join(members_output_path, f"{member.name}.json")
+            JSONManager.write_json(member_data, member_file_path)
+
+        # Store team stats in a separate file
+        team_file_path = os.path.join(self.output_path, "team_stats.json")
+        JSONManager.write_json({"team": team_stats}, team_file_path)
+
         self._logger.info("Assessment report successfully generated.")

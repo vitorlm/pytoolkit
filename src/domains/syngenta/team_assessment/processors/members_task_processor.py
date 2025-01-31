@@ -14,6 +14,7 @@ class MembersTaskProcessor(BaseProcessor):
 
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsm", ".xlsx"])
+        self._config = Config()
         self.task_map: Dict[str, Set[Issue]] = {}
 
     def process_file(self, file_path: Union[str, Path]) -> Dict[str, Set[Issue]]:
@@ -41,11 +42,11 @@ class MembersTaskProcessor(BaseProcessor):
         for sheet_name in relevant_sheets:
             sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
             self.logger.info(f"Processing sheet: {sheet_name}")
-            self.process_cycle(sheet_data)
+            self.process_sheet(sheet_data)
 
         return self.task_map
 
-    def process_cycle(self, sheet_data: List[List[Union[str, None]]]):
+    def process_sheet(self, sheet_data: List[List[Union[str, None]]]):
         """
         Processes a single sheet to map tasks to team members.
 
@@ -61,14 +62,16 @@ class MembersTaskProcessor(BaseProcessor):
 
         self.logger.info(f"Processing {len(members)} members and {len(tasks_backlog)} tasks")
         for row_idx, member in enumerate(members):
-            member_row_idx = Config.row_members_start - 1 + row_idx
+            member_row_idx = self._config.row_members_start + row_idx
             tasks = self._extract_tasks_per_member(sheet_data, member_row_idx, tasks_backlog)
 
             if member not in self.task_map:
-                self.task_map[member] = set()
+                self.task_map[member] = []
 
             # Add tasks to the set, avoiding duplicates
-            self.task_map[member].update(tasks)
+            self.task_map[member].extend(
+                task for task in tasks if task not in self.task_map[member]
+            )
 
     def _extract_header(self, sheet_data: List[List[Union[str, None]]]) -> Dict[str, int]:
         """
@@ -82,7 +85,7 @@ class MembersTaskProcessor(BaseProcessor):
             Dict[str, int]: A dictionary with header items as keys and column indices as values.
         """
         header_map = {}
-        for row_idx in range(Config.row_header_start, Config.row_epics_end):
+        for row_idx in range(self._config.row_header_start, self._config.row_epics_end):
             for col_idx, cell_value in enumerate(sheet_data[row_idx - 1]):
                 # Ensure cell_value is a string before calling .lower()
                 if isinstance(cell_value, str) and cell_value.lower() in [
@@ -93,7 +96,9 @@ class MembersTaskProcessor(BaseProcessor):
                 ]:
                     header_map[cell_value.lower()] = col_idx
                     if len(header_map) == 4:
+                        self.logger.info(f"Header extracted: {header_map}")
                         return header_map
+        self.logger.warning("Header extraction incomplete, some columns may be missing.")
         return header_map
 
     def _extract_members(self, sheet_data: List[List[Union[str, None]]]) -> List[str]:
@@ -106,18 +111,20 @@ class MembersTaskProcessor(BaseProcessor):
         Returns:
             List[str]: List of member names.
         """
-        col_idx = Config.col_member_idx
-        return [
+        col_idx = self._config.col_member_idx
+        members = [
             row[col_idx]
-            for row in sheet_data[Config.row_members_start : Config.row_members_end]
+            for row in sheet_data[self._config.row_members_start : self._config.row_members_end]
             if row[col_idx]
         ]
+        self.logger.info(f"Extracted {len(members)} members")
+        return members
 
     def _extract_tasks(
         self,
         sheet_data: List[List[Union[str, None]]],
         header_idxs: Dict[str, int],
-    ) -> Set[Issue]:
+    ) -> List[Issue]:
         """
         Extracts tasks from the sheet data.
 
@@ -127,25 +134,19 @@ class MembersTaskProcessor(BaseProcessor):
         Returns:
             Set[Task]: A set of unique Task objects.
         """
-        row_idx_tasks_start = Config.row_epics_assignment_start
-        row_idx_tasks_end = Config.row_epics_assignment_end
-
-        tasks = set()
-        for row in sheet_data[row_idx_tasks_start:row_idx_tasks_end]:
+        tasks = []
+        for row in sheet_data[self._config.row_epics_start : self._config.row_epics_end]:
             code = row[header_idxs.get("code")]
-            if code and code not in (task.lower() for task in Config.epics_to_ignore):
-                jira = row[header_idxs.get("jira")] if row[header_idxs.get("jira")] != "" else None
-                description = (
-                    row[header_idxs.get("subject")]
-                    if row[header_idxs.get("subject")] != ""
-                    else None
-                )
-                task_type = (
-                    row[header_idxs.get("type")] if row[header_idxs.get("type")] != "" else None
-                )
+            if code and code not in (task.lower() for task in self._config._issue_helper_codes):
+                code = code.lower()
+                jira = row[header_idxs.get("jira")]
+                description = row[header_idxs.get("subject")]
+                task_type = row[header_idxs.get("type")]
                 if code:
-                    tasks.add(Issue(code=code, jira=jira, description=description, type=task_type))
-
+                    tasks.append(
+                        Issue(code=code, jira=jira, description=description, type=task_type)
+                    )
+        self.logger.info(f"Extracted {len(tasks)} tasks")
         return tasks
 
     def _extract_tasks_per_member(
@@ -153,7 +154,7 @@ class MembersTaskProcessor(BaseProcessor):
         sheet_data: List[List[Union[str, None]]],
         member_row_idx: int,
         tasks_backlog: Set[Issue],
-    ) -> Set[Issue]:
+    ) -> List[Issue]:
         """
         Extracts Task objects from a specific row in the sheet, matching
         task codes with the list of tasks, and excludes tasks that should be ignored.
@@ -166,18 +167,21 @@ class MembersTaskProcessor(BaseProcessor):
             Set[Task]: A set of unique Task objects assigned to the member.
         """
         task_row = sheet_data[member_row_idx]
-        col_start_idx = Config.col_epics_assignment_start_idx
+        col_start_idx = self._config.col_epics_assignment_start_idx
         col_end_idx = self._find_last_day_column(sheet_data)
 
         task_codes = {cell for cell in task_row[col_start_idx:col_end_idx] if cell}
 
-        tasks_to_remove = {t.lower() for t in Config.epics_to_ignore or []}
+        tasks_to_remove = {t.lower() for t in self._config._issue_helper_codes or []}
         filtered_task_codes = {
-            code for code in task_codes if isinstance(code, str) and code not in tasks_to_remove
+            code.lower()
+            for code in task_codes
+            if isinstance(code, str) and code.lower() not in tasks_to_remove
         }
 
-        matched_tasks = {task for task in tasks_backlog if task.code in filtered_task_codes}
+        matched_tasks = [task for task in tasks_backlog if task.code in filtered_task_codes]
 
+        self.logger.info(f"Extracted {len(matched_tasks)} tasks for member at row {member_row_idx}")
         return matched_tasks
 
     def _find_last_day_column(self, sheet_data: List[List[Union[str, None]]]) -> int:
@@ -190,11 +194,13 @@ class MembersTaskProcessor(BaseProcessor):
         Returns:
             int: The index of the last valid column.
         """
-        col_idx_tasks_assignment_start = Config.col_epics_assignment_start_idx
-        days_row = sheet_data[Config.row_days]
+        col_idx_tasks_assignment_start = self._config.col_epics_assignment_start_idx
+        days_row = sheet_data[self._config.row_days]
         for idx, cell in enumerate(
             days_row[col_idx_tasks_assignment_start:], start=col_idx_tasks_assignment_start
         ):
             if cell is None or cell == "":
+                self.logger.info(f"Last valid column found at index {idx}")
                 return idx
+        self.logger.info("All columns are valid for task assignment")
         return len(days_row)

@@ -31,7 +31,6 @@ class CompetencyProcessor(BaseProcessor):
             CompetencyMatrix: Processed competency data structured by evaluatee and evaluator.
         """
         competency_matrix: CompetencyMatrix = {}
-        self.logger.info(f"Processing file: {file_path}")
         evaluator_name = self._extract_evaluator_name(FileManager.get_file_name(file_path))
 
         excel_data = ExcelManager.read_excel(file_path)
@@ -39,13 +38,13 @@ class CompetencyProcessor(BaseProcessor):
             df = excel_data.parse(sheet_name)
             evaluatee_name = sheet_name.strip()
             self.logger.debug(f"Processing sheet: {sheet_name} for evaluatee: {evaluatee_name}")
-            self.process_cycle(df, evaluatee_name, evaluator_name, competency_matrix)
+            self.process_sheet(df, evaluatee_name, evaluator_name, competency_matrix)
 
         ValidationHelper.validate_competency_matrix(competency_matrix)
         self.logger.info(f"Validation completed for file: {file_path}")
         return competency_matrix
 
-    def process_cycle(
+    def process_sheet(
         self,
         sheet_data: pd.DataFrame,
         evaluatee: str,

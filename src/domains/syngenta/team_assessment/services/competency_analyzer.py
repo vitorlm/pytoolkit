@@ -1,15 +1,15 @@
-import os
 from typing import Dict, Union, Tuple
-from log_config import log_manager
+from utils.logging.logging_manager import LogManager
 from ..core.config import Config
 from .feedback_specialist import FeedbackSpecialist
 from ..core.statistics import TeamStatistics, IndividualStatistics, StatisticsHelper
-from ..core.validations import ValidationHelper
 from ..core.indicators import Indicator
 
 # Type aliases for better readability
 CriteriaDict = Dict[str, Dict]
 StatisticsDict = Dict[str, Union[float, Dict]]
+
+logger = LogManager.get_instance().get_logger("CompetencyAnalyzer")
 
 
 class CompetencyAnalyzer:
@@ -28,10 +28,8 @@ class CompetencyAnalyzer:
         Args:
             feedback_specialist (FeedbackSpecialist): Instance of FeedbackSpecialist.
         """
-        self.logger = log_manager.get_logger(
-            module_name=os.path.splitext(os.path.basename(__file__))[0]
-        )
         self.feedback_specialist = feedback_specialist
+        self._config = Config()
 
     def analyze(
         self, competency_matrix: CriteriaDict
@@ -45,14 +43,15 @@ class CompetencyAnalyzer:
         Returns:
             Dict: Dictionary containing team and individual statistics, including outliers.
         """
-        self.logger.info("Starting analysis of the competency matrix.")
-        ValidationHelper.validate_competency_matrix(competency_matrix)
+        logger.info("Starting analysis of the competency matrix.")
 
         team_stats = self._calculate_team_statistics(competency_matrix)
         individual_stats = self._calculate_individual_statistics(competency_matrix, team_stats)
-        team_stats.outliers = self._detect_outliers(individual_stats, Config.outlier_threshold)
+        team_stats.outliers = self._detect_outliers(
+            individual_stats, self._config.outlier_threshold
+        )
 
-        self.logger.info("Completed analysis of the competency matrix.")
+        logger.info("Completed analysis of the competency matrix.")
 
         return team_stats, individual_stats
 
@@ -66,13 +65,13 @@ class CompetencyAnalyzer:
         Returns:
             TeamStatistics: Computed team statistics.
         """
-        self.logger.debug("Calculating team-level statistics.")
+        logger.debug("Calculating team-level statistics.")
         team_stats = TeamStatistics()
 
         for evaluatee in competency_matrix.values():
             for evaluator_data in evaluatee.values():
                 for criterion, indicators in evaluator_data.items():
-                    if criterion not in team_stats.criteria_stats.items():
+                    if criterion not in team_stats.criteria_stats.keys():
                         team_stats.criteria_stats[criterion] = {
                             "levels": [],
                             "indicator_stats": {},
@@ -95,12 +94,14 @@ class CompetencyAnalyzer:
                                 team_stats.criteria_stats[criterion]["indicator_stats"][
                                     ind_name
                                 ] = {"levels": []}
+
                             team_stats.criteria_stats[criterion]["indicator_stats"][ind_name][
                                 "levels"
                             ].append(level)
 
         team_stats.finalize_statistics()
         self._finalize_statistics_for_criteria(team_stats.criteria_stats)
+        del team_stats.overall_levels
         return team_stats
 
     def _finalize_statistics_for_criteria(self, criteria_stats: Dict):
@@ -143,7 +144,7 @@ class CompetencyAnalyzer:
         Returns:
             Dict[str, IndividualStatistics]: Individual statistics mapped by evaluatee name.
         """
-        self.logger.debug("Calculating individual-level statistics.")
+        logger.debug("Calculating individual-level statistics.")
         team_member_statistics = {}
 
         for evaluatee_name, evaluatee_data in competency_matrix.items():
@@ -180,8 +181,8 @@ class CompetencyAnalyzer:
                             ind_stats["levels"].append(level)
 
             self._finalize_statistics_for_criteria(individual_stats.criteria_stats)
-            individual_stats.finalize_statistics(Config.criteria_weights, team_stats)
-
+            individual_stats.finalize_statistics(self._config.criteria_weights, team_stats)
+            del individual_stats.overall_levels
             team_member_statistics[evaluatee_name] = individual_stats
 
         return team_member_statistics
@@ -199,12 +200,14 @@ class CompetencyAnalyzer:
         Returns:
             Dict: Dictionary of identified outliers and their statistics.
         """
-        self.logger.debug("Detecting outliers in individual statistics.")
+        logger.debug("Detecting outliers in individual statistics.")
         averages = [stats.average_level for stats in individual_stats.values()]
         outlier_indices = StatisticsHelper.calculate_outliers(averages, threshold)
 
+        min_outlier = min(outlier_indices)
+        max_outlier = max(outlier_indices)
         return {
             name: stats
             for name, stats in individual_stats.items()
-            if stats.average_level in outlier_indices
+            if stats.average_level <= min_outlier or stats.average_level >= max_outlier
         }

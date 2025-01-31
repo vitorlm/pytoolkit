@@ -2,6 +2,7 @@ import json
 import os
 from typing import Any, Dict
 from filelock import FileLock
+from pydantic import BaseModel
 
 
 class JSONManager:
@@ -70,15 +71,27 @@ class JSONManager:
             bool: True if the operation is successful.
         """
 
-        lock = FileLock(f"{file_path}.lock")
-        with lock:
+        def pydantic_encoder(obj):
+            if isinstance(obj, BaseModel):
+                return obj.model_dump()
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+        try:
             if os.path.exists(file_path):
                 backup_path = f"{file_path}.bak"
                 os.replace(file_path, backup_path)
             with open(file_path, "w", encoding="utf-8") as file:
-                json.dump(data, file, sort_keys=True, indent=4, ensure_ascii=False)
-
-        return True
+                json.dump(
+                    data,
+                    file,
+                    sort_keys=True,
+                    indent=4,
+                    ensure_ascii=False,
+                    default=pydantic_encoder,
+                )
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            raise
 
     @staticmethod
     def append_or_update_json(file_path: str, updates: Dict) -> bool:

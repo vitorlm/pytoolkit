@@ -129,9 +129,12 @@ class StatisticsHelper:
         if not indicators or len(indicators) != len(reference):
             logger.warning("Invalid input for correlation calculation.")
             return None
+        if np.std(reference) == 0 or np.std(indicators) == 0:
+            logger.warning("Standard deviation is zero for correlation calculation.")
+            return None
 
         correlation = np.corrcoef(indicators, reference)[0, 1]
-        logger.info(f"Computed correlation: {correlation}")
+        logger.debug(f"Computed correlation: {correlation}")
         return round(correlation, 2)
 
     @staticmethod

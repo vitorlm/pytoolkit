@@ -46,7 +46,7 @@ class HealthCheckProcessor(BaseProcessor):
             member_name = sheet_name.split(" ")[0]
             self.logger.info(f"Processing sheet: {sheet_name} for member: {member_name}")
             sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
-            feedback_data = self.process_cycle(sheet_data)
+            feedback_data = self.process_sheet(sheet_data)
 
             # Validate feedback data
             ValidationHelper.validate_health_check_data(feedback_data)
@@ -64,7 +64,7 @@ class HealthCheckProcessor(BaseProcessor):
         self.logger.info(f"Completed processing of file: {file_path}")
         return members_health_check
 
-    def process_cycle(self, sheet_data: List[List[Any]]) -> List[FeedbackAssessment]:
+    def process_sheet(self, sheet_data: List[List[Any]]) -> List[FeedbackAssessment]:
         """
         Processes a single sheet to extract feedback data.
 

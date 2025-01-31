@@ -1,5 +1,4 @@
-from datetime import date, datetime
-import json
+from datetime import date
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -7,15 +6,12 @@ import pandas as pd
 
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
-from utils.logging.logging_manager import LogManager
 from ..core.config import Config
 from utils.base_processor import BaseProcessor
 from ..core.issue import Issue, IssueDetails
 from ..core.team import Team
 from ..core.cycle import Cycle
 from ..services.jira_issue_fetcher import JiraIssueFetcher
-
-logger = LogManager.get_instance().get_logger("TeamTaskProcessor")
 
 
 class TeamTaskProcessor(BaseProcessor):
@@ -50,13 +46,13 @@ class TeamTaskProcessor(BaseProcessor):
         FileManager.validate_file(file_path, allowed_extensions=self.allowed_extensions)
 
         relevant_sheets = ExcelManager.filter_sheets_by_pattern(file_path, pattern=r"Q[1-4]-C[1-2]")
-        logger.info(f"Processing {len(relevant_sheets)} relevant sheets from {file_path}")
+        self.logger.info(f"Processing {len(relevant_sheets)} relevant sheets from {file_path}")
 
         self._team = Team(name=team_name, config=self._config)
 
         for sheet_name in relevant_sheets:
             sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
-            logger.info(f"Processing sheet: {sheet_name}")
+            self.logger.info(f"Processing sheet: {sheet_name}")
             self.process_sheet(sheet_name, sheet_data, jira_project, team_name)
 
         self._team.summarize()
@@ -184,6 +180,7 @@ class TeamTaskProcessor(BaseProcessor):
             sheet_data (List[List[Union[str, None]]]): The sheet data.
             header_idxs (Dict[str, int]): Column indices for key headers.
         """
+
         for row in sheet_data[self._config.row_epics_start : self._config.row_epics_end]:
             code = row[header_idxs.get("code")]
             if code:
@@ -196,7 +193,7 @@ class TeamTaskProcessor(BaseProcessor):
                     issue = Issue(code=code, jira=jira, description=description, type=task_type)
                     cycle.backlog[code] = issue
                 else:
-                    logger.warning(f"Duplicate task code found: {code}")
+                    self.logger.warning(f"Duplicate task code found: {code}")
 
     def _find_cycle_dates(self, cycle: Cycle, sheet_data: List[List[Union[str, None]]]):
         """

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Union, Dict, Any, List, Optional
 from utils.file_manager import FileManager
-from log_config import log_manager
+from utils.logging.logging_manager import LogManager
 
 
 class BaseProcessor(ABC):
@@ -18,9 +18,7 @@ class BaseProcessor(ABC):
             allowed_extensions (Optional[List[str]]): List of allowed file extensions.
                 If None, all file types are allowed.
         """
-        # Use the name of the child class for the logger
-        child_class_name = self.__class__.__name__
-        self.logger = log_manager.get_logger(module_name=child_class_name)
+        self.logger = LogManager.get_instance().get_logger(self.__class__.__name__)
 
         # Set allowed file extensions
         self.allowed_extensions = allowed_extensions or ["*"]
