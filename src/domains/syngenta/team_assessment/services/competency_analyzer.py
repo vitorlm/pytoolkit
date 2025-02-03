@@ -112,7 +112,7 @@ class CompetencyAnalyzer:
             criteria_stats (Dict): Dictionary containing criteria statistics.
         """
         for criterion_data in criteria_stats.values():
-            levels = criterion_data.pop("levels", [])
+            levels = criterion_data.get("levels", [])
             if levels:
                 q1, q3 = StatisticsHelper.calculate_percentiles(levels)
                 criterion_data["q1"] = q1

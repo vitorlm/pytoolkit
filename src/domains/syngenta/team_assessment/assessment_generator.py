@@ -1,4 +1,5 @@
 import os
+from domains.syngenta.team_assessment.services.member_analyzer import MemberAnalyzer
 from domains.syngenta.team_assessment.services.team_analyzer import TeamAnalyzer
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
@@ -48,12 +49,12 @@ class AssessmentGenerator:
         self._update_members_with_feedback(competency_matrix)
         team_stats, members_stats = self.competency_analyzer.analyze(competency_matrix)
         self._update_members_with_stats(members_stats)
+        for member_name, member_data in members_stats.items():
+            member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
+            member_analyzer.plot_all_charts()
 
-        team_analyzer = TeamAnalyzer(team_stats)
-        team_analyzer.output_path = self.output_path
-        team_analyzer.plot_boxplot()
-        team_analyzer.plot_radar_chart()
-        team_analyzer.plot_indicator_bars()
+        team_analyzer = TeamAnalyzer(team_stats, self.output_path)
+        team_analyzer.plot_all_charts()
 
         self._generate_output(team_stats)
 
@@ -183,7 +184,9 @@ class AssessmentGenerator:
                 "feedback": member.feedback,
                 "feedback_stats": member.feedback_stats,
             }
-            member_file_path = os.path.join(members_output_path, f"{member.name}.json")
+            member_output_folder = os.path.join(members_output_path, member.name.split()[0])
+            FileManager.create_folder(member_output_folder)
+            member_file_path = os.path.join(member_output_folder, "stats.json")
             JSONManager.write_json(member_data, member_file_path)
 
         # Store team stats in a separate file

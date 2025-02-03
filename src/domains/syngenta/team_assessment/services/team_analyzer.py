@@ -1,185 +1,152 @@
-import os
 import numpy as np
-from typing import Optional, Dict, Any
-import matplotlib.pyplot as plt
 import pandas as pd
+from typing import Optional, Dict, Any, List, Tuple
+
 from utils.logging.logging_manager import LogManager
+from domains.syngenta.team_assessment.core.statistics import TeamStatistics
+from domains.syngenta.team_assessment.services.chart_mixin import ChartMixin
 
 
-class TeamAnalyzer:
-    _output_path: Optional[str] = None
-    _logger = LogManager.get_instance().get_logger("TeamAnalyzer")
+class TeamAnalyzer(ChartMixin):
+    """
+    Analyzer for team-level statistics.
+    Transforms team-specific data (criteria_stats) into a generic format expected by ChartMixin
+    and generates the charts.
+    """
 
-    @property
-    def output_path(self) -> Optional[str]:
-        return self._output_path
-
-    @output_path.setter
-    def output_path(self, path: Optional[str]) -> None:
-        self._output_path = path
-
-    def __init__(self, team_stats: Any):
-        self.team = team_stats
-
-    def _save_plot(self, plt_instance, filename: str, adjust_params: Optional[dict] = None) -> None:
+    def __init__(self, team_stats: TeamStatistics, output_path: Optional[str] = None):
         """
-        Saves the plot to the specified filename.
+        Initializes the team analyzer.
 
         Args:
-            plt_instance: The Matplotlib plot instance to save.
-            filename (str): The filename for the saved plot.
-            adjust_params (dict, optional): Parameters for `subplots_adjust` to fine-tune the layout
+            team_stats (TeamStatistics): The team's statistics data.
+            output_path (Optional[str]): Path to save the generated charts.
         """
-        file_path = os.path.join(self._output_path or "", filename)
+        self.team = team_stats
+        self.criteria_stats: Dict[str, Any] = self.team.criteria_stats
+        self.output_path = output_path
+        self._logger = LogManager.get_instance().get_logger("TeamAnalyzer")
 
-        # Apply layout adjustments if provided
-        if adjust_params:
-            plt_instance.subplots_adjust(**adjust_params)
+    def _get_boxplot_data(self) -> Dict[str, List[float]]:
+        """
+        Transforms the team's criteria stats into a dictionary suitable for the generic boxplot.
+        Each key is a criterion name and the value is a list of simulated values.
+        Here we generate 10 sample values per criterion using a normal distribution centered on
+        the average, with an estimated standard deviation based on the interquartile range.
 
-        # Save the plot
-        plt_instance.savefig(file_path, dpi=600, bbox_inches="tight")
-        plt_instance.close()
-        self._logger.info(f"Plot saved to {file_path}")
+        Returns:
+            Dict[str, List[float]]: The boxplot data.
+        """
 
-    def _validate_criteria_stats(self, criteria_stats: Dict[str, Any]) -> None:
-        """Validates the criteria statistics structure."""
-        for criterion, values in criteria_stats.items():
-            if not all(key in values for key in ["lowest", "q1", "q3", "highest", "average"]):
-                raise KeyError(f"Missing required keys in '{criterion}' stats.")
+        box_data = {}
+        for criterion, stats in self.team.criteria_stats.items():
+            box_data[criterion] = stats["levels"]
+
+        return box_data
 
     def plot_boxplot(self, title: str = "Skills Distribution") -> None:
         """
-        Generates a boxplot for team skills based on the provided statistics.
+        Generates a boxplot chart for the team's skills.
+        Transforms the team criteria stats into generic boxplot data and calls the mixin method.
 
         Args:
             title (str): The title of the plot.
         """
-        self._logger.info("Starting to plot boxplot for team skills distribution.")
-
-        try:
-            self._validate_criteria_stats(self.team.criteria_stats)
-        except KeyError as e:
-            self._logger.error(f"Validation error: {e}")
-            raise
-
-        boxplot_data = []
-        labels = []
-        for criterion, values in self.team.criteria_stats.items():
-            boxplot_data.append([values["lowest"], values["q1"], values["q3"], values["highest"]])
-            labels.append(criterion)
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        box = ax.boxplot(
-            boxplot_data,
-            labels=labels,
-            patch_artist=True,
-            boxprops=dict(color="black"),
-            medianprops=dict(color="orange", linewidth=2),
-            whiskerprops=dict(color="black", linestyle="--"),
-            capprops=dict(color="black"),
+        data = self._get_boxplot_data()
+        colors = [
+            "#" + "".join([np.random.choice(list("0123456789ABCDEF")) for _ in range(6)])
+            for _ in range(len(data))
+        ]
+        self.plot_boxplot_chart(
+            data,
+            title=title,
+            x_col="Criterion",
+            y_col="Skill Level",
+            filename="team_skills_distribution_boxplot.png",
+            box_colors=colors,
         )
 
-        ax.set_title(title, fontsize=16, fontweight="bold")
-        ax.set_ylabel("Skill Level", fontsize=12)
-        ax.set_xlabel("Evaluated Criteria", fontsize=12)
-        ax.grid(True, linestyle="--", alpha=0.6)
-
-        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"]
-        for patch, color in zip(box["boxes"], colors):
-            patch.set_facecolor(color)
-
-        self._save_plot(plt, "team_skills_distribution_boxplot.png")
-
-    def plot_radar_chart(self, title: str = "Team Skills Distribution") -> None:
+    def _get_radar_data(self) -> Tuple[List[str], Dict[str, List[float]]]:
         """
-        Generates a radar chart to compare the team's average skills.
+        Transforms the team's criteria stats into the format expected for a radar chart.
+        Returns:
+            A tuple (labels, data) where:
+              - labels is a list of criterion names.
+              - data is a dictionary mapping series names ("Average", "Q1", "Q3") to lists of values
+        """
+        labels = list(self.criteria_stats.keys())
+        averages = [self.criteria_stats[crit]["average"] for crit in labels]
+        q1_values = [self.criteria_stats[crit]["q1"] for crit in labels]
+        q3_values = [self.criteria_stats[crit]["q3"] for crit in labels]
+
+        data = {
+            "Average": averages,
+            "Q1": q1_values,
+            "Q3": q3_values,
+        }
+        return labels, data
+
+    def plot_radar_chart(self, title: str = "Team Skills Distribution Radar Chart") -> None:
+        """
+        Generates a radar chart comparing the team's average skills.
+        Transforms the team data into generic radar data and calls the mixin method.
 
         Args:
             title (str): The title of the radar chart.
         """
-        self._logger.info("Generating radar chart for team skills distribution.")
-
-        try:
-            # Validate the data structure
-            self._validate_criteria_stats(self.team.criteria_stats)
-        except KeyError as e:
-            self._logger.error(f"Validation error: {e}")
-            raise
-
-        labels = list(self.team.criteria_stats.keys())
-        values = [self.team.criteria_stats[criterion]["average"] for criterion in labels]
-
-        # Compute angles for the radar chart and close the loop
-        num_vars = len(labels)
-        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-        values += values[:1]
-        angles += angles[:1]
-
-        # Create radar chart
-        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-        ax.fill(angles, values, color="#1f77b4", alpha=0.25)
-        ax.plot(angles, values, color="#1f77b4", linewidth=2)
-
-        # Configure radial axis
-        ax.set_yticks([1, 2, 3, 4, 5])
-        ax.set_yticklabels([1, 2, 3, 4, 5], fontsize=10, color="gray")
-        ax.set_ylim(0, 5)
-
-        # Reduce the size of the polar frame
-        ax.set_position([0.2, 0.2, 0.6, 0.6])
-
-        # Configure angular axis
-        ax.set_xticks(angles[:-1])
-        ax.set_xticklabels(labels, fontsize=12, weight="bold")
-        ax.spines["polar"].set_visible(True)
-
-        # Title positioning and overall styling
-        ax.set_title(title, fontsize=16, weight="bold", pad=40)
-        ax.grid(color="gray", linestyle="--", linewidth=0.5, alpha=0.7)
-
-        self._save_plot(
-            plt_instance=plt,
+        labels, data = self._get_radar_data()
+        # Call the mixin's generic radar chart method via super() to avoid name collision.
+        super().plot_radar_chart(
+            labels,
+            data,
+            title=title,
             filename="team_skills_radar_chart.png",
-            adjust_params={"left": 0.1, "right": 0.9, "top": 0.9, "bottom": 0.1},
         )
 
-    def plot_indicator_bars(self) -> None:
-        """Generates a bar chart to display the average of indicators within each criterion."""
-        self._logger.info("Generating bar chart for indicators.")
-        indicator_stats = []
-        colors = {}
-        color_palette = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
-        color_index = 0
+    def _get_bar_chart_data(self) -> pd.DataFrame:
+        """
+        Transforms team criteria stats into a DataFrame suitable for a horizontal bar chart.
+        Each row represents one indicator with its corresponding average value and group.
 
-        for criterion, data in self.team.criteria_stats.items():
-            if criterion not in colors:
-                colors[criterion] = color_palette[color_index % len(color_palette)]
-                color_index += 1
-            for indicator, stats in data["indicator_stats"].items():
-                indicator_stats.append(
+        Returns:
+            pd.DataFrame: DataFrame with columns "Label", "Value", and "Group".
+        """
+        rows = []
+        for criterion, stats in self.criteria_stats.items():
+            indicator_stats = stats.get("indicator_stats", {})
+            for indicator, ind_stats in indicator_stats.items():
+                rows.append(
                     {
                         "Indicator": f"{criterion} - {indicator}",
-                        "Average": stats["average"],
+                        "Level Average": ind_stats["average"],
                         "Criterion": criterion,
                     }
                 )
+        return pd.DataFrame(rows)
 
-        df_indicators = pd.DataFrame(indicator_stats)
-        df_indicators.sort_values(by="Average", inplace=True, ascending=True)
+    def plot_bar_chart(self, title: str = "Average of Each Criterion by Indicator") -> None:
+        """
+        Generates a horizontal bar chart to display the average of indicators within each criterion.
+        Transforms the team data into a DataFrame and calls the generic horizontal bar chart method.
 
-        plt.figure(figsize=(10, 6))
-        plt.barh(
-            df_indicators["Indicator"],
-            df_indicators["Average"],
-            color=[colors[c] for c in df_indicators["Criterion"]],
+        Args:
+            title (str): The title of the bar chart.
+        """
+        df = self._get_bar_chart_data()
+
+        super().plot_horizontal_bar_chart(
+            df,
+            x_col="Level Average",
+            y_col="Indicator",
+            title=title,
+            filename="team_criteria_indicator_bars.png",
+            group_col="Criterion",
         )
-        plt.xlabel("Average Level")
-        plt.title("Average of Each Criterion by Indicator")
-        plt.grid(axis="x", linestyle="--", alpha=0.7)
 
-        legend_patches = [
-            plt.Line2D([0], [0], color=color, lw=4, label=crit) for crit, color in colors.items()
-        ]
-        plt.legend(handles=legend_patches, title="Criterion")
-
-        self._save_plot(plt, "team_criteria_indicator_bars.png")
+    def plot_all_charts(self) -> None:
+        """
+        Calls all plot methods to generate all charts.
+        """
+        self.plot_boxplot()
+        self.plot_radar_chart()
+        self.plot_bar_chart()
