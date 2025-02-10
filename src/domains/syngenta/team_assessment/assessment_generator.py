@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from domains.syngenta.team_assessment.processors.criteria_processor import CriteriaProcessor
 from domains.syngenta.team_assessment.services.member_analyzer import MemberAnalyzer
 from domains.syngenta.team_assessment.services.team_analyzer import TeamAnalyzer
@@ -13,6 +14,7 @@ from .processors.health_check_processor import HealthCheckProcessor
 from .services.feedback_analyzer import FeedbackAnalyzer
 from .services.feedback_specialist import FeedbackSpecialist
 from .core.member import Member
+from .core.config import Config
 
 
 class AssessmentGenerator:
@@ -30,6 +32,7 @@ class AssessmentGenerator:
         planning_folder: str,
         health_check_folder: str,
         output_path: str,
+        ignored_member_list: Optional[str] = None,
     ):
         self.competency_matrix_file = competency_matrix_file
         self.feedback_folder = feedback_folder
@@ -42,8 +45,14 @@ class AssessmentGenerator:
         self.task_processor = MembersTaskProcessor()
         self.feedback_processor = FeedbackProcessor()
         self.health_check_processor = HealthCheckProcessor()
-        self.feedback_specialist = FeedbackSpecialist()
+        self.config = Config()
+        self.feedback_specialist = FeedbackSpecialist(
+            host=self.config.ollama_host,
+            model=self.config.ollama_model,
+            **self.config.get_ollama_config(),
+        )
         self.feedback_analyzer = FeedbackAnalyzer(self.feedback_specialist)
+        self.ignored_member_list = JSONManager.read_json(ignored_member_list, default=[])
 
     def run(self):
         """
@@ -59,8 +68,13 @@ class AssessmentGenerator:
         team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
         self._update_members_with_stats(members_stats)
         for member_name, member_data in members_stats.items():
+            if self._is_member_ignored(member_name):
+                continue
             member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
             member_analyzer.plot_all_charts()
+            self.feedback_specialist.generate_feedback(
+                member_name, member_data, team_stats, competency_matrix
+            )
 
         team_analyzer = TeamAnalyzer(team_stats, self.output_path)
         team_analyzer.plot_all_charts()
@@ -98,6 +112,8 @@ class AssessmentGenerator:
         self._logger.info(f"Processing health checks from: {self.health_check_folder}")
         health_check_data = self.health_check_processor.process_folder(self.health_check_folder)
         for member_name, health_check in health_check_data.items():
+            if self._is_member_ignored(member_name):
+                continue
             self._update_member_health_checks(member_name, health_check)
 
     def _process_feedback(self):
@@ -112,6 +128,9 @@ class AssessmentGenerator:
         Updates or initializes member tasks.
         """
         member_name = StringUtils.remove_accents(member_name)
+        if self._is_member_ignored(member_name):
+            return
+
         if member_name not in self.members:
             self.members[member_name] = Member(
                 name=member_name, tasks=list(tasks), health_check=None, feedback=None
@@ -124,6 +143,9 @@ class AssessmentGenerator:
         Updates or initializes member health check data.
         """
         member_name = StringUtils.remove_accents(member_name)
+        if self._is_member_ignored(member_name):
+            return
+
         if member_name not in self.members:
             self.members[member_name] = Member(
                 name=member_name, health_check=health_check, tasks=[], feedback={}
@@ -149,6 +171,8 @@ class AssessmentGenerator:
         """
 
         for evaluatee_name, evaluations in competency_matrix.items():
+            if self._is_member_ignored(evaluatee_name):
+                continue
             name, last_name = evaluatee_name.split(" ", 1)
             name = StringUtils.remove_accents(name)
             last_name = StringUtils.remove_accents(last_name)
@@ -177,6 +201,8 @@ class AssessmentGenerator:
         Updates members with analyzed feedback stats.
         """
         for member_name, member_stats in members_stats.items():
+            if self._is_member_ignored(member_name):
+                continue
             name, last_name = member_name.split(" ", 1)
             name = StringUtils.remove_accents(name)
             last_name = StringUtils.remove_accents(last_name)
@@ -223,3 +249,30 @@ class AssessmentGenerator:
         JSONManager.write_json({"team": team_stats}, team_file_path)
 
         self._logger.info("Assessment report successfully generated.")
+
+    def _is_member_ignored(self, member_name):
+        """
+        Checks if a member is in the ignored member list.
+
+        Args:
+            member_name (str): The name of the member to check.
+
+        Returns:
+            bool: True if the member is in the ignored member list, False otherwise.
+        """
+        name_parts = member_name.split(" ", 1)
+        first_name = StringUtils.remove_accents(name_parts[0])
+        last_name = StringUtils.remove_accents(name_parts[1]) if len(name_parts) > 1 else ""
+
+        for ignored_member in self.ignored_member_list:
+            ignored_parts = ignored_member.split(" ", 1)
+            ignored_first_name = StringUtils.remove_accents(ignored_parts[0])
+            ignored_last_name = (
+                StringUtils.remove_accents(ignored_parts[1]) if len(ignored_parts) > 1 else ""
+            )
+
+            if first_name == ignored_first_name:
+                if not last_name or last_name == ignored_last_name:
+                    return True
+
+        return False

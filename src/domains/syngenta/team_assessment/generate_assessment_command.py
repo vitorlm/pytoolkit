@@ -34,6 +34,12 @@ class GenerateAssessmentCommand(BaseCommand):
     @staticmethod
     def get_arguments(parser: ArgumentParser) -> None:
         parser.add_argument(
+            "--competencyMatrixFile",
+            type=str,
+            required=True,
+            help="Path to the competency matrix Excel file.",
+        )
+        parser.add_argument(
             "--feedbackFolder",
             type=str,
             required=True,
@@ -57,6 +63,12 @@ class GenerateAssessmentCommand(BaseCommand):
             required=True,
             help="Path to save the generated assessment report as a JSON file.",
         )
+        parser.add_argument(
+            "--ignoredMembers",
+            type=str,
+            required=False,
+            help="Path to the file containing the list of members to ignore in the assessment.",
+        )
 
     @staticmethod
     def main(args: Namespace) -> None:
@@ -74,17 +86,21 @@ class GenerateAssessmentCommand(BaseCommand):
         try:
             logger.info(
                 "Starting the assessment generation process with the following inputs:"
+                f"\nCompetency Matrix folder: {args.competencyMatrixFile}"
                 f"\nFeedback Folder: {args.feedbackFolder}"
                 f"\nPlanning Folder: {args.planningFolder}"
                 f"\nHealth Check Folder: {args.healthCheckFolder}"
                 f"\nOutput File: {args.output}"
+                f"\nIgnored Members File: {args.ignoredMembers}"
             )
 
             processor = AssessmentGenerator(
+                competency_matrix_file=args.competencyMatrixFile,
                 feedback_folder=args.feedbackFolder,
                 planning_folder=args.planningFolder,
                 health_check_folder=args.healthCheckFolder,
                 output_path=args.output,
+                ignored_member_list=args.ignoredMembers,
             )
 
             processor.run()

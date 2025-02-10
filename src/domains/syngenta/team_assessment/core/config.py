@@ -241,3 +241,22 @@ class Config:
     @property
     def percentile_q3(self):
         return self._percentile_q3
+
+    def get_ollama_config(self):
+        """Returns a dictionary with all Ollama configuration parameters."""
+        return {
+            "num_ctx": self.ollama_num_ctx,
+            "temperature": self.ollama_temperature,
+            "num_thread": self.ollama_num_thread,
+            "num_keep": self.ollama_num_keep,
+            "top_k": self.ollama_top_k,
+            "top_p": self.ollama_top_p,
+            "repeat_penalty": self.ollama_repeat_penalty,
+            "stop": self.ollama_stop,
+            "num_predict": self.ollama_num_predict,
+            "seed": self.ollama_seed,
+            "embedding_only": self.ollama_embedding_only,
+            "low_vram": self.ollama_low_vram,
+            "presence_penalty": self.ollama_presence_penalty,
+            "frequency_penalty": self.ollama_frequency_penalty,
+        }

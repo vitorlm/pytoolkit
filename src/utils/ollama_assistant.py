@@ -1,6 +1,6 @@
-from typing import Dict, List, Optional
+from typing import List, Optional
 
-from ollama import ChatResponse, Client, ResponseError
+from ollama import Client, ResponseError
 
 from utils.logging.logging_manager import LogManager
 
@@ -20,7 +20,7 @@ class OllamaAssistant:
     def __init__(
         self,
         host: str = "http://localhost:11434",
-        model: str = "llama3.2",
+        model: str = "deepseek-r1",
         **kwargs,
     ):
         """
@@ -55,7 +55,7 @@ class OllamaAssistant:
         if not isinstance(model, str) or not model:
             raise ValueError("Model name must be a non-empty string.")
 
-    def generate_text(self, messages: List[Dict[str, str]]) -> str:
+    def generate_text(self, prompt: str) -> str:
         """
         Generates text using the specified model and input messages.
 
@@ -72,11 +72,9 @@ class OllamaAssistant:
         """
         self._logger.info(f"Generating text with model {self.model}")
         try:
-            response: ChatResponse = self.client.chat(
-                model=self.model, messages=messages, options=self.config
-            )
-            self._logger.debug(f"Generated response: {response.message['content']}")
-            return response.message["content"]
+            response = self.client.generate(model=self.model, prompt=prompt, options=self.config)
+            self._logger.debug(f"Generated response: {response}")
+            return response["response"]
         except ResponseError as e:
             self._logger.error(
                 f"Ollama API error: {e.error} (Status Code: {e.status_code})",

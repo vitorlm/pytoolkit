@@ -16,8 +16,8 @@ done
 echo "'ollama' is now available!"
 
 # Pull the llama3.2 model using ollama
-echo "Pulling llama3.2 model with 'ollama pull llama3.2'"
-ollama pull llama3.2 2>&1
+echo "Pullingdeepseek-r1.5 model with 'ollama pull deepseek-r1.5'"
+ollama run deepseek-r1:1.5b 2>&1
 
 echo "Creating TalentForgeAI model with 'ollama create TalentForgeAI -f Modelfile'"
 ollama create TalentForgeAI -f Modelfile 2>&1

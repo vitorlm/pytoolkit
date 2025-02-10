@@ -27,14 +27,9 @@ class FeedbackSpecialist(OllamaAssistant):
         Raises:
             ValueError: If invalid types or values are provided for parameters.
         """
-        if host is not None and not isinstance(host, str):
-            raise ValueError("'host' must be a string or None.")
-        if model is not None and not isinstance(model, str):
-            raise ValueError("'model' must be a string or None.")
-
         super().__init__(
             host=host or "http://localhost:11434",
-            model=model or "llama3.2",
+            model=model or "deepseek-r1",
             **kwargs,
         )
 
@@ -59,118 +54,121 @@ class FeedbackSpecialist(OllamaAssistant):
                 raise ValueError(f"Value for key '{key}' in competency_data must be a list.")
 
     def _create_feedback_prompt(
-        self, member_name: str, competency_data: Dict
-    ) -> List[Dict[str, str]]:
+        self,
+        member_name: str,
+        stats: Dict,
+        team_stats: Dict,
+        competency_matrix: Dict,
+        feedback_text: Optional[str] = None,
+    ) -> str:
         """
-        Creates a feedback prompt for OllamaAssistant based on competency data.
+        Constructs a detailed prompt for feedback generation.
 
         Args:
-            member_name: Name of the team member.
-            competency_data: Dictionary containing competency evaluations.
+            member_name (str): Name of the team member.
+            stats (Dict): Member's evaluation metrics.
+            team_stats (Dict): Team-wide performance statistics.
+            competency_matrix (Dict): Explanation of each indicator level.
+            feedback_text (Optional[str]): Qualitative feedback received.
 
         Returns:
-            List of message dictionaries formatted for the OllamaAssistant.
-
-        Raises:
-            ValueError: If member_name is not a string or competency_data is invalid.
+            str: A fully formatted prompt string for Ollama `generate()`.
         """
-        if not isinstance(member_name, str):
-            raise ValueError("member_name must be a string.")
 
-        self._validate_competency_data(competency_data)
-        self.logger.debug(
-            f"Creating feedback prompt for {member_name} with data: {competency_data}"
-        )
-        return [
-            {
-                "role": "system",
-                "content": (
-                    "You are an HR feedback specialist focusing on software engineering "
-                    "competencies. "
-                    "Your task is to analyze the provided information and generate a "
-                    "comprehensive evaluation of the individual's performance, highlighting "
-                    "their overall strengths, areas for growth, and potential for development. "
-                    "The feedback should be written in a cohesive and explanatory manner, "
-                    "avoiding direct references to specific criteria or indicators. "
-                    "Ensure the response is professional, detailed, and captures the nuances "
-                    "of their performance. "
-                    "Provide all feedback in English, regardless of the input language. "
-                    "The response should not include bullet "
-                    "points, lists, or segmented sections, and instead flow naturally "
-                    "as a narrative."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Generate feedback based on this data:\n{competency_data}",
-            },
-        ]
+        team_summary = f"Team average level: {team_stats.average_level:.2f}\n"
+        for category, details in team_stats.criteria_stats.items():
+            team_summary += (
+                f"- {category}: Average {details['average']:.2f}, Max {details['highest']}\n"
+            )
+
+        competency_summary = "Competency matrix details:\n"
+        for criterion, indicators in competency_matrix:
+            competency_summary += f"{criterion}:\n"
+            for indicator, levels in indicators[1].items():
+                competency_summary += f"  {indicator}:\n"
+                for level, details in levels["levels"].items():
+                    competency_summary += f"    Level {level}: {details['description']}\n"
+                    suggested_evidence = details.get("suggested_evidence")
+                    if suggested_evidence:
+                        competency_summary += f"      Suggested Evidence: {suggested_evidence}\n"
+
+        prompt = f"""
+**System Directive**
+You are an expert in professional feedback analysis for software engineers.
+Respond directly without using <think> tags or intermediate reasoning.
+Provide only the final professional feedback in the requested format.
+
+**Task**
+Generate structured performance feedback for {member_name} containing:
+1. Key strengths and weaknesses
+2. 3-4 improvement opportunities with:
+   - Relevant indicators (max 2 per area)
+   - Specific gaps identified
+   - Concrete growth suggestions
+3. Expectations using HOW/WHAT framework
+
+**Response Requirements**
+- Strictly follow this structure:
+  ### Structured Feedback
+  ### Opportunities for Improvement
+  ### HOW/WHAT Framework Expectations
+- Use professional tone with concise paragraphs
+- Integrate quantitative metrics with qualitative observations
+- Reference competency matrix levels in suggestions
+
+**Performance Context**
+*Individual Metrics*:
+{stats}
+
+*Team Benchmark*:
+{team_summary}
+
+*Competency Definitions*:
+{competency_summary}
+
+**Final Output**
+Begin directly with '### Structured Feedback'.
+void markdown formatting beyond section headers.
+"""
+
+        if feedback_text:
+            prompt += f"\n# Additional Feedback:\n{feedback_text}\n"
+
+        return prompt.strip()
 
     def generate_feedback(
         self,
         member_name: str,
-        competency_data: Dict,
-        include_recommendations: bool = True,
+        stats: Dict,
+        team_stats: Dict,
+        competency_matrix: Dict,
+        feedback_text: Optional[str] = None,
     ) -> Dict[str, str]:
         """
-        Generates detailed feedback for a team member.
+        Generates structured feedback combining qualitative and quantitative data, considering \
+        competency matrix explanations.
 
         Args:
-            member_name: Name of the team member.
-            competency_data: Dictionary containing competency evaluations.
-            include_recommendations: Whether to include growth recommendations.
+            member_name (str): Team member's name.
+            feedback_text (str): Textual feedback received.
+            stats (Dict): Member's evaluation metrics.
+            team_stats (Dict): Team-wide statistics.
+            competency_matrix (Dict): Explanation of competency levels.
 
         Returns:
-            Dictionary containing feedback and optional recommendations.
-
-        Raises:
-            ValueError: If member_name is not a string or competency_data is invalid.
+            Dict[str, str]: Structured feedback report.
         """
-        if not isinstance(member_name, str):
-            raise ValueError("member_name must be a string.")
-
         self.logger.info(f"Generating feedback for {member_name}.")
-
-        feedback_messages = self._create_feedback_prompt(member_name, competency_data)
+        prompt = self._create_feedback_prompt(
+            member_name, stats, team_stats, competency_matrix, feedback_text
+        )
 
         try:
-            feedback = self.generate_text(feedback_messages)
-            self.logger.debug(f"Feedback generated: {feedback}")
-            result = {"feedback": feedback}
-
-            if include_recommendations:
-                self.logger.info(f"Generating recommendations for {member_name}.")
-                recommendation_messages = [
-                    {
-                        "role": "system",
-                        "content": (
-                            "Based on the feedback, provide actionable growth recommendations for "
-                            "the individual."
-                            " Include:\n"
-                            "- Short-term actions (1-3 months)\n"
-                            "- Medium-term goals (3-6 months)\n"
-                            "- Long-term development objectives (6-12 months)."
-                        ),
-                    },
-                    {"role": "assistant", "content": feedback},
-                    {
-                        "role": "user",
-                        "content": "What specific growth recommendations "
-                        f"would you suggest for {member_name}?",
-                    },
-                ]
-
-                recommendations = self.generate_text(recommendation_messages)
-                self.logger.debug(f"Recommendations generated: {recommendations}")
-                result["recommendations"] = recommendations
-
-            return result
-
+            feedback = self.generate_text(prompt)
+            self.logger.debug(f"Generated feedback: {feedback}")
+            return {"feedback": feedback}
         except Exception as e:
-            self.logger.error(
-                f"Error generating feedback for {member_name}: {e}",
-                exc_info=True,
-            )
+            self.logger.error(f"Error generating feedback for {member_name}: {e}", exc_info=True)
             return {"error": str(e)}
 
     def summarize_evidence(
