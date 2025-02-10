@@ -95,53 +95,6 @@ class ChartMixin:
 
         self._save_plot(plt, filename)
 
-    def plot_radar_chart(
-        self,
-        labels: List[str],
-        data: Dict[str, List[float]],
-        title: Optional[str] = None,
-        filename: str = "radar_chart.png",
-    ) -> None:
-        """
-        Generates a generic radar chart with one or more data series.
-
-        Args:
-            labels (List[str]): The labels for each axis.
-            data (Dict[str, List[float]]): A dictionary mapping series names to lists of values.
-                Each list must have the same length as `labels`.
-            title (Optional[str]): The title of the radar chart.
-            filename (str): The file name to save the plot.
-        """
-        self.logger.info("Generating generic radar chart.")
-
-        num_vars = len(labels)
-        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
-        angles += angles[:1]
-
-        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-        max_value = 0
-
-        for series_name, values in data.items():
-            if not values:
-                raise ValueError("Each series in data must have at least one set of values.")
-
-            main_values = values + values[:1]
-            max_value = max(max_value, max(main_values))
-            ax.plot(angles, main_values, label=series_name, linewidth=2)
-            ax.fill(angles, main_values, alpha=0.25)
-
-        ax.set_thetagrids(np.degrees(angles[:-1]), labels, fontsize=12, weight="bold")
-        ax.set_ylim(0, max_value * 1.1)
-        ax.set_title(title, fontsize=16, weight="bold", pad=40)
-        ax.grid(color="gray", linestyle="--", linewidth=0.5, alpha=0.7)
-        ax.legend(loc="upper right", bbox_to_anchor=(1.1, 1.1))
-
-        self._save_plot(
-            plt,
-            filename,
-            adjust_params={"left": 0.1, "right": 0.9, "top": 0.9, "bottom": 0.1},
-        )
-
     def plot_horizontal_bar_chart(
         self,
         df: pd.DataFrame,
@@ -247,3 +200,83 @@ class ChartMixin:
         ax.grid(True, axis="y", linestyle="--", alpha=0.6)
 
         self._save_plot(plt, filename)
+
+    def _generate_acronym(self, label: str) -> str:
+        """
+        Generates an acronym from a label. Takes the first letter of each word up to 3 characters.
+        """
+        words = label.split()
+        acronym = "".join([w[0].upper() for w in words])[:3]  # Limit to 3 characters
+        return acronym
+
+    def plot_radar_chart(
+        self,
+        labels: List[str],
+        data: Dict[str, List[float]],
+        title: Optional[str] = None,
+        filename: str = "radar_chart.png",
+    ) -> None:
+        """
+        Generates a radar chart with label acronyms and a legend mapping to full names.
+
+        Args:
+            labels (List[str]): The labels for each axis.
+            data (Dict[str, List[float]]): A dictionary mapping series names to lists of values.
+                Each list must have the same length as `labels`.
+            title (Optional[str]): The title of the radar chart.
+            filename (str): The file name to save the plot.
+        """
+        self.logger.info("Generating radar chart with improved legend positioning.")
+
+        num_vars = len(labels)
+        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+        angles += angles[:1]
+
+        label_map = {label: self._generate_acronym(label) for label in labels}
+        short_labels = [label_map[label] for label in labels]
+
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+        max_value = 0
+
+        for series_name, values in data.items():
+            if not values:
+                raise ValueError("Each series in data must have at least one set of values.")
+
+            main_values = values + values[:1]
+            max_value = max(max_value, max(main_values))
+            ax.plot(angles, main_values, label=series_name, linewidth=2)
+            ax.fill(angles, main_values, alpha=0.25)
+
+        ax.set_thetagrids(np.degrees(angles[:-1]), short_labels, fontsize=12, weight="bold")
+        ax.set_ylim(0, max_value * 1.1)
+        ax.set_title(title, fontsize=14, weight="bold", pad=30, loc="center")
+
+        ax.grid(color="gray", linestyle="--", linewidth=0.5, alpha=0.7)
+
+        legend_text = "\n".join(
+            [f"{acronym}: {full_label}" for full_label, acronym in label_map.items()]
+        )
+
+        max_chars_per_line = max(len(line) for line in legend_text.split("\n"))
+        char_width_factor = 0.015
+        estimated_width = max_chars_per_line * char_width_factor
+
+        max_legend_width = min(0.15, estimated_width)
+
+        adjusted_right = max(0.45, 1 - max_legend_width)
+        fig.subplots_adjust(left=0.15, right=adjusted_right, top=0.85, bottom=0.2)
+
+        plt.figtext(
+            1 - max_legend_width / 2,
+            0.5,
+            legend_text,
+            fontsize=10,
+            ha="left",
+            va="center",
+            bbox=dict(boxstyle="round,pad=0.5", fc="w", ec="0.8"),
+        )
+
+        self._save_plot(
+            plt,
+            filename,
+        )

@@ -1,4 +1,5 @@
-from typing import Dict, Union, Tuple
+from typing import Dict, List, Union, Tuple
+from domains.syngenta.team_assessment.processors.criteria_processor import Criterion
 from utils.logging.logging_manager import LogManager
 from ..core.config import Config
 from .feedback_specialist import FeedbackSpecialist
@@ -12,7 +13,7 @@ StatisticsDict = Dict[str, Union[float, Dict]]
 logger = LogManager.get_instance().get_logger("CompetencyAnalyzer")
 
 
-class CompetencyAnalyzer:
+class FeedbackAnalyzer:
     """
     Handles analysis of competency matrices from Excel files.
 
@@ -32,7 +33,7 @@ class CompetencyAnalyzer:
         self._config = Config()
 
     def analyze(
-        self, competency_matrix: CriteriaDict
+        self, competency_matrix: List[Criterion], feedback: CriteriaDict
     ) -> Tuple[TeamStatistics, Dict[str, IndividualStatistics]]:
         """
         Analyzes the competency matrix and computes team and individual statistics.
@@ -45,17 +46,15 @@ class CompetencyAnalyzer:
         """
         logger.info("Starting analysis of the competency matrix.")
 
-        team_stats = self._calculate_team_statistics(competency_matrix)
-        individual_stats = self._calculate_individual_statistics(competency_matrix, team_stats)
-        team_stats.outliers = self._detect_outliers(
-            individual_stats, self._config.outlier_threshold
-        )
+        team_stats = self._calculate_team_statistics(feedback)
+        individual_stats = self._calculate_individual_statistics(feedback, team_stats)
+        team_stats.outliers = self._detect_outliers(individual_stats)
 
         logger.info("Completed analysis of the competency matrix.")
 
         return team_stats, individual_stats
 
-    def _calculate_team_statistics(self, competency_matrix: CriteriaDict) -> TeamStatistics:
+    def _calculate_team_statistics(self, feedback: CriteriaDict) -> TeamStatistics:
         """
         Calculates team-level statistics from the competency matrix.
 
@@ -68,7 +67,7 @@ class CompetencyAnalyzer:
         logger.debug("Calculating team-level statistics.")
         team_stats = TeamStatistics()
 
-        for evaluatee in competency_matrix.values():
+        for evaluatee in feedback.values():
             for evaluator_data in evaluatee.values():
                 for criterion, indicators in evaluator_data.items():
                     if criterion not in team_stats.criteria_stats.keys():
@@ -106,11 +105,33 @@ class CompetencyAnalyzer:
 
     def _finalize_statistics_for_criteria(self, criteria_stats: Dict):
         """
-        Finalizes statistical calculations for individual criteria and indicators.
-
+        Finalizes the statistics for each criterion and its indicators.
+        This method processes the given criteria statistics dictionary to calculate
+        and add statistical measures such as quartiles (Q1 and Q3), average, highest,
+        and lowest values for each criterion and its associated indicators.
         Args:
-            criteria_stats (Dict): Dictionary containing criteria statistics.
+            criteria_stats (Dict): A dictionary containing statistics for each criterion.
+            The dictionary is expected to have the following structure:
+            {
+                "criterion_name": {
+                "levels": List[int],
+                "indicator_stats": {
+                    "indicator_name": {
+                    "levels": List[int]
+                    }
+                }
+                }
+            }
+        Modifies:
+            The input dictionary `criteria_stats` by adding the following keys to each
+            criterion and indicator:
+            - "q1": The first quartile (25th percentile) of the levels.
+            - "q3": The third quartile (75th percentile) of the levels.
+            - "average": The mean of the levels.
+            - "highest": The maximum value of the levels.
+            - "lowest": The minimum value of the levels.
         """
+
         for criterion_data in criteria_stats.values():
             levels = criterion_data.get("levels", [])
             if levels:
@@ -132,22 +153,25 @@ class CompetencyAnalyzer:
                     ind_stats["lowest"] = min(ind_levels)
 
     def _calculate_individual_statistics(
-        self, competency_matrix: CriteriaDict, team_stats: TeamStatistics
+        self, feedback: CriteriaDict, team_stats: TeamStatistics
     ) -> Dict[str, IndividualStatistics]:
         """
-        Calculates individual-level statistics with comparisons to team statistics.
+        Calculate individual-level statistics for each team member based on the competency matrix
+        and feedback.
 
         Args:
-            competency_matrix (CriteriaDict): Processed competency data.
-            team_stats (TeamStatistics): Precomputed team-level statistics.
+            competency_matrix (List[Criterion]): A list of criteria used for evaluation.
+            feedback (CriteriaDict): A dictionary containing feedback data for each team member.
+            team_stats (TeamStatistics): An object containing overall team statistics.
 
         Returns:
-            Dict[str, IndividualStatistics]: Individual statistics mapped by evaluatee name.
+            Dict[str, IndividualStatistics]: A dictionary where the keys are team member names and
+            the values are their individual statistics.
         """
         logger.debug("Calculating individual-level statistics.")
         team_member_statistics = {}
 
-        for evaluatee_name, evaluatee_data in competency_matrix.items():
+        for evaluatee_name, evaluatee_data in feedback.items():
             individual_stats = IndividualStatistics()
 
             for evaluator_data in evaluatee_data.values():
@@ -187,9 +211,7 @@ class CompetencyAnalyzer:
 
         return team_member_statistics
 
-    def _detect_outliers(
-        self, individual_stats: Dict[str, IndividualStatistics], threshold: float
-    ) -> Dict:
+    def _detect_outliers(self, individual_stats: Dict[str, IndividualStatistics]) -> Dict:
         """
         Detects statistical outliers in individual statistics.
 
@@ -202,7 +224,9 @@ class CompetencyAnalyzer:
         """
         logger.debug("Detecting outliers in individual statistics.")
         averages = [stats.average_level for stats in individual_stats.values()]
-        outlier_indices = StatisticsHelper.calculate_outliers(averages, threshold)
+        outlier_indices = StatisticsHelper.calculate_outliers(
+            averages, self._config.outlier_threshold
+        )
 
         min_outlier = min(outlier_indices)
         max_outlier = max(outlier_indices)

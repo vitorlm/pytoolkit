@@ -1,4 +1,5 @@
 import os
+from domains.syngenta.team_assessment.processors.criteria_processor import CriteriaProcessor
 from domains.syngenta.team_assessment.services.member_analyzer import MemberAnalyzer
 from domains.syngenta.team_assessment.services.team_analyzer import TeamAnalyzer
 from utils.data.json_manager import JSONManager
@@ -7,9 +8,9 @@ from utils.logging.logging_manager import LogManager
 from utils.string_utils import StringUtils
 
 from .processors.members_task_processor import MembersTaskProcessor
-from .processors.competency_processor import CompetencyProcessor
+from .processors.feedback_processor import FeedbackProcessor
 from .processors.health_check_processor import HealthCheckProcessor
-from .services.competency_analyzer import CompetencyAnalyzer
+from .services.feedback_analyzer import FeedbackAnalyzer
 from .services.feedback_specialist import FeedbackSpecialist
 from .core.member import Member
 
@@ -23,19 +24,26 @@ class AssessmentGenerator:
     _logger = LogManager.get_instance().get_logger("AssessmentGenerator")
 
     def __init__(
-        self, feedback_folder: str, planning_folder: str, health_check_folder: str, output_path: str
+        self,
+        competency_matrix_file: str,
+        feedback_folder: str,
+        planning_folder: str,
+        health_check_folder: str,
+        output_path: str,
     ):
+        self.competency_matrix_file = competency_matrix_file
         self.feedback_folder = feedback_folder
         self.planning_folder = planning_folder
         self.health_check_folder = health_check_folder
         self.output_path = output_path
 
         self.members = {}
+        self.criteria_processor = CriteriaProcessor()
         self.task_processor = MembersTaskProcessor()
-        self.competency_processor = CompetencyProcessor()
+        self.feedback_processor = FeedbackProcessor()
         self.health_check_processor = HealthCheckProcessor()
         self.feedback_specialist = FeedbackSpecialist()
-        self.competency_analyzer = CompetencyAnalyzer(self.feedback_specialist)
+        self.feedback_analyzer = FeedbackAnalyzer(self.feedback_specialist)
 
     def run(self):
         """
@@ -43,11 +51,12 @@ class AssessmentGenerator:
         """
         self._logger.info("Starting assessment generation process.")
         self._validate_input_folders()
+        competency_matrix = self._load_competency_matrix()
         self._process_tasks()
         self._process_health_checks()
-        competency_matrix = self._process_feedback()
-        self._update_members_with_feedback(competency_matrix)
-        team_stats, members_stats = self.competency_analyzer.analyze(competency_matrix)
+        feedback = self._process_feedback()
+        self._update_members_with_feedback(feedback)
+        team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
         self._update_members_with_stats(members_stats)
         for member_name, member_data in members_stats.items():
             member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
@@ -65,6 +74,13 @@ class AssessmentGenerator:
         self._logger.debug("Validating input folders.")
         for folder in [self.feedback_folder, self.planning_folder, self.health_check_folder]:
             FileManager.validate_folder(folder)
+
+    def _load_competency_matrix(self):
+        """
+        Loads the default competency matrix from the specified file.
+        """
+        self._logger.info(f"Loading competency matrix from: {self.competency_matrix_file}")
+        return self.criteria_processor.process_file(self.competency_matrix_file)
 
     def _process_tasks(self):
         """
@@ -89,7 +105,7 @@ class AssessmentGenerator:
         Processes feedback data and returns the competency matrix.
         """
         self._logger.info(f"Processing feedback from: {self.feedback_folder}")
-        return self.competency_processor.process_folder(self.feedback_folder)
+        return self.feedback_processor.process_folder(self.feedback_folder)
 
     def _update_member_tasks(self, member_name, tasks):
         """
@@ -117,8 +133,21 @@ class AssessmentGenerator:
 
     def _update_members_with_feedback(self, competency_matrix):
         """
-        Updates members with feedback data from the competency matrix.
+        Update members with feedback from the competency matrix.
+
+        This method processes a competency matrix containing evaluations and updates
+        the feedback for each member. It ensures that each member exists in the
+        members dictionary and safely handles feedback updates.
+
+        Args:
+            competency_matrix (dict): A dictionary where the keys are evaluatee names
+                                      (str) and the values are dictionaries containing
+                                      evaluator names (str) and their feedback (any).
+
+        Raises:
+            ValueError: If the evaluatee name cannot be split into a first name and last name.
         """
+
         for evaluatee_name, evaluations in competency_matrix.items():
             name, last_name = evaluatee_name.split(" ", 1)
             name = StringUtils.remove_accents(name)
@@ -129,7 +158,7 @@ class AssessmentGenerator:
                 self.members[name] = Member(
                     name=name,
                     last_name=last_name,
-                    feedback={},  # Initialize feedback as an empty dictionary
+                    feedback={},
                     feedback_stats=None,
                     tasks=[],
                     health_check=None,
@@ -137,7 +166,7 @@ class AssessmentGenerator:
 
             # Safely handle feedback updates
             if self.members[name].feedback is None:
-                self.members[name].feedback = {}  # Initialize feedback if it is None
+                self.members[name].feedback = {}
 
             for evaluator_name, feedback in evaluations.items():
                 evaluator_name = StringUtils.remove_accents(evaluator_name)

@@ -3,16 +3,13 @@ from typing import Union, Dict, Optional, Any
 import pandas as pd
 
 from utils.base_processor import BaseProcessor
-from ..core.indicators import IndicatorStatistics, Indicator
+from ..core.indicators import Indicator
 from ..core.validations import ValidationHelper
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 
-# Type aliases for better readability
-CompetencyMatrix = Dict[str, Dict]
 
-
-class CompetencyProcessor(BaseProcessor):
+class FeedbackProcessor(BaseProcessor):
     """
     Processor for extracting and validating competency data from Excel files.
     """
@@ -20,7 +17,7 @@ class CompetencyProcessor(BaseProcessor):
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsx"])
 
-    def process_file(self, file_path: Union[str, Path]) -> CompetencyMatrix:
+    def process_file(self, file_path: Union[str, Path]) -> Dict[str, Dict]:
         """
         Processes a single file to extract competency data.
 
@@ -30,7 +27,7 @@ class CompetencyProcessor(BaseProcessor):
         Returns:
             CompetencyMatrix: Processed competency data structured by evaluatee and evaluator.
         """
-        competency_matrix: CompetencyMatrix = {}
+        competency_matrix: Dict[str, Dict] = {}
         evaluator_name = self._extract_evaluator_name(FileManager.get_file_name(file_path))
 
         excel_data = ExcelManager.read_excel(file_path)
@@ -49,7 +46,7 @@ class CompetencyProcessor(BaseProcessor):
         sheet_data: pd.DataFrame,
         evaluatee: str,
         evaluator: str,
-        competency_matrix: CompetencyMatrix,
+        competency_matrix: Dict[str, Dict],
     ):
         """
         Processes a single sheet from an Excel file.
@@ -103,33 +100,6 @@ class CompetencyProcessor(BaseProcessor):
             )
 
         return criterion, None
-
-    def generate_statistics(self, competency_matrix: CompetencyMatrix) -> Dict[str, Dict]:
-        """
-        Generates statistics for the competency matrix.
-
-        Args:
-            competency_matrix (CompetencyMatrix): Competency data.
-
-        Returns:
-            Dict[str, Dict]: Statistical analysis for each evaluatee and evaluator.
-        """
-        statistics = {}
-        for evaluatee, evaluator_data in competency_matrix.items():
-            statistics[evaluatee] = {}
-            for evaluator, criteria_data in evaluator_data.items():
-                all_indicators = [
-                    Indicator(name=indicator["name"], level=indicator["level"], evidence=None)
-                    for indicators in criteria_data.values()
-                    for indicator in indicators
-                ]
-                stats = IndicatorStatistics(all_indicators)
-                statistics[evaluatee][evaluator] = {
-                    "mean_level": stats.compute_mean_level(),
-                    "distribution": stats.compute_level_distribution(),
-                    "outliers": stats.find_outliers(),
-                }
-        return statistics
 
     def _extract_evaluator_name(self, file_name: str) -> str:
         """

@@ -18,6 +18,7 @@ class BaseStatistics(BaseModel):
     overall_levels: List[int] = Field(default_factory=list)
     criteria_stats: Dict[str, Dict] = Field(default_factory=dict)
     average_level: float = 0.0
+    weighted_average: float = 0.0
     highest_level: int = 0
     lowest_level: int = 0
     q1: float = 0.0
@@ -61,8 +62,20 @@ class IndividualStatistics(BaseStatistics):
 
     def _calculate_weighted_average(self, criteria_weights: Dict[str, float]) -> None:
         """
-        Calculates the weighted average based on predefined weights.
+        Calculate the weighted average of criteria statistics.
+
+        This method calculates the weighted average of the criteria statistics
+        using the provided criteria weights. The result is stored in the
+        `self.weighted_average` attribute.
+
+        Args:
+            criteria_weights (Dict[str, float]): A dictionary where the keys are
+                the criteria names and the values are the corresponding weights.
+
+        Returns:
+            None
         """
+
         weighted_sum = 0
         total_weight = sum(criteria_weights.values())
 
@@ -80,17 +93,75 @@ class IndividualStatistics(BaseStatistics):
         Args:
             team_stats (TeamStatistics): Team-level statistics for comparison.
         """
+        differences = {"strengths": [], "opportunities": []}
 
         for criterion, criterion_data in self.criteria_stats.items():
+            team_criterion_data = team_stats.criteria_stats.get(criterion, {})
 
-            if criterion_data["average"] > team_stats.q3:
-                self.insights["strengths"].append(
-                    {"criterion": criterion, "reason": "Above Q3 of team distribution"}
+            member_avg = criterion_data["average"]
+            team_q1 = team_criterion_data.get("q1", float("-inf"))
+            team_q3 = team_criterion_data.get("q3", float("inf"))
+
+            # Criterion-level evaluation
+            if member_avg >= team_q3:
+                differences["strengths"].append(
+                    {
+                        "criterion": criterion,
+                        "reason": "Above Q3 of team distribution",
+                        "team_level": team_q3,
+                        "member_level": member_avg,
+                    }
                 )
-            elif criterion_data["average"] < team_stats.q1:
-                self.insights["opportunities"].append(
-                    {"criterion": criterion, "reason": "Below Q1 of team distribution"}
+            elif member_avg <= team_q1:
+                differences["opportunities"].append(
+                    {
+                        "criterion": criterion,
+                        "reason": "Below Q1 of team distribution",
+                        "team_level": team_q1,
+                        "member_level": member_avg,
+                    }
                 )
+
+            # Indicator-level evaluation
+            for indicator, indicator_data in criterion_data.get("indicator_stats", {}).items():
+                team_indicator_data = team_criterion_data.get("indicator_stats", {}).get(
+                    indicator, {}
+                )
+
+                member_avg = indicator_data["average"]
+                team_q1 = team_indicator_data.get("q1", float("-inf"))
+                team_q3 = team_indicator_data.get("q3", float("inf"))
+
+                if member_avg >= team_q3:
+                    differences["strengths"].append(
+                        {
+                            "indicator": indicator,
+                            "reason": "Above Q3 of team distribution",
+                            "team_level": team_q3,
+                            "member_level": member_avg,
+                        }
+                    )
+                elif member_avg <= team_q1:
+                    differences["opportunities"].append(
+                        {
+                            "indicator": indicator,
+                            "reason": "Below Q1 of team distribution",
+                            "team_level": team_q1,
+                            "member_level": member_avg,
+                        }
+                    )
+
+        # Sort by absolute difference to prioritize the most significant ones
+        differences["strengths"].sort(
+            key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True
+        )
+        differences["opportunities"].sort(
+            key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True
+        )
+
+        # Store only the top two in each category
+        self.insights["strengths"] = differences["strengths"][:2]
+        self.insights["opportunities"] = differences["opportunities"][:2]
 
     def finalize_statistics(
         self, criteria_weights: Dict[str, float], team_stats: TeamStatistics
@@ -117,15 +188,26 @@ class StatisticsHelper:
     @staticmethod
     def calculate_correlation(indicators: List[Indicator], reference: List[int]) -> Optional[float]:
         """
-        Calculates the correlation between indicator levels and a reference list.
+        Calculate the Pearson correlation coefficient between two lists of indicators and a
+        reference.
+
+        The Pearson correlation coefficient is a measure of the linear correlation between two sets
+        of data. It ranges from -1 to 1, where 1 means total positive linear correlation, 0 means
+        no linear correlation, and -1 means total negative linear correlation.
 
         Args:
-            indicators: List of Indicator objects.
-            reference: Reference list of levels.
+            indicators (List[Indicator]): A list of Indicator objects to be compared.
+            reference (List[int]): A list of integer reference values.
 
         Returns:
-            Pearson correlation coefficient or None if invalid input.
+            Optional[float]: The rounded Pearson correlation coefficient if inputs are valid,
+            otherwise None.
+
+        Raises:
+            Warning: Logs a warning if the input lists are empty, of different lengths, or if their
+            standard deviation is zero.
         """
+
         if not indicators or len(indicators) != len(reference):
             logger.warning("Invalid input for correlation calculation.")
             return None
@@ -139,22 +221,79 @@ class StatisticsHelper:
 
     @staticmethod
     def calculate_mean(values: List[int]) -> Optional[float]:
+        """
+        Calculate the mean (average) of a list of integers.
+        The mean is calculated by summing all the values in the list and then
+        dividing by the number of values. The result is rounded to 2 decimal places.
+        Args:
+            values (List[int]): A list of integers to calculate the mean from.
+        Returns:
+            Optional[float]: The mean of the list of integers, rounded to 2 decimal
+            places. Returns None if the input list is empty.
+        """
+
         return round(statistics.mean(values), 2) if values else None
 
     @staticmethod
     def calculate_std_dev(values: List[int]) -> Optional[float]:
+        """
+        Calculate the standard deviation of a list of integers.
+        The standard deviation is a measure of the amount of variation or dispersion
+        in a set of values. A low standard deviation indicates that the values tend
+        to be close to the mean of the set, while a high standard deviation indicates
+        that the values are spread out over a wider range.
+        Args:
+            values (List[int]): A list of integers for which the standard deviation
+                                is to be calculated.
+        Returns:
+            Optional[float]: The standard deviation of the list of integers, rounded
+                             to 2 decimal places. Returns None if the list contains
+                             fewer than 2 values.
+        """
+
         return round(statistics.stdev(values), 2) if len(values) > 1 else None
 
     @staticmethod
     def calculate_percentiles(
         data: List[float], q1: Optional[float] = 25, q3: Optional[float] = 75
     ) -> Dict[int, float]:
-        """Calculates specified percentiles (Q1 and Q3) for a list of numbers."""
+        """
+        Calculate the specified percentiles (quartiles) for a given dataset.
+
+        Parameters:
+        data (List[float]): A list of numerical values.
+        q1 (Optional[float]): The first quartile (25th percentile) to calculate. Default is 25.
+        q3 (Optional[float]): The third quartile (75th percentile) to calculate. Default is 75.
+
+        Returns:
+        Dict[int, float]: A dictionary containing the calculated percentiles.
+        """
         return np.percentile(data, q1), np.percentile(data, q3)
 
     @staticmethod
     def calculate_outliers(data: List[float], threshold: float) -> List[float]:
-        """Detects outliers based on the standard deviation threshold."""
+        """
+        Detects outliers based on the standard deviation threshold.
+
+        An outlier is a data point that is significantly different from other data points in a
+        dataset. In this method, a data point is considered an outlier if its distance from the
+        mean is greater than a specified number of standard deviations (threshold).
+
+        Mathematically, for a given dataset:
+        - Mean (μ) is the average of the data points.
+        - Standard Deviation (σ) measures the dispersion of the data points from the mean.
+
+        A data point x is considered an outlier if:
+        |x - μ| > threshold * σ
+
+        Args:
+            data (List[float]): A list of numerical values.
+            threshold (float): The number of standard deviations from the mean to use as the cutoff
+                               for outliers.
+
+        Returns:
+            List[float]: A list of outliers.
+        """
         mean = StatisticsHelper.calculate_mean(data)
         std_dev = (sum((x - mean) ** 2 for x in data) / len(data)) ** 0.5
         return [x for x in data if abs(x - mean) > threshold * std_dev]

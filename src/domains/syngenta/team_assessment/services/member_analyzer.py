@@ -118,9 +118,9 @@ class MemberAnalyzer(ChartMixin):
         labels = []
         individual_values = []
         team_values = []
-        for criterion, ind_stats in self.individual_data.criteria_stats.items():
+        for criterion, criterion_stats in self.individual_data.criteria_stats.items():
             labels.append(criterion)
-            individual_values.append(ind_stats.get("average", 0))
+            individual_values.append(criterion_stats.get("average", 0))
             team_values.append(self.team_data.criteria_stats.get(criterion, {}).get("average", 0))
 
         data = {
@@ -129,7 +129,22 @@ class MemberAnalyzer(ChartMixin):
         }
         return labels, data
 
-    def plot_comparison_radar_chart(
+    def _get_indicators_radar_data(self) -> Dict[str, List[float]]:
+
+        labels = []
+        individual_values = []
+
+        for _, criterion_stats in self.individual_data.criteria_stats.items():
+            for indicator, indicator_stats in criterion_stats["indicator_stats"].items():
+                labels.append(indicator)
+                individual_values.append(indicator_stats.get("average", 0))
+
+        data = {
+            "Individual": individual_values,
+        }
+        return labels, data
+
+    def plot_criterion_comparison_radar_chart(
         self, title: str = "Individual vs Team Radar Comparison"
     ) -> None:
         """
@@ -147,9 +162,22 @@ class MemberAnalyzer(ChartMixin):
             filename="member_team_comparison_radar_chart.png",
         )
 
+    def plot_member_strengths_weaknesses_radar_chart(
+        self, title: str = "Individual Indicator Strengths and Weaknesses"
+    ) -> None:
+
+        labels, data = self._get_indicators_radar_data()
+        super().plot_radar_chart(
+            labels,
+            data,
+            title=title,
+            filename="member_indicator_strengths_weaknesses_radar_chart.png",
+        )
+
     def plot_all_charts(self) -> None:
         """
         Generates all comparison charts (bar and radar) for the individual vs team analysis.
         """
         self.plot_comparison_bar_chart()
-        self.plot_comparison_radar_chart()
+        self.plot_criterion_comparison_radar_chart()
+        self.plot_member_strengths_weaknesses_radar_chart()
