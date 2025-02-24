@@ -203,6 +203,7 @@ docker-compose.override.yml
 out/
 
 LLM-Train/
+data/
 cache/
 logs/
 output/
