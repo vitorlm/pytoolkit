@@ -29,7 +29,7 @@ class FeedbackSpecialist(OllamaAssistant):
         """
         super().__init__(
             host=host or "http://localhost:11434",
-            model=model or "deepseek-r1",
+            model=model or "llama3.2",
             **kwargs,
         )
 

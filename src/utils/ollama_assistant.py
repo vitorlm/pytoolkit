@@ -20,7 +20,7 @@ class OllamaAssistant:
     def __init__(
         self,
         host: str = "http://localhost:11434",
-        model: str = "deepseek-r1",
+        model: str = "llama3.2",
         **kwargs,
     ):
         """

@@ -1,5 +1,5 @@
 # Use a valid base model
-FROM deepseek-r1:latest
+FROM llama3.2:latest
 
 # Model parameters
 PARAMETER temperature 0.5

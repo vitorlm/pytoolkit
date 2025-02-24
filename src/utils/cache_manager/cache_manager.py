@@ -3,6 +3,8 @@ from typing import Any, Optional
 from src.log_config import log_manager
 from utils.cache_manager.error import CacheManagerError
 from utils.cache_manager.file_cache import FileCacheBackend
+from utils.data.json_manager import JSONManager
+import hashlib
 
 
 class CacheManager:
@@ -57,7 +59,7 @@ class CacheManager:
         """
         try:
             if cache_backend == "file":
-                cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "../../cache")
+                cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "../../../cache")
 
                 # Ensure the cache directory exists
                 os.makedirs(cache_dir, exist_ok=True)
@@ -149,3 +151,22 @@ class CacheManager:
         except Exception as e:
             self._logger.error(f"Failed to clear cache: {e}")
             raise CacheManagerError("Error clearing all cache entries", error=str(e))
+
+    def generate_cache_key(self, prefix: str, **kwargs) -> str:
+        """
+        Generates a cache key based on a prefix and additional parameters.
+
+        Args:
+            prefix (str): The base prefix for the cache key.
+            **kwargs: Additional parameters to include in the cache key.
+
+        Returns:
+            str: The generated cache key.
+        """
+        # Sort the items and convert them to a JSON string for deterministic ordering
+        sorted_items = JSONManager.create_json(kwargs)
+        # Create a consistent hash using SHA-256
+        hash_object = hashlib.sha256(sorted_items.encode("utf-8"))
+        # Convert the hash to a hexadecimal string
+        hash_hex = hash_object.hexdigest()
+        return f"{prefix}_{hash_hex}"
