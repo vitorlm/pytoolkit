@@ -211,7 +211,7 @@ class JiraIssueFetcher:
             List[Dict]: A list of epic issues.
         """
         jql_query = (
-            f"key in ({','.join([f'\"{key}\"' for key in epic_keys])}) "
+            f"key in ({','.join([f'{repr(key)}' for key in epic_keys])}) "
             f"AND statusCategory = Done AND status not in ('11 Archived', 'Archive', 'Archived')"
         )
         self._logger.info(f"Fetching epics with keys: {', '.join(epic_keys)}")

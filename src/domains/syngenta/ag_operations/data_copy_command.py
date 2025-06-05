@@ -3,7 +3,7 @@ from utils.command.base_command import BaseCommand
 from utils.data.duckdb_manager import DuckDBManager
 from .data_copy_processor import DataCopyProcessor
 from utils.data.dynamodb_manager import DynamoDBManager
-from log_config import LogManager
+from utils.logging.logging_manager import LogManager
 from .config import Config
 
 # Configure logger

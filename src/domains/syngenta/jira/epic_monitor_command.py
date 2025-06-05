@@ -3,10 +3,13 @@ import os
 from utils.command.base_command import BaseCommand
 from domains.syngenta.jira.epic_monitor_service import EpicCronService
 from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 
 
 class EpicMonitorCommand(BaseCommand):
     """Command to run epic monitoring and send notifications."""
+
+    _logger = LogManager.get_instance().get_logger("EpicMonitorCommand")
 
     @staticmethod
     def get_name() -> str:
@@ -46,7 +49,7 @@ class EpicMonitorCommand(BaseCommand):
         success = epic_service.run_epic_check()
 
         if success:
-            print("Epic monitoring completed successfully")
+            EpicMonitorCommand._logger.info("Epic monitoring completed successfully")
         else:
-            print("Epic monitoring completed with errors - check logs")
+            EpicMonitorCommand._logger.error("Epic monitoring completed with errors - check logs")
             exit(1)
