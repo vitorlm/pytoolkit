@@ -37,8 +37,8 @@ class EpicIssue:
         if cls._jira_to_slack_mapping is None:
             # Get mapping file path from environment or use default
             if cls._mapping_file_path is None:
-                cls._mapping_file_path = (
-                    os.path.join(os.path.dirname(__file__), "jira_to_slack_user_mapping.json"),
+                cls._mapping_file_path = os.path.join(
+                    os.path.dirname(__file__), "jira_to_slack_user_mapping.json"
                 )
 
             try:
