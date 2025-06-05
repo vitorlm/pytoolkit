@@ -1,4 +1,4 @@
-# GitHub Actions Secrets Setup
+# GitHub Actions Setup for Epic Monitoring
 
 This document describes how to configure GitHub Actions secrets for the Epic Monitoring service.
 
@@ -9,17 +9,14 @@ Navigate to your repository → Settings → Secrets and variables → Actions �
 Add the following secrets:
 
 ### JIRA Configuration
-- **JIRA_SERVER_URL**: Your JIRA server URL (e.g., `https://yourcompany.atlassian.net`)
-- **JIRA_USERNAME**: Your JIRA username/email
+- **JIRA_URL**: Your JIRA server URL (e.g., `https://yourcompany.atlassian.net`)
+- **JIRA_USER_EMAIL**: Your JIRA username/email
 - **JIRA_API_TOKEN**: Your JIRA API token
 
 ### Slack Configuration
 - **SLACK_WEBHOOK_URL**: Your Slack webhook URL for notifications
-
-### Epic Monitoring Configuration
-- **EPIC_MONITOR_YEAR_START_DATE**: First day of the year for cycle calculation (format: YYYY-MM-DD, e.g., `2024-01-08`)
-- **EPIC_MONITOR_BUSINESS_DAYS_THRESHOLD**: Number of business days threshold for started epics without due date (e.g., `5`)
-- **EPIC_MONITOR_DUE_DATE_WARNING_DAYS**: Number of days before due date to send warning (e.g., `3`)
+- **SLACK_BOT_TOKEN**: Your Slack bot token (optional, for advanced features)
+- **SLACK_CHANNEL_ID**: Your Slack channel ID for notifications
 
 ## How to Generate JIRA API Token
 

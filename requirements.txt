@@ -63,7 +63,6 @@ PySocks==1.7.1
 python-calamine==0.3.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
--e git+https://github.com/vitorlm/pytoolkit.git@1828d8d89b22d2a8a4d607211aa39adad8df85b9#egg=PyToolkit
 pytz==2024.2
 referencing==0.36.2
 requests==2.32.3
