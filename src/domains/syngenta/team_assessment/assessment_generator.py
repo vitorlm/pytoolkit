@@ -11,8 +11,10 @@ from utils.string_utils import StringUtils
 from .processors.members_task_processor import MembersTaskProcessor
 from .processors.feedback_processor import FeedbackProcessor
 from .processors.health_check_processor import HealthCheckProcessor
+
 from .services.feedback_analyzer import FeedbackAnalyzer
-from .services.feedback_specialist import FeedbackSpecialist
+
+# from .services.feedback_specialist import FeedbackSpecialist
 from .core.member import Member
 from .core.config import Config
 
@@ -46,12 +48,12 @@ class AssessmentGenerator:
         self.feedback_processor = FeedbackProcessor()
         self.health_check_processor = HealthCheckProcessor()
         self.config = Config()
-        self.feedback_specialist = FeedbackSpecialist(
-            host=self.config.ollama_host,
-            model=self.config.ollama_model,
-            **self.config.get_ollama_config(),
-        )
-        self.feedback_analyzer = FeedbackAnalyzer(self.feedback_specialist)
+        # self.feedback_specialist = FeedbackSpecialist(
+        #     host=self.config.ollama_host,
+        #     model=self.config.ollama_model,
+        #     **self.config.get_ollama_config(),
+        # )
+        self.feedback_analyzer = FeedbackAnalyzer()
         self.ignored_member_list = JSONManager.read_json(ignored_member_list, default=[])
 
     def run(self):
@@ -72,9 +74,9 @@ class AssessmentGenerator:
                 continue
             member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
             member_analyzer.plot_all_charts()
-            self.feedback_specialist.generate_feedback(
-                member_name, member_data, team_stats, competency_matrix
-            )
+            # self.feedback_specialist.generate_feedback(
+            #     member_name, member_data, team_stats, competency_matrix
+            # )
 
         team_analyzer = TeamAnalyzer(team_stats, self.output_path)
         team_analyzer.plot_all_charts()

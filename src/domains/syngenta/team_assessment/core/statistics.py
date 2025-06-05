@@ -45,6 +45,19 @@ class TeamStatistics(BaseStatistics):
 
     outliers: Dict = Field(default_factory=dict)
 
+    def finalize_statistics(self, criteria_weights: Dict[str, float]) -> None:
+        """
+        Finalizes statistical calculations for individual-level data.
+        Extends the base implementation by adding weighted average and insights.
+        """
+        # Call the base method
+        super().finalize_statistics()
+
+        # Calculate weighted average
+        self.weighted_average = StatisticsHelper.calculate_weighted_average(
+            criteria_weights, self.criteria_stats
+        )
+
 
 class IndividualStatistics(BaseStatistics):
     """
@@ -55,36 +68,9 @@ class IndividualStatistics(BaseStatistics):
         insights: Strengths and opportunities for the individual.
     """
 
-    weighted_average: float = 0.0
     insights: Dict[str, List[Dict[str, str]]] = Field(
         default_factory=lambda: {"strengths": [], "opportunities": []}
     )
-
-    def _calculate_weighted_average(self, criteria_weights: Dict[str, float]) -> None:
-        """
-        Calculate the weighted average of criteria statistics.
-
-        This method calculates the weighted average of the criteria statistics
-        using the provided criteria weights. The result is stored in the
-        `self.weighted_average` attribute.
-
-        Args:
-            criteria_weights (Dict[str, float]): A dictionary where the keys are
-                the criteria names and the values are the corresponding weights.
-
-        Returns:
-            None
-        """
-
-        weighted_sum = 0
-        total_weight = sum(criteria_weights.values())
-
-        for criterion, stats in self.criteria_stats.items():
-            average = stats.get("average", 0)
-            weight = criteria_weights.get(criterion, 0)
-            weighted_sum += average * weight
-
-        self.weighted_average = round(weighted_sum / total_weight, 2) if total_weight > 0 else 0.0
 
     def _strengths_opportunities(self, team_stats: TeamStatistics) -> None:
         """
@@ -174,7 +160,9 @@ class IndividualStatistics(BaseStatistics):
         super().finalize_statistics()
 
         # Calculate weighted average
-        self._calculate_weighted_average(criteria_weights)
+        self.weighted_average = StatisticsHelper.calculate_weighted_average(
+            criteria_weights, self.criteria_stats
+        )
 
         # Calculate strengths and opportunities
         self._strengths_opportunities(team_stats)
@@ -297,3 +285,33 @@ class StatisticsHelper:
         mean = StatisticsHelper.calculate_mean(data)
         std_dev = (sum((x - mean) ** 2 for x in data) / len(data)) ** 0.5
         return [x for x in data if abs(x - mean) > threshold * std_dev]
+
+    @staticmethod
+    def calculate_weighted_average(
+        criteria_weights: Dict[str, float], criteria_stats: Dict[str, Dict]
+    ) -> float:
+        """
+        Calculate the weighted average based on given criteria weights and statistics.
+
+        Args:
+            criteria_weights (Dict[str, float]): A dictionary where keys are criteria names and
+                                                 values are their corresponding weights.
+            criteria_stats (Dict[str, Dict]): A dictionary where keys are criteria names and values
+                                              are dictionaries containing statistics for each
+                                              criterion. Each statistics dictionary should have an
+                                              "average" key with its corresponding value.
+
+        Returns:
+            float: The weighted average rounded to two decimal places. If the total weight is zero,
+            returns 0.0.
+        """
+
+        weighted_sum = 0
+        total_weight = sum(criteria_weights.values())
+
+        for criterion, stats in criteria_stats.items():
+            average = stats.get("average", 0)
+            weight = criteria_weights.get(criterion, 0)
+            weighted_sum += average * weight
+
+        return round(weighted_sum / total_weight, 2) if total_weight > 0 else 0.0

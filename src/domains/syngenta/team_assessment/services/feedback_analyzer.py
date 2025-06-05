@@ -1,4 +1,4 @@
-from typing import Dict, List, Union, Tuple
+from typing import Dict, List, Optional, Union, Tuple
 from domains.syngenta.team_assessment.processors.criteria_processor import Criterion
 from utils.logging.logging_manager import LogManager
 from ..core.config import Config
@@ -22,14 +22,17 @@ class FeedbackAnalyzer:
         feedback_specialist: Instance of FeedbackSpecialist for feedback analysis.
     """
 
-    def __init__(self, feedback_specialist: FeedbackSpecialist):
+    def __init__(self, feedback_specialist: Optional[FeedbackSpecialist] = None):
         """
         Initializes the CompetencyAnalyzer with logging and feedback components.
 
         Args:
-            feedback_specialist (FeedbackSpecialist): Instance of FeedbackSpecialist.
+            feedback_specialist (FeedbackSpecialist, optional): Instance of FeedbackSpecialist.
+            Defaults to None.
         """
-        self.feedback_specialist = feedback_specialist
+        self.feedback_specialist = (
+            feedback_specialist if feedback_specialist else FeedbackSpecialist()
+        )
         self._config = Config()
 
     def analyze(
@@ -98,8 +101,8 @@ class FeedbackAnalyzer:
                                 "levels"
                             ].append(level)
 
-        team_stats.finalize_statistics()
         self._finalize_statistics_for_criteria(team_stats.criteria_stats)
+        team_stats.finalize_statistics(self._config.criteria_weights)
         del team_stats.overall_levels
         return team_stats
 
