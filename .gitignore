@@ -203,10 +203,10 @@ docker-compose.override.yml
 out/
 
 LLM-Train/
-data/
-cache/
-logs/
-output/
+/data/
+/cache/
+/logs/
+/output/
 output.json
 *.json.lock
 *.json.bak

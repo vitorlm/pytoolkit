@@ -9,8 +9,6 @@ from utils.logging.logging_manager import LogManager
 class EpicMonitorCommand(BaseCommand):
     """Command to run epic monitoring and send notifications."""
 
-    _logger = LogManager.get_instance().get_logger("EpicMonitorCommand")
-
     @staticmethod
     def get_name() -> str:
         return "epic-monitor"
@@ -48,8 +46,11 @@ class EpicMonitorCommand(BaseCommand):
         epic_service = EpicCronService(slack_webhook)
         success = epic_service.run_epic_check()
 
+        # Get logger instance for this method
+        logger = LogManager.get_instance().get_logger("EpicMonitorCommand")
+
         if success:
-            EpicMonitorCommand._logger.info("Epic monitoring completed successfully")
+            logger.info("Epic monitoring completed successfully")
         else:
-            EpicMonitorCommand._logger.error("Epic monitoring completed with errors - check logs")
+            logger.error("Epic monitoring completed with errors - check logs")
             exit(1)

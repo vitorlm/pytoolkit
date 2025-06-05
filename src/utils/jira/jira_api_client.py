@@ -4,10 +4,6 @@ from utils.jira.error import JiraApiRequestError
 from utils.logging.logging_manager import LogManager
 
 
-# Configure logging
-logger = LogManager.get_instance().get_logger("JiraApiClient")
-
-
 class JiraApiClient:
     """
     A robust Jira API Client to handle basic API operations with enhanced error handling and logging
@@ -22,6 +18,7 @@ class JiraApiClient:
             email (str): The email address used for authentication.
             api_token (str): The API token used for authentication.
         """
+        self.logger = LogManager.get_instance().get_logger("JiraApiClient")
         self.base_url = base_url.rstrip("/") + "/rest/api/3/"
         self.auth = HTTPBasicAuth(email, api_token)
         self.headers = {
@@ -42,19 +39,19 @@ class JiraApiClient:
         Raises:
             JiraApiRequestError: For unexpected status codes or invalid responses.
         """
-        logger.debug(f"HTTP Status: {response.status_code}")
-        logger.debug(f"Response Headers: {response.headers}")
+        self.logger.debug(f"HTTP Status: {response.status_code}")
+        self.logger.debug(f"Response Headers: {response.headers}")
 
         if response.status_code == 204:
-            logger.info("Received 204 No Content.")
+            self.logger.info("Received 204 No Content.")
             return None
 
         if response.headers.get("Content-Type", "").startswith("application/json"):
             try:
                 return response.json()
             except ValueError as e:
-                logger.error(f"Failed to parse JSON response: {e}")
-                logger.debug(f"Response Content: {response.content}")
+                self.logger.error(f"Failed to parse JSON response: {e}")
+                self.logger.debug(f"Response Content: {response.content}")
                 raise JiraApiRequestError(
                     message="Invalid JSON in response",
                     endpoint=response.url,
@@ -62,7 +59,7 @@ class JiraApiClient:
                 )
 
         # Handle unexpected content types
-        logger.warning(f"Unexpected content type: {response.headers.get('Content-Type')}")
+        self.logger.warning(f"Unexpected content type: {response.headers.get('Content-Type')}")
         return {"raw_response": response.content.decode("utf-8", errors="replace")}
 
     def _request(self, method: str, endpoint: str, **kwargs):
@@ -81,12 +78,12 @@ class JiraApiClient:
         """
         url = f"{self.base_url}{endpoint}"
         try:
-            logger.info(f"Sending {method.upper()} request to {url} with kwargs {kwargs}")
+            self.logger.info(f"Sending {method.upper()} request to {url} with kwargs {kwargs}")
             response = requests.request(method, url, headers=self.headers, auth=self.auth, **kwargs)
             response.raise_for_status()
             return self._handle_response(response)
         except requests.RequestException as e:
-            logger.error(f"{method.upper()} request failed: {e}")
+            self.logger.error(f"{method.upper()} request failed: {e}")
             raise JiraApiRequestError(
                 message=f"Failed to execute {method.upper()} request",
                 endpoint=endpoint,
