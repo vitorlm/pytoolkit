@@ -45,6 +45,33 @@ class JiraComponentFetchError(JiraManagerError):
         super().__init__(message, **metadata)
 
 
+class JiraComponentCreationError(JiraManagerError):
+    """
+    Raised when creating a component fails.
+    """
+
+    def __init__(self, message: str = "Failed to create component", **metadata):
+        super().__init__(message, **metadata)
+
+
+class JiraComponentDeletionError(JiraManagerError):
+    """
+    Raised when deleting a component fails.
+    """
+
+    def __init__(self, message: str = "Failed to delete component", **metadata):
+        super().__init__(message, **metadata)
+
+
+class JiraIssueComponentUpdateError(JiraManagerError):
+    """
+    Raised when updating issue components fails.
+    """
+
+    def __init__(self, message: str = "Failed to update issue components", **metadata):
+        super().__init__(message, **metadata)
+
+
 class JiraMetadataFetchError(JiraManagerError):
     """
     Raised when fetching metadata for a specific issue type fails.

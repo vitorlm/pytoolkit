@@ -130,3 +130,15 @@ class JiraApiClient:
             dict or None: The JSON response from the API.
         """
         return self._request("PUT", endpoint, json=payload)
+
+    def delete(self, endpoint: str):
+        """
+        Make a DELETE request to the Jira API.
+
+        Args:
+            endpoint (str): The API endpoint to call.
+
+        Returns:
+            dict or None: The JSON response from the API.
+        """
+        return self._request("DELETE", endpoint)

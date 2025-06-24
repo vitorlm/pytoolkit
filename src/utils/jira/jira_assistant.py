@@ -9,6 +9,9 @@ from utils.jira.error import (
     JiraQueryError,
     JiraIssueCreationError,
     JiraComponentFetchError,
+    JiraComponentCreationError,
+    JiraComponentDeletionError,
+    JiraIssueComponentUpdateError,
     JiraMetadataFetchError,
 )
 from utils.jira.jira_config import JiraConfig
@@ -119,6 +122,216 @@ class JiraAssistant:
             raise JiraComponentFetchError(
                 "Error fetching project components.", project_key=project_key, error=str(e)
             ) from e
+
+    def create_component(
+        self,
+        project_key: str,
+        name: str,
+        description: str = None,
+        assignee_type: str = "PROJECT_DEFAULT",
+        lead: str = None,
+    ) -> Optional[Dict]:
+        """
+        Create a component in a Jira project.
+
+        Args:
+            project_key (str): The key of the Jira project.
+            name (str): The name of the component.
+            description (str): Optional description for the component.
+            assignee_type (str): The type of assignee (PROJECT_DEFAULT, COMPONENT_LEAD,
+                PROJECT_LEAD, UNASSIGNED).
+            lead (str): Optional account ID of the component lead.
+
+        Returns:
+            Optional[Dict]: The created component data or None if failed.
+        """
+        try:
+            payload = {
+                "name": name,
+                "project": project_key,
+                "assigneeType": assignee_type,
+            }
+
+            if description:
+                payload["description"] = description
+
+            if lead:
+                payload["lead"] = {"accountId": lead}
+
+            self._logger.info(f"Creating component '{name}' in project '{project_key}'")
+            response = self.client.post("component", payload)
+
+            if not response:
+                raise JiraComponentCreationError(
+                    "Failed to create component.", project_key=project_key, name=name
+                )
+
+            self._logger.info(f"Component created with ID: {response.get('id')}")
+            return response
+        except JiraComponentCreationError as e:
+            self._logger.error(e)
+            raise
+        except Exception as e:
+            raise JiraComponentCreationError(
+                "Error creating component.", project_key=project_key, name=name, error=str(e)
+            ) from e
+
+    def delete_component(self, component_id: str) -> bool:
+        """
+        Delete a component from Jira.
+
+        Args:
+            component_id (str): The ID of the component to delete.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            self._logger.info(f"Deleting component with ID '{component_id}'")
+            self.client.delete(f"component/{component_id}")
+
+            # DELETE requests typically return None for successful deletions
+            self._logger.info(f"Component '{component_id}' deleted successfully")
+            return True
+        except Exception as e:
+            self._logger.error(f"Error deleting component '{component_id}': {e}")
+            raise JiraComponentDeletionError(
+                "Error deleting component.", component_id=component_id, error=str(e)
+            ) from e
+
+    def create_components_batch(self, project_key: str, components: List[Dict]) -> List[Dict]:
+        """
+        Create multiple components in a Jira project.
+
+        Args:
+            project_key (str): The key of the Jira project.
+            components (List[Dict]): List of component data dictionaries.
+
+        Returns:
+            List[Dict]: List of created components with their results.
+        """
+        results = []
+        for component_data in components:
+            try:
+                name = component_data.get("name")
+                description = component_data.get("description")
+                assignee_type = component_data.get("assignee_type", "PROJECT_DEFAULT")
+                lead = component_data.get("lead")
+
+                result = self.create_component(project_key, name, description, assignee_type, lead)
+                results.append(
+                    {
+                        "name": name,
+                        "status": "success",
+                        "component": result,
+                    }
+                )
+            except Exception as e:
+                component_name = component_data.get("name")
+                self._logger.error(f"Failed to create component '{component_name}': {e}")
+                results.append(
+                    {
+                        "name": component_data.get("name"),
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+        return results
+
+    def delete_components_batch(self, component_ids: List[str]) -> List[Dict]:
+        """
+        Delete multiple components from Jira.
+
+        Args:
+            component_ids (List[str]): List of component IDs to delete.
+
+        Returns:
+            List[Dict]: List of deletion results.
+        """
+        results = []
+        for component_id in component_ids:
+            try:
+                success = self.delete_component(component_id)
+                results.append(
+                    {"component_id": component_id, "status": "success" if success else "failed"}
+                )
+            except Exception as e:
+                self._logger.error(f"Failed to delete component '{component_id}': {e}")
+                results.append(
+                    {
+                        "component_id": component_id,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+        return results
+
+    def update_issue_components(self, issue_key: str, component_id: str) -> bool:
+        """
+        Update an issue to replace all existing components with a single new component.
+
+        Args:
+            issue_key (str): The key of the issue to update.
+            component_id (str): The ID of the component to set on the issue.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            payload = {"fields": {"components": [{"id": str(component_id)}]}}
+
+            self._logger.info(f"Updating issue '{issue_key}' with component ID '{component_id}'")
+            self.client.put(f"issue/{issue_key}", payload)
+
+            # PUT requests typically return None for successful updates
+            self._logger.info(f"Issue '{issue_key}' components updated successfully")
+            return True
+        except Exception as e:
+            self._logger.error(f"Error updating components for issue '{issue_key}': {e}")
+            raise JiraIssueComponentUpdateError(
+                "Error updating issue components.",
+                issue_key=issue_key,
+                component_id=component_id,
+                error=str(e),
+            ) from e
+
+    def update_issues_components_batch(self, issues_components: List[Dict]) -> List[Dict]:
+        """
+        Update multiple issues with their respective components.
+
+        Args:
+            issues_components (List[Dict]): List of dictionaries with 'key' and 'component' fields.
+
+        Returns:
+            List[Dict]: List of update results.
+        """
+        results = []
+        for issue_data in issues_components:
+            try:
+                issue_key = issue_data.get("key")
+                component_id = issue_data.get("component")
+
+                success = self.update_issue_components(issue_key, component_id)
+                results.append(
+                    {
+                        "issue_key": issue_key,
+                        "component_id": component_id,
+                        "status": "success" if success else "failed",
+                    }
+                )
+            except Exception as e:
+                issue_key = issue_data.get("key")
+                component_id = issue_data.get("component")
+                self._logger.error(f"Failed to update issue '{issue_key}': {e}")
+                results.append(
+                    {
+                        "issue_key": issue_key,
+                        "component_id": component_id,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+        return results
 
     def create_issue(self, project_key: str, payload: Dict) -> Optional[Dict]:
         """
