@@ -1,0 +1,31 @@
+{
+  "projects": [
+    "syngenta-digital_api-java-server-strix",
+    "syngenta-digital_api-node-bff-base-webapps",
+    "syngenta-digital_websocket-node-cropwise-notification-system",
+    "syngenta-digital_api-node-cropwise-catalogue",
+    "syngenta-digital_api-node-cropwise-crops-catalog",
+    "syngenta-digital_api-node-cropwise-custom-attribute",
+    "syngenta-digital_api-node-cropwise-geometry-calculation",
+    "syngenta-digital_api-node-cropwise-licensing-v2",
+    "syngenta-digital_api-node-notes",
+    "syngenta-digital_api-node-cropwise-rbac",
+    "syngenta-digital_api-node-cropwise-service-provider",
+    "syngenta-digital_api-node-notes-notification",
+    "syngenta-digital_api-python-cropwise-agro-operations",
+    "syngenta-digital_api-python-cropwise-map-integrator-v4",
+    "syngenta-digital_api-python-land-boundary",
+    "syngenta-digital_fullstack-rails-cwo",
+    "syngenta-digital_package-react-cropwise-elements",
+    "syngenta-digital_package-react-cropwise-notes",
+    "syngenta-digital_service-java-atlas-geo",
+    "syngenta-digital_service-node-cropwise-weather",
+    "syngenta-digital_service-python-protector-integration-core",
+    "syngenta-digital_web-react-cropwise-accounts",
+    "syngenta-digital_web-react-cropwise-accounts-management",
+    "syngenta-digital_web-react-cropwise-base",
+    "syngenta-digital_web-react-cropwise-channel-console_main",
+    "syngenta-digital_web-react-cropwise-dev-console",
+    "syngenta-digital_web-react-cropwise-staff-console"
+  ]
+}
