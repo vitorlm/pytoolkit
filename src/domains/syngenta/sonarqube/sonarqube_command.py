@@ -180,7 +180,12 @@ class SonarQubeCommand(BaseCommand):
             "--metrics",
             type=str,
             required=False,
-            default="alert_status,bugs,reliability_rating,vulnerabilities,security_rating,security_hotspots_reviewed,security_review_rating,code_smells,sqale_rating,duplicated_lines_density,coverage,ncloc,ncloc_language_distribution,security_issues,reliability_issues,maintainability_issues",
+            default=(
+                "alert_status,bugs,reliability_rating,vulnerabilities,security_rating,"
+                "security_hotspots_reviewed,security_review_rating,code_smells,sqale_rating,"
+                "duplicated_lines_density,coverage,ncloc,ncloc_language_distribution,"
+                "security_issues,reliability_issues,maintainability_issues"
+            ),
             help="Comma-separated list of metrics to fetch (for measures operation).",
         )
         parser.add_argument(
@@ -258,7 +263,7 @@ class SonarQubeCommand(BaseCommand):
         service.get_projects(
             organization=args.organization,
             use_project_list=args.use_project_list,
-            output_file=args.output_file
+            output_file=args.output_file,
         )
 
     @staticmethod
