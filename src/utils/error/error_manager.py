@@ -1,6 +1,6 @@
 from typing import Optional
 
-from src.log_config import log_manager
+from log_config import log_manager
 
 logger = log_manager.get_logger("ErrorManager")
 

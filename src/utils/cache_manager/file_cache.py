@@ -3,7 +3,7 @@ import os
 from typing import Any, Optional
 from utils.file_manager import FileManager
 from utils.data.json_manager import JSONManager
-from src.log_config import log_manager
+from log_config import log_manager
 from utils.cache_manager.cache_backend import CacheBackend
 from utils.cache_manager.error import FileCacheError
 

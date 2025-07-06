@@ -1,6 +1,6 @@
 import os
 from typing import Any, Optional
-from src.log_config import log_manager
+from log_config import log_manager
 from utils.cache_manager.error import CacheManagerError
 from utils.cache_manager.file_cache import FileCacheBackend
 from utils.data.json_manager import JSONManager
