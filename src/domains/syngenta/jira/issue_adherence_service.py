@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
 
 
 @dataclass
@@ -114,9 +115,7 @@ class TimePeriodParser:
             end_date = single_date.replace(hour=23, minute=59, second=59)
             return start_date, end_date
         except ValueError:
-            raise ValueError(
-                f"Invalid date format '{time_period}'. Use YYYY-MM-DD format."
-            )
+            raise ValueError(f"Invalid date format '{time_period}'. Use YYYY-MM-DD format.")
 
 
 class IssueAdherenceService:
@@ -155,9 +154,7 @@ class IssueAdherenceService:
             Dict: Analysis results with metrics and issue details
         """
         try:
-            self.logger.info(
-                f"Starting issue adherence analysis for project {project_key}"
-            )
+            self.logger.info(f"Starting issue adherence analysis for project {project_key}")
 
             # Parse time period
             start_date, end_date = self.time_parser.parse_time_period(time_period)
@@ -211,14 +208,18 @@ class IssueAdherenceService:
                     "analysis_date": datetime.now().isoformat(),
                 },
                 "metrics": metrics,
-                "issues": [
-                    self._result_to_dict(result) for result in adherence_results
-                ],
+                "issues": [self._result_to_dict(result) for result in adherence_results],
             }
 
             # Save to file if specified
             if output_file:
                 self._save_results(results, output_file)
+            else:
+                # Generate default output file in organized structure
+                output_path = OutputManager.get_output_path(
+                    "issue-adherence", f"adherence_{project_key}"
+                )
+                self._save_results(results, output_path)
 
             # Print verbose output if requested
             if verbose:
@@ -252,9 +253,7 @@ class IssueAdherenceService:
         # Time period - using resolution date to capture issues resolved in the period
         start_date_str = start_date.strftime("%Y-%m-%d")
         end_date_str = end_date.strftime("%Y-%m-%d")
-        jql_parts.append(
-            f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'"
-        )
+        jql_parts.append(f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'")
 
         # Team filter
         if team:
@@ -277,16 +276,10 @@ class IssueAdherenceService:
         summary = fields.get("summary", "")
         issue_type = fields.get("issuetype", {}).get("name", "")
         status = fields.get("status", {}).get("name", "")
-        status_category = (
-            fields.get("status", {}).get("statusCategory", {}).get("name", "")
-        )
+        status_category = fields.get("status", {}).get("statusCategory", {}).get("name", "")
         due_date = fields.get("duedate")
         resolution_date = fields.get("resolutiondate")
-        assignee = (
-            fields.get("assignee", {}).get("displayName")
-            if fields.get("assignee")
-            else None
-        )
+        assignee = fields.get("assignee", {}).get("displayName") if fields.get("assignee") else None
         team = (
             fields.get("customfield_10265", {}).get("value")
             if fields.get("customfield_10265")
@@ -323,15 +316,11 @@ class IssueAdherenceService:
         if not due_date:
             return "no_due_date", None
 
-        due_date_obj = datetime.fromisoformat(due_date.replace("Z", "+00:00")).replace(
-            tzinfo=None
-        )
+        due_date_obj = self._parse_datetime(due_date)
 
         if status_category == "Done" and resolution_date:
             # Issue is completed
-            resolution_date_obj = datetime.fromisoformat(
-                resolution_date.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
+            resolution_date_obj = self._parse_datetime(resolution_date)
             days_difference = (resolution_date_obj - due_date_obj).days
 
             if days_difference < 0:
@@ -349,6 +338,47 @@ class IssueAdherenceService:
                 return "overdue", days_difference
             else:
                 return "in_progress", days_difference
+
+    def _parse_datetime(self, date_string: str) -> datetime:
+        """
+        Parse datetime string from JIRA, handling various timezone formats.
+
+        Args:
+            date_string (str): DateTime string from JIRA API
+
+        Returns:
+            datetime: Parsed datetime object (timezone-naive)
+        """
+        try:
+            # Handle different timezone formats from JIRA
+            if date_string.endswith("Z"):
+                # UTC format: 2025-07-18T18:43:31.570Z
+                return datetime.fromisoformat(date_string.replace("Z", "+00:00")).replace(
+                    tzinfo=None
+                )
+            elif "+" in date_string or date_string.count("-") > 2:
+                # Timezone offset format: 2025-07-18T18:43:31.570-0300 or +0000
+                # Need to add colon to make it ISO compatible: -0300 -> -03:00
+                import re
+
+                # Find timezone offset pattern and add colon if missing
+                tz_pattern = r"([+-]\d{4})$"
+                match = re.search(tz_pattern, date_string)
+                if match:
+                    tz_offset = match.group(1)
+                    # Convert -0300 to -03:00 format
+                    tz_formatted = f"{tz_offset[:3]}:{tz_offset[3:]}"
+                    date_string_fixed = date_string.replace(tz_offset, tz_formatted)
+                    return datetime.fromisoformat(date_string_fixed).replace(tzinfo=None)
+                else:
+                    # Already has colon or other format
+                    return datetime.fromisoformat(date_string).replace(tzinfo=None)
+            else:
+                # No timezone info: 2025-07-18T18:43:31.570
+                return datetime.fromisoformat(date_string)
+        except ValueError as e:
+            self.logger.error(f"Failed to parse datetime string '{date_string}': {e}")
+            raise ValueError(f"Invalid datetime format: {date_string}")
 
     def _calculate_metrics(self, results: List[IssueAdherenceResult]) -> Dict:
         """Calculate adherence metrics."""
@@ -375,7 +405,7 @@ class IssueAdherenceService:
             }
 
         # Count by status
-        status_counts = {}
+        status_counts: Dict[str, int] = {}
         for result in results:
             status = result.adherence_status
             status_counts[status] = status_counts.get(status, 0) + 1
@@ -395,17 +425,11 @@ class IssueAdherenceService:
         on_time_percentage = (on_time / total_issues * 100) if total_issues > 0 else 0
         late_percentage = (late / total_issues * 100) if total_issues > 0 else 0
         overdue_percentage = (overdue / total_issues * 100) if total_issues > 0 else 0
-        no_due_date_percentage = (
-            (no_due_date / total_issues * 100) if total_issues > 0 else 0
-        )
-        in_progress_percentage = (
-            (in_progress / total_issues * 100) if total_issues > 0 else 0
-        )
+        no_due_date_percentage = (no_due_date / total_issues * 100) if total_issues > 0 else 0
+        in_progress_percentage = (in_progress / total_issues * 100) if total_issues > 0 else 0
 
         # Calculate adherence rate (early + on-time completion out of completed issues)
-        adherence_rate = (
-            ((early + on_time) / completed_issues * 100) if completed_issues > 0 else 0
-        )
+        adherence_rate = ((early + on_time) / completed_issues * 100) if completed_issues > 0 else 0
 
         return {
             "total_issues": total_issues,
@@ -450,16 +474,14 @@ class IssueAdherenceService:
             self.logger.error(f"Failed to save results to {output_file}: {e}")
             raise
 
-    def _print_verbose_results(
-        self, results: List[IssueAdherenceResult], _metrics: Dict
-    ):
+    def _print_verbose_results(self, results: List[IssueAdherenceResult], _metrics: Dict):
         """Print verbose results to console."""
         print("\n" + "=" * 80)
         print("DETAILED ISSUE ADHERENCE ANALYSIS")
         print("=" * 80)
 
         # Group by adherence status
-        status_groups = {}
+        status_groups: Dict[str, List[IssueAdherenceResult]] = {}
         for result in results:
             status = result.adherence_status
             if status not in status_groups:
