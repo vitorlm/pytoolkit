@@ -2,23 +2,49 @@
 
 ## Project Overview
 
-PyToolkit is a domain-driven CLI framework built in Python that dynamically discovers and loads commands from domain-specific modules. It's designed for enterprise-level data processing, analytics, and automation across multiple business domains (personal finance, Syngenta operations, JIRA management, SonarQube analysis, etc.).
+PyToolkit is a domain-driven CLI framework that dynamically discovers and loads commands from domain-specific modules. It's designed for enterprise data processing, analytics, and automation across multiple business domains (personal finance, Syngenta operations, JIRA management, SonarQube analysis, etc.).
 
-## Architecture & Design Patterns
+## Critical Architecture Understanding
 
-### Core Architecture
-- **Domain-Driven Design**: Commands organized by business domains under `src/domains/`
-- **Command Pattern**: All commands inherit from `BaseCommand` (`src/utils/command/base_command.py`)
-- **Auto-Discovery**: Commands are automatically discovered via `CommandManager` - no manual registration
-- **Singleton Pattern**: Used for managers (LogManager, CacheManager) for centralized resource management
+### Auto-Discovery System (The "Magic" Behind Command Loading)
+The framework's core innovation is its **zero-registration command discovery**:
 
-### Command System Structure
+1. **CommandManager** (`src/utils/command/command_manager.py`) scans `src/domains/` recursively
+2. Uses Python's `pkgutil.iter_modules()` and `importlib` to dynamically import modules
+3. Inspects each module with `inspect.getmembers()` to find `BaseCommand` subclasses
+4. Builds a hierarchical command structure that maps to CLI argument parsing
+5. **Entry Point**: `src/main.py` instantiates CommandManager → loads commands → builds parser → executes
+
+This means: **Just create a class inheriting from BaseCommand in any subdirectory of `src/domains/` and it becomes available in the CLI automatically.**
+
+### Singleton Infrastructure Pattern
+Three critical singletons manage the entire application lifecycle:
+- **LogManager**: Centralized logging with color-coded output, file rotation, hierarchical loggers
+- **CacheManager**: File-based caching with expiration (crucial for API operations)
+- **Configuration**: Environment loading through `src/config.py` and `src/log_config.py`
+
+These are initialized once at startup and accessed throughout the application via `.get_instance()`.
+
+### Domain-Service-Command Separation (MANDATORY PATTERN)
+```
+Command (CLI interface) → Service (business logic) → Data Layer (managers/APIs)
+```
+**Commands** MUST be thin wrappers. **Services** contain all business logic. This enables testing, reusability, and clean separation of concerns.
+
+## Essential Command Structure (STRICT PATTERN)
+
+Every command MUST follow this exact pattern. The CommandManager validates these abstract methods:
+
 ```python
-# Standard command pattern - ALL commands must follow this structure
+from argparse import ArgumentParser, Namespace
+from utils.command.base_command import BaseCommand
+from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
+
 class YourCommand(BaseCommand):
     @staticmethod
     def get_name() -> str:
-        return "command-name"
+        return "command-name"  # kebab-case, will be CLI subcommand
     
     @staticmethod
     def get_description() -> str:
@@ -30,38 +56,120 @@ class YourCommand(BaseCommand):
     
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        # Add command-specific arguments
+        # CLI argument definitions
         parser.add_argument("--arg", required=True, help="Description")
     
     @staticmethod
     def main(args: Namespace):
-        # ALWAYS start with this
+        # ALWAYS start with these two lines
         ensure_env_loaded()
         logger = LogManager.get_instance().get_logger("YourCommand")
         
         try:
-            # Command logic here
+            # Delegate ALL business logic to service
+            service = YourService()
+            result = service.execute(args)
             logger.info("Command completed successfully")
         except Exception as e:
             logger.error(f"Command failed: {e}")
-            exit(1)
+            exit(1)  # CLI commands MUST exit with error codes
 ```
 
-## Domain Structure
+## Critical Developer Workflows
 
-### Existing Domains
-- **personal_finance/**: Financial data processing (credit cards, payroll)
-- **syngenta/**: Syngenta-specific operations with subdomains:
-  - **ag_operations/**: Agricultural operations data management
-  - **jira/**: JIRA integration and issue management
-  - **sonarqube/**: SonarQube/SonarCloud code quality analysis
-  - **team_assessment/**: Team performance and competency analysis
+### Environment Setup & Activation
+```bash
+# Initial setup (creates .venv and installs dependencies)
+./setup.sh
 
-### Adding New Domains
-1. Create directory: `src/domains/new_domain/`
-2. Add `__init__.py` file
-3. Create command files inheriting from `BaseCommand`
-4. Optional: Add domain-specific `.env` file for configuration
+# Daily activation (always run before development)
+source .venv/bin/activate
+
+# Code quality pipeline (run before every commit)
+black src/        # Code formatting (MANDATORY)
+isort src/        # Import sorting (MANDATORY) 
+flake8 src/       # Linting (MUST pass)
+```
+
+### CLI Usage Patterns
+```bash
+# Discovery - see all available domains and commands
+python src/main.py --help
+
+# Execution pattern
+python src/main.py <domain> <command> [args]
+
+# Real examples from the codebase
+python src/main.py syngenta jira epic-monitoring --project-key "PROJ"
+python src/main.py syngenta sonarqube sonarqube --operation list-projects
+python src/main.py syngenta jira issue-adherence --time-period "last-week"
+```
+
+### Time Range Patterns (Used across JIRA commands)
+The framework has standardized time period handling:
+- `last-week`, `last-2-weeks`, `last-month`
+- `N-days` format (e.g., `30-days`)
+- Date ranges: `YYYY-MM-DD,YYYY-MM-DD`
+
+This pattern should be reused for any new time-based commands.
+
+## Domain Organization & New Domain Creation
+
+### Current Domain Structure
+```
+src/domains/
+├── personal_finance/           # Financial data processing
+├── syngenta/                  # Syngenta enterprise operations
+│   ├── ag_operations/         # Agricultural data management
+│   ├── jira/                  # JIRA integration (8+ commands)
+│   ├── sonarqube/             # Code quality analysis  
+│   └── team_assessment/       # Performance analysis
+```
+
+### Adding New Domains (4-Step Process)
+```bash
+# 1. Create domain directory with __init__.py
+mkdir -p src/domains/new_domain
+touch src/domains/new_domain/__init__.py
+
+# 2. Create command file inheriting from BaseCommand
+# File: src/domains/new_domain/command_name.py
+
+# 3. Create service file for business logic
+# File: src/domains/new_domain/service_name.py
+
+# 4. Optional: Add domain-specific environment
+# File: src/domains/new_domain/.env
+```
+
+**Zero registration required** - CommandManager auto-discovers new commands.
+
+### Command-Service Separation (MANDATORY)
+```python
+# your_command.py - Thin CLI wrapper
+class YourCommand(BaseCommand):
+    @staticmethod
+    def main(args: Namespace):
+        ensure_env_loaded()
+        logger = LogManager.get_instance().get_logger("YourCommand")
+        
+        try:
+            service = YourService()
+            service.execute(args)
+        except Exception as e:
+            logger.error(f"Command failed: {e}")
+            exit(1)
+
+# your_service.py - ALL business logic here
+class YourService:
+    def __init__(self):
+        self.logger = LogManager.get_instance().get_logger("YourService")
+        self.cache = CacheManager.get_instance()
+    
+    def execute(self, args: Namespace) -> Any:
+        # Complex business logic, API calls, data processing
+        return self._process_business_logic(args)
+```
 
 ## Essential Utilities & Required Usage Patterns
 
@@ -216,11 +324,13 @@ base_url = os.getenv("JIRA_BASE_URL")
 1. ✅ Inherit from `BaseCommand`
 2. ✅ Call `ensure_env_loaded()` first in main()
 3. ✅ Use `LogManager.get_instance().get_logger()`
-4. ✅ Implement proper error handling with exit codes
-5. ✅ Add caching for expensive operations
-6. ✅ Validate inputs and file paths
-7. ✅ Follow naming conventions (kebab-case for command names)
-8. ✅ Add comprehensive help text with examples
+4. ✅ **Keep command files thin** - delegate logic to service classes
+5. ✅ Create separate service file for business logic
+6. ✅ Implement proper error handling with exit codes
+7. ✅ Add caching for expensive operations
+8. ✅ Validate inputs and file paths
+9. ✅ Follow naming conventions (kebab-case for command names)
+10. ✅ Add comprehensive help text with examples
 
 ## Specialized Domain Knowledge
 
@@ -285,6 +395,8 @@ poetry shell
 
 ### ✅ DO
 - Always use singleton managers (LogManager, CacheManager)
+- **Keep command files thin** - delegate business logic to service classes
+- Create separate service files for all business logic
 - Implement proper error handling with logging and exit codes
 - Cache expensive operations (API calls, file processing)
 - Use type hints and validate inputs
@@ -293,6 +405,7 @@ poetry shell
 
 ### ❌ DON'T
 - Create commands without inheriting from BaseCommand
+- **Put business logic directly in command files** - use service classes instead
 - Skip environment loading in main() methods
 - Ignore error handling or logging
 - Hardcode configuration values
@@ -305,10 +418,38 @@ poetry shell
 ```
 src/domains/your_domain/
 ├── __init__.py
-├── your_command.py          # Command implementation
-├── your_service.py          # Business logic (optional)
+├── your_command.py          # Command implementation (thin layer)
+├── your_service.py          # Business logic (MANDATORY for complex logic)
 ├── .env                     # Domain-specific config (optional)
 └── data/                    # Domain-specific data (optional)
+```
+
+### Command-Service Pattern Example
+```python
+# your_command.py - Keep this file minimal
+class YourCommand(BaseCommand):
+    @staticmethod
+    def main(args: Namespace):
+        ensure_env_loaded()
+        logger = LogManager.get_instance().get_logger("YourCommand")
+        
+        try:
+            service = YourService()
+            result = service.execute(args)
+            logger.info("Command completed successfully")
+        except Exception as e:
+            logger.error(f"Command failed: {e}")
+            exit(1)
+
+# your_service.py - All business logic goes here
+class YourService:
+    def __init__(self):
+        self.logger = LogManager.get_instance().get_logger("YourService")
+        self.cache = CacheManager.get_instance()
+    
+    def execute(self, args: Namespace) -> Any:
+        # Complex business logic, API calls, data processing
+        return self._process_business_logic(args)
 ```
 
 ## Additional Context
