@@ -92,13 +92,15 @@ class JiraApiClient:
                 status_code=getattr(e.response, "status_code", None),
             )
 
-    def get(self, endpoint: str, params: dict = None):
+    from typing import Optional
+
+    def get(self, endpoint: str, params: Optional[dict] = None):
         """
         Make a GET request to the Jira API.
 
         Args:
             endpoint (str): The API endpoint to call.
-            params (dict): Query parameters to include in the request (optional).
+            params (dict, optional): Query parameters to include in the request.
 
         Returns:
             dict or None: The JSON response from the API.
