@@ -34,6 +34,13 @@ class JiraAssistant:
             cache_expiration (int): Cache expiration time in minutes.
         """
         jira_config = JiraConfig()
+        if not jira_config.base_url or not jira_config.email or not jira_config.api_token:
+            raise ValueError(
+                "JiraConfig is missing required fields: base_url, email, or api_token. "
+                f"base_url={jira_config.base_url}, "
+                f"email={jira_config.email}, "
+                f"api_token={'***' if jira_config.api_token else None}"
+            )
         self.client = JiraApiClient(jira_config.base_url, jira_config.email, jira_config.api_token)
         self.cache_manager = CacheManager.get_instance()
         self.cache_expiration = cache_expiration
@@ -102,7 +109,24 @@ class JiraAssistant:
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
                 self._logger.info(f"Loaded components from cache for project '{project_key}'.")
-                return cached_data
+                if isinstance(cached_data, list):
+                    return cached_data
+                elif isinstance(cached_data, dict) and "components" in cached_data:
+                    components = cached_data["components"]
+                    if isinstance(components, list):
+                        return components
+                    else:
+                        self._logger.warning(
+                            f"Cached 'components' for project '{project_key}' is not a list. "
+                            "Returning empty list."
+                        )
+                        return []
+                else:
+                    self._logger.warning(
+                        f"Cached data for project '{project_key}' is not a list or dict "
+                        f"with 'components'. Returning empty list."
+                    )
+                    return []
 
             self._logger.info(f"Fetching components for project '{project_key}'")
             response = self.client.get(f"project/{project_key}/components")
@@ -112,9 +136,29 @@ class JiraAssistant:
                     "No response received for project components.", project_key=project_key
                 )
 
-            self._save_to_cache(cache_key, response)
-
-            return response
+            # Ensure response is a list for cache and return
+            if isinstance(response, list):
+                self._save_to_cache(cache_key, {"components": response})
+                return response
+            elif isinstance(response, dict) and "components" in response:
+                components = response["components"]
+                if isinstance(components, list):
+                    self._save_to_cache(cache_key, {"components": components})
+                    return components
+                else:
+                    self._logger.warning(
+                        f"Response 'components' for project '{project_key}' is not a list. "
+                        "Returning empty list."
+                    )
+                    self._save_to_cache(cache_key, {"components": []})
+                    return []
+            else:
+                self._logger.warning(
+                    f"Response for project '{project_key}' is not a list or dict "
+                    f"with 'components'. Returning empty list."
+                )
+                self._save_to_cache(cache_key, {"components": []})
+                return []
         except JiraComponentFetchError as e:
             self._logger.error(e)
             raise
@@ -127,9 +171,9 @@ class JiraAssistant:
         self,
         project_key: str,
         name: str,
-        description: str = None,
+        description: Optional[str] = None,
         assignee_type: str = "PROJECT_DEFAULT",
-        lead: str = None,
+        lead: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Create a component in a Jira project.
@@ -152,11 +196,11 @@ class JiraAssistant:
                 "assigneeType": assignee_type,
             }
 
-            if description:
+            if description is not None:
                 payload["description"] = description
 
-            if lead:
-                payload["lead"] = {"accountId": lead}
+            if lead is not None:
+                payload["leadAccountId"] = lead
 
             self._logger.info(f"Creating component '{name}' in project '{project_key}'")
             response = self.client.post("component", payload)
@@ -213,7 +257,7 @@ class JiraAssistant:
         results = []
         for component_data in components:
             try:
-                name = component_data.get("name")
+                name = str(component_data.get("name", ""))
                 description = component_data.get("description")
                 assignee_type = component_data.get("assignee_type", "PROJECT_DEFAULT")
                 lead = component_data.get("lead")
@@ -308,8 +352,8 @@ class JiraAssistant:
         results = []
         for issue_data in issues_components:
             try:
-                issue_key = issue_data.get("key")
-                component_id = issue_data.get("component")
+                issue_key = str(issue_data.get("key", ""))
+                component_id = str(issue_data.get("component", ""))
 
                 success = self.update_issue_components(issue_key, component_id)
                 results.append(
@@ -429,9 +473,16 @@ class JiraAssistant:
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
                 self._logger.info(f"Loaded completed epics from cache for team '{team_name}'.")
-                return cached_data
+                if isinstance(cached_data, list):
+                    return cached_data
+                elif isinstance(cached_data, dict) and "epics" in cached_data:
+                    return cached_data["epics"]
+                else:
+                    return []
 
-            time_period_ago = datetime.datetime.now() - datetime.timedelta(days=time_period_days)
+            from datetime import timedelta
+
+            time_period_ago = datetime.now() - timedelta(days=time_period_days)
             jql_query = (
                 f"project = 'Cropwise Core Services' AND type = Epic "
                 f"AND 'Squad[Dropdown]' = '{team_name}' "
@@ -445,7 +496,7 @@ class JiraAssistant:
             epics = self.fetch_issues(jql_query)
 
             if epics:
-                self._save_to_cache(cache_key, epics)
+                self._save_to_cache(cache_key, {"epics": epics})
 
             return epics
         except Exception as e:
@@ -476,7 +527,12 @@ class JiraAssistant:
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
                 self._logger.info(f"Loaded open {issue_type}s from cache for team '{team_name}'.")
-                return cached_data
+                if isinstance(cached_data, list):
+                    return cached_data
+                elif isinstance(cached_data, dict) and "issues" in cached_data:
+                    return cached_data["issues"]
+                else:
+                    return []
 
             jql_query = (
                 f"project = 'Cropwise Core Services' AND type = '{issue_type}' "
@@ -491,7 +547,7 @@ class JiraAssistant:
             open_issues = self.fetch_issues(jql_query)
 
             if open_issues:
-                self._save_to_cache(cache_key, open_issues)
+                self._save_to_cache(cache_key, {"issues": open_issues})
 
             return open_issues
         except Exception as e:
@@ -539,8 +595,12 @@ class JiraAssistant:
                     self._logger.info(
                         f"Loaded issues from cache for JQL: {jql_query} (start_at={start_at})"
                     )
-                    issues.extend(cached_data.get("issues", []))
-                    if len(issues) >= cached_data.get("total", 0):
+                    if isinstance(cached_data, dict):
+                        issues.extend(cached_data.get("issues", []))
+                        if len(issues) >= cached_data.get("total", 0):
+                            break
+                    elif isinstance(cached_data, list):
+                        issues.extend(cached_data)
                         break
                     start_at += max_results
                     continue
@@ -561,9 +621,12 @@ class JiraAssistant:
                     raise JiraQueryError("No response received from Jira API.", jql=jql_query)
 
                 self._save_to_cache(cache_key, response)
-                issues.extend(response.get("issues", []))
-
-                if len(issues) >= response.get("total", 0):
+                if isinstance(response, dict):
+                    issues.extend(response.get("issues", []))
+                    if len(issues) >= response.get("total", 0):
+                        break
+                elif isinstance(response, list):
+                    issues.extend(response)
                     break
                 start_at += max_results
 
