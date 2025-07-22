@@ -3,6 +3,7 @@ from utils.command.base_command import BaseCommand
 from domains.syngenta.jira.jira_processor import JiraProcessor
 from utils.data.json_manager import JSONManager
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
 
 _logger = LogManager.get_instance().get_logger("ListCustomFieldsCommand")
 
@@ -39,7 +40,11 @@ class ListCustomFieldsCommand(BaseCommand):
         Args:
             args (Namespace): Command-line arguments.
         """
-        output_file = args.output_file if args.output_file else "custom_fields.json"
+        output_file = (
+            args.output_file
+            if args.output_file
+            else OutputManager.get_output_path("list-custom-fields", "custom_fields")
+        )
 
         try:
             # Initialize JiraProcessor or equivalent class
@@ -49,7 +54,6 @@ class ListCustomFieldsCommand(BaseCommand):
             custom_fields = jira_processor.fetch_custom_fields()
 
             if not custom_fields:
-                ListCustomFieldsCommand._logger.info("No custom fields available in Jira.")
                 _logger.info("No custom fields available in Jira.")
                 return
 
@@ -58,5 +62,5 @@ class ListCustomFieldsCommand(BaseCommand):
             _logger.info(f"Custom fields successfully saved to '{output_file}'.")
 
         except Exception as e:
-            ListCustomFieldsCommand._logger.error(f"Failed to fetch custom fields: {e}")
+            _logger.error(f"Failed to fetch custom fields: {e}")
             print(f"Error fetching custom fields: {e}")

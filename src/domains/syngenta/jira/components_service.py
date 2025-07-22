@@ -1,7 +1,9 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
+from datetime import datetime
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
 
 
 class ComponentService:
@@ -14,7 +16,7 @@ class ComponentService:
         self.jira_assistant = JiraAssistant()
         self._logger = LogManager.get_instance().get_logger("ComponentService")
 
-    def list_components(self, project_key: str, output_file: str = None) -> List[Dict]:
+    def list_components(self, project_key: str, output_file: Optional[str] = None) -> List[Dict]:
         """List all components in a project."""
         if not project_key:
             raise ValueError("project_key is required for list operation")
@@ -39,6 +41,13 @@ class ComponentService:
         if output_file:
             JSONManager.write_json(components, output_file)
             print(f"Components saved to '{output_file}'.")
+        else:
+            # Generate default output file in organized structure
+            output_path = OutputManager.get_output_path(
+                "list-components", f"components_{project_key}"
+            )
+            JSONManager.write_json(components, output_path)
+            print(f"Components saved to '{output_path}'.")
 
         self._logger.info(f"Listed {len(components)} components for project '{project_key}'.")
         return components
@@ -47,10 +56,10 @@ class ComponentService:
         self,
         project_key: str,
         name: str,
-        description: str = None,
+        description: Optional[str] = None,
         assignee_type: str = "PROJECT_DEFAULT",
-        lead: str = None,
-        output_file: str = None,
+        lead: Optional[str] = None,
+        output_file: Optional[str] = None,
     ) -> Dict:
         """Create a single component."""
         if not project_key:
@@ -61,9 +70,9 @@ class ComponentService:
         component = self.jira_assistant.create_component(
             project_key=project_key,
             name=name,
-            description=description,
+            description=description if description is not None else "",
             assignee_type=assignee_type,
-            lead=lead,
+            lead=lead if lead is not None else "",
         )
 
         if component:
@@ -80,6 +89,13 @@ class ComponentService:
             if output_file:
                 JSONManager.write_json(component, output_file)
                 print(f"Component details saved to '{output_file}'.")
+            else:
+                # Generate default output file in organized structure
+                output_path = OutputManager.get_output_path(
+                    "create-component", f"component_{name.replace(' ', '_')}"
+                )
+                JSONManager.write_json(component, output_path)
+                print(f"Component details saved to '{output_path}'.")
 
             self._logger.info(
                 f"Component '{name}' created successfully in project '{project_key}'."
@@ -103,7 +119,7 @@ class ComponentService:
             raise RuntimeError(f"Failed to delete component '{component_id}'.")
 
     def create_components_batch(
-        self, project_key: str, input_file: str, output_file: str = None
+        self, project_key: str, input_file: str, output_file: Optional[str] = None
     ) -> List[Dict]:
         """Create multiple components from a JSON file."""
         if not project_key:
@@ -145,6 +161,13 @@ class ComponentService:
         if output_file:
             JSONManager.write_json(results, output_file)
             print(f"Detailed results saved to '{output_file}'.")
+        else:
+            # Generate default output file in organized structure
+            output_path = OutputManager.get_output_path(
+                "create-components-batch", f"batch_creation_{project_key}"
+            )
+            JSONManager.write_json(results, output_path)
+            print(f"Detailed results saved to '{output_path}'.")
 
         self._logger.info(
             f"Batch creation completed: {success_count} success, {error_count} errors."
@@ -152,7 +175,7 @@ class ComponentService:
         return results
 
     def delete_components_batch(
-        self, component_ids: List[str], output_file: str = None
+        self, component_ids: List[str], output_file: Optional[str] = None
     ) -> List[Dict]:
         """Delete multiple components by IDs."""
         if not component_ids:
@@ -186,6 +209,11 @@ class ComponentService:
         if output_file:
             JSONManager.write_json(results, output_file)
             print(f"Detailed results saved to '{output_file}'.")
+        else:
+            # Generate default output file in organized structure
+            output_path = OutputManager.get_output_path("delete-components-batch", "batch_deletion")
+            JSONManager.write_json(results, output_path)
+            print(f"Detailed results saved to '{output_path}'.")
 
         self._logger.info(
             f"Batch deletion completed: {success_count} success, {error_count} errors."
@@ -193,7 +221,7 @@ class ComponentService:
         return results
 
     def update_issue_components(
-        self, issue_key: str, component_id: str, output_file: str = None
+        self, issue_key: str, component_id: str, output_file: Optional[str] = None
     ) -> bool:
         """
         Update an issue to replace all existing components with a single new component.
@@ -218,7 +246,7 @@ class ComponentService:
                 "issue_key": issue_key,
                 "component_id": component_id,
                 "status": "success" if success else "failed",
-                "timestamp": JSONManager.get_timestamp(),
+                "timestamp": datetime.now().isoformat(),
             }
 
             if success:
@@ -231,6 +259,13 @@ class ComponentService:
             if output_file:
                 JSONManager.write_json(result, output_file)
                 print(f"Result saved to '{output_file}'.")
+            else:
+                # Generate default output file in organized structure
+                output_path = OutputManager.get_output_path(
+                    "update-issue-components", f"update_{issue_key}"
+                )
+                JSONManager.write_json(result, output_path)
+                print(f"Result saved to '{output_path}'.")
 
             self._logger.info(
                 f"Updated issue '{issue_key}' with component '{component_id}': {success}"
@@ -248,7 +283,7 @@ class ComponentService:
                     "component_id": component_id,
                     "status": "error",
                     "error": str(e),
-                    "timestamp": JSONManager.get_timestamp(),
+                    "timestamp": datetime.now().isoformat(),
                 }
                 JSONManager.write_json(result, output_file)
                 print(f"Error details saved to '{output_file}'.")
@@ -256,7 +291,7 @@ class ComponentService:
             return False
 
     def update_issues_components_batch(
-        self, input_file: str, output_file: str = None
+        self, input_file: str, output_file: Optional[str] = None
     ) -> List[Dict]:
         """
         Update multiple issues with their respective components from a JSON file.
@@ -309,7 +344,7 @@ class ComponentService:
         if output_file:
             # Add timestamp to results
             timestamped_results = {
-                "timestamp": JSONManager.get_timestamp(),
+                "timestamp": datetime.now().isoformat(),
                 "summary": {
                     "total": len(results),
                     "successful": success_count,
@@ -319,6 +354,22 @@ class ComponentService:
             }
             JSONManager.write_json(timestamped_results, output_file)
             print(f"Detailed results saved to '{output_file}'.")
+        else:
+            # Generate default output file in organized structure
+            timestamped_results = {
+                "timestamp": datetime.now().isoformat(),
+                "summary": {
+                    "total": len(results),
+                    "successful": success_count,
+                    "failed": error_count,
+                },
+                "results": results,
+            }
+            output_path = OutputManager.get_output_path(
+                "update-issues-components-batch", "batch_update"
+            )
+            JSONManager.write_json(timestamped_results, output_path)
+            print(f"Detailed results saved to '{output_path}'.")
 
         self._logger.info(
             f"Batch component update completed: {success_count} success, {error_count} errors."

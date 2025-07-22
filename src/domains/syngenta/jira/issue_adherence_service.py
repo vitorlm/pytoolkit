@@ -182,14 +182,25 @@ class IssueAdherenceService:
 
             # Analyze each issue
             adherence_results = []
+            issues_without_due_date = 0
             for issue in issues:
                 result = self._analyze_issue_adherence(issue)
 
                 # Filter issues without due dates if not requested
                 if not include_no_due_date and result.adherence_status == "no_due_date":
+                    issues_without_due_date += 1
                     continue
 
                 adherence_results.append(result)
+
+            # Log filtering summary
+            if issues_without_due_date > 0:
+                self.logger.info(
+                    f"Excluded {issues_without_due_date} issues without due dates. "
+                    f"Use --include-no-due-date to include them."
+                )
+
+            self.logger.info(f"Analyzing {len(adherence_results)} issues with due dates")
 
             # Calculate metrics
             metrics = self._calculate_metrics(adherence_results)

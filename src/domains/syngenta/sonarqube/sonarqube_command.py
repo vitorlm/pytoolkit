@@ -111,7 +111,9 @@ from argparse import ArgumentParser, Namespace
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+
 from domains.syngenta.sonarqube.sonarqube_service import SonarQubeService
+from utils.output_manager import OutputManager
 
 
 class SonarQubeCommand(BaseCommand):
@@ -317,8 +319,23 @@ class SonarQubeCommand(BaseCommand):
 
     @staticmethod
     def _get_projects_from_list(args: Namespace, service: SonarQubeService):
-        """Get projects from predefined list with optional measures."""
+        """
+        Get projects from predefined list with optional measures and optional filtering
+        by project keys. Automatically generate output file if not provided.
+        """
         metric_keys = None
+        project_keys = None
+
+        # Parse project_keys if provided
+        if args.project_keys:
+            project_keys = [key.strip() for key in args.project_keys.split(",") if key.strip()]
+
+        # Auto-generate output file path if not provided
+        output_file = args.output_file
+        if not output_file:
+            output_file = OutputManager.get_output_path(
+                command_name="sonarqube-list-projects", filename=None, extension=".json"
+            )
 
         if args.include_measures:
             if args.metrics:
@@ -348,5 +365,6 @@ class SonarQubeCommand(BaseCommand):
             organization=args.organization,
             include_measures=args.include_measures,
             metric_keys=metric_keys,
-            output_file=args.output_file,
+            output_file=output_file,
+            filter_project_keys=project_keys,
         )

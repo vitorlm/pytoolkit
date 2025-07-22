@@ -354,15 +354,18 @@ class SonarQubeService:
         include_measures: bool = False,
         metric_keys: Optional[List[str]] = None,
         output_file: Optional[str] = None,
+        filter_project_keys: Optional[List[str]] = None,
     ) -> Dict:
         """
         Get projects from predefined list and optionally include their measures.
+        Optionally filter by project keys.
 
         Args:
             organization: Organization key (for SonarCloud)
             include_measures: Whether to fetch measures for the projects
             metric_keys: List of metric keys to fetch (if include_measures is True)
             output_file: Optional file to save results
+            filter_project_keys: Optional list of project keys to filter the predefined list
 
         Returns:
             Dictionary with projects and optionally their measures
@@ -370,8 +373,17 @@ class SonarQubeService:
         # First get projects from predefined list
         projects = self.get_projects(organization=organization, use_project_list=True)
 
+        # If filter_project_keys is provided, filter the projects list
+        if filter_project_keys:
+            filter_set = set(filter_project_keys)
+            projects = [p for p in projects if p.get("key") in filter_set]
+
         result = {
-            "filters": {"organization": organization, "use_project_list": True},
+            "filters": {
+                "organization": organization,
+                "use_project_list": True,
+                "filter_project_keys": filter_project_keys,
+            },
             "projects": [],
         }
 
