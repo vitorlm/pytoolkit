@@ -14,3 +14,7 @@ class CacheBackend(ABC):
     @abstractmethod
     def invalidate(self, key: str):
         pass
+
+    @abstractmethod
+    def clear_all(self):
+        pass

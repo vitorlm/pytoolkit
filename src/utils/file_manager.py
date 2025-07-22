@@ -1,6 +1,8 @@
 import datetime
 import os
+import requests
 from typing import List, Optional, Dict
+from urllib.parse import urlparse
 
 
 class FileManager:
@@ -221,3 +223,59 @@ class FileManager:
             bool: True if the file exists, False otherwise.
         """
         return os.path.isfile(file_path)
+
+    @staticmethod
+    def download_file(
+        url: str,
+        destination_path: str,
+        headers: Optional[Dict[str, str]] = None,
+        timeout: int = 30,
+        chunk_size: int = 8192,
+    ) -> str:
+        """
+        Downloads a file from a URL and saves it to the specified destination.
+
+        Args:
+            url (str): The URL to download the file from.
+            destination_path (str): The local path where the file should be saved.
+            headers (Optional[Dict[str, str]]): Optional headers to include in the request.
+            timeout (int): Request timeout in seconds (default: 30).
+            chunk_size (int): Size of chunks to download at a time in bytes (default: 8192).
+
+        Returns:
+            str: The path where the file was saved.
+
+        Raises:
+            requests.exceptions.RequestException: If the download fails.
+            OSError: If the file cannot be saved.
+            ValueError: If the URL is invalid.
+        """
+        if not url or not url.startswith(("http://", "https://")):
+            raise ValueError(f"Invalid URL: {url}")
+
+        # Create destination directory if it doesn't exist
+        destination_dir = os.path.dirname(destination_path)
+        if destination_dir and not os.path.exists(destination_dir):
+            os.makedirs(destination_dir, exist_ok=True)
+
+        # If no filename provided, try to extract from URL
+        if os.path.isdir(destination_path):
+            parsed_url = urlparse(url)
+            filename = os.path.basename(parsed_url.path) or "download"
+            destination_path = os.path.join(destination_path, filename)
+
+        try:
+            response = requests.get(url, headers=headers or {}, timeout=timeout, stream=True)
+            response.raise_for_status()
+
+            with open(destination_path, "wb") as file:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:  # Filter out keep-alive chunks
+                        file.write(chunk)
+
+            return destination_path
+
+        except requests.exceptions.RequestException as e:
+            raise requests.exceptions.RequestException(f"Failed to download file from {url}: {e}")
+        except OSError as e:
+            raise OSError(f"Failed to save file to {destination_path}: {e}")

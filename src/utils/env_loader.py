@@ -76,6 +76,7 @@ def find_env_file() -> Optional[str]:
         project_root / ".env",
         # Domain-specific locations
         project_root / "src" / "domains" / "syngenta" / "jira" / ".env",
+        project_root / "src" / "domains" / "linearb" / ".env",
         # Current working directory
         Path.cwd() / ".env",
         # User home directory
@@ -141,3 +142,21 @@ def ensure_slack_env_loaded() -> None:
     Ensure Slack-specific environment variables are loaded.
     """
     ensure_env_loaded(["SLACK_WEBHOOK_URL", "SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"])
+
+
+def ensure_linearb_env_loaded() -> None:
+    """
+    Ensure LinearB-specific environment variables are loaded.
+    """
+    # First load the general environment
+    load_env_file()
+
+    # Then load the domain-specific environment
+    load_domain_env("domains/linearb")
+
+    # Check if the required variables are available
+    required_vars = ["LINEARB_API_KEY"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    if missing_vars:
+        print(f"Warning: Required LinearB environment variables missing: {missing_vars}")

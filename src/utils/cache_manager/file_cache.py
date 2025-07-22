@@ -81,3 +81,30 @@ class FileCacheBackend(CacheBackend):
                 key=key,
                 error=str(e),
             )
+
+    def clear_all(self):
+        """
+        Clears all cache files from the cache directory.
+        """
+        try:
+            if not os.path.exists(self.cache_dir):
+                self._logger.info(f"Cache directory '{self.cache_dir}' does not exist.")
+                return
+
+            # Get all JSON files in the cache directory
+            for filename in os.listdir(self.cache_dir):
+                if filename.endswith(".json"):
+                    file_path = os.path.join(self.cache_dir, filename)
+                    try:
+                        os.remove(file_path)
+                        self._logger.debug(f"Deleted cache file: {filename}")
+                    except Exception as e:
+                        self._logger.warning(f"Failed to delete cache file '{filename}': {e}")
+
+            self._logger.info("All cache files have been cleared.")
+        except Exception as e:
+            raise FileCacheError(
+                "Failed to clear all cache files",
+                cache_dir=self.cache_dir,
+                error=str(e),
+            )
