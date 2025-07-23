@@ -137,45 +137,17 @@ echo "🚀 [6/6] Running LinearB team engineering metrics..."
 # LinearB expects YYYY-MM-DD,YYYY-MM-DD format for custom granularity
 LINEARB_TIME_RANGE="$WEEK_BEFORE_MONDAY,$LAST_SUNDAY"
 echo "   Date range: $LINEARB_TIME_RANGE"
-python src/main.py linearb engineering-metrics \
-  --team-ids "$LINEARB_TEAM_IDS" \
-  --time-range "$LINEARB_TIME_RANGE" \
-  --aggregation "raw" \
-  --format "json" \
-  --output-folder "$OUTPUT_DIR" \
-  || echo "Warning: LinearB engineering metrics failed - check configuration and ensure LinearB environment is configured"
-
-echo "📈 [EXTRA] Running LinearB export report..."
+echo "📈 Running LinearB export report..."
 python src/main.py linearb export-report \
   --team-ids "$LINEARB_TEAM_IDS" \
-  --time-range "last-week" \
-  --format "json" \
-  --filter-type "team" \
-  --granularity "custom" \
+  --time-range "$WEEK_BEFORE_MONDAY,$LAST_SUNDAY" \
+  --format csv \
+  --filter-type team \
+  --granularity 1w \
+  --beautified \
+  --return-no-data \
+  --aggregation avg \
   || echo "Warning: LinearB export report failed - check configuration"
-
-# ADDITIONAL JIRA INSIGHTS (Optional - controlled by config)
-if [ "$INCLUDE_OPTIONAL_REPORTS" = "true" ]; then
-    echo ""
-    echo "🔍 OPTIONAL: Additional JIRA insights..."
-
-    # Issue creation analysis
-    echo "📝 Running JIRA issue creation analysis..."
-    python src/main.py syngenta jira issues-creation-analysis \
-      --projects "$PROJECT_KEY" \
-      --time-period "last-month" \
-      --aggregation "weekly" \
-      --issue-types "Story,Task,Bug,Epic,Technical Debt,Improvement" \
-      --output-file "$OUTPUT_DIR/jira-creation-analysis.json" \
-      --include-summary \
-      --clear-cache \
-      || echo "Warning: Issue creation analysis failed"
-
-    # Epic monitoring (if applicable)
-    echo "📊 Running JIRA epic monitoring..."
-    python src/main.py syngenta jira epic-monitor \
-      || echo "Warning: Epic monitoring failed"
-fi
 
 # REPORT SUMMARY
 echo ""
@@ -187,18 +159,17 @@ echo "   • JIRA Bug & Support metrics (2 weeks combined)"
 echo "   • JIRA Bug & Support metrics (last week only)"
 echo "   • JIRA Bug & Support metrics (week before last)"
 echo "   • JIRA Task completion metrics (2 weeks combined)"
-echo "   • SonarQube code quality metrics"
-echo "   • LinearB team performance metrics"
-echo "   • LinearB export report"
+echo "   • SonarQube code quality metrics (13 Cropwise projects)"
+echo "   • LinearB export report (CSV format with weekly granularity)"
 echo ""
 echo "📈 Week-over-week comparison data:"
 echo "   • Compare: $OUTPUT_DIR/jira-bugs-support-lastweek.json"
 echo "   • Against: $OUTPUT_DIR/jira-bugs-support-weekbefore.json"
 echo ""
 echo "📈 Next steps:"
-echo "   1. Review generated JSON files for insights"
+echo "   1. Review generated JSON and CSV files for insights"
 echo "   2. Compare last week vs week before metrics"
-echo "   3. Analyze trends in the data"
+echo "   3. Analyze trends in JIRA, SonarQube, and LinearB data"
 echo "   4. Share relevant metrics with the team"
 echo ""
 echo "🔄 To run this automatically weekly, add to cron:"

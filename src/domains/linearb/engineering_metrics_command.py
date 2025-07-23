@@ -88,7 +88,7 @@ Examples:
             "--granularity",
             type=str,
             choices=["1d", "1w", "1mo", "custom"],
-            default="custom",
+            default="1d",
             help="Time granularity: 1d (daily), 1w (weekly), 1mo (monthly), custom (default)",
         )
 

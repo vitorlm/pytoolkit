@@ -206,17 +206,37 @@ class LinearBApiClient:
         team_ids: Optional[List[int]] = None,
         file_format: str = "json",
         roll_up: str = "custom",
+        beautified: bool = False,
+        return_no_data: bool = True,
+        contributor_ids: Optional[List[int]] = None,
+        repository_ids: Optional[List[int]] = None,
+        service_ids: Optional[List[int]] = None,
+        labels: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        offset: int = 0,
+        order_by: Optional[str] = None,
+        order_dir: str = "asc",
     ) -> Dict[str, Any]:
         """
-        Export performance metrics from LinearB.
+        Export performance metrics from LinearB using v2 API with dashboard-compatible parameters.
 
         Args:
             requested_metrics: List of metrics to fetch
             time_ranges: List of time ranges to query
-            group_by: Group by field
+            group_by: Group by field (organization, team, contributor, repository, label)
             team_ids: Optional list of team IDs to filter by
             file_format: Export format (csv, json)
-            roll_up: Roll up period
+            roll_up: Roll up period (1d, 1w, 1mo, custom)
+            beautified: Format data in a more readable format (for CSV)
+            return_no_data: Return contributors/teams with no data
+            contributor_ids: Optional list of contributor IDs to filter by
+            repository_ids: Optional list of repository IDs to filter by
+            service_ids: Optional list of service IDs to filter by
+            labels: Optional list of labels to filter/group by
+            limit: Max amount of objects in response
+            offset: Pagination offset
+            order_by: Field name to order by
+            order_dir: Ordering direction (asc, desc)
 
         Returns:
             Export response with report URL
@@ -228,10 +248,27 @@ class LinearBApiClient:
             "requested_metrics": requested_metrics,
             "time_ranges": time_ranges,
             "roll_up": roll_up,
+            "beautified": beautified,
+            "return_no_data": return_no_data,
+            "offset": offset,
+            "order_dir": order_dir,
         }
 
+        # Add optional parameters if provided
         if team_ids:
-            payload["team_ids"] = [str(tid) for tid in team_ids]
+            payload["team_ids"] = team_ids
+        if contributor_ids:
+            payload["contributor_ids"] = contributor_ids
+        if repository_ids:
+            payload["repository_ids"] = repository_ids
+        if service_ids:
+            payload["service_ids"] = service_ids
+        if labels:
+            payload["labels"] = labels
+        if limit:
+            payload["limit"] = limit
+        if order_by:
+            payload["order_by"] = order_by
 
         return self._make_request("POST", endpoint, data=payload)
 

@@ -214,12 +214,22 @@ class LinearBService:
             # Get aggregation with default
             aggregation = getattr(args, "aggregation", LinearBAggregation.DEFAULT)
 
-            # Default metrics for export
+            # Default metrics for export - including requested metrics
             export_metrics = [
+                # Core cycle time metrics
                 {"name": LinearBMetrics.CYCLE_TIME, "agg": aggregation},
                 {"name": LinearBMetrics.TIME_TO_PR, "agg": aggregation},
                 {"name": LinearBMetrics.TIME_TO_REVIEW, "agg": aggregation},
                 {"name": LinearBMetrics.TIME_TO_MERGE, "agg": aggregation},
+                # Requested metrics from user
+                {"name": LinearBMetrics.REVIEW_TIME, "agg": aggregation},  # Review Time
+                {"name": LinearBMetrics.TIME_TO_PROD, "agg": aggregation},  # Deploy Time
+                {"name": LinearBMetrics.RELEASES_COUNT},  # Deploy frequency
+                {"name": LinearBMetrics.PR_MERGED_SIZE, "agg": aggregation},  # PR Size
+                {"name": LinearBMetrics.PR_MERGED_WITHOUT_REVIEW},  # PRs merged w/o review
+                {"name": LinearBMetrics.PR_REVIEW_DEPTH},  # Review Depth
+                {"name": LinearBMetrics.PR_MATURITY},  # PR Maturity
+                # Additional useful metrics
                 {"name": LinearBMetrics.PR_MERGED, "agg": LinearBAggregation.DEFAULT},
                 {"name": LinearBMetrics.PR_NEW, "agg": LinearBAggregation.DEFAULT},
                 {
@@ -238,12 +248,32 @@ class LinearBService:
                 else:
                     team_ids = [int(args.team_ids)]
 
+            # Parse contributor IDs if provided
+            contributor_ids = None
+            if hasattr(args, "contributor_ids") and args.contributor_ids:
+                contributor_ids = [int(cid) for cid in args.contributor_ids.split(",")]
+
+            # Parse repository IDs if provided
+            repository_ids = None
+            if hasattr(args, "repository_ids") and args.repository_ids:
+                repository_ids = [int(rid) for rid in args.repository_ids.split(",")]
+
+            # Parse service IDs if provided
+            service_ids = None
+            if hasattr(args, "service_ids") and args.service_ids:
+                service_ids = [int(sid) for sid in args.service_ids.split(",")]
+
+            # Parse labels if provided
+            labels = None
+            if hasattr(args, "labels") and args.labels:
+                labels = [label.strip() for label in args.labels.split(",")][:3]  # Max 3 labels
+
             file_format = getattr(args, "format", "json")
 
             self.logger.info(f"Exporting performance report for time range: {args.time_range}")
             self.logger.info(f"Format: {file_format}, Group by: {group_by}")
 
-            # Export metrics from LinearB
+            # Use dashboard-compatible parameters for better data quality
             export_result = self.api_client.export_metrics(
                 requested_metrics=export_metrics,
                 time_ranges=time_ranges,
@@ -251,6 +281,16 @@ class LinearBService:
                 team_ids=team_ids,
                 file_format=file_format,
                 roll_up=roll_up,
+                beautified=getattr(args, "beautified", True),
+                return_no_data=getattr(args, "return_no_data", True),
+                contributor_ids=contributor_ids,
+                repository_ids=repository_ids,
+                service_ids=service_ids,
+                labels=labels,
+                limit=getattr(args, "limit", None),
+                offset=getattr(args, "offset", 0),
+                order_by=getattr(args, "order_by", None),
+                order_dir=getattr(args, "order_dir", "asc"),
             )
 
             self.logger.info(

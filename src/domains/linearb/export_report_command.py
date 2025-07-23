@@ -20,28 +20,51 @@ class ExportReportCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return "Export and download performance reports from LinearB in CSV or JSON format"
+        return (
+            "Export comprehensive performance reports from LinearB including "
+            "review time, deploy metrics, PR analytics"
+        )
 
     @staticmethod
     def get_help() -> str:
         return """
-Export and automatically download performance reports from LinearB in CSV or JSON format.
+Export and automatically download comprehensive performance reports from LinearB
+in CSV or JSON format.
 
 This command exports comprehensive performance reports from LinearB API,
 automatically downloads them, and saves them locally in the 'output' directory
 for offline analysis.
 
+Included Metrics:
+  • Review Time (branch.review_time) - Time spent in code review
+  • Deploy Time (branch.time_to_prod) - Time from merge to production
+  • Deploy Frequency (releases.count) - Number of releases/deployments
+  • PR Size (pr.merged.size) - Average size of merged pull requests
+  • PRs Merged Without Review (pr.merged.without.review.count) - Unreviewed merges
+  • Review Depth (pr.review_depth) - Comments per PR ratio
+  • PR Maturity (pr.maturity_ratio) - PR maturity scoring
+  • Cycle Time, Time to PR, Time to Review, Time to Merge (core metrics)
+
 Examples:
-  # Export team performance report for last week in CSV format
+  # Basic export - team performance report for last week in CSV format
   python src/main.py linearb export-report --team-ids 41576 --time-range last-week --format csv
 
-  # Export contributor performance report for last month with custom output folder
-  python src/main.py linearb export-report --filter-type contributor \\
-    --time-range last-month --format json --output-folder /path/to/custom/folder
+  # Advanced export with dashboard-compatible formatting and filtering
+  python src/main.py linearb export-report --team-ids 41576 --time-range last-week \\
+    --format csv --beautified --return-no-data --limit 100
 
-  # Export repository performance with weekly granularity and p75 aggregation
+  # Export contributor performance with specific contributors and ordering
+  python src/main.py linearb export-report --filter-type contributor \\
+    --contributor-ids 123,456,789 --time-range last-month --order-by name --order-dir desc
+
+  # Export repository performance with service filtering and labels
   python src/main.py linearb export-report --filter-type repository \\
-    --time-range last-2-weeks --granularity 1w --aggregation p75
+    --repository-ids 1001,1002 --service-ids 501,502 --labels backend,frontend \\
+    --time-range last-2-weeks --granularity 1w
+
+  # Export with custom output folder and pagination
+  python src/main.py linearb export-report --time-range last-week \\
+    --output-folder /custom/path --limit 50 --offset 100
 
 Available team IDs:
   - 19767: Core Services Tribe
@@ -51,6 +74,18 @@ Available formats: csv, json
 Available granularities: 1d, 1w, 1mo, custom
 Available aggregations: p75, avg, p50, raw, default (default = no aggregation)
 Available filter types: organization, contributor, team, repository, label, custom_metric
+
+New Dashboard-Compatible Parameters:
+  --beautified: Format data for better readability (matches LinearB dashboard)
+  --return-no-data: Include teams/contributors with no data
+  --contributor-ids: Filter by specific contributors
+  --repository-ids: Filter by specific repositories
+  --service-ids: Filter by specific services
+  --labels: Filter/group by labels (max 3)
+  --limit: Limit response size
+  --offset: Pagination offset
+  --order-by: Sort by field name
+  --order-dir: Sort direction (asc/desc)
 
 Note: Reports are automatically downloaded to the specified output folder with
       timestamped filenames for easy identification.
@@ -116,6 +151,72 @@ Note: Reports are automatically downloaded to the specified output folder with
             help="Output folder to save the downloaded report (default: output)",
         )
 
+        # New optional parameters matching dashboard capabilities
+        parser.add_argument(
+            "--beautified",
+            action="store_true",
+            default=True,
+            help="Format data in a more readable format (default: True, matches dashboard)",
+        )
+
+        parser.add_argument(
+            "--return-no-data",
+            action="store_true",
+            default=True,
+            help="Return teams/contributors with no data (default: True)",
+        )
+
+        parser.add_argument(
+            "--contributor-ids",
+            type=str,
+            help="Comma-separated contributor IDs to filter by",
+        )
+
+        parser.add_argument(
+            "--repository-ids",
+            type=str,
+            help="Comma-separated repository IDs to filter by",
+        )
+
+        parser.add_argument(
+            "--service-ids",
+            type=str,
+            help="Comma-separated service IDs to filter by",
+        )
+
+        parser.add_argument(
+            "--labels",
+            type=str,
+            help="Comma-separated labels to filter/group by (max 3)",
+        )
+
+        parser.add_argument(
+            "--limit",
+            type=int,
+            help="Maximum number of objects in the response",
+        )
+
+        parser.add_argument(
+            "--offset",
+            type=int,
+            default=0,
+            help="Pagination offset (default: 0)",
+        )
+
+        parser.add_argument(
+            "--order-by",
+            type=str,
+            help="Field name to order results by",
+        )
+
+        parser.add_argument(
+            "--order-dir",
+            type=str,
+            choices=["asc", "desc"],
+            default="asc",
+            help="Ordering direction (default: asc)",
+        )
+
     @staticmethod
     def main(args: Namespace):
         ensure_linearb_env_loaded()
@@ -134,6 +235,23 @@ Note: Reports are automatically downloaded to the specified output folder with
 
             if hasattr(args, "team_ids") and args.team_ids:
                 logger.info(f"Team IDs: {args.team_ids}")
+            if hasattr(args, "contributor_ids") and args.contributor_ids:
+                logger.info(f"Contributor IDs: {args.contributor_ids}")
+            if hasattr(args, "repository_ids") and args.repository_ids:
+                logger.info(f"Repository IDs: {args.repository_ids}")
+            if hasattr(args, "service_ids") and args.service_ids:
+                logger.info(f"Service IDs: {args.service_ids}")
+            if hasattr(args, "labels") and args.labels:
+                logger.info(f"Labels: {args.labels}")
+            if hasattr(args, "limit") and args.limit:
+                logger.info(f"Limit: {args.limit}")
+            if hasattr(args, "offset") and args.offset:
+                logger.info(f"Offset: {args.offset}")
+            if hasattr(args, "order_by") and args.order_by:
+                logger.info(f"Order by: {args.order_by} ({args.order_dir})")
+
+            logger.info(f"Beautified: {getattr(args, 'beautified', True)}")
+            logger.info(f"Return no data: {getattr(args, 'return_no_data', True)}")
 
             # Export performance report
             export_result = service.export_performance_report(args)
