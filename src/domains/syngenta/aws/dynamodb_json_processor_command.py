@@ -50,6 +50,29 @@ FEATURES:
 • Progress tracking and comprehensive error handling
 • Validates final record count against manifest
 • Supports large datasets with memory-efficient batch processing
+• Optional column mapping from DynamoDB names to custom DuckDB column names
+
+COLUMN MAPPING:
+If a column mapping JSON file is provided via --column-mapping, the system will:
+• Use mapped column names instead of auto-normalized names
+• Apply data type transformations as specified in the mapping
+• Handle compressed fields with automatic decompression
+• Convert epoch timestamps to proper datetime format
+
+Mapping file format (dynamo-to-duckdb-mapping.json):
+{
+  "columnMappings": {
+    "_ct": {
+      "targetName": "created_timestamp",
+      "type": "timestamp",
+      "transformation": "epoch_to_timestamp"
+    },
+    "n": {
+      "targetName": "name",
+      "type": "string"
+    }
+  }
+}
 
 DYNAMODB TYPE CONVERSIONS:
 • S (String) → str
@@ -69,6 +92,13 @@ AWS EXPORT EXAMPLES:
     --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
     --output-db catalog_export.duckdb \\
     --table-name products
+
+  # Process with column mapping configuration
+  python src/main.py syngenta aws dynamodb-json-processor \\
+    --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
+    --output-db catalog_export.duckdb \\
+    --table-name products \\
+    --column-mapping ./src/domains/syngenta/aws/dynamo-to-duckdb-mapping.json
 
   # Process with custom settings
   python src/main.py syngenta aws dynamodb-json-processor \\
@@ -138,6 +168,10 @@ REQUIREMENTS:
             action="store_true",
             help="Skip empty or corrupted JSON files instead of failing",
         )
+        parser.add_argument(
+            "--column-mapping",
+            help="Optional JSON file for column mapping configuration (DynamoDB to DuckDB)",
+        )
         parser.add_argument("--verbose", action="store_true", help="Enable verbose progress output")
 
     @staticmethod
@@ -168,6 +202,7 @@ REQUIREMENTS:
                 batch_size=args.batch_size,
                 skip_empty_files=args.skip_empty_files,
                 verbose=args.verbose,
+                column_mapping_file=getattr(args, "column_mapping", None),
             )
 
             logger.info("DynamoDB JSON processing completed successfully")

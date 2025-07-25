@@ -1,0 +1,481 @@
+{
+    "metadata": {
+        "version": "1.0.0",
+        "description": "Configuração de mapeamento para importação de tabelas DynamoDB para DuckDB",
+        "created": "2025-01-25",
+        "author": "Cropwise Catalogue Team"
+    },
+    "columnMappings": {
+        "_ct": {
+            "targetName": "created_timestamp",
+            "type": "timestamp",
+            "description": "Data e hora de criação do registro",
+            "transformation": "epoch_to_timestamp"
+        },
+        "_et": {
+            "targetName": "entity_type",
+            "type": "string",
+            "description": "Tipo da entidade"
+        },
+        "_md": {
+            "targetName": "metadata",
+            "type": "json",
+            "description": "Metadados gerais do registro"
+        },
+        "a": {
+            "targetName": "attributes",
+            "type": "json",
+            "description": "Atributos customizados comprimidos",
+            "transformation": "decompress"
+        },
+        "ad": {
+            "targetName": "attributes_decompressed",
+            "type": "json",
+            "description": "Atributos customizados descomprimidos"
+        },
+        "ae": {
+            "targetName": "active_ingredients",
+            "type": "json",
+            "description": "Ingredientes ativos"
+        },
+        "c": {
+            "targetName": "compositions",
+            "type": "json",
+            "description": "Composições do produto comprimidas",
+            "transformation": "decompress"
+        },
+        "ca": {
+            "targetName": "custom_attributes",
+            "type": "json",
+            "description": "Atributos customizados"
+        },
+        "cb": {
+            "targetName": "created_by",
+            "type": "string",
+            "description": "Usuário que criou o registro"
+        },
+        "cby": {
+            "targetName": "created_by_user",
+            "type": "string",
+            "description": "ID do usuário criador"
+        },
+        "cd": {
+            "targetName": "created_date",
+            "type": "timestamp",
+            "description": "Data de criação"
+        },
+        "cg": {
+            "targetName": "category",
+            "type": "string",
+            "description": "Categoria do produto"
+        },
+        "co": {
+            "targetName": "country",
+            "type": "string",
+            "description": "Código do país"
+        },
+        "coms": {
+            "targetName": "compositions_compressed",
+            "type": "binary",
+            "description": "Composições comprimidas",
+            "transformation": "decompress"
+        },
+        "cos": {
+            "targetName": "countries",
+            "type": "string",
+            "description": "Lista de países"
+        },
+        "cs": {
+            "targetName": "countries_list",
+            "type": "json",
+            "description": "Array de códigos de países"
+        },
+        "d": {
+            "targetName": "description",
+            "type": "string",
+            "description": "Descrição do item"
+        },
+        "dmam": {
+            "targetName": "demeter_modifier_application_method",
+            "type": "string",
+            "description": "Método de aplicação no Demeter"
+        },
+        "dmc": {
+            "targetName": "demeter_modification_count",
+            "type": "number",
+            "description": "Contador de modificações no Demeter"
+        },
+        "dmeid": {
+            "targetName": "demeter_external_id",
+            "type": "string",
+            "description": "ID externo do Demeter"
+        },
+        "dmt": {
+            "targetName": "demeter_modification_timestamp",
+            "type": "timestamp",
+            "description": "Timestamp da última modificação no Demeter"
+        },
+        "dmtn": {
+            "targetName": "demeter_modification_type_name",
+            "type": "string",
+            "description": "Nome do tipo de modificação no Demeter"
+        },
+        "dnk": {
+            "targetName": "demeter_normalized_key",
+            "type": "string",
+            "description": "Chave normalizada do Demeter"
+        },
+        "ds": {
+            "targetName": "data_source",
+            "type": "string",
+            "description": "Fonte dos dados"
+        },
+        "du": {
+            "targetName": "dose_units",
+            "type": "string",
+            "description": "Unidades de dosagem"
+        },
+        "ed": {
+            "targetName": "expiry_date",
+            "type": "timestamp",
+            "description": "Data de expiração"
+        },
+        "eid": {
+            "targetName": "external_id",
+            "type": "string",
+            "description": "ID externo"
+        },
+        "exaus": {
+            "targetName": "external_australia_usage",
+            "type": "json",
+            "description": "Uso externo na Austrália"
+        },
+        "exs": {
+            "targetName": "external_sources",
+            "type": "json",
+            "description": "Fontes externas"
+        },
+        "f": {
+            "targetName": "formulations",
+            "type": "json",
+            "description": "Formulações comprimidas",
+            "transformation": "decompress"
+        },
+        "gs": {
+            "targetName": "global_status",
+            "type": "string",
+            "description": "Status global"
+        },
+        "hash": {
+            "targetName": "content_hash",
+            "type": "string",
+            "description": "Hash do conteúdo para detecção de mudanças"
+        },
+        "i": {
+            "targetName": "indications",
+            "type": "json",
+            "description": "Indicações comprimidas",
+            "transformation": "decompress"
+        },
+        "id": {
+            "targetName": "identifier",
+            "type": "string",
+            "description": "Identificador único"
+        },
+        "idk": {
+            "targetName": "id_key",
+            "type": "string",
+            "description": "Chave do identificador"
+        },
+        "idnk": {
+            "targetName": "id_normalized_key",
+            "type": "string",
+            "description": "Chave normalizada do ID"
+        },
+        "ind": {
+            "targetName": "indications_decompressed",
+            "type": "json",
+            "description": "Indicações descomprimidas"
+        },
+        "ink": {
+            "targetName": "indication_normalized_key",
+            "type": "string",
+            "description": "Chave normalizada da indicação"
+        },
+        "its": {
+            "targetName": "item_types",
+            "type": "json",
+            "description": "Tipos de itens"
+        },
+        "l": {
+            "targetName": "labels",
+            "type": "json",
+            "description": "Rótulos comprimidos",
+            "transformation": "decompress"
+        },
+        "lcd": {
+            "targetName": "last_change_date",
+            "type": "timestamp",
+            "description": "Data da última mudança"
+        },
+        "li": {
+            "targetName": "label_indications",
+            "type": "json",
+            "description": "Indicações do rótulo"
+        },
+        "lu": {
+            "targetName": "last_updated",
+            "type": "timestamp",
+            "description": "Última atualização"
+        },
+        "lud": {
+            "targetName": "last_update_date",
+            "type": "timestamp",
+            "description": "Data da última atualização"
+        },
+        "m": {
+            "targetName": "manufacturer",
+            "type": "string",
+            "description": "Fabricante"
+        },
+        "n": {
+            "targetName": "name",
+            "type": "string",
+            "description": "Nome do produto/item"
+        },
+        "nk": {
+            "targetName": "normalized_key",
+            "type": "string",
+            "description": "Chave normalizada"
+        },
+        "ns": {
+            "targetName": "normalized_string",
+            "type": "string",
+            "description": "String normalizada"
+        },
+        "od": {
+            "targetName": "origin_date",
+            "type": "timestamp",
+            "description": "Data de origem"
+        },
+        "p": {
+            "targetName": "products",
+            "type": "json",
+            "description": "Produtos relacionados"
+        },
+        "pct": {
+            "targetName": "product_count",
+            "type": "number",
+            "description": "Contagem de produtos"
+        },
+        "pctsc": {
+            "targetName": "product_count_sync_check",
+            "type": "number",
+            "description": "Verificação de sincronização da contagem de produtos"
+        },
+        "pf": {
+            "targetName": "product_formulations",
+            "type": "json",
+            "description": "Formulações de produtos"
+        },
+        "pfe": {
+            "targetName": "product_formulation_entries",
+            "type": "json",
+            "description": "Entradas de formulação de produtos"
+        },
+        "pfu": {
+            "targetName": "product_formulation_units",
+            "type": "string",
+            "description": "Unidades de formulação de produtos"
+        },
+        "pk": {
+            "targetName": "partition_key",
+            "type": "string",
+            "description": "Chave de partição do DynamoDB"
+        },
+        "pper": {
+            "targetName": "products_per_period",
+            "type": "number",
+            "description": "Produtos por período"
+        },
+        "rd": {
+            "targetName": "registration_date",
+            "type": "timestamp",
+            "description": "Data de registro"
+        },
+        "rk": {
+            "targetName": "range_key",
+            "type": "string",
+            "description": "Chave de ordenação do DynamoDB"
+        },
+        "rn": {
+            "targetName": "registration_number",
+            "type": "string",
+            "description": "Número de registro"
+        },
+        "s": {
+            "targetName": "status",
+            "type": "string",
+            "description": "Status do registro"
+        },
+        "sca": {
+            "targetName": "sync_check_attributes",
+            "type": "json",
+            "description": "Atributos de verificação de sincronização"
+        },
+        "slud": {
+            "targetName": "sync_last_update_date",
+            "type": "timestamp",
+            "description": "Data da última sincronização"
+        },
+        "st": {
+            "targetName": "state",
+            "type": "string",
+            "description": "Estado atual"
+        },
+        "st_1": {
+            "targetName": "state_secondary",
+            "type": "string",
+            "description": "Estado secundário"
+        },
+        "sto": {
+            "targetName": "storage_type",
+            "type": "string",
+            "description": "Tipo de armazenamento"
+        },
+        "su": {
+            "targetName": "sync_updated",
+            "type": "boolean",
+            "description": "Indica se foi sincronizado"
+        },
+        "sua": {
+            "targetName": "sync_update_attributes",
+            "type": "json",
+            "description": "Atributos de atualização de sincronização"
+        },
+        "tpc": {
+            "targetName": "total_product_count",
+            "type": "number",
+            "description": "Contagem total de produtos"
+        },
+        "ua": {
+            "targetName": "updated_attributes",
+            "type": "json",
+            "description": "Atributos atualizados"
+        },
+        "ub": {
+            "targetName": "updated_by",
+            "type": "string",
+            "description": "Atualizado por"
+        },
+        "uby": {
+            "targetName": "updated_by_user",
+            "type": "string",
+            "description": "ID do usuário que atualizou"
+        },
+        "uco": {
+            "targetName": "updated_country",
+            "type": "string",
+            "description": "País atualizado"
+        },
+        "vid": {
+            "targetName": "version_id",
+            "type": "string",
+            "description": "ID da versão"
+        },
+        "lp": {
+            "targetName": "label_products",
+            "type": "json",
+            "description": "Produtos do rótulo"
+        },
+        "e_f": {
+            "targetName": "external_formulations",
+            "type": "json",
+            "description": "Formulações externas"
+        },
+        "e_id": {
+            "targetName": "external_identifier",
+            "type": "string",
+            "description": "Identificador externo"
+        },
+        "state": {
+            "targetName": "current_state",
+            "type": "string",
+            "description": "Estado atual do registro"
+        }
+    },
+    "transformations": {
+        "decompress": {
+            "description": "Descomprime dados binários usando gzip",
+            "function": "gzip_decompress"
+        },
+        "epoch_to_timestamp": {
+            "description": "Converte timestamp epoch para formato datetime",
+            "function": "from_unixtime"
+        }
+    },
+    "dataTypes": {
+        "string": "VARCHAR",
+        "number": "BIGINT",
+        "boolean": "BOOLEAN",
+        "timestamp": "TIMESTAMP",
+        "json": "JSON",
+        "binary": "BLOB"
+    },
+    "importSettings": {
+        "defaultStringLength": 500,
+        "handleNullValues": true,
+        "preserveOriginalColumns": false,
+        "createIndexes": true,
+        "batchSize": 1000
+    },
+    "tableSpecificSettings": {
+        "products": {
+            "primaryKey": [
+                "partition_key",
+                "range_key"
+            ],
+            "indexes": [
+                "name",
+                "normalized_key",
+                "external_id"
+            ],
+            "compressionColumns": [
+                "formulations",
+                "indications",
+                "compositions",
+                "attributes",
+                "labels"
+            ]
+        },
+        "fertilizers": {
+            "primaryKey": [
+                "partition_key",
+                "range_key"
+            ],
+            "indexes": [
+                "name",
+                "normalized_key",
+                "registration_number"
+            ],
+            "compressionColumns": [
+                "compositions",
+                "attributes"
+            ]
+        },
+        "items": {
+            "primaryKey": [
+                "partition_key",
+                "range_key"
+            ],
+            "indexes": [
+                "name",
+                "normalized_key",
+                "category"
+            ],
+            "compressionColumns": [
+                "attributes"
+            ]
+        }
+    }
+}

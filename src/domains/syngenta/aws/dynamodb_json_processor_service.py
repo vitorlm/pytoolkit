@@ -23,6 +23,7 @@ class DynamoDBJSONProcessorService:
         self.cache = CacheManager.get_instance()
         self._column_mapping: Dict[str, str] = {}  # Original -> Normalized mapping
         self._column_conflicts: Dict[str, List[str]] = {}  # Normalized -> List of originals
+        self._mapping_config: Optional[Dict[str, Any]] = None  # Column mapping configuration
         self._ensure_dependencies()
 
     def _normalize_column_name(self, column_name: str) -> str:
@@ -57,10 +58,92 @@ class DynamoDBJSONProcessorService:
 
         return normalized or "unknown_col"
 
+    def _load_mapping_config(self, mapping_file_path: str) -> None:
+        """
+        Load column mapping configuration from JSON file.
+
+        Args:
+            mapping_file_path: Path to the JSON mapping configuration file
+
+        Raises:
+            ValueError: If file doesn't exist or is invalid
+        """
+        if not os.path.exists(mapping_file_path):
+            raise ValueError(f"Mapping file does not exist: {mapping_file_path}")
+
+        try:
+            with open(mapping_file_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+
+            # Validate the mapping configuration structure
+            if not isinstance(config, dict) or "columnMappings" not in config:
+                raise ValueError("Mapping file must contain 'columnMappings' section")
+
+            self._mapping_config = config
+            self.logger.info(f"Loaded column mapping configuration from: {mapping_file_path}")
+            self.logger.info(f"Found {len(config['columnMappings'])} column mappings")
+
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in mapping file: {e}")
+        except Exception as e:
+            raise ValueError(f"Error loading mapping file: {e}")
+
+    def _apply_column_mapping(self, original_column: str) -> str:
+        """
+        Apply column mapping from configuration file if available.
+
+        Args:
+            original_column: Original DynamoDB column name
+
+        Returns:
+            Mapped column name if mapping exists, otherwise normalized name
+        """
+        if self._mapping_config and "columnMappings" in self._mapping_config:
+            column_mappings = self._mapping_config["columnMappings"]
+            if original_column in column_mappings:
+                mapping = column_mappings[original_column]
+                return mapping.get("targetName", original_column)
+
+        # Fall back to automatic normalization
+        return self._normalize_column_name(original_column)
+
+    def _get_column_type_mapping(self, original_column: str) -> Optional[str]:
+        """
+        Get the target data type for a column from mapping configuration.
+
+        Args:
+            original_column: Original DynamoDB column name
+
+        Returns:
+            Target data type if specified in mapping, None otherwise
+        """
+        if self._mapping_config and "columnMappings" in self._mapping_config:
+            column_mappings = self._mapping_config["columnMappings"]
+            if original_column in column_mappings:
+                return column_mappings[original_column].get("type")
+        return None
+
+    def _get_column_transformation(self, original_column: str) -> Optional[str]:
+        """
+        Get the transformation function for a column from mapping configuration.
+
+        Args:
+            original_column: Original DynamoDB column name
+
+        Returns:
+            Transformation function name if specified, None otherwise
+        """
+        if self._mapping_config and "columnMappings" in self._mapping_config:
+            column_mappings = self._mapping_config["columnMappings"]
+            if original_column in column_mappings:
+                return column_mappings[original_column].get("transformation")
+        return None
+
     def _build_column_mapping(self, all_columns: set[str]) -> tuple[Dict[str, str], Dict[str, str]]:
         """
         Build mapping between original and normalized column names.
         Handle conflicts when multiple original names normalize to the same name.
+        Uses mapping configuration file if available.
 
         Args:
             all_columns: Set of all original column names
@@ -74,7 +157,8 @@ class DynamoDBJSONProcessorService:
 
         # First pass: find all normalizations and conflicts
         for original in sorted(all_columns):
-            normalized = self._normalize_column_name(original)
+            # Use mapping configuration if available, otherwise auto-normalize
+            normalized = self._apply_column_mapping(original)
 
             if normalized in normalized_to_original:
                 # Conflict detected
@@ -176,6 +260,7 @@ class DynamoDBJSONProcessorService:
         batch_size: int = 2500,
         skip_empty_files: bool = False,
         verbose: bool = False,
+        column_mapping_file: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process AWS DynamoDB JSON export files and load into DuckDB.
@@ -194,6 +279,7 @@ class DynamoDBJSONProcessorService:
             batch_size: Number of records to process in each batch
             skip_empty_files: Skip empty/corrupted files instead of failing
             verbose: Enable verbose progress output
+            column_mapping_file: Optional JSON file containing column mapping configuration
 
         Returns:
             Dictionary with processing summary
@@ -201,6 +287,13 @@ class DynamoDBJSONProcessorService:
         self.logger.info(f"Processing AWS DynamoDB exports from: {input_dir}")
         self.logger.info(f"Output database: {output_db}")
         self.logger.info(f"Table name: {table_name}")
+
+        # Load column mapping configuration if provided
+        if column_mapping_file:
+            self._load_mapping_config(column_mapping_file)
+            self.logger.info(f"Using column mapping configuration: {column_mapping_file}")
+        else:
+            self.logger.info("Using automatic column name normalization")
 
         # Validate input directory
         if not os.path.exists(input_dir):
@@ -762,7 +855,7 @@ class DynamoDBJSONProcessorService:
             item: DynamoDB item in JSON format
 
         Returns:
-            Converted item as plain Python dict
+            Converted item as plain Python dict with transformations applied
         """
         if not isinstance(item, dict):
             return None
@@ -771,6 +864,10 @@ class DynamoDBJSONProcessorService:
 
         for key, value in item.items():
             converted[key] = self._convert_dynamodb_value(value)
+
+        # Apply transformations and column mapping if configuration is loaded
+        if self._mapping_config:
+            converted = self._apply_transformations(converted)
 
         return converted
 
@@ -845,6 +942,72 @@ class DynamoDBJSONProcessorService:
         else:
             # Unknown type, return original value
             return value
+
+    def _apply_transformations(self, record: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Apply transformations specified in the mapping configuration.
+
+        Args:
+            record: Converted record with original column names
+
+        Returns:
+            Record with transformations applied and columns renamed
+        """
+        transformed_record = {}
+
+        for original_key, value in record.items():
+            # Get the target column name (mapped or normalized)
+            target_key = self._apply_column_mapping(original_key)
+
+            # Apply transformation if specified
+            transformation = self._get_column_transformation(original_key)
+
+            if transformation == "decompress" and value is not None:
+                try:
+                    # Handle gzip decompression
+                    if isinstance(value, (bytes, str)):
+                        if isinstance(value, str):
+                            # Convert base64 string to bytes if needed
+                            try:
+                                value_bytes = base64.b64decode(value)
+                            except Exception:
+                                value_bytes = value.encode("utf-8")
+                        else:
+                            value_bytes = value
+
+                        # Decompress
+                        decompressed = gzip.decompress(value_bytes)
+                        # Try to parse as JSON
+                        try:
+                            value = json.loads(decompressed.decode("utf-8"))
+                        except (json.JSONDecodeError, UnicodeDecodeError):
+                            value = decompressed.decode("utf-8", errors="replace")
+                except Exception as e:
+                    self.logger.warning(f"Failed to decompress column '{original_key}': {e}")
+                    # Keep original value
+
+            elif transformation == "epoch_to_timestamp" and value is not None:
+                try:
+                    # Convert epoch timestamp to ISO format string
+                    if isinstance(value, (int, float)):
+                        from datetime import datetime
+
+                        dt = datetime.fromtimestamp(value)
+                        value = dt.isoformat()
+                    elif isinstance(value, str) and value.isdigit():
+                        from datetime import datetime
+
+                        dt = datetime.fromtimestamp(int(value))
+                        value = dt.isoformat()
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to convert epoch timestamp for column '{original_key}': {e}"
+                    )
+                    # Keep original value
+
+            transformed_record[target_key] = value
+
+        return transformed_record
 
     def _load_batch_to_duckdb(
         self, conn: Any, records: List[Dict[str, Any]], table_name: str, create_table: bool = False
