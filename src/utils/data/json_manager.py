@@ -89,6 +89,7 @@ class JSONManager:
                     ensure_ascii=False,
                     default=pydantic_encoder,
                 )
+            return True
         except Exception as e:
             print(f"An error occurred: {e}")
             raise
