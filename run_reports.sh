@@ -8,10 +8,24 @@ set -e  # Exit on any error
 
 # Load configuration from config file if it exists
 if [ -f "config_reports.env" ]; then
-    echo "Loading configuration from config_reports.env..."
+    echo "🔧 Loading configuration from config_reports.env..."
     source config_reports.env
 else
-    echo "Warning: config_reports.env not found, using default values"
+    echo "⚠️  Warning: config_reports.env not found."
+    exit 1
+fi
+
+# --- Ensure Python venv is active ---
+if [ -z "$VIRTUAL_ENV" ]; then
+    if [ -f ".venv/bin/activate" ]; then
+        echo "🐍 Activating Python virtual environment (.venv)..."
+        source .venv/bin/activate
+    else
+        echo "❌ Python virtual environment not found. Run ./setup.sh to create it."
+        exit 1
+    fi
+else
+    echo "🐍 Python virtual environment already active."
 fi
 
 # Configuration (with defaults if not loaded from config)
@@ -31,60 +45,58 @@ if [ "$USE_DATE_SUFFIX" = "true" ]; then
 else
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/weekly_reports"
 fi
-
-# Create output directory
 mkdir -p "$OUTPUT_DIR"
 
-echo "=== WEEKLY TEAM METRICS REPORT - $(date) ==="
-echo "Project: $PROJECT_KEY | Team: $TEAM"
-echo "Output Directory: $OUTPUT_DIR"
+# Header
+echo ""
+echo "============================================================"
+echo "           📊 WEEKLY TEAM METRICS REPORT TOOL"
+echo "============================================================"
+echo "📅 Run date:        $(date)"
+echo "🏷️  Project:         $PROJECT_KEY"
+echo "👥 Team:            $TEAM"
+echo "📁 Output folder:   $OUTPUT_DIR"
 echo ""
 
-# Calculate date ranges for weekly comparison
-# Simple and reliable approach: use fixed day arithmetic
-# Today is 2025-07-22 (Tuesday)
-# We want last completed week (Mon-Sun) and the week before
 
-# For reliable weekly reports, calculate from last Sunday backwards
-# Last Sunday: 2025-07-20, so last week = 2025-07-14 to 2025-07-20
-# Week before: 2025-07-07 to 2025-07-13
 
-LAST_SUNDAY="2025-07-20"
-LAST_MONDAY="2025-07-14"
-WEEK_BEFORE_SUNDAY="2025-07-13"
-WEEK_BEFORE_MONDAY="2025-07-07"
+# --- Dynamic date range calculation ---
+TODAY=$(date +%Y-%m-%d)
+WEEKDAY_NUM=$(date -jf "%Y-%m-%d" "$TODAY" +%u)
+THIS_MONDAY=$(date -jf "%Y-%m-%d" -v-"$((WEEKDAY_NUM - 1))"d "$TODAY" +%Y-%m-%d)
+LAST_MONDAY=$(date -jf "%Y-%m-%d" -v-1w "$THIS_MONDAY" +%Y-%m-%d)
+LAST_SUNDAY=$(date -jf "%Y-%m-%d" -v+6d "$LAST_MONDAY" +%Y-%m-%d)
+WEEK_BEFORE_MONDAY=$(date -jf "%Y-%m-%d" -v-2w "$THIS_MONDAY" +%Y-%m-%d)
+WEEK_BEFORE_SUNDAY=$(date -jf "%Y-%m-%d" -v+6d "$WEEK_BEFORE_MONDAY" +%Y-%m-%d)
 
-# For dynamic calculation (uncomment when ready for automation):
-# LAST_SUNDAY=$(date -d 'last sunday' +%Y-%m-%d 2>/dev/null || date -v-$((($(date +%u) % 7) + 0))d +%Y-%m-%d)
-# LAST_MONDAY=$(date -d "$LAST_SUNDAY - 6 days" +%Y-%m-%d 2>/dev/null || date -j -f "%Y-%m-%d" "$LAST_SUNDAY" -v-6d +%Y-%m-%d)
-# WEEK_BEFORE_SUNDAY=$(date -d "$LAST_SUNDAY - 7 days" +%Y-%m-%d 2>/dev/null || date -j -f "%Y-%m-%d" "$LAST_SUNDAY" -v-7d +%Y-%m-%d)
-# WEEK_BEFORE_MONDAY=$(date -d "$WEEK_BEFORE_SUNDAY - 6 days" +%Y-%m-%d 2>/dev/null || date -j -f "%Y-%m-%d" "$WEEK_BEFORE_SUNDAY" -v-6d +%Y-%m-%d)
-
-# Set up time periods for JIRA
 JIRA_LAST_WEEK="$LAST_MONDAY to $LAST_SUNDAY"
 JIRA_WEEK_BEFORE="$WEEK_BEFORE_MONDAY to $WEEK_BEFORE_SUNDAY"
 JIRA_TWO_WEEKS="$WEEK_BEFORE_MONDAY to $LAST_SUNDAY"
 
-echo "📅 Date ranges calculated:"
-echo "   • Last week: $JIRA_LAST_WEEK"
-echo "   • Week before: $JIRA_WEEK_BEFORE" 
-echo "   • Combined 2 weeks: $JIRA_TWO_WEEKS"
+# Print ranges
+echo "📆 Reporting periods:"
+printf "   • %-18s %s\n" "Last week:" "$JIRA_LAST_WEEK"
+printf "   • %-18s %s\n" "Week before:" "$JIRA_WEEK_BEFORE"
+printf "   • %-18s %s\n" "Combined 2 weeks:" "$JIRA_TWO_WEEKS"
 echo ""
 
-# JIRA REPORTS
-echo "📊 [1/6] Running JIRA Bug & Support report for last 2 weeks..."
-echo "   Date range: $JIRA_TWO_WEEKS"
+# JIRA Reports
+STEP=1
+echo "📊 [$STEP/7] JIRA – Bug & Support (Combined 2 Weeks)"
+echo "   ⏳ Period: $JIRA_TWO_WEEKS"
+((STEP++))
 python src/main.py syngenta jira issue-adherence \
   --project-key "$PROJECT_KEY" \
   --time-period "$JIRA_TWO_WEEKS" \
   --issue-types 'Bug,Support' \
   --status-categories 'Done' \
   --include-no-due-date \
-  --output-file "$OUTPUT_DIR/jira-bugs-support-2weeks.json" \
+  --output-file "$OUTPUT_DIR/jira-bugs-support-2-weeks.json" \
   --team "$TEAM"
 
-echo "📊 [2/6] Running JIRA Bug & Support report for last week..."
-echo "   Date range: $JIRA_LAST_WEEK"
+echo "📊 [$STEP/7] JIRA – Bug & Support (Last Week)"
+echo "   ⏳ Period: $JIRA_LAST_WEEK"
+((STEP++))
 python src/main.py syngenta jira issue-adherence \
   --project-key "$PROJECT_KEY" \
   --time-period "$JIRA_LAST_WEEK" \
@@ -94,8 +106,9 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-bugs-support-lastweek.json" \
   --team "$TEAM"
 
-echo "📊 [3/6] Running JIRA Bug & Support report for week before last..."
-echo "   Date range: $JIRA_WEEK_BEFORE"
+echo "📊 [$STEP/7] JIRA – Bug & Support (Week Before)"
+echo "   ⏳ Period: $JIRA_WEEK_BEFORE"
+((STEP++))
 python src/main.py syngenta jira issue-adherence \
   --project-key "$PROJECT_KEY" \
   --time-period "$JIRA_WEEK_BEFORE" \
@@ -105,23 +118,32 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-bugs-support-weekbefore.json" \
   --team "$TEAM"
 
-echo "📊 [4/6] Running JIRA Tasks report for last 2 weeks..."
-echo "   Date range: $JIRA_TWO_WEEKS"
+echo "📊 [$STEP/7] JIRA – Task Completion (2 Weeks)"
+echo "   ⏳ Period: $JIRA_TWO_WEEKS"
+((STEP++))
 python src/main.py syngenta jira issue-adherence \
   --project-key "$PROJECT_KEY" \
   --time-period "$JIRA_TWO_WEEKS" \
-  --issue-types 'Story,Task,Bug,Epic,Technical Debt,Improvement' \
+  --issue-types 'Story,Task,Epic,Technical Debt,Improvement' \
   --status-categories 'Done' \
   --include-no-due-date \
   --output-file "$OUTPUT_DIR/jira-tasks-2weeks.json" \
   --team "$TEAM"
 
-# SONARQUBE REPORTS
-echo "🔍 [5/6] Running SonarQube code quality metrics report..."
+echo "🐛 [$STEP/7] JIRA – Open Issues (Bugs & Support)"
+echo "   📋 Current open issues for team: $TEAM"
+((STEP++))
+python src/main.py syngenta jira open-issues \
+  --project-key "$PROJECT_KEY" \
+  --issue-types 'Bug,Support' \
+  --team "$TEAM" \
+  --output-file "$OUTPUT_DIR/jira-open-bugs-support.json"
+
+# SonarQube Report
+echo "🔍 [$STEP/7] SonarQube – Code Quality Metrics"
+((STEP++))
 CLEAR_CACHE_FLAG=""
-if [ "$CLEAR_CACHE" = "true" ]; then
-    CLEAR_CACHE_FLAG="--clear-cache"
-fi
+[ "$CLEAR_CACHE" = "true" ] && CLEAR_CACHE_FLAG="--clear-cache"
 
 python src/main.py syngenta sonarqube sonarqube \
   --operation list-projects \
@@ -131,53 +153,39 @@ python src/main.py syngenta sonarqube sonarqube \
   $CLEAR_CACHE_FLAG \
   --project-keys "$SONARQUBE_PROJECT_KEYS"
 
-# LINEARB REPORTS
-echo "🚀 [6/6] Running LinearB team engineering metrics..."
-# Use the same date ranges as JIRA for consistency
-# LinearB expects YYYY-MM-DD,YYYY-MM-DD format for custom granularity
+# LinearB Report
+echo "🚀 [$STEP/7] LinearB – Engineering Metrics"
 LINEARB_TIME_RANGE="$WEEK_BEFORE_MONDAY,$LAST_SUNDAY"
-echo "   Date range: $LINEARB_TIME_RANGE"
-echo "📈 Running LinearB export report..."
+echo "   ⏳ Period: $LINEARB_TIME_RANGE"
 python src/main.py linearb export-report \
   --team-ids "$LINEARB_TEAM_IDS" \
-  --time-range "$WEEK_BEFORE_MONDAY,$LAST_SUNDAY" \
+  --time-range "$LINEARB_TIME_RANGE" \
   --format csv \
   --filter-type team \
   --granularity 1w \
   --beautified \
   --return-no-data \
   --aggregation avg \
-  || echo "Warning: LinearB export report failed - check configuration"
+  || echo "⚠️  Warning: LinearB export report failed - check configuration"
 
-# REPORT SUMMARY
+# Summary
 echo ""
 echo "✅ WEEKLY REPORT GENERATION COMPLETED!"
-echo "=== SUMMARY ==="
-echo "📁 All reports saved to: $OUTPUT_DIR"
-echo "📊 Generated reports:"
-echo "   • JIRA Bug & Support metrics (2 weeks combined)"
-echo "   • JIRA Bug & Support metrics (last week only)"
-echo "   • JIRA Bug & Support metrics (week before last)"
-echo "   • JIRA Task completion metrics (2 weeks combined)"
-echo "   • SonarQube code quality metrics (13 Cropwise projects)"
-echo "   • LinearB export report (CSV format with weekly granularity)"
+echo "════════════════════════════════════════════════════════════"
+echo "📁 Output directory: $OUTPUT_DIR"
 echo ""
-echo "📈 Week-over-week comparison data:"
-echo "   • Compare: $OUTPUT_DIR/jira-bugs-support-lastweek.json"
-echo "   • Against: $OUTPUT_DIR/jira-bugs-support-weekbefore.json"
+echo "📊 Reports generated:"
+printf "   • %-45s %s\n" "Bug & Support (2 weeks):"       "jira-bugs-support-2-weeks.json"
+printf "   • %-45s %s\n" "Bug & Support (last week):"     "jira-bugs-support-lastweek.json"
+printf "   • %-45s %s\n" "Bug & Support (week before):"   "jira-bugs-support-weekbefore.json"
+printf "   • %-45s %s\n" "Tasks (2 weeks):"              "jira-tasks-2weeks.json"
+printf "   • %-45s %s\n" "Open Bugs & Support:"          "jira-open-bugs-support.json"
+printf "   • %-45s %s\n" "SonarQube (13 projects):"      "sonarqube-quality-metrics.json"
+printf "   • %-45s %s\n" "LinearB (CSV format):"         "Auto-named CSV file"
 echo ""
-echo "📈 Next steps:"
-echo "   1. Review generated JSON and CSV files for insights"
-echo "   2. Compare last week vs week before metrics"
-echo "   3. Analyze trends in JIRA, SonarQube, and LinearB data"
-echo "   4. Share relevant metrics with the team"
+echo "📈 Week-over-week comparison:"
+echo "   → Last week:    $OUTPUT_DIR/jira-bugs-support-lastweek.json"
+echo "   ← Week before:  $OUTPUT_DIR/jira-bugs-support-weekbefore.json"
 echo ""
-echo "🔄 To run this automatically weekly, add to cron:"
-echo "   0 9 * * 1 cd $(pwd) && ./run_reports.sh >> logs/weekly_reports.log 2>&1"
-echo ""
-
-# List generated files
-if [ -d "$OUTPUT_DIR" ]; then
-    echo "📋 Generated files:"
-    ls -la "$OUTPUT_DIR"
-fi
+echo "📋 Generated files:"
+ls -1 "$OUTPUT_DIR" | sed 's/^/   • /'

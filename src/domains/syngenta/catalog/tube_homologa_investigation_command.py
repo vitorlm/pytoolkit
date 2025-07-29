@@ -54,8 +54,8 @@ class TubeHomologaInvestigationCommand(BaseCommand):
         )
         parser.add_argument(
             "--db-path",
-            default="data/catalog_export.duckdb",
-            help="Path to DuckDB catalog database (default: data/catalog_export.duckdb)",
+            default="data/dynamodb_export.duckdb",
+            help="Path to DuckDB catalog database (default: data/dynamodb_export.duckdb)",
         )
         parser.add_argument("--output-path", help="Path to save detailed report (optional)")
         parser.add_argument(
@@ -68,12 +68,6 @@ class TubeHomologaInvestigationCommand(BaseCommand):
             "--summary-only",
             action="store_true",
             help="Show only summary statistics, no detailed listing",
-        )
-        parser.add_argument(
-            "--batch-size",
-            type=int,
-            default=1000,
-            help="Batch size for database queries (default: 1000)",
         )
 
     @staticmethod
@@ -95,7 +89,6 @@ class TubeHomologaInvestigationCommand(BaseCommand):
                 db_path=args.db_path,
                 output_path=args.output_path,
                 summary_only=args.summary_only,
-                batch_size=args.batch_size,
                 output_format=args.output_format,
             )
 

@@ -7,6 +7,8 @@ import base64
 import gzip
 import json
 import os
+import duckdb
+
 from typing import Any, Dict, List, Optional, cast
 
 from utils.logging.logging_manager import LogManager
@@ -19,11 +21,17 @@ class DynamoDBJSONProcessorService:
 
     def __init__(self):
         ensure_env_loaded()  # Load environment variables
-        self.logger = LogManager.get_instance().get_logger("DynamoDBJSONProcessorService")
+        self.logger = LogManager.get_instance().get_logger(
+            "DynamoDBJSONProcessorService"
+        )
         self.cache = CacheManager.get_instance()
         self._column_mapping: Dict[str, str] = {}  # Original -> Normalized mapping
-        self._column_conflicts: Dict[str, List[str]] = {}  # Normalized -> List of originals
-        self._mapping_config: Optional[Dict[str, Any]] = None  # Column mapping configuration
+        self._column_conflicts: Dict[str, List[str]] = (
+            {}
+        )  # Normalized -> List of originals
+        self._mapping_config: Optional[Dict[str, Any]] = (
+            None  # Column mapping configuration
+        )
         self._ensure_dependencies()
 
     def _normalize_column_name(self, column_name: str) -> str:
@@ -80,7 +88,9 @@ class DynamoDBJSONProcessorService:
                 raise ValueError("Mapping file must contain 'columnMappings' section")
 
             self._mapping_config = config
-            self.logger.info(f"Loaded column mapping configuration from: {mapping_file_path}")
+            self.logger.info(
+                f"Loaded column mapping configuration from: {mapping_file_path}"
+            )
             self.logger.info(f"Found {len(config['columnMappings'])} column mappings")
 
         except json.JSONDecodeError as e:
@@ -139,7 +149,9 @@ class DynamoDBJSONProcessorService:
                 return column_mappings[original_column].get("transformation")
         return None
 
-    def _build_column_mapping(self, all_columns: set[str]) -> tuple[Dict[str, str], Dict[str, str]]:
+    def _build_column_mapping(
+        self, all_columns: set[str]
+    ) -> tuple[Dict[str, str], Dict[str, str]]:
         """
         Build mapping between original and normalized column names.
         Handle conflicts when multiple original names normalize to the same name.
@@ -174,7 +186,9 @@ class DynamoDBJSONProcessorService:
 
         # Second pass: resolve conflicts by adding suffixes
         for normalized, originals in conflicts.items():
-            self.logger.warning(f"Column name conflict detected for '{normalized}': {originals}")
+            self.logger.warning(
+                f"Column name conflict detected for '{normalized}': {originals}"
+            )
 
             # Remove the original mapping since we need to create new ones
             if normalized in normalized_to_original:
@@ -240,7 +254,9 @@ class DynamoDBJSONProcessorService:
                         __import__(package)
                     except ImportError:
                         self.logger.info(f"Installing {package}...")
-                        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+                        subprocess.check_call(
+                            [sys.executable, "-m", "pip", "install", package]
+                        )
 
                 # Re-import after installation
                 import duckdb  # noqa: F401
@@ -249,8 +265,681 @@ class DynamoDBJSONProcessorService:
                 self.logger.info("All required packages installed successfully")
 
             except Exception as install_error:
-                self.logger.error(f"Failed to install required packages: {install_error}")
+                self.logger.error(
+                    f"Failed to install required packages: {install_error}"
+                )
                 raise
+
+    def process_exports_structured(
+        self,
+        input_dir: str,
+        output_db: str = "catalog_structured.duckdb",
+        batch_size: int = 2500,
+        skip_empty_files: bool = False,
+        verbose: bool = False,
+        create_views: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Process AWS DynamoDB JSON export files with structured entity-based approach.
+
+        Creates separate tables for each entity type (PRODUCTS, ITEMS, FERTILIZERS, etc.)
+        with proper column mapping and business-friendly names.
+
+        Args:
+            input_dir: Directory containing AWS DynamoDB export
+            output_db: Output DuckDB database file name
+            batch_size: Number of records to process in each batch
+            skip_empty_files: Skip empty/corrupted files instead of failing
+            verbose: Enable verbose progress output
+            create_views: Create business-friendly views with proper column names
+
+        Returns:
+            Dictionary with processing summary including entity statistics
+        """
+        self.logger.info("Starting structured DynamoDB export processing...")
+        return self._process_structured_export(
+            input_dir, output_db, batch_size, skip_empty_files, verbose, create_views
+        )
+
+    def _get_entity_schema_mapping(self) -> Dict[str, Dict[str, str]]:
+        """
+        Define schema mappings for each entity type with business-friendly column names.
+
+        Returns:
+            Dictionary mapping entity types to their column mappings
+        """
+        return {
+            "PRODUCT": {
+                # Core fields
+                "pk": "id",
+                "rk": "entity_type",
+                "_et": "table_name",
+                "n": "name",
+                "m": "manufacturer",
+                "rN": "registration_number",
+                "pF": "product_form",
+                "s": "source",
+                "c": "country",
+                "sU": "selling_units",
+                "i": "indication",
+                "pCT": "product_creation_type",
+                "d": "deleted",
+                "eId": "external_id",
+                "exs": "external_source",
+                # Compressed binary fields
+                "f": "formulation_compressed",
+                "p": "phrases_compressed",
+                "li": "license_info_compressed",
+                "coms": "companies_compressed",
+                "iND": "internal_data_compressed",
+                # Registration fields
+                "tPC": "technical_product_code",
+                "cG": "chemical_group",
+                "gS": "government_source",
+                "l": "language",
+                "sT": "source_type",
+                "rd": "registration_date",
+                "ed": "expiry_date",
+                "lcd": "license_creation_date",
+                "lud": "license_update_date",
+                "slud": "source_last_update_date",
+                # Metadata
+                "cby": "created_by",
+                "uby": "updated_by",
+                "_ct": "created_at",
+                "_md": "modified_at",
+                "sca": "source_created_at",
+                "sua": "source_updated_at",
+                # Search keys (indices)
+                "dnk": "deleted_name_key",
+                "idk": "indication_deleted_key",
+                "idnk": "indication_deleted_name_key",
+                "ink": "indication_name_key",
+                "nk": "name_key",
+                "pCTsc": "product_creation_type_source_country",
+                # Status fields
+                "cos": "company_status",
+                "co": "company",
+            },
+            "ITEM": {
+                # Core fields
+                "pk": "id",
+                "rk": "entity_type",
+                "_et": "table_name",
+                "n": "name",
+                "c": "country",
+                "i": "category",
+                "s": "source",
+                "pCT": "creation_type",
+                "sU": "unit_of_measurement",
+                "d": "deleted",
+                "eId": "external_id",
+                # Demeter specific fields
+                "p": "classification_compressed",
+                "f": "active_ingredients_compressed",
+                "chG": "chemical_groups_compressed",
+                "dmC": "demeter_cohese",
+                "dmTN": "demeter_technical_name",
+                "vId": "vendor_id",
+                "lP": "last_price",
+                "dmAM": "demeter_action_mode",
+                "dmT": "demeter_targets_compressed",
+                # Metadata
+                "_ct": "created_at",
+                "_md": "modified_at",
+                "cby": "created_by",
+                "uby": "updated_by",
+                # Search keys
+                "dnk": "deleted_name_key",
+                "idk": "indication_deleted_key",
+                "idnk": "indication_deleted_name_key",
+                "ink": "indication_name_key",
+                "nk": "name_key",
+                "pCTsc": "creation_type_source_country",
+            },
+            "FERTILIZER": {
+                # Core fields
+                "pk": "id",
+                "rk": "entity_type",
+                "_et": "table_name",
+                "n": "name",
+                "m": "manufacturer",
+                "c": "country",
+                "i": "indication",
+                "pF": "product_form",
+                "s": "source",
+                "pCT": "product_creation_type",
+                # Fertilizer specific
+                "ns": "nutrients",
+                "ae": "additional_elements",
+                "ds": "density",
+                "dU": "density_unit",
+                # Metadata
+                "_ct": "created_at",
+                "_md": "modified_at",
+                # Search keys
+                "dnk": "deleted_name_key",
+                "nk": "name_key",
+            },
+            "AUDIT": {
+                "pk": "audit_key",
+                "rk": "audit_type",
+                "s": "org_id",
+                "ad": "audit_data",
+                "ca": "created_at_timestamp",
+                "ua": "updated_at_timestamp",
+                "cb": "created_by",
+                "ub": "updated_by",
+            },
+            "VISIBILITY": {
+                "pk": "visibility_key",
+                "rk": "item_id",
+                "id": "item_id_field",
+                "s": "org_id",
+                "hi": "hide_flag",
+                "n": "name",
+                "i": "indication",
+                "pCT": "product_creation_type",
+            },
+        }
+
+    def _process_structured_export(
+        self,
+        input_dir: str,
+        output_db: str,
+        batch_size: int,
+        skip_empty_files: bool,
+        verbose: bool,
+        create_views: bool,
+    ) -> Dict[str, Any]:
+        """Process DynamoDB export with entity-based table separation."""
+
+        # Validate input directory
+        if not os.path.exists(input_dir):
+            raise ValueError(f"Input directory does not exist: {input_dir}")
+
+        if not self._is_aws_dynamodb_export(input_dir):
+            raise ValueError(
+                f"Directory does not contain valid AWS DynamoDB export: {input_dir}"
+            )
+
+        # Read manifest files
+        manifest_summary_path = os.path.join(input_dir, "manifest-summary.json")
+        manifest_files_path = os.path.join(input_dir, "manifest-files.json")
+        data_dir = os.path.join(input_dir, "data")
+
+        try:
+            with open(manifest_summary_path, "r", encoding="utf-8") as f:
+                manifest_summary = json.load(f)
+
+            data_files = []
+            with open(manifest_files_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        data_files.append(json.loads(line))
+
+        except Exception as e:
+            raise ValueError(f"Error reading manifest files: {e}")
+
+        self.logger.info(
+            f"Processing {len(data_files)} data files from DynamoDB export"
+        )
+        self.logger.info(f"Table: {manifest_summary.get('tableArn', 'Unknown')}")
+        self.logger.info(f"Total items: {manifest_summary.get('itemCount', 'Unknown')}")
+
+        # Initialize DuckDB connection - create fresh database to avoid type inference conflicts
+        if os.path.exists(output_db):
+            self.logger.info(
+                f"Removing existing database {output_db} to avoid schema conflicts"
+            )
+            os.remove(output_db)
+
+        conn = duckdb.connect(output_db)
+
+        # Entity statistics
+        entity_stats = {}
+        entity_schema_mapping = self._get_entity_schema_mapping()
+
+        # Process files and separate by entity type
+        for i, file_info in enumerate(data_files):
+            try:
+                s3_key = file_info["dataFileS3Key"]
+                filename = os.path.basename(s3_key)
+                file_path = os.path.join(data_dir, filename)
+
+                if not os.path.exists(file_path):
+                    continue
+
+                if verbose:
+                    self.logger.info(
+                        f"Processing file {i + 1}/{len(data_files)}: {filename}"
+                    )
+
+                records = self._process_aws_data_file(file_path, skip_empty_files)
+
+                if records:
+                    # Group records by entity type (rk field)
+                    entity_records: Dict[str, List[Dict[str, Any]]] = {}
+
+                    for record in records:
+                        # Use proper entity identification logic
+                        entity_type = self._identify_entity_type(record)
+
+                        # Debug: log first few entity types to understand the issue
+                        if verbose and len(entity_records) < 10:
+                            pk = record.get("pk", "NO_PK")
+                            rk = record.get("rk", "NO_RK")
+                            self.logger.debug(
+                                f"Record: pk='{pk}', rk='{rk}' → entity_type='{entity_type}'"
+                            )
+
+                        if entity_type not in entity_records:
+                            entity_records[entity_type] = []
+                        entity_records[entity_type].append(record)
+
+                    # Process each entity type separately
+                    for entity_type, entity_data in entity_records.items():
+                        self._process_entity_batch(
+                            conn,
+                            entity_type,
+                            entity_data,
+                            entity_schema_mapping,
+                            batch_size,
+                            verbose,
+                        )
+
+                        # Update statistics
+                        if entity_type not in entity_stats:
+                            entity_stats[entity_type] = 0
+                        entity_stats[entity_type] += len(entity_data)
+
+            except Exception as e:
+                file_key = file_info.get("dataFileS3Key", "unknown")
+                self.logger.error(
+                    f"Error processing file {file_key}: {e}", exc_info=True
+                )
+
+                # Add to entity stats for tracking
+                if "processing_errors" not in entity_stats:
+                    entity_stats["processing_errors"] = []  # type: ignore
+
+                processing_errors = entity_stats["processing_errors"]
+                if isinstance(processing_errors, list):
+                    processing_errors.append(
+                        {"file": file_key, "error": str(e), "file_index": i + 1}
+                    )
+
+                if not skip_empty_files:
+                    raise
+
+        # Create business-friendly views if requested
+        if create_views:
+            self._create_business_views(conn, entity_schema_mapping, verbose)
+
+        # Calculate totals (excluding error entries)
+        numeric_stats = {k: v for k, v in entity_stats.items() if isinstance(v, int)}
+        processing_errors = entity_stats.get("processing_errors", [])  # type: ignore
+
+        # Final statistics
+        stats = {
+            "entity_statistics": numeric_stats,
+            "total_entities": len(numeric_stats),
+            "total_records": sum(numeric_stats.values()),
+            "tables_created": list(numeric_stats.keys()),
+            "database_file": output_db,
+            "views_created": create_views,
+            "processing_errors": processing_errors,
+            "error_count": (
+                len(processing_errors) if isinstance(processing_errors, list) else 0
+            ),
+        }
+
+        self.logger.info(
+            f"Structured processing complete: {stats['total_records']} records "
+            f"across {stats['total_entities']} entity types"
+        )
+
+        conn.close()
+        return stats
+
+    def _identify_entity_type(self, record: Dict[str, Any]) -> str:
+        """
+        Identify entity type based on pk and rk fields following the business logic.
+
+        Args:
+            record: DynamoDB record
+
+        Returns:
+            Entity type string for table naming
+        """
+        pk = record.get("pk", "")
+        rk = record.get("rk", "")
+
+        # Primary logic: use rk (Sort Key) as discriminator
+        if rk == "PRODUCT":
+            return "PRODUCT"
+        elif rk == "ITEM":
+            return "ITEM"
+        elif rk == "FERTILIZER":
+            return "FERTILIZER"
+        elif isinstance(pk, str) and pk.startswith("#AUDIT#"):
+            return "AUDIT"
+        elif isinstance(pk, str) and "#HIDDEN#" in pk:
+            return "VISIBILITY"
+        else:
+            # For unknown entities, log for investigation
+            self.logger.warning(f"Unknown entity type: pk='{pk}', rk='{rk}'")
+            return "UNKNOWN"
+
+    def _process_entity_batch(
+        self,
+        conn: Any,
+        entity_type: str,
+        records: List[Dict[str, Any]],
+        entity_schema_mapping: Dict[str, Dict[str, str]],
+        batch_size: int,
+        verbose: bool,
+    ) -> None:
+        """Process a batch of records for a specific entity type."""
+
+        if not records:
+            return
+
+        # Get schema mapping for this entity type
+        column_mapping = entity_schema_mapping.get(entity_type, {})
+
+        # Convert records using column mapping
+        mapped_records = []
+        for record in records:
+            mapped_record = {}
+
+            # Map known columns
+            for dynamo_col, business_col in column_mapping.items():
+                if dynamo_col in record:
+                    value = record[dynamo_col]
+                    # Handle compressed binary fields
+                    if business_col.endswith("_compressed") and value is not None:
+                        mapped_record[business_col] = self._handle_compressed_field(
+                            value
+                        )
+                    else:
+                        # Convert values to strings to avoid type conflicts in DuckDB
+                        if isinstance(value, bool):
+                            mapped_record[business_col] = str(
+                                value
+                            ).lower()  # true/false instead of True/False
+                        elif value is None:
+                            mapped_record[business_col] = None
+                        elif isinstance(value, bytes):
+                            # Handle binary data by converting to base64 string
+                            import base64
+
+                            mapped_record[business_col] = base64.b64encode(
+                                value
+                            ).decode("utf-8")
+                        else:
+                            mapped_record[business_col] = str(value)
+
+            # Keep unmapped columns with original names (prefixed to avoid conflicts)
+            for orig_col, value in record.items():
+                if orig_col not in column_mapping:
+                    # Apply same string conversion logic
+                    if isinstance(value, bool):
+                        mapped_record[f"raw_{orig_col}"] = str(value).lower()
+                    elif value is None:
+                        mapped_record[f"raw_{orig_col}"] = None
+                    elif isinstance(value, bytes):
+                        # Handle binary data by converting to base64 string
+                        import base64
+
+                        mapped_record[f"raw_{orig_col}"] = base64.b64encode(
+                            value
+                        ).decode("utf-8")
+                    else:
+                        mapped_record[f"raw_{orig_col}"] = str(value)
+
+            mapped_records.append(mapped_record)
+
+        # Create table name from entity type
+        table_name = f"{entity_type.lower()}_entities"
+
+        # Process in batches
+        for i in range(0, len(mapped_records), batch_size):
+            batch = mapped_records[i : i + batch_size]
+            self._create_or_insert_entity_table(conn, table_name, batch, verbose)
+
+        if verbose:
+            self.logger.debug(
+                f"Processed {len(mapped_records)} {entity_type} records into table '{table_name}'"
+            )
+
+    def _handle_compressed_field(self, value: Any) -> Optional[str]:
+        """Handle compressed binary fields by converting to readable format."""
+        if value is None:
+            return None
+
+        try:
+            # If it's already decompressed by the DynamoDB converter, return as JSON string
+            if isinstance(value, (dict, list)):
+                return json.dumps(value)
+            elif isinstance(value, bytes):
+                # Handle binary compressed data - convert to base64
+                import base64
+
+                return base64.b64encode(value).decode("utf-8")
+            elif isinstance(value, str):
+                # Try to parse as JSON first
+                try:
+                    parsed = json.loads(value)
+                    return json.dumps(parsed, indent=2)  # Pretty format
+                except json.JSONDecodeError:
+                    return str(value)
+            else:
+                return str(value)
+        except Exception as e:
+            self.logger.warning(f"Error handling compressed field: {e}")
+            # Safe fallback for any problematic value
+            if isinstance(value, bytes):
+                import base64
+
+                return base64.b64encode(value).decode("utf-8")
+            return str(value) if value is not None else None
+
+    def _create_or_insert_entity_table(
+        self, conn: Any, table_name: str, records: List[Dict[str, Any]], verbose: bool
+    ) -> None:
+        """Create table or insert records for an entity."""
+
+        if not records:
+            return
+
+        import pandas as pd
+
+        # Convert to DataFrame
+        df = pd.DataFrame(records)
+
+        # Handle complex data types and ensure consistent string conversion
+        for col in df.columns:
+            if df[col].dtype == "object":
+
+                def safe_convert(x):
+                    if x is None:
+                        return None
+                    elif isinstance(x, (list, dict)):
+                        return json.dumps(x)
+                    elif isinstance(x, bytes):
+                        # Convert bytes to base64 string
+                        import base64
+
+                        return base64.b64encode(x).decode("utf-8")
+                    else:
+                        return str(x)
+
+                df[col] = df[col].apply(safe_convert)
+
+        # Check if table exists
+        try:
+            existing_tables = conn.execute("SHOW TABLES").fetchall()
+            table_exists = any(table[0] == table_name for table in existing_tables)
+
+            if not table_exists:
+                if verbose:
+                    self.logger.info(
+                        f"Creating table '{table_name}' with {len(df.columns)} columns"
+                    )
+
+                # Build explicit CREATE TABLE statement to avoid type inference
+                column_definitions = []
+                for col in df.columns:
+                    safe_col_name = f'"{col}"'
+                    column_definitions.append(f"{safe_col_name} VARCHAR")
+
+                create_sql = (
+                    f'CREATE TABLE "{table_name}" ({", ".join(column_definitions)})'
+                )
+
+                try:
+                    conn.execute(create_sql)
+                    if verbose:
+                        self.logger.info(
+                            f"Successfully created table '{table_name}' with {len(df.columns)} VARCHAR columns"
+                        )
+                except Exception as create_error:
+                    self.logger.error(
+                        f"Error creating table with explicit schema: {create_error}"
+                    )
+                    # Fallback to simpler approach
+                    conn.execute(
+                        f'CREATE TABLE "{table_name}" AS SELECT * FROM df WHERE 1=0'
+                    )
+                    if verbose:
+                        self.logger.warning(
+                            f"Used fallback table creation for '{table_name}'"
+                        )
+
+            # Insert data with error handling - use explicit column insertion to avoid type conflicts
+            try:
+                # First, handle existing tables by checking if we need to add missing columns
+                if table_exists:
+                    table_columns_result = conn.execute(
+                        f'DESCRIBE "{table_name}"'
+                    ).fetchall()
+                    existing_columns = {row[0] for row in table_columns_result}
+                    missing_columns = set(df.columns) - existing_columns
+
+                    if missing_columns:
+                        if verbose:
+                            self.logger.info(
+                                f"Adding {len(missing_columns)} missing columns to '{table_name}'"
+                            )
+                        for col in missing_columns:
+                            safe_col_name = f'"{col}"'
+                            try:
+                                conn.execute(
+                                    f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR'
+                                )
+                            except Exception as col_error:
+                                self.logger.warning(
+                                    f"Could not add column {col}: {col_error}"
+                                )
+
+                # Convert all DataFrame to strings but preserve NULL values properly
+                df_clean = df.copy()
+                for col in df_clean.columns:
+                    df_clean[col] = df_clean[col].apply(
+                        lambda x: None if pd.isna(x) else str(x)
+                    )
+
+                # Use explicit INSERT with column names to ensure proper type handling
+                if len(df_clean) > 0:
+                    # Get table column order to ensure proper insertion
+                    table_columns_result = conn.execute(
+                        f'DESCRIBE "{table_name}"'
+                    ).fetchall()
+                    table_column_order = [row[0] for row in table_columns_result]
+
+                    # Ensure DataFrame columns match table order and fill missing with NULL
+                    df_ordered = pd.DataFrame()
+                    for col in table_column_order:
+                        if col in df_clean.columns:
+                            df_ordered[col] = df_clean[col]
+                        else:
+                            df_ordered[col] = None
+
+                    # Now insert with proper column order
+                    conn.execute(f'INSERT INTO "{table_name}" SELECT * FROM df_ordered')
+
+                if verbose:
+                    self.logger.debug(f"Inserted {len(df)} records into '{table_name}'")
+
+            except Exception as insert_error:
+                self.logger.error(
+                    f"Error inserting data into '{table_name}': {insert_error}"
+                )
+                # Try to get more details about the error
+                self.logger.error(f"DataFrame columns: {list(df.columns)}")
+                self.logger.error(f"DataFrame shape: {df.shape}")
+                self.logger.error(f"Sample data types: {df.dtypes.head().to_dict()}")
+                self.logger.error("Sample problematic values:")
+                for col in df.columns[:5]:  # Show first 5 columns
+                    unique_vals = df[col].dropna().unique()[:3]  # First 3 unique values
+                    self.logger.error(f"  {col}: {list(unique_vals)}")
+                raise
+
+        except Exception as e:
+            self.logger.error(
+                f"Error in _create_or_insert_entity_table for '{table_name}': {e}",
+                exc_info=True,
+            )
+            raise
+
+    def _create_business_views(
+        self, conn: Any, entity_schema_mapping: Dict[str, Dict[str, str]], verbose: bool
+    ) -> None:
+        """Create business-friendly views for each entity table."""
+
+        try:
+            existing_tables = conn.execute("SHOW TABLES").fetchall()
+            table_names = [table[0] for table in existing_tables]
+
+            for entity_type, column_mapping in entity_schema_mapping.items():
+                table_name = f"{entity_type.lower()}_entities"
+                view_name = f"vw_{entity_type.lower()}"
+
+                if table_name in table_names:
+                    # Get actual table columns
+                    table_info = conn.execute(f'DESCRIBE "{table_name}"').fetchall()
+                    actual_columns = {row[0] for row in table_info}
+
+                    # Build SELECT clause with available mapped columns
+                    select_columns = []
+                    for business_col in column_mapping.values():
+                        if business_col in actual_columns:
+                            select_columns.append(f'"{business_col}"')
+
+                    # Add raw columns that aren't mapped
+                    for col in actual_columns:
+                        if col.startswith("raw_") and col not in select_columns:
+                            select_columns.append(f'"{col}"')
+
+                    if select_columns:
+                        # Create view
+                        view_sql = f"""
+                        CREATE OR REPLACE VIEW "{view_name}" AS
+                        SELECT {", ".join(select_columns)}
+                        FROM "{table_name}"
+                        """
+
+                        conn.execute(view_sql)
+
+                        if verbose:
+                            self.logger.info(
+                                f"Created view '{view_name}' with {len(select_columns)} columns"
+                            )
+
+        except Exception as e:
+            self.logger.warning(f"Error creating business views: {e}")
 
     def process_exports(
         self,
@@ -290,9 +979,13 @@ class DynamoDBJSONProcessorService:
 
         # Load column mapping configuration if provided
         if column_mapping_file:
+            is_normalizing_required = True
             self._load_mapping_config(column_mapping_file)
-            self.logger.info(f"Using column mapping configuration: {column_mapping_file}")
+            self.logger.info(
+                f"Using column mapping configuration: {column_mapping_file}"
+            )
         else:
+            is_normalizing_required = False
             self.logger.info("Using automatic column name normalization")
 
         # Validate input directory
@@ -305,7 +998,13 @@ class DynamoDBJSONProcessorService:
         if is_aws_export:
             self.logger.info("Detected AWS DynamoDB export format")
             return self._process_aws_dynamodb_export(
-                input_dir, output_db, table_name, batch_size, skip_empty_files, verbose
+                input_dir,
+                output_db,
+                table_name,
+                batch_size,
+                skip_empty_files,
+                verbose,
+                is_normalizing_required,
             )
         else:
             self.logger.info("Processing as generic JSON files")
@@ -333,6 +1032,7 @@ class DynamoDBJSONProcessorService:
         batch_size: int,
         skip_empty_files: bool,
         verbose: bool,
+        is_normalizing_required: bool = False,
     ) -> Dict[str, Any]:
         """Process AWS DynamoDB export using manifest files."""
 
@@ -348,9 +1048,15 @@ class DynamoDBJSONProcessorService:
 
             self.logger.info("Export summary:")
             self.logger.info(f"  Table: {manifest_summary.get('tableArn', 'Unknown')}")
-            self.logger.info(f"  Export time: {manifest_summary.get('exportTime', 'Unknown')}")
-            self.logger.info(f"  Total items: {manifest_summary.get('itemCount', 'Unknown')}")
-            self.logger.info(f"  Output format: {manifest_summary.get('outputFormat', 'Unknown')}")
+            self.logger.info(
+                f"  Export time: {manifest_summary.get('exportTime', 'Unknown')}"
+            )
+            self.logger.info(
+                f"  Total items: {manifest_summary.get('itemCount', 'Unknown')}"
+            )
+            self.logger.info(
+                f"  Output format: {manifest_summary.get('outputFormat', 'Unknown')}"
+            )
 
             # Read manifest files to get data file list
             data_files = []
@@ -376,17 +1082,19 @@ class DynamoDBJSONProcessorService:
             "manifest_item_count": manifest_summary.get("itemCount", 0),
         }
 
-        # Initialize DuckDB connection
-        import duckdb
-
         conn = duckdb.connect(output_db)
         table_created = False
 
-        self.logger.info(f"Processing {len(data_files)} data files with dynamic schema...")
+        self.logger.info(
+            f"Processing {len(data_files)} data files with dynamic schema..."
+        )
 
         # Phase 1: Collect all column names to build comprehensive mapping
         self.logger.info("Phase 1: Analyzing all files to detect column schema...")
         all_columns: set[str] = set()
+
+        # Track schema variations for debugging
+        schema_variations = {}
 
         for i, file_info in enumerate(data_files):
             try:
@@ -398,13 +1106,23 @@ class DynamoDBJSONProcessorService:
                     continue
 
                 if verbose:
-                    self.logger.info(f"  Analyzing file {i + 1}/{len(data_files)}: {filename}")
+                    self.logger.info(
+                        f"  Analyzing file {i + 1}/{len(data_files)}: {filename}"
+                    )
 
-                # Process file to get column names only
+                # Process file to get column names only - limited sample for performance
                 records = self._process_aws_data_file(file_path, skip_empty_files)
                 if records:
+                    file_columns: set[str] = set()
                     for record in records:
                         all_columns.update(record.keys())
+                        file_columns.update(record.keys())
+
+                    # Track schema variation patterns
+                    schema_key = f"{len(file_columns)}_cols"
+                    if schema_key not in schema_variations:
+                        schema_variations[schema_key] = 0
+                    schema_variations[schema_key] += len(records)
 
             except Exception as e:
                 self.logger.warning(
@@ -413,31 +1131,42 @@ class DynamoDBJSONProcessorService:
                 continue
 
         self.logger.info(f"Found {len(all_columns)} unique columns across all files")
-
-        # Build column mapping to handle case sensitivity conflicts
-        original_to_normalized, normalized_to_original = self._build_column_mapping(all_columns)
-
-        self.logger.info(f"Column mapping created: {len(original_to_normalized)} mappings")
         if verbose:
-            conflicts = sum(
-                1
-                for norm in normalized_to_original.keys()
-                if "_" in norm and norm.split("_")[-1].isdigit()
+            self.logger.info(
+                f"Schema variations: {dict(sorted(schema_variations.items(), key=lambda x: x[1], reverse=True))}"
             )
-            if conflicts > 0:
-                self.logger.info(f"Resolved {conflicts} column name conflicts")
+
+        original_to_normalized: Dict[str, str] = {}
+        normalized_to_original: Dict[str, str] = {}
+        if is_normalizing_required:
+            # Build column mapping to handle case sensitivity conflicts
+            original_to_normalized, normalized_to_original = self._build_column_mapping(
+                all_columns
+            )
+
+            self.logger.info(
+                f"Column mapping created: {len(original_to_normalized)} mappings"
+            )
+            if verbose:
+                conflicts = sum(
+                    1
+                    for norm in normalized_to_original.keys()
+                    if "_" in norm and norm.split("_")[-1].isdigit()
+                )
+                if conflicts > 0:
+                    self.logger.info(f"Resolved {conflicts} column name conflicts")
 
         # Phase 2: Process files with normalized column names
-
-        # Phase 2: Process files with normalized column names
-        self.logger.info("Phase 2: Processing files with normalized schema...")
+        self.logger.info("Phase 2: Processing files...")
 
         # Process each file individually with normalized column names
         for i, file_info in enumerate(data_files):
             try:
                 if verbose:
                     self.logger.info(f"Processing file {i + 1}/{len(data_files)}")
-                    self.logger.info(f"  Expected items: {file_info.get('itemCount', 'Unknown')}")
+                    self.logger.info(
+                        f"  Expected items: {file_info.get('itemCount', 'Unknown')}"
+                    )
 
                 # Extract filename from S3 key
                 s3_key = file_info["dataFileS3Key"]
@@ -460,37 +1189,60 @@ class DynamoDBJSONProcessorService:
                 records = self._process_aws_data_file(file_path, skip_empty_files)
 
                 if records:
-                    # Normalize column names in records
-                    normalized_records = self._normalize_records(records, original_to_normalized)
-
-                    # Get normalized columns from current file
-                    normalized_file_columns: set[str] = set()
-                    for record in normalized_records:
-                        normalized_file_columns.update(record.keys())
-
-                    if verbose:
-                        original_cols = len(set().union(*(record.keys() for record in records)))
-                        normalized_cols = len(normalized_file_columns)
-                        self.logger.info(
-                            f"  → Normalized {original_cols} → {normalized_cols} columns"
+                    if is_normalizing_required:
+                        # Normalize column names in records
+                        normalized_records = self._normalize_records(
+                            records, original_to_normalized
                         )
 
-                    # Adjust table schema if needed and load data with normalized columns
-                    table_created = self._load_file_data_with_dynamic_schema(
-                        conn,
-                        normalized_records,
-                        table_name,
-                        table_created,
-                        normalized_file_columns,
-                        batch_size,
-                        verbose,
-                    )
+                        # Get normalized columns from current file
+                        normalized_file_columns: set[str] = set()
+                        for record in normalized_records:
+                            normalized_file_columns.update(record.keys())
 
-                    stats["total_records"] = cast(int, stats["total_records"]) + len(records)
+                        if verbose:
+                            original_cols = len(
+                                set().union(*(record.keys() for record in records))
+                            )
+                            normalized_cols = len(normalized_file_columns)
+                            self.logger.info(
+                                f"  → Normalized {original_cols} → {normalized_cols} columns"
+                            )
+
+                        # Get all normalized columns for consistent schema
+                        all_normalized_columns = set(normalized_to_original.keys())
+
+                        # Adjust table schema if needed and load data with normalized columns
+                        table_created = self._load_file_data_with_dynamic_schema(
+                            conn,
+                            normalized_records,
+                            table_name,
+                            table_created,
+                            all_normalized_columns,  # Use ALL columns, not just file columns
+                            batch_size,
+                            verbose,
+                        )
+                    else:
+                        # Load data with original columns - use ALL columns for consistency
+                        table_created = self._load_file_data_with_dynamic_schema(
+                            conn,
+                            records,
+                            table_name,
+                            table_created,
+                            all_columns,  # Use ALL columns, not just current file columns
+                            batch_size,
+                            verbose,
+                        )
+
+                    stats["total_records"] = cast(int, stats["total_records"]) + len(
+                        records
+                    )
                     stats["files_processed"] = cast(int, stats["files_processed"]) + 1
 
                     if verbose:
-                        self.logger.info(f"  → Extracted and loaded {len(records)} records")
+                        self.logger.info(
+                            f"  → Extracted and loaded {len(records)} records"
+                        )
                         expected_count = file_info.get("itemCount", 0)
                         if expected_count and len(records) != expected_count:
                             self.logger.warning(
@@ -518,7 +1270,9 @@ class DynamoDBJSONProcessorService:
             result = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
             final_count = result[0] if result else 0
 
-            self.logger.info(f"Final table '{table_name}' contains {final_count} records")
+            self.logger.info(
+                f"Final table '{table_name}' contains {final_count} records"
+            )
             stats["final_table_count"] = final_count
 
             # Compare with manifest
@@ -535,27 +1289,28 @@ class DynamoDBJSONProcessorService:
         except Exception as e:
             self.logger.warning(f"Could not get final table count: {e}")
 
-        # Add column mapping information to stats
-        stats["column_mapping"] = {
-            "total_original_columns": len(all_columns),
-            "total_normalized_columns": len(normalized_to_original),
-            "mappings": original_to_normalized,
-            "conflicts_resolved": len(
-                [
-                    k
-                    for k in normalized_to_original.keys()
-                    if "_" in k and k.split("_")[-1].isdigit()
-                ]
-            ),
-        }
+        if is_normalizing_required:
+            # Add column mapping information to stats
+            stats["column_mapping"] = {
+                "total_original_columns": len(all_columns),
+                "total_normalized_columns": len(normalized_to_original),
+                "mappings": original_to_normalized,
+                "conflicts_resolved": len(
+                    [
+                        k
+                        for k in normalized_to_original.keys()
+                        if "_" in k and k.split("_")[-1].isdigit()
+                    ]
+                ),
+            }
 
-        if verbose and stats["column_mapping"]["conflicts_resolved"] > 0:
-            self.logger.info(
-                f"Column normalization summary: "
-                f"{stats['column_mapping']['total_original_columns']} original → "
-                f"{stats['column_mapping']['total_normalized_columns']} normalized columns, "
-                f"{stats['column_mapping']['conflicts_resolved']} conflicts resolved"
-            )
+            if verbose and stats["column_mapping"]["conflicts_resolved"] > 0:
+                self.logger.info(
+                    f"Column normalization summary: "
+                    f"{stats['column_mapping']['total_original_columns']} original → "
+                    f"{stats['column_mapping']['total_normalized_columns']} normalized columns, "
+                    f"{stats['column_mapping']['conflicts_resolved']} conflicts resolved"
+                )
 
         conn.close()
         return stats
@@ -593,7 +1348,9 @@ class DynamoDBJSONProcessorService:
         conn = duckdb.connect(output_db)
         table_created = False
 
-        self.logger.info(f"Processing {len(json_files)} JSON files with dynamic schema...")
+        self.logger.info(
+            f"Processing {len(json_files)} JSON files with dynamic schema..."
+        )
 
         # Phase 1: Collect all column names to build comprehensive mapping
         self.logger.info("Phase 1: Analyzing all files to detect column schema...")
@@ -603,7 +1360,9 @@ class DynamoDBJSONProcessorService:
             try:
                 if verbose:
                     file_short = json_file.replace(input_dir, "")
-                    self.logger.info(f"  Analyzing file {i + 1}/{len(json_files)}: {file_short}")
+                    self.logger.info(
+                        f"  Analyzing file {i + 1}/{len(json_files)}: {file_short}"
+                    )
 
                 # Process file to get column names only
                 records = self._process_json_file(json_file, skip_empty_files)
@@ -618,9 +1377,13 @@ class DynamoDBJSONProcessorService:
         self.logger.info(f"Found {len(all_columns)} unique columns across all files")
 
         # Build column mapping to handle case sensitivity conflicts
-        original_to_normalized, normalized_to_original = self._build_column_mapping(all_columns)
+        original_to_normalized, normalized_to_original = self._build_column_mapping(
+            all_columns
+        )
 
-        self.logger.info(f"Column mapping created: {len(original_to_normalized)} mappings")
+        self.logger.info(
+            f"Column mapping created: {len(original_to_normalized)} mappings"
+        )
         if verbose:
             conflicts = sum(
                 1
@@ -638,13 +1401,17 @@ class DynamoDBJSONProcessorService:
             try:
                 if verbose:
                     file_short = json_file.replace(input_dir, "")
-                    self.logger.info(f"Processing file {i + 1}/{len(json_files)}: {file_short}")
+                    self.logger.info(
+                        f"Processing file {i + 1}/{len(json_files)}: {file_short}"
+                    )
 
                 records = self._process_json_file(json_file, skip_empty_files)
 
                 if records:
                     # Normalize column names in records
-                    normalized_records = self._normalize_records(records, original_to_normalized)
+                    normalized_records = self._normalize_records(
+                        records, original_to_normalized
+                    )
 
                     # Get normalized columns from current file
                     normalized_file_columns: set[str] = set()
@@ -652,9 +1419,13 @@ class DynamoDBJSONProcessorService:
                         normalized_file_columns.update(record.keys())
 
                     if verbose:
-                        original_cols = len(set().union(*(record.keys() for record in records)))
+                        original_cols = len(
+                            set().union(*(record.keys() for record in records))
+                        )
                         normalized_cols = len(normalized_file_columns)
-                        self.logger.info(f"  → Normalized {original_cols} → {normalized_cols} cols")
+                        self.logger.info(
+                            f"  → Normalized {original_cols} → {normalized_cols} cols"
+                        )
 
                     # Adjust table schema if needed and load data with normalized columns
                     table_created = self._load_file_data_with_dynamic_schema(
@@ -667,11 +1438,15 @@ class DynamoDBJSONProcessorService:
                         verbose,
                     )
 
-                    stats["total_records"] = cast(int, stats["total_records"]) + len(records)
+                    stats["total_records"] = cast(int, stats["total_records"]) + len(
+                        records
+                    )
                     stats["files_processed"] = cast(int, stats["files_processed"]) + 1
 
                     if verbose:
-                        self.logger.info(f"  → Extracted and loaded {len(records)} records")
+                        self.logger.info(
+                            f"  → Extracted and loaded {len(records)} records"
+                        )
                 else:
                     stats["files_skipped"] = cast(int, stats["files_skipped"]) + 1
                     if verbose:
@@ -692,7 +1467,9 @@ class DynamoDBJSONProcessorService:
             result = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
             final_count = result[0] if result else 0
 
-            self.logger.info(f"Final table '{table_name}' contains {final_count} records")
+            self.logger.info(
+                f"Final table '{table_name}' contains {final_count} records"
+            )
             stats["final_table_count"] = final_count
 
         except Exception as e:
@@ -762,6 +1539,11 @@ class DynamoDBJSONProcessorService:
                     if isinstance(data, dict) and "Item" in data:
                         converted = self._convert_dynamodb_item(data["Item"])
                         if converted:
+                            if converted.get("pk") in [None, ""]:
+                                self.logger.warning(
+                                    f"Record without pk found in {file_path} at line {line_num}"
+                                )
+                                continue  # Skip records without pk
                             records.append(converted)
                     else:
                         # Fallback: treat the entire object as a DynamoDB item
@@ -770,7 +1552,9 @@ class DynamoDBJSONProcessorService:
                             records.append(converted)
 
                 except json.JSONDecodeError as e:
-                    self.logger.warning(f"Invalid JSON on line {line_num} in {file_path}: {e}")
+                    self.logger.warning(
+                        f"Invalid JSON on line {line_num} in {file_path}: {e}"
+                    )
                     continue
 
             return records
@@ -789,7 +1573,9 @@ class DynamoDBJSONProcessorService:
 
         return sorted(json_files)
 
-    def _process_json_file(self, file_path: str, skip_empty: bool = False) -> List[Dict[str, Any]]:
+    def _process_json_file(
+        self, file_path: str, skip_empty: bool = False
+    ) -> List[Dict[str, Any]]:
         """
         Process a single JSON file and extract DynamoDB items.
 
@@ -915,11 +1701,16 @@ class DynamoDBJSONProcessorService:
                 return type_value
         elif type_key == "SS":  # String Set
             return (
-                [str(item) for item in type_value] if isinstance(type_value, list) else type_value
+                [str(item) for item in type_value]
+                if isinstance(type_value, list)
+                else type_value
             )
         elif type_key == "NS":  # Number Set
             try:
-                return [int(item) if "." not in str(item) else float(item) for item in type_value]
+                return [
+                    int(item) if "." not in str(item) else float(item)
+                    for item in type_value
+                ]
             except (ValueError, TypeError):
                 return type_value
         elif type_key == "BS":  # Binary Set
@@ -929,7 +1720,9 @@ class DynamoDBJSONProcessorService:
                 return type_value
         elif type_key == "M":  # Map
             if isinstance(type_value, dict):
-                return {k: self._convert_dynamodb_value(v) for k, v in type_value.items()}
+                return {
+                    k: self._convert_dynamodb_value(v) for k, v in type_value.items()
+                }
             return type_value
         elif type_key == "L":  # List
             if isinstance(type_value, list):
@@ -983,7 +1776,9 @@ class DynamoDBJSONProcessorService:
                         except (json.JSONDecodeError, UnicodeDecodeError):
                             value = decompressed.decode("utf-8", errors="replace")
                 except Exception as e:
-                    self.logger.warning(f"Failed to decompress column '{original_key}': {e}")
+                    self.logger.warning(
+                        f"Failed to decompress column '{original_key}': {e}"
+                    )
                     # Keep original value
 
             elif transformation == "epoch_to_timestamp" and value is not None:
@@ -1010,7 +1805,11 @@ class DynamoDBJSONProcessorService:
         return transformed_record
 
     def _load_batch_to_duckdb(
-        self, conn: Any, records: List[Dict[str, Any]], table_name: str, create_table: bool = False
+        self,
+        conn: Any,
+        records: List[Dict[str, Any]],
+        table_name: str,
+        create_table: bool = False,
     ) -> None:
         """
         Load a batch of records into DuckDB.
@@ -1103,7 +1902,9 @@ class DynamoDBJSONProcessorService:
             try:
                 # Check if we have potential primary key columns that might cause deduplication
                 potential_pk_columns = [
-                    col for col in df.columns if "id" in col.lower() or "key" in col.lower()
+                    col
+                    for col in df.columns
+                    if "id" in col.lower() or "key" in col.lower()
                 ]
 
                 if potential_pk_columns:
@@ -1128,7 +1929,9 @@ class DynamoDBJSONProcessorService:
                 # Check for completely duplicate rows
                 duplicate_rows = df.duplicated().sum()
                 if duplicate_rows > 0:
-                    self.logger.warning(f"Found {duplicate_rows} completely duplicate rows")
+                    self.logger.warning(
+                        f"Found {duplicate_rows} completely duplicate rows"
+                    )
 
             except Exception as e:
                 self.logger.debug(f"Could not perform duplicate checking: {e}")
@@ -1142,7 +1945,9 @@ class DynamoDBJSONProcessorService:
             for col in sorted_columns:
                 # Use a generic VARCHAR type for all columns to avoid any implicit constraints
                 # We'll handle type inference later if needed
-                safe_col_name = f'"{col}"'  # Quote column names to handle special characters
+                safe_col_name = (
+                    f'"{col}"'  # Quote column names to handle special characters
+                )
                 column_definitions.append(f"{safe_col_name} VARCHAR")
 
             schema_sql = f'CREATE OR REPLACE TABLE "{table_name}" ({", ".join(column_definitions)})'
@@ -1219,7 +2024,9 @@ class DynamoDBJSONProcessorService:
                             if pk_col in df.columns:
                                 sample_values = df[pk_col].value_counts().head(5)
                                 sample_dict = sample_values.to_dict()
-                                self.logger.debug(f"Sample {pk_col} values: {sample_dict}")
+                                self.logger.debug(
+                                    f"Sample {pk_col} values: {sample_dict}"
+                                )
 
             except Exception as e:
                 self.logger.warning(f"Could not verify insert: {e}")
@@ -1262,21 +2069,25 @@ class DynamoDBJSONProcessorService:
         if not records:
             return table_created
 
-        # Convert complex types to JSON strings first
+        # Convert complex types to JSON strings AND ensure all records have all columns
         processed_records = []
         for record in records:
             processed_record = {}
-            for key, value in record.items():
+            # Ensure EVERY record has ALL possible columns
+            for col in file_columns:
+                value = record.get(col)
                 if isinstance(value, (list, dict)):
-                    processed_record[key] = json.dumps(value)
+                    processed_record[col] = json.dumps(value)
                 else:
-                    processed_record[key] = value
+                    processed_record[col] = str(value) if value is not None else ""
             processed_records.append(processed_record)
 
         if not table_created:
             # Create table with initial schema from first file
             if verbose:
-                self.logger.info(f"Creating table '{table_name}' with {len(file_columns)} columns")
+                self.logger.info(
+                    f"Creating table '{table_name}' with {len(file_columns)} columns"
+                )
 
             # Create empty table first
             conn.execute(f'CREATE OR REPLACE TABLE "{table_name}" (temp_col VARCHAR)')
@@ -1285,7 +2096,9 @@ class DynamoDBJSONProcessorService:
             for col in sorted(file_columns):
                 safe_col_name = f'"{col}"'
                 try:
-                    conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR')
+                    conn.execute(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR'
+                    )
                 except Exception as e:
                     if "already exists" not in str(e).lower():
                         self.logger.warning(f"Could not add column {col}: {e}")
@@ -1347,7 +2160,9 @@ class DynamoDBJSONProcessorService:
                         df_batch[col] = None
 
                 # Reorder columns to match table schema
-                df_batch = df_batch.reindex(columns=sorted(table_columns), fill_value=None)
+                df_batch = df_batch.reindex(
+                    columns=sorted(table_columns), fill_value=None
+                )
 
                 # Insert batch
                 conn.execute(f'INSERT INTO "{table_name}" SELECT * FROM df_batch')

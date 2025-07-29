@@ -172,6 +172,83 @@ class TubeHomologaInvestigationService:
             },
         }
 
+    def _detect_table_format(self, conn: duckdb.DuckDBPyConnection) -> Dict[str, str]:
+        """
+        Detect which table format is available in the database.
+        
+        Returns:
+            Dict with table_name and format information
+        """
+        try:
+            # Get list of available tables
+            tables_result = conn.execute("SHOW TABLES").fetchall()
+            available_tables = {row[0].lower() for row in tables_result}
+            
+            # Check for structured format tables (preferred)
+            if "product_entities" in available_tables:
+                self.logger.info("Using structured format: product_entities table")
+                return {
+                    "table_name": "product_entities",
+                    "format": "structured",
+                    "pk_column": "id",
+                    "country_column": "country", 
+                    "entity_type_column": "table_name",
+                    "source_column": "external_source",
+                    "name_column": "name",
+                    "deleted_column": "deleted"
+                }
+            elif "vw_product" in available_tables:
+                self.logger.info("Using structured format: vw_product view")
+                return {
+                    "table_name": "vw_product", 
+                    "format": "structured",
+                    "pk_column": "id",
+                    "country_column": "country",
+                    "entity_type_column": "table_name", 
+                    "source_column": "external_source",
+                    "name_column": "name",
+                    "deleted_column": "deleted"
+                }
+            elif "catalog_items" in available_tables:
+                self.logger.info("Using legacy format: catalog_items table") 
+                return {
+                    "table_name": "catalog_items",
+                    "format": "legacy",
+                    "pk_column": "pk",
+                    "country_column": "c",
+                    "entity_type_column": "_et", 
+                    "source_column": "exs",
+                    "name_column": "n",
+                    "deleted_column": "d"
+                }
+            else:
+                # Default fallback
+                self.logger.warning("No recognized table format found, using catalog_items as fallback")
+                return {
+                    "table_name": "catalog_items",
+                    "format": "fallback",
+                    "pk_column": "pk", 
+                    "country_column": "c",
+                    "entity_type_column": "_et",
+                    "source_column": "exs", 
+                    "name_column": "n",
+                    "deleted_column": "d"
+                }
+                
+        except Exception as e:
+            self.logger.error(f"Error detecting table format: {e}")
+            # Safe fallback to legacy format
+            return {
+                "table_name": "catalog_items",
+                "format": "error_fallback", 
+                "pk_column": "pk",
+                "country_column": "c",
+                "entity_type_column": "_et",
+                "source_column": "exs",
+                "name_column": "n", 
+                "deleted_column": "d"
+            }
+
     def _investigate_products(
         self,
         conn: duckdb.DuckDBPyConnection,
@@ -183,6 +260,9 @@ class TubeHomologaInvestigationService:
         """Investigate products against the database."""
         self.logger.info("Starting database investigation")
 
+        # Detect table format and get column mappings
+        table_config = self._detect_table_format(conn)
+        
         results = {
             "csv_total": len(deleted_products),
             "found_in_db": 0,
@@ -193,22 +273,25 @@ class TubeHomologaInvestigationService:
             "found_products": [],
             "not_found_products": [],
             "data_quality": data_quality_info,
-            "investigation_metadata": {"batch_size": batch_size, "summary_only": summary_only},
+            "investigation_metadata": {
+                "batch_size": batch_size, 
+                "summary_only": summary_only,
+                "table_config": table_config
+            },
         }
 
-        # Process in batches
-        total_batches = (len(deleted_products) + batch_size - 1) // batch_size
+        # Process batches by country
+        unique_countries = list({product["country_code"] for product in deleted_products})
+        total_batches = len(unique_countries)
 
-        for batch_idx in range(total_batches):
-            start_idx = batch_idx * batch_size
-            end_idx = min(start_idx + batch_size, len(deleted_products))
-            batch = deleted_products[start_idx:end_idx]
+        for batch_idx, country in enumerate(unique_countries):
+            batch = [product for product in deleted_products if product["country_code"] == country]
 
             self.logger.info(
-                f"Processing batch {batch_idx + 1}/{total_batches} " f"({len(batch)} products)"
+                f"Processing country batch {batch_idx + 1}/{total_batches} for country '{country}' ({len(batch)} products)"
             )
 
-            self._process_batch(conn, batch, results, summary_only)
+            self._process_batch(conn, batch, results, summary_only, table_config)
 
         # Calculate final statistics
         self._calculate_final_statistics(results)
@@ -222,18 +305,37 @@ class TubeHomologaInvestigationService:
         batch: List[Dict[str, str]],
         results: Dict[str, Any],
         summary_only: bool,
+        table_config: Dict[str, str],
     ):
         """Process a batch of deleted products."""
         # Create a list of PKs for batch query
-        pk_list = [product["pk"] for product in batch]
+        pk_list = [
+            product["pk"]
+            for product in batch
+            if self._validate_and_format_uuid(product["pk"]) is not None
+        ]
         pk_placeholders = ",".join(["?" for _ in pk_list])
 
-        # Query database for matching products
+        # Query database for matching products using detected table format
+        pk_col = table_config["pk_column"]
+        country_col = table_config["country_column"]
+        entity_type_col = table_config["entity_type_column"]
+        source_col = table_config["source_column"]
+        name_col = table_config["name_column"]
+        deleted_col = table_config["deleted_column"]
+        table_name = table_config["table_name"]
+                
         query = f"""
-        SELECT pk, c, _et, exs, n, d
-        FROM cws_catalog_prod_products
-        WHERE pk IN ({pk_placeholders})
-        AND exs = 'TUBE_HOMOLOGA'
+        SELECT 
+            {pk_col} AS pk,
+            {country_col} AS country,
+            {entity_type_col} AS entity_type,
+            {source_col} AS source,
+            {name_col} AS name,
+            {deleted_col} AS deleted
+        FROM {table_name}
+        WHERE {pk_col} IN ({pk_placeholders})
+        ORDER BY {country_col}
         """
 
         db_results = conn.execute(query, pk_list).fetchall()

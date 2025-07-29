@@ -45,12 +45,27 @@ FEATURES:
 • Reads export metadata for validation and progress tracking
 • Processes compressed .json.gz files efficiently
 • Converts DynamoDB types to Python native types
-• Merges all records into a single dataset
+• TWO PROCESSING MODES:
+  1. LEGACY: Merges all records into a single dataset
+  2. STRUCTURED: Separates entities (PRODUCT, ITEM, etc.) into different tables
 • Loads data into DuckDB for efficient analytics
 • Progress tracking and comprehensive error handling
 • Validates final record count against manifest
 • Supports large datasets with memory-efficient batch processing
 • Optional column mapping from DynamoDB names to custom DuckDB column names
+
+STRUCTURED PROCESSING (--structured):
+• Separates each entity type (rk field) into its own table:
+  - PRODUCT → product_entities table
+  - ITEM → item_entities table  
+  - FERTILIZER → fertilizer_entities table
+  - AUDIT → audit_entities table
+  - VISIBILITY → visibility_entities table
+• Maps DynamoDB field names to business-friendly column names:
+  - pk → id, n → name, c → country, d → deleted, etc.
+• Handles compressed binary fields (formulation, phrases, etc.)
+• Creates business views (vw_product, vw_item, etc.) for easy querying
+• Preserves unmapped columns with 'raw_' prefix for completeness
 
 COLUMN MAPPING:
 If a column mapping JSON file is provided via --column-mapping, the system will:
@@ -87,13 +102,27 @@ DYNAMODB TYPE CONVERSIONS:
 • BOOL → bool
 
 AWS EXPORT EXAMPLES:
-  # Process AWS DynamoDB export (auto-detected)
+  # Process AWS DynamoDB export (auto-detected) - Legacy single table
   python src/main.py syngenta aws dynamodb-json-processor \\
     --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
     --output-db catalog_export.duckdb \\
     --table-name products
 
-  # Process with column mapping configuration
+  # RECOMMENDED: Process with structured entity separation
+  python src/main.py syngenta aws dynamodb-json-processor \\
+    --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
+    --output-db catalog_structured.duckdb \\
+    --structured \\
+    --verbose
+
+  # Structured processing without business views
+  python src/main.py syngenta aws dynamodb-json-processor \\
+    --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
+    --output-db catalog_raw.duckdb \\
+    --structured \\
+    --no-create-views
+
+  # Process with column mapping configuration (legacy mode)
   python src/main.py syngenta aws dynamodb-json-processor \\
     --input-dir ./output/s3_downloads/AWSDynamoDB/01753445758221-fcc77707 \\
     --output-db catalog_export.duckdb \\
@@ -172,6 +201,16 @@ REQUIREMENTS:
             "--column-mapping",
             help="Optional JSON file for column mapping configuration (DynamoDB to DuckDB)",
         )
+        parser.add_argument(
+            "--structured",
+            action="store_true",
+            help="Use structured processing: separate each entity type (PRODUCT, ITEM, etc.) into different tables with business-friendly column names",
+        )
+        parser.add_argument(
+            "--no-create-views",
+            action="store_true",
+            help="Skip creating business-friendly views when using structured processing",
+        )
         parser.add_argument("--verbose", action="store_true", help="Enable verbose progress output")
 
     @staticmethod
@@ -195,15 +234,28 @@ REQUIREMENTS:
             logger.info(f"Starting DynamoDB JSON processing from {args.input_dir}")
 
             service = DynamoDBJSONProcessorService()
-            result = service.process_exports(
-                input_dir=args.input_dir,
-                output_db=args.output_db,
-                table_name=args.table_name,
-                batch_size=args.batch_size,
-                skip_empty_files=args.skip_empty_files,
-                verbose=args.verbose,
-                column_mapping_file=getattr(args, "column_mapping", None),
-            )
+            
+            if args.structured:
+                logger.info("Using structured processing - entities will be separated into different tables")
+                result = service.process_exports_structured(
+                    input_dir=args.input_dir,
+                    output_db=args.output_db,
+                    batch_size=args.batch_size,
+                    skip_empty_files=args.skip_empty_files,
+                    verbose=args.verbose,
+                    create_views=not args.no_create_views,  # Create views by default, skip if --no-create-views
+                )
+            else:
+                logger.info("Using legacy single-table processing")
+                result = service.process_exports(
+                    input_dir=args.input_dir,
+                    output_db=args.output_db,
+                    table_name=args.table_name,
+                    batch_size=args.batch_size,
+                    skip_empty_files=args.skip_empty_files,
+                    verbose=args.verbose,
+                    column_mapping_file=getattr(args, "column_mapping", None),
+                )
 
             logger.info("DynamoDB JSON processing completed successfully")
 
@@ -211,32 +263,54 @@ REQUIREMENTS:
             logger.info("=" * 60)
             logger.info("PROCESSING SUMMARY")
             logger.info("=" * 60)
-            logger.info(f"Files processed: {result['files_processed']}")
-            logger.info(f"Files skipped: {result['files_skipped']}")
-            logger.info(f"Total records imported: {result['total_records']}")
-            logger.info(f"Errors encountered: {result['errors']}")
+            
+            if args.structured:
+                # Structured processing results
+                logger.info(f"Total records imported: {result['total_records']}")
+                logger.info(f"Entity types found: {result['total_entities']}")
+                logger.info(f"Tables created: {', '.join(result['tables_created'])}")
+                logger.info(f"Views created: {result['views_created']}")
+                
+                logger.info("\nEntity Statistics:")
+                for entity_type, count in result['entity_statistics'].items():
+                    table_name = f"{entity_type.lower()}_entities"
+                    logger.info(f"  • {entity_type}: {count:,} records → table '{table_name}'")
+                
+                # Show processing errors if any
+                if result.get("error_count", 0) > 0:
+                    logger.warning(f"\nProcessing errors encountered: {result['error_count']}")
+                    for error_info in result.get("processing_errors", []):
+                        logger.warning(f"  • File {error_info['file_index']}: {error_info['file']}")
+                        logger.warning(f"    Error: {error_info['error']}")
+                
+            else:
+                # Legacy processing results
+                logger.info(f"Files processed: {result.get('files_processed', 0)}")
+                logger.info(f"Files skipped: {result.get('files_skipped', 0)}")
+                logger.info(f"Total records imported: {result.get('total_records', 0)}")
+                logger.info(f"Errors encountered: {result.get('errors', 0)}")
 
-            if result.get("final_table_count") is not None:
-                logger.info(f"Final table count: {result['final_table_count']}")
+                if result.get("final_table_count") is not None:
+                    logger.info(f"Final table count: {result['final_table_count']}")
 
-            if "manifest_item_count" in result:
-                manifest_count = result["manifest_item_count"]
-                logger.info(f"Manifest expected count: {manifest_count}")
+                if "manifest_item_count" in result:
+                    manifest_count = result["manifest_item_count"]
+                    logger.info(f"Manifest expected count: {manifest_count}")
 
-                if result.get("count_mismatch"):
-                    logger.warning("⚠️  Record count mismatch detected!")
-                else:
-                    logger.info("✅ Record count matches manifest")
+                    if result.get("count_mismatch"):
+                        logger.warning("⚠️  Record count mismatch detected!")
+                    else:
+                        logger.info("✅ Record count matches manifest")
+
+                logger.info(f"Table name: {args.table_name}")
+
+                # Error details if any
+                if result.get("errors", 0) > 0:
+                    logger.warning("Errors occurred during processing:")
+                    for error_detail in result.get("error_details", []):
+                        logger.warning(f"  • {error_detail['file']}: {error_detail['error']}")
 
             logger.info(f"Output database: {args.output_db}")
-            logger.info(f"Table name: {args.table_name}")
-
-            # Error details if any
-            if result["errors"] > 0:
-                logger.warning("Errors occurred during processing:")
-                for error_detail in result.get("error_details", []):
-                    logger.warning(f"  • {error_detail['file']}: {error_detail['error']}")
-
             logger.info("=" * 60)
 
         except Exception as e:
