@@ -49,9 +49,7 @@ class TubeHomologaInvestigationCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--csv-path", required=True, help="Path to CSV file with deleted products"
-        )
+        parser.add_argument("--csv-path", required=True, help="Path to CSV file with deleted products")
         parser.add_argument(
             "--db-path",
             default="data/dynamodb_export.duckdb",
