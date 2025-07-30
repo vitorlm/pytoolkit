@@ -70,6 +70,21 @@ class CWCatalogComparisonCommand(BaseCommand):
             --api-base-url https://api.cropwise.com \\
             --api-key YOUR_API_KEY \\
             --cache-duration 120
+        
+        # Simplified output showing only deletion summary
+        python src/main.py syngenta catalog cw-catalog-comparison \\
+            --csv-path data/tube-deleted-products.csv \\
+            --api-base-url https://api.cropwise.com \\
+            --api-key YOUR_API_KEY \\
+            --simplified-output
+        
+        # Simplified output with CSV export
+        python src/main.py syngenta catalog cw-catalog-comparison \\
+            --csv-path data/tube-deleted-products.csv \\
+            --api-base-url https://api.cropwise.com \\
+            --api-key YOUR_API_KEY \\
+            --simplified-output \\
+            --simplified-csv output/deletion_summary.csv
         """
 
     @staticmethod
@@ -111,6 +126,15 @@ class CWCatalogComparisonCommand(BaseCommand):
             "--country",
             required=False,
             help="Country filter (ISO2 code) to process specific country (e.g., 'BR', 'AR', 'US'). If not provided, processes all countries from CSV.",
+        )
+        parser.add_argument(
+            "--simplified-output",
+            action="store_true",
+            help="Show simplified output with only country, already deleted, and need to delete columns",
+        )
+        parser.add_argument(
+            "--simplified-csv",
+            help="Path to save simplified CSV with only country, already deleted, and need to delete columns",
         )
 
     @staticmethod
@@ -171,6 +195,17 @@ class CWCatalogComparisonCommand(BaseCommand):
             )
 
             logger.info("CW Catalog API comparison completed successfully")
+
+            # Check if simplified output is requested
+            if args.simplified_output:
+                service.print_simplified_deletion_summary(result)
+                
+                # Save simplified CSV if path provided
+                if args.simplified_csv:
+                    service.save_simplified_deletion_csv(result, args.simplified_csv)
+                    print(f"\nSimplified CSV saved to: {args.simplified_csv}")
+                
+                return  # Exit early, skip detailed output
 
             # Print comprehensive summary to console
             print("\n" + "=" * 80)

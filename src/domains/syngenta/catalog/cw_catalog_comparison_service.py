@@ -318,6 +318,73 @@ class CWCatalogComparisonService:
                     }
                 )
 
+    def print_simplified_deletion_summary(self, comparison_result: Dict[str, Any]):
+        """Print simplified deletion summary showing only country, already deleted, and need to be deleted."""
+        print("\n" + "=" * 50)
+        print("SIMPLIFIED DELETION SUMMARY")
+        print("=" * 50)
+        print(f"{'Country':<10} {'Already Deleted':<15} {'Need to Delete':<15}")
+        print("-" * 50)
+        
+        # Sort countries alphabetically for consistent output
+        sorted_countries = sorted(comparison_result["country_comparisons"].items())
+        
+        total_already_deleted = 0
+        total_need_to_delete = 0
+        
+        for country, country_comparison in sorted_countries:
+            if "summary" in country_comparison:
+                summary = country_comparison["summary"]
+                already_deleted = summary["products_already_deleted"]
+                need_to_delete = summary["products_ready_for_deletion"]
+                
+                print(f"{country:<10} {already_deleted:<15} {need_to_delete:<15}")
+                
+                total_already_deleted += already_deleted
+                total_need_to_delete += need_to_delete
+        
+        print("-" * 50)
+        print(f"{'TOTAL':<10} {total_already_deleted:<15} {total_need_to_delete:<15}")
+        print("=" * 50)
+
+    def save_simplified_deletion_csv(self, comparison_result: Dict[str, Any], csv_path: str):
+        """Save simplified deletion CSV with only country, already deleted, and need to delete columns."""
+        fieldnames = ["country", "already_deleted", "need_to_delete"]
+        
+        with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            
+            # Sort countries alphabetically for consistent output
+            sorted_countries = sorted(comparison_result["country_comparisons"].items())
+            
+            total_already_deleted = 0
+            total_need_to_delete = 0
+            
+            for country, country_comparison in sorted_countries:
+                if "summary" in country_comparison:
+                    summary = country_comparison["summary"]
+                    already_deleted = summary["products_already_deleted"]
+                    need_to_delete = summary["products_ready_for_deletion"]
+                    
+                    writer.writerow({
+                        "country": country,
+                        "already_deleted": already_deleted,
+                        "need_to_delete": need_to_delete
+                    })
+                    
+                    total_already_deleted += already_deleted
+                    total_need_to_delete += need_to_delete
+            
+            # Add total row
+            writer.writerow({
+                "country": "TOTAL",
+                "already_deleted": total_already_deleted,
+                "need_to_delete": total_need_to_delete
+            })
+        
+        self.logger.info(f"Simplified deletion CSV saved to: {csv_path}")
+
     def compare_csv_against_api(
         self,
         csv_path: str,
