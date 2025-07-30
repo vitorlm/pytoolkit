@@ -224,6 +224,45 @@ class CWCatalogComparisonCommand(BaseCommand):
                 print(f"  ID Match Rate: {overall['id_match_rate']:.1f}%")
                 print(f"  Total Match Rate: {overall['total_match_rate']:.1f}%")
 
+            # Per-country breakdown for deletion analysis
+            if "summary" in result and "country_comparisons" in result:
+                print("\n" + "-" * 60)
+                print("PRODUCTS TO DELETE BY COUNTRY")
+                print("-" * 60)
+                
+                # Sort countries by products ready for deletion (descending)
+                country_data = []
+                for country, comparison in result["country_comparisons"].items():
+                    if "summary" in comparison:
+                        country_data.append({
+                            "country": country,
+                            "ready_for_deletion": comparison["summary"]["products_ready_for_deletion"],
+                            "already_deleted": comparison["summary"]["products_already_deleted"],
+                            "not_found": comparison["summary"]["products_not_found_in_api"],
+                            "total_csv": comparison["summary"]["total_csv_products"]
+                        })
+                
+                country_data.sort(key=lambda x: x["ready_for_deletion"], reverse=True)
+                
+                if country_data:
+                    print(f"{'Country':<8} {'Ready':<8} {'Deleted':<8} {'NotFound':<10} {'Total':<8} {'%Ready':<8}")
+                    print("-" * 60)
+                    
+                    for data in country_data:
+                        ready_pct = (data["ready_for_deletion"] / data["total_csv"] * 100) if data["total_csv"] > 0 else 0
+                        print(f"{data['country']:<8} {data['ready_for_deletion']:<8} {data['already_deleted']:<8} {data['not_found']:<10} {data['total_csv']:<8} {ready_pct:<7.1f}%")
+                    
+                    # Show countries with products ready for deletion
+                    countries_with_deletions = [data for data in country_data if data["ready_for_deletion"] > 0]
+                    if countries_with_deletions:
+                        total_to_delete = sum(data["ready_for_deletion"] for data in countries_with_deletions)
+                        print(f"\n📊 DELETION SUMMARY:")
+                        print(f"   Total countries with products to delete: {len(countries_with_deletions)}")
+                        print(f"   Total products ready for deletion: {total_to_delete:,}")
+                        print(f"   Countries: {', '.join([f'{d['country']} ({d['ready_for_deletion']})' for d in countries_with_deletions[:10]])}")
+                        if len(countries_with_deletions) > 10:
+                            print(f"   ... and {len(countries_with_deletions) - 10} more countries")
+
             # Analysis recommendations
             if "summary" in result:
                 # Deletion analysis recommendations
