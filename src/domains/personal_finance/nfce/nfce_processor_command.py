@@ -13,7 +13,7 @@ from domains.personal_finance.nfce.nfce_processor_service import NFCeService
 class NFCeCommand(BaseCommand):
     @staticmethod
     def get_name() -> str:
-        return "nfce"
+        return "processor"
 
     @staticmethod
     def get_description() -> str:

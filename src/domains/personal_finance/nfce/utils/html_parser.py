@@ -278,6 +278,75 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from invoice table: {e}")
             return None, None, None
 
+    def _extract_from_page_header(self, soup: BeautifulSoup) -> Optional[dict]:
+        """
+        Extract establishment data from the header table at the top of the page
+        Structure:
+        <th>Nota Fiscal de Consumidor Eletrônica (NFC-e)</th>
+        <th><b>ORGANIZACAO VERDEMAR LTDA</b></th>
+        <td>CNPJ: 65.124.307/0016-26, Inscrição Estadual: 062705396.16-12</td>
+        <td>Rua do Ouro, 195, Serra, 3106200 - Belo Horizonte, MG</td>
+        """
+        try:
+            # Look for the main table at the top with the NFCe header
+            main_table = soup.find("table", class_="table text-center")
+            if not main_table:
+                return None
+            
+            # Find the business name (in <b> tag within <th>)
+            business_name_th = main_table.find("th", class_="text-center text-uppercase")
+            business_name = None
+            if business_name_th:
+                business_name_b = business_name_th.find("b")
+                if business_name_b:
+                    business_name = business_name_b.get_text().strip()
+            
+            # Find CNPJ and address in tbody td elements
+            tbody = main_table.find("tbody")
+            if not tbody:
+                return None
+            
+            tds = tbody.find_all("td")
+            cnpj = None
+            address = None
+            city = None
+            state = None
+            
+            for td in tds:
+                text = td.get_text().strip()
+                
+                # Extract CNPJ from text like "CNPJ: 65.124.307/0016-26, Inscrição Estadual: 062705396.16-12"
+                if "CNPJ:" in text:
+                    cnpj_match = re.search(r'CNPJ:\s*([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})', text)
+                    if cnpj_match:
+                        cnpj = self._clean_cnpj(cnpj_match.group(1))
+                
+                # Extract address from text like "Rua do Ouro, 195, Serra, 3106200 - Belo Horizonte, MG"
+                if any(keyword in text.lower() for keyword in ['rua', 'av', 'avenida', 'estrada', 'rodovia']) and ',' in text:
+                    address = text.strip()
+                    # Try to extract city and state from the end of address
+                    # Pattern: "... - CIDADE, UF" or "... CIDADE, UF"
+                    city_state_match = re.search(r'[-,]\s*([^,]+),\s*([A-Z]{2})\s*$', text)
+                    if city_state_match:
+                        city = city_state_match.group(1).strip()
+                        state = city_state_match.group(2).strip()
+            
+            # Return extracted data if we found at least business name and CNPJ
+            if business_name and cnpj:
+                return {
+                    "business_name": business_name,
+                    "cnpj": cnpj,
+                    "address": address,
+                    "city": city,
+                    "state": state
+                }
+            
+            return None
+            
+        except Exception as e:
+            self.logger.warning(f"Error extracting from page header: {e}")
+            return None
+
     def _extract_from_establishment_table(self, soup: BeautifulSoup) -> Optional[dict]:
         """
         Extract establishment data from the specific "Emitente" table in "Informações gerais da Nota" section
@@ -599,20 +668,30 @@ class NFCeDataExtractor:
     def _extract_establishment_data(
         self, soup: BeautifulSoup
     ) -> Optional[EstablishmentData]:
-        """Extract establishment/business data using Portuguese field names"""
+        """Extract establishment/business data from the top of the page"""
         try:
             establishment = EstablishmentData(cnpj="")
 
-            # First try to extract from the specific "Emitente" table in "Informações gerais da Nota"
-            establishment_data = self._extract_from_establishment_table(soup)
-            if establishment_data:
-                establishment.business_name = establishment_data.get("business_name")
-                establishment.trade_name = establishment.business_name
-                establishment.cnpj = establishment_data.get("cnpj")
-                establishment.state_registration = establishment_data.get(
-                    "state_registration"
-                )
-                establishment.state = establishment_data.get("state")
+            # First try to extract from the header table at the top of the page
+            header_establishment = self._extract_from_page_header(soup)
+            if header_establishment:
+                establishment.business_name = header_establishment.get("business_name")
+                establishment.cnpj = header_establishment.get("cnpj")
+                establishment.address = header_establishment.get("address")
+                establishment.city = header_establishment.get("city")
+                establishment.state = header_establishment.get("state")
+                self.logger.info(f"Extracted establishment from header: {establishment.business_name}, CNPJ: {establishment.cnpj}")
+            
+            # Fallback: try to extract from the specific "Emitente" table in "Informações gerais da Nota"
+            if not establishment.cnpj:
+                establishment_data = self._extract_from_establishment_table(soup)
+                if establishment_data:
+                    establishment.business_name = establishment_data.get("business_name")
+                    establishment.cnpj = establishment_data.get("cnpj")
+                    establishment.state_registration = establishment_data.get(
+                        "state_registration"
+                    )
+                    establishment.state = establishment_data.get("state")
 
             # Fallback to the general method if specific table extraction failed
             if not establishment.cnpj:
