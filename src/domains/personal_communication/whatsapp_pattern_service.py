@@ -193,3 +193,38 @@ class WhatsAppPatternService:
         
         self.logger.info(f"Found {len(matching_messages)} messages between {start_date} and {end_date}")
         return matching_messages
+    
+    def extract_portal_sped_urls(self, file_path: str) -> List[Dict[str, Any]]:
+        """
+        Extract Portal SPED URLs from WhatsApp export file
+        
+        Args:
+            file_path: Path to WhatsApp export file
+            
+        Returns:
+            List of dictionaries containing Portal SPED URL data
+        """
+        self.logger.info(f"Extracting Portal SPED URLs from: {file_path}")
+        
+        # Parse messages from file
+        messages = self.parse_chat_file(file_path)
+        
+        # Find messages with Portal SPED domain
+        portal_sped_messages = self.find_messages_with_domain(messages, "portalsped.fazenda.mg.gov.br")
+        
+        # Extract Portal SPED URLs
+        portal_sped_urls = []
+        for message in portal_sped_messages:
+            urls = message.extract_urls()
+            for url in urls:
+                if "portalsped.fazenda.mg.gov.br" in url.lower():
+                    portal_sped_urls.append({
+                        "url": url,
+                        "timestamp": message.timestamp,
+                        "sender": message.sender,
+                        "message_content": message.content[:200] + "..." if len(message.content) > 200 else message.content,
+                        "parsed_datetime": message.parsed_datetime.isoformat() if message.parsed_datetime else None
+                    })
+        
+        self.logger.info(f"Extracted {len(portal_sped_urls)} Portal SPED URLs")
+        return portal_sped_urls

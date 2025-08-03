@@ -1,0 +1,1 @@
+# NFCe domain utilities

@@ -6,7 +6,7 @@ Service for extracting detailed information from a specific CircleCI pipeline
 import requests
 import time
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from utils.logging.logging_manager import LogManager
 from utils.cache_manager.cache_manager import CacheManager
@@ -300,7 +300,7 @@ class PipelineDetailsService:
         """Get detailed failure analysis for a failed job"""
         try:
             self.logger.debug(f"🔍 Analyzing failure for job {job_number}")
-            analysis = {}
+            analysis: Dict[str, Any] = {}
 
             # Get test metadata
             analysis["test_results"] = self._get_job_test_metadata(job_number)
@@ -335,7 +335,7 @@ class PipelineDetailsService:
             return {}
 
         failed_tests = []
-        test_summary = {
+        test_summary: Dict[str, Any] = {
             "total_tests": len(test_data.get("items", [])),
             "failed_count": 0,
             "passed_count": 0,
@@ -368,7 +368,7 @@ class PipelineDetailsService:
 
     def _identify_test_failure_patterns(self, failed_tests: List[Dict]) -> Dict:
         """Identify common patterns in test failures"""
-        patterns = {"timeout_failures": [], "assertion_failures": [], "connection_failures": [], "other_failures": []}
+        patterns: Dict[str, List[str]] = {"timeout_failures": [], "assertion_failures": [], "connection_failures": [], "other_failures": []}
 
         for test in failed_tests:
             message = test.get("message", "").lower()
@@ -394,7 +394,7 @@ class PipelineDetailsService:
 
     def _categorize_artifacts(self, artifacts_data: Dict) -> Dict:
         """Categorize and analyze artifacts for failure investigation"""
-        categorized = {
+        categorized: Dict[str, Any] = {
             "logs": [],
             "test_reports": [],
             "coverage_reports": [],
@@ -548,7 +548,7 @@ class PipelineDetailsService:
 
     def _generate_failure_summary(self, pipeline_data: Dict) -> Dict:
         """Generate intelligent failure summary with root cause analysis"""
-        summary = {
+        summary: Dict[str, Any] = {
             "failure_type": "none",
             "likely_causes": [],
             "recommendations": [],
@@ -561,7 +561,7 @@ class PipelineDetailsService:
             "most_common_failure_pattern": "unknown",
         }
 
-        all_failure_patterns = []
+        all_failure_patterns: List[str] = []
 
         # Analyze workflow failures
         for workflow in pipeline_data.get("workflows", []):

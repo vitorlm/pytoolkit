@@ -210,3 +210,26 @@ LLM-Train/
 output.json
 *.json.lock
 *.json.bak
+
+# Temporary result files (should not be in root)
+cli_*.json
+*_result*.json
+*_demo*.json
+*_extraction*.json
+phase*.json
+complete_*.json
+large_*.json
+whatsapp_*.json
+
+# Temporary database backups
+*_backup.duckdb
+*_demo*.duckdb
+
+# Temporary config files
+config_*.env
+
+# Test files (should be in tests/ directory)
+test_*.py
+*_test.py
+simple_*.py
+demo_*.py
