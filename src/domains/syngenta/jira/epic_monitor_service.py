@@ -208,9 +208,13 @@ class EpicMonitorService:
             )
 
             self._logger.info("Fetching Catalog epics from JIRA")
+            # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
+            # Our fetch_issues method handles pagination automatically to get all results
             epic_data = self.jira_assistant.fetch_issues(
                 jql_query,
                 fields="key,summary,status,customfield_10015,duedate,fixVersions,priority,assignee",
+                max_results=100,  # Use 100 to work with JIRA limitation on custom fields
+                expand_changelog=False,
             )
 
             epics = []

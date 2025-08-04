@@ -80,6 +80,8 @@ class OpenIssuesService:
             self.logger.info(f"Executing JQL query: {jql_query}")
 
             # Fetch issues
+            # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
+            # Our fetch_issues method handles pagination automatically to get all results
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields=(
@@ -87,7 +89,7 @@ class OpenIssuesService:
                     "created,assignee,customfield_10851,customfield_10265,"
                     "labels,components"
                 ),
-                max_results=1000,
+                max_results=100,  # Use 100 to work with JIRA limitation on custom fields
                 expand_changelog=False,
             )
 

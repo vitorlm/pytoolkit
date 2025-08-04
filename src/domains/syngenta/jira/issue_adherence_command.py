@@ -230,6 +230,23 @@ class IssueAdherenceCommand(BaseCommand):
                 exit(1)
 
         except Exception as e:
-            logger.error(f"Failed to execute issue adherence analysis: {e}")
-            print(f"Error: Failed to execute issue adherence analysis: {e}")
+            # Check if this is a JQL/issue type error and provide helpful guidance
+            error_str = str(e)
+            if ("400" in error_str and ("does not exist for the field 'type'" in error_str)):
+                logger.error(f"Failed to execute issue adherence analysis: {e}")
+                print(f"\n{'='*50}")
+                print("ERROR: Invalid Issue Type Detected")
+                print("="*50)
+                print(f"Error: {e}")
+                print(f"\nThe command failed because one or more issue types are not valid for project {args.project_key}.")
+                print(f"You provided: {args.issue_types}")
+                print(f"\nTo fix this issue:")
+                print(f"1. Use the list-custom-fields command to see available issue types:")
+                print(f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}")
+                print(f"2. Or try with common issue types:")
+                print(f"   --issue-types 'Bug,Story,Task,Epic'")
+                print("="*50)
+            else:
+                logger.error(f"Failed to execute issue adherence analysis: {e}")
+                print(f"Error: Failed to execute issue adherence analysis: {e}")
             exit(1)

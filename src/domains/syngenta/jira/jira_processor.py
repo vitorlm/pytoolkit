@@ -52,9 +52,12 @@ class JiraProcessor:
         )
         self._logger.info(f"Fetching epics for project '{project_name}', team '{team_name}'.")
         try:
+            # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
+            # Our fetch_issues method handles pagination automatically to get all results
             return self.jira_assistant.fetch_issues(
                 jql_query,
                 fields="key,summary,customfield_10015,customfield_10233",
+                max_results=100,  # Use 100 to work with JIRA limitation on custom fields
                 expand_changelog=True,
             )
         except JiraQueryError as e:

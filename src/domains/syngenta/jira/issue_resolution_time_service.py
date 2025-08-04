@@ -107,13 +107,15 @@ class IssueResolutionTimeService:
 
             # Fetch issues with pagination to get all results
             self.logger.info(f"Executing JQL query: {jql_query}")
+            # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
+            # Our fetch_issues method handles pagination automatically to get all results
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields=(
                     "key,summary,issuetype,priority,status,assignee,customfield_10851,"
                     "customfield_10015,created,resolutiondate"
                 ),
-                max_results=50,  # Smaller batch size for better pagination
+                max_results=100,  # Use 100 to work with JIRA limitation on custom fields
                 expand_changelog=True,
             )
 

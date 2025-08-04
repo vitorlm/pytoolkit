@@ -166,7 +166,8 @@ class IssueAdherenceService:
 
             self.logger.info(f"Executing JQL query: {jql_query}")
 
-            # Fetch issues
+            # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
+            # Our fetch_issues method handles pagination automatically to get all results
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields=(
@@ -174,7 +175,7 @@ class IssueAdherenceService:
                     "resolutiondate,assignee,customfield_10851,"
                     "customfield_10265"
                 ),
-                max_results=1000,
+                max_results=100,  # Use 100 to work with JIRA limitation on custom fields
                 expand_changelog=False,
             )
 
@@ -239,6 +240,29 @@ class IssueAdherenceService:
             return results
 
         except Exception as e:
+            # Check if this is a JQL error and provide helpful suggestions
+            error_str = str(e)
+            if ("400" in error_str and ("does not exist for the field 'type'" in error_str or "invalid issue type" in error_str.lower())):
+                self.logger.error(f"JQL Query Error (400): Invalid issue type detected.")
+                self.logger.error(f"Original query: {jql_query}")
+                
+                # Try to fetch available issue types for the project
+                try:
+                    available_types = self.jira_assistant.fetch_project_issue_types(project_key)
+                    type_names = [t.get('name') for t in available_types]
+                    self.logger.error(f"Available issue types for project {project_key}: {type_names}")
+                    
+                    # Check which provided types are not available
+                    invalid_types = [t for t in issue_types if t not in type_names]
+                    if invalid_types:
+                        self.logger.error(f"Invalid issue types provided: {invalid_types}")
+                        self.logger.error(f"Suggested command with valid types:")
+                        valid_types = [t for t in issue_types if t in type_names]
+                        suggested_types = ','.join(valid_types) if valid_types else ','.join(type_names[:5])
+                        self.logger.error(f"--issue-types '{suggested_types}'")
+                except Exception as metadata_error:
+                    self.logger.warning(f"Could not fetch project metadata: {metadata_error}")
+                
             self.logger.error(f"Error in issue adherence analysis: {e}")
             raise
 

@@ -596,9 +596,18 @@ class JiraAssistant:
                         f"Loaded issues from cache for JQL: {jql_query} (start_at={start_at})"
                     )
                     if isinstance(cached_data, dict):
-                        issues.extend(cached_data.get("issues", []))
-                        if len(issues) >= cached_data.get("total", 0):
+                        current_issues = cached_data.get("issues", [])
+                        issues.extend(current_issues)
+                        
+                        # Stop if we've fetched all available issues from cache
+                        total_available = cached_data.get("total", 0)
+                        if len(issues) >= total_available or len(current_issues) == 0:
                             break
+                            
+                        # Also stop if we received fewer issues than requested (indicates last page)
+                        if len(current_issues) < max_results:
+                            break
+                            
                     elif isinstance(cached_data, list):
                         issues.extend(cached_data)
                         break
@@ -622,9 +631,18 @@ class JiraAssistant:
 
                 self._save_to_cache(cache_key, response)
                 if isinstance(response, dict):
-                    issues.extend(response.get("issues", []))
-                    if len(issues) >= response.get("total", 0):
+                    current_issues = response.get("issues", [])
+                    issues.extend(current_issues)
+                    
+                    # Stop if we've fetched all available issues
+                    total_available = response.get("total", 0)
+                    if len(issues) >= total_available or len(current_issues) == 0:
                         break
+                        
+                    # Also stop if we received fewer issues than requested (indicates last page)
+                    if len(current_issues) < max_results:
+                        break
+                        
                 elif isinstance(response, list):
                     issues.extend(response)
                     break
@@ -636,3 +654,61 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraQueryError("Error fetching issues.", jql=jql_query, error=str(e)) from e
+
+    def fetch_project_metadata(self, project_key: str) -> Dict:
+        """
+        Fetch project metadata including available issue types, statuses, etc.
+
+        Args:
+            project_key (str): The key of the Jira project.
+
+        Returns:
+            Dict: Project metadata including issue types, statuses, etc.
+        """
+        try:
+            cache_key = self._generate_cache_key("project_metadata", project_key=project_key)
+            cached_data = self._load_from_cache(cache_key)
+            if cached_data:
+                self._logger.info(f"Loaded project metadata from cache for project: {project_key}")
+                return cached_data
+
+            self._logger.info(f"Fetching project metadata for project: {project_key}")
+            response = self.client.get(f"project/{project_key}")
+
+            if not response:
+                raise JiraMetadataFetchError(f"No metadata found for project {project_key}")
+
+            self._save_to_cache(cache_key, response)
+            return response
+        except JiraMetadataFetchError as e:
+            self._logger.error(e)
+            raise
+        except Exception as e:
+            raise JiraMetadataFetchError(
+                f"Error fetching project metadata for {project_key}", 
+                project_key=project_key, 
+                error=str(e)
+            ) from e
+
+    def fetch_project_issue_types(self, project_key: str) -> List[Dict]:
+        """
+        Fetch available issue types for a specific project.
+
+        Args:
+            project_key (str): The key of the Jira project.
+
+        Returns:
+            List[Dict]: List of issue types available in the project.
+        """
+        try:
+            project_metadata = self.fetch_project_metadata(project_key)
+            issue_types = project_metadata.get("issueTypes", [])
+            
+            self._logger.info(f"Found {len(issue_types)} issue types for project {project_key}")
+            return issue_types
+        except Exception as e:
+            raise JiraMetadataFetchError(
+                f"Error fetching issue types for project {project_key}", 
+                project_key=project_key, 
+                error=str(e)
+            ) from e
