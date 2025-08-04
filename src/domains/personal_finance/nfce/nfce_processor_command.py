@@ -33,19 +33,25 @@ This command processes NFCe URLs and extracts structured data including:
 
 Examples:
   # Process URLs from JSON file (saves to output/ automatically)
-  python src/main.py personal_finance nfce --input urls.json
+  python src/main.py personal_finance nfce processor --input urls.json
   
-  # Process URLs with custom output location
-  python src/main.py personal_finance nfce --input urls.json --output output/results.json
+  # Process URLs with similarity detection (hybrid system)
+  python src/main.py personal_finance nfce processor --input urls.json --detect-similar
   
-  # Process single URL (saves to output/ automatically)
-  python src/main.py personal_finance nfce --url "https://portalsped.fazenda.mg.gov.br/..."
+  # Process URLs with SBERT embeddings for enhanced similarity
+  python src/main.py personal_finance nfce processor --input urls.json --detect-similar --use-sbert
   
-  # Process URLs and save to database (DB goes to data/, results to output/)
-  python src/main.py personal_finance nfce --input urls.json --save-db
+  # Process with custom similarity threshold
+  python src/main.py personal_finance nfce processor --input urls.json --detect-similar --similarity-threshold 0.70
   
-  # Generate analysis report
-  python src/main.py personal_finance nfce --input urls.json --analysis
+  # Process single URL with similarity detection
+  python src/main.py personal_finance nfce processor --url "https://portalsped.fazenda.mg.gov.br/..." --detect-similar
+  
+  # Import existing data with similarity analysis
+  python src/main.py personal_finance nfce processor --import-data results.json --detect-similar --save-db
+  
+  # Process URLs and save to database with analysis
+  python src/main.py personal_finance nfce processor --input urls.json --save-db --analysis --detect-similar
 
 Input format (JSON file):
   {
@@ -86,6 +92,10 @@ Output format:
         input_group.add_argument(
             "--url", 
             help="Single NFCe URL to process"
+        )
+        input_group.add_argument(
+            "--import-data",
+            help="Import existing processed NFCe data (JSON file with 'invoices' array) directly to database"
         )
         
         # Output options
@@ -129,6 +139,30 @@ Output format:
             action="store_true",
             help="Force refresh of all data, ignoring cache"
         )
+        
+        # Similarity detection options
+        parser.add_argument(
+            "--detect-similar",
+            action="store_true",
+            help="Detect similar products across different establishments using hybrid similarity engine"
+        )
+        parser.add_argument(
+            "--similarity-threshold",
+            type=float,
+            default=0.60,
+            help="Similarity threshold for product matching (default: 0.60)"
+        )
+        parser.add_argument(
+            "--use-sbert",
+            action="store_true",
+            help="Use SBERT Portuguese embeddings for enhanced similarity detection"
+        )
+        parser.add_argument(
+            "--sbert-model",
+            type=str,
+            default="paraphrase-multilingual-MiniLM-L12-v2",
+            help="SBERT model for Portuguese embeddings (default: multilingual MiniLM)"
+        )
 
     @staticmethod
     def main(args: Namespace):
@@ -144,8 +178,13 @@ Output format:
             # Validate input arguments
             NFCeCommand._validate_arguments(args, logger)
             
-            # Initialize service
+            # Initialize standard NFCe service
+            logger.info("Initializing NFCe service")
             service = NFCeService()
+            
+            # Warn about similarity features being disabled
+            if args.detect_similar:
+                logger.warning("Similarity detection not available in basic processor. Use 'product-analysis' command for similarity analysis.")
             
             # Clear cache if requested
             if args.clear_cache:
@@ -153,7 +192,10 @@ Output format:
                 service.clear_cache()
             
             # Process based on input type
-            if args.input:
+            if args.import_data:
+                logger.info(f"Importing existing data from file: {args.import_data}")
+                result = service.import_existing_data(args.import_data)
+            elif args.input:
                 logger.info(f"Processing URLs from file: {args.input}")
                 result = service.process_urls_from_file(
                     input_file=args.input,
@@ -272,6 +314,16 @@ Output format:
                 raise ValueError(f"Input path is not a file: {args.input}")
             if not args.input.lower().endswith('.json'):
                 logger.warning(f"Input file does not have .json extension: {args.input}")
+        
+        # Validate import data file exists if provided
+        if args.import_data:
+            import os
+            if not os.path.exists(args.import_data):
+                raise FileNotFoundError(f"Import data file not found: {args.import_data}")
+            if not os.path.isfile(args.import_data):
+                raise ValueError(f"Import data path is not a file: {args.import_data}")
+            if not args.import_data.lower().endswith('.json'):
+                raise ValueError(f"Import data file must be a JSON file: {args.import_data}")
         
         # Validate URL format if provided
         if args.url:

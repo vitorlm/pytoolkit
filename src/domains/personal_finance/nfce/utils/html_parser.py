@@ -152,6 +152,13 @@ class NFCeDataExtractor:
             # Extract financial totals
             self._extract_financial_data(soup, invoice_data)
 
+            # Check if this is an empty/expired NFCe page
+            if self._is_empty_nfce_page(soup, invoice_data):
+                invoice_data.scraping_success = False
+                invoice_data.add_error("NFCe appears to be expired or invalid - all data fields are empty")
+                self.logger.warning(f"NFCe page appears to be expired or invalid: {url}")
+                return invoice_data
+
             # Mark as successful if we got basic data
             invoice_data.scraping_success = bool(
                 invoice_data.establishment
@@ -159,7 +166,12 @@ class NFCeDataExtractor:
                 or invoice_data.total_amount
             )
 
-            self.logger.info(f"Successfully extracted data from {url}")
+            if invoice_data.scraping_success:
+                self.logger.info(f"Successfully extracted data from {url}")
+            else:
+                self.logger.warning(f"No meaningful data extracted from {url}")
+                invoice_data.add_error("No meaningful data found in NFCe page")
+            
             return invoice_data
 
         except Exception as e:
@@ -1513,3 +1525,61 @@ class NFCeDataExtractor:
             return potential_city if len(potential_city) > 2 else None
 
         return None
+
+    def _is_empty_nfce_page(self, soup: BeautifulSoup, invoice_data: InvoiceData) -> bool:
+        """
+        Check if the NFCe page has valid structure but empty data (expired/invalid NFCe)
+        
+        Args:
+            soup: BeautifulSoup object of the page
+            invoice_data: Partially extracted invoice data
+            
+        Returns:
+            True if page appears to be empty/expired NFCe
+        """
+        try:
+            # Check if we have the NFCe page structure but empty data
+            has_nfce_structure = (
+                soup.find(string=lambda text: text and "Nota Fiscal de Consumidor Eletrônica" in text) is not None
+                or soup.find("title", string=lambda text: text and "SEF" in text) is not None
+                or soup.find("form", id="formPrincipal") is not None
+            )
+            
+            if not has_nfce_structure:
+                return False
+            
+            # Check if critical data fields are all empty
+            critical_fields_empty = (
+                not invoice_data.invoice_number or invoice_data.invoice_number.strip() == ""
+            ) and (
+                not invoice_data.series or invoice_data.series.strip() == ""
+            ) and (
+                invoice_data.total_amount is None or invoice_data.total_amount == 0
+            ) and (
+                not invoice_data.establishment or not invoice_data.establishment.business_name
+            ) and (
+                not invoice_data.items or len(invoice_data.items) == 0
+            )
+            
+            # Additional check: look for empty table cells in the main data table
+            main_data_tables = soup.find_all("table", class_="table table-hover")
+            has_empty_data_tables = False
+            
+            for table in main_data_tables:
+                tbody = table.find("tbody")
+                if tbody:
+                    rows = tbody.find_all("tr")
+                    for row in rows:
+                        cells = row.find_all(["td", "th"])
+                        # Check if all cells in the row are empty or contain only whitespace
+                        if all(not cell.get_text().strip() for cell in cells):
+                            has_empty_data_tables = True
+                            break
+                    if has_empty_data_tables:
+                        break
+            
+            return critical_fields_empty and has_empty_data_tables
+            
+        except Exception as e:
+            self.logger.warning(f"Error checking for empty NFCe page: {e}")
+            return False

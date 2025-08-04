@@ -755,6 +755,77 @@ class NFCeService:
         except Exception as e:
             self.logger.error(f"Error saving to database: {e}", exc_info=True)
     
+    def import_existing_data(self, data_file: str) -> Dict[str, Any]:
+        """Import existing processed NFCe data directly to database"""
+        try:
+            self.logger.info(f"Importing existing data from file: {data_file}")
+            
+            # Validate file exists
+            FileManager.validate_file(data_file, allowed_extensions=[".json"])
+            
+            # Load the data
+            with open(data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Extract invoices array
+            invoices = data.get('invoices', [])
+            if not invoices:
+                self.logger.warning("No invoices found in data file")
+                return {
+                    "total_processed": 0,
+                    "successful": 0,
+                    "failed": 0,
+                    "invoices": [],
+                    "errors": ["No invoices found in data file"]
+                }
+            
+            self.logger.info(f"Found {len(invoices)} invoices to import")
+            
+            # Save to database (always save when importing)
+            self.logger.info("Saving imported data to database")
+            saved_count = 0
+            errors = []
+            
+            for i, invoice_dict in enumerate(invoices):
+                try:
+                    # Convert dict to InvoiceData object
+                    invoice_data = self._dict_to_invoice_data(invoice_dict)
+                    
+                    if not invoice_data.access_key:
+                        self.logger.warning(f"Invoice {i+1} has no access_key, skipping")
+                        errors.append(f"Invoice {i+1}: Missing access_key")
+                        continue
+                    
+                    # Store in database
+                    result = self.db_manager.store_invoice_data(invoice_data)
+                    
+                    if result:
+                        saved_count += 1
+                        self.logger.debug(f"Imported invoice {i+1}: {invoice_data.access_key[-10:]}...")
+                    else:
+                        self.logger.info(f"Invoice {i+1} with access_key {invoice_data.access_key[-10:]}... already exists, skipped")
+                        
+                except Exception as e:
+                    error_msg = f"Invoice {i+1}: {str(e)}"
+                    errors.append(error_msg)
+                    self.logger.error(f"Error importing invoice {i+1}: {e}")
+            
+            result = {
+                "total_processed": len(invoices),
+                "successful": saved_count,
+                "failed": len(invoices) - saved_count,
+                "invoices": invoices,
+                "errors": errors,
+                "import_mode": True
+            }
+            
+            self.logger.info(f"Import completed: {saved_count}/{len(invoices)} invoices imported to database")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error importing existing data: {e}", exc_info=True)
+            raise
+    
     def save_results(self, results: Dict[str, Any], output_file: str) -> None:
         """Save processing results to JSON file"""
         try:

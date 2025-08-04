@@ -9,6 +9,7 @@ from pathlib import Path
 from utils.logging.logging_manager import LogManager
 from utils.data.duckdb_manager import DuckDBManager
 from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
+from domains.personal_finance.nfce.utils.cnpj_relationship_detector import CNPJRelationshipDetector
 from domains.personal_finance.nfce.models.invoice_data import (
     InvoiceData, EstablishmentData, ProductData, ConsumerData, TaxData
 )
@@ -312,10 +313,18 @@ class NFCeDatabaseManager:
             else:
                 # Insert new establishment
                 establishment_id = self._generate_id()
+                
+                # Calculate CNPJ components for relationship tracking
+                cnpj_root = establishment.cnpj[:8]  # First 8 digits identify the company
+                branch_number = establishment.cnpj[8:12]  # Branch number (0001 = main office)
+                is_main_office = branch_number == '0001'
+                company_group_id = cnpj_root  # Use cnpj_root as group identifier
+                
                 conn.execute("""
                     INSERT INTO establishments (
-                        id, cnpj, business_name, establishment_type, address, city, state, cnae_code
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        id, cnpj, business_name, establishment_type, address, city, state, cnae_code,
+                        cnpj_root, branch_number, is_main_office, company_group_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, [
                     establishment_id,
                     establishment.cnpj,
@@ -324,11 +333,19 @@ class NFCeDatabaseManager:
                     establishment.address,
                     establishment.city,
                     establishment.state,
-                    cnae_code
+                    cnae_code,
+                    cnpj_root,
+                    branch_number,
+                    is_main_office,
+                    company_group_id
                 ])
                 self.stats['establishments_inserted'] += 1
                 
-                self.logger.info(f"Stored new establishment: {establishment.business_name} ({establishment_type})")
+                # Create or update company group
+                business_name_str = establishment.business_name or establishment.cnpj  # Fallback to CNPJ if no name
+                self._manage_company_group(conn, cnpj_root, business_name_str, establishment.cnpj, is_main_office)
+                
+                self.logger.info(f"Stored new establishment: {establishment.business_name} ({establishment_type}) - {'MATRIZ' if is_main_office else 'FILIAL'}")
             
             return establishment_id
             
@@ -355,22 +372,14 @@ class NFCeDatabaseManager:
             """, [establishment_id, product_code]).fetchone()
             
             if existing:
-                # Update existing product (increment occurrence count, update last seen)
+                # Update existing product (increment occurrence count only)
                 product_id = existing[0]
                 conn.execute("""
                     UPDATE products SET
-                        ncm_code = COALESCE(?, ncm_code),
-                        cest_code = COALESCE(?, cest_code),
-                        cfop_code = COALESCE(?, cfop_code),
                         unit = COALESCE(?, unit),
-                        last_seen_date = CURRENT_TIMESTAMP,
-                        occurrence_count = occurrence_count + 1,
-                        updated_at = CURRENT_TIMESTAMP
+                        occurrence_count = occurrence_count + 1
                     WHERE id = ?
                 """, [
-                    item.ncm_code,
-                    item.cest_code,
-                    item.cfop_code,
                     item.unit,
                     product_id
                 ])
@@ -548,6 +557,51 @@ class NFCeDatabaseManager:
             return normalized
         else:
             return None
+    
+    def _manage_company_group(self, conn, cnpj_root: str, business_name: str, full_cnpj: str, is_main_office: bool):
+        """Manage company group entries in the database"""
+        try:
+            # Check if company group already exists  
+            result = conn.execute("""
+                SELECT id FROM company_groups WHERE id = ?
+            """, [cnpj_root]).fetchone()
+            
+            if not result:
+                # Create new company group
+                company_name = business_name.split(' - ')[0]  # Take main business name before any "-"
+                
+                conn.execute("""
+                    INSERT INTO company_groups (
+                        id, company_name, main_office_cnpj, total_establishments
+                    ) VALUES (?, ?, ?, ?)
+                """, [
+                    cnpj_root,  # Use cnpj_root as the id
+                    company_name,
+                    full_cnpj if is_main_office else None,
+                    1
+                ])
+                
+                self.logger.info(f"Created new company group: {company_name} (CNPJ root: {cnpj_root})")
+            else:
+                # Update existing company group
+                update_sql = "UPDATE company_groups SET updated_at = CURRENT_TIMESTAMP"
+                update_values = []
+                
+                # Update main establishment if this is a main office
+                if is_main_office:
+                    update_sql += ", main_office_cnpj = ?"
+                    update_values.append(full_cnpj)
+                
+                # Update establishment count
+                update_sql += """, total_establishments = (
+                    SELECT COUNT(DISTINCT cnpj) FROM establishments WHERE cnpj_root = ?
+                ) WHERE id = ?"""
+                update_values.extend([cnpj_root, cnpj_root])
+                
+                conn.execute(update_sql, update_values)
+                
+        except Exception as e:
+            self.logger.error(f"Error managing company group for {cnpj_root}: {e}")
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get database statistics"""
