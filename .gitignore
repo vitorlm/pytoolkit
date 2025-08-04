@@ -228,6 +228,8 @@ whatsapp_*.json
 
 # Temporary config files
 config_*.env
+# Exception: Team configuration files that should be versioned
+!config_reports.env
 
 # Test files (should be in tests/ directory)
 test_*.py

@@ -45,6 +45,12 @@ if [ "$USE_DATE_SUFFIX" = "true" ]; then
 else
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/weekly_reports"
 fi
+
+# Clean and create output directory
+if [ -d "$OUTPUT_DIR" ]; then
+    echo "🧹 Cleaning existing output directory: $OUTPUT_DIR"
+    rm -rf "$OUTPUT_DIR"
+fi
 mkdir -p "$OUTPUT_DIR"
 
 # Header
@@ -82,7 +88,7 @@ echo ""
 
 # JIRA Reports
 STEP=1
-echo "📊 [$STEP/7] JIRA – Bug & Support (Combined 2 Weeks)"
+echo "📊 [$STEP/8] JIRA – Bug & Support (Combined 2 Weeks)"
 echo "   ⏳ Period: $JIRA_TWO_WEEKS"
 ((STEP++))
 python src/main.py syngenta jira issue-adherence \
@@ -94,7 +100,7 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-bugs-support-2-weeks.json" \
   --team "$TEAM"
 
-echo "📊 [$STEP/7] JIRA – Bug & Support (Last Week)"
+echo "📊 [$STEP/8] JIRA – Bug & Support (Last Week)"
 echo "   ⏳ Period: $JIRA_LAST_WEEK"
 ((STEP++))
 python src/main.py syngenta jira issue-adherence \
@@ -106,7 +112,7 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-bugs-support-lastweek.json" \
   --team "$TEAM"
 
-echo "📊 [$STEP/7] JIRA – Bug & Support (Week Before)"
+echo "📊 [$STEP/8] JIRA – Bug & Support (Week Before)"
 echo "   ⏳ Period: $JIRA_WEEK_BEFORE"
 ((STEP++))
 python src/main.py syngenta jira issue-adherence \
@@ -118,7 +124,7 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-bugs-support-weekbefore.json" \
   --team "$TEAM"
 
-echo "📊 [$STEP/7] JIRA – Task Completion (2 Weeks)"
+echo "📊 [$STEP/8] JIRA – Task Completion (2 Weeks)"
 echo "   ⏳ Period: $JIRA_TWO_WEEKS"
 ((STEP++))
 python src/main.py syngenta jira issue-adherence \
@@ -130,7 +136,7 @@ python src/main.py syngenta jira issue-adherence \
   --output-file "$OUTPUT_DIR/jira-tasks-2weeks.json" \
   --team "$TEAM"
 
-echo "🐛 [$STEP/7] JIRA – Open Issues (Bugs & Support)"
+echo "🐛 [$STEP/8] JIRA – Open Issues (Bugs & Support)"
 echo "   📋 Current open issues for team: $TEAM"
 ((STEP++))
 python src/main.py syngenta jira open-issues \
@@ -139,8 +145,17 @@ python src/main.py syngenta jira open-issues \
   --team "$TEAM" \
   --output-file "$OUTPUT_DIR/jira-open-bugs-support.json"
 
+# JIRA Cycle Time Report
+echo "⏱️  [$STEP/8] JIRA – Cycle Time Analysis (Last Week)"
+echo "   ⏳ Period: $JIRA_LAST_WEEK"
+((STEP++))
+python src/main.py syngenta jira cycle-time \
+  --project-key "$PROJECT_KEY" \
+  --time-period "$JIRA_LAST_WEEK" \
+  --output-file "$OUTPUT_DIR/jira-cycle-time-lastweek.json"
+
 # SonarQube Report
-echo "🔍 [$STEP/7] SonarQube – Code Quality Metrics"
+echo "🔍 [$STEP/8] SonarQube – Code Quality Metrics"
 ((STEP++))
 CLEAR_CACHE_FLAG=""
 [ "$CLEAR_CACHE" = "true" ] && CLEAR_CACHE_FLAG="--clear-cache"
@@ -154,7 +169,7 @@ python src/main.py syngenta sonarqube sonarqube \
   --project-keys "$SONARQUBE_PROJECT_KEYS"
 
 # LinearB Report
-echo "🚀 [$STEP/7] LinearB – Engineering Metrics"
+echo "🚀 [$STEP/8] LinearB – Engineering Metrics"
 LINEARB_TIME_RANGE="$WEEK_BEFORE_MONDAY,$LAST_SUNDAY"
 echo "   ⏳ Period: $LINEARB_TIME_RANGE"
 python src/main.py linearb export-report \
@@ -166,6 +181,7 @@ python src/main.py linearb export-report \
   --beautified \
   --return-no-data \
   --aggregation avg \
+  --output-folder "$OUTPUT_DIR" \
   || echo "⚠️  Warning: LinearB export report failed - check configuration"
 
 # Summary
@@ -180,8 +196,9 @@ printf "   • %-45s %s\n" "Bug & Support (last week):"     "jira-bugs-support-l
 printf "   • %-45s %s\n" "Bug & Support (week before):"   "jira-bugs-support-weekbefore.json"
 printf "   • %-45s %s\n" "Tasks (2 weeks):"              "jira-tasks-2weeks.json"
 printf "   • %-45s %s\n" "Open Bugs & Support:"          "jira-open-bugs-support.json"
+printf "   • %-45s %s\n" "Cycle Time (last week):"       "jira-cycle-time-lastweek.json"
 printf "   • %-45s %s\n" "SonarQube (13 projects):"      "sonarqube-quality-metrics.json"
-printf "   • %-45s %s\n" "LinearB (CSV format):"         "Auto-named CSV file"
+printf "   • %-45s %s\n" "LinearB (CSV format):"         "linearb_export*.csv"
 echo ""
 echo "📈 Week-over-week comparison:"
 echo "   → Last week:    $OUTPUT_DIR/jira-bugs-support-lastweek.json"
