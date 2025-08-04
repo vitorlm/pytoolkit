@@ -116,7 +116,7 @@ class CrossEstablishmentAnalysisService:
         ORDER BY p.description, e.business_name
         """
         
-        conn = self.db_manager.get_connection()
+        conn = self.db_manager.db_manager.get_connection("nfce_db")
         result = conn.execute(query).fetchall()
         
         products = []
@@ -140,7 +140,7 @@ class CrossEstablishmentAnalysisService:
     def _group_products_by_description(self, products: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """Group products by normalized description"""
         
-        groups = defaultdict(list)
+        groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
         
         for product in products:
             normalized_desc = self._normalize_description(product["description"])
@@ -346,7 +346,7 @@ class CrossEstablishmentAnalysisService:
     def _analyze_establishments(self, cross_products: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Analyze establishment patterns in cross products"""
         
-        establishment_stats = defaultdict(int)
+        establishment_stats: Dict[str, int] = defaultdict(int)
         establishment_info = {}
         
         for product in cross_products:
