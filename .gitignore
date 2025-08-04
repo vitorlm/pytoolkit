@@ -204,6 +204,7 @@ out/
 
 LLM-Train/
 /data/
+/arquive/
 /cache/
 /logs/
 /output/
