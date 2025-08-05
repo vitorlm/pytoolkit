@@ -152,6 +152,7 @@ echo "   ⏳ Period: $JIRA_LAST_WEEK"
 python src/main.py syngenta jira cycle-time \
   --project-key "$PROJECT_KEY" \
   --time-period "$JIRA_LAST_WEEK" \
+  --team "$TEAM" \
   --output-file "$OUTPUT_DIR/jira-cycle-time-lastweek.json"
 
 # SonarQube Report
