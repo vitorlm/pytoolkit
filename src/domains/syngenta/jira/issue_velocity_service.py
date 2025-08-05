@@ -97,12 +97,14 @@ class IssueVelocityService:
             # Fetch created and resolved issues
             self.logger.info("Fetching created issues...")
             created_issues = self._fetch_created_issues(filters)
+            self.logger.info(f"Fetched {len(created_issues)} created issues")
 
             self.logger.info("Fetching resolved issues...")
             resolved_issues = self._fetch_resolved_issues(filters)
+            self.logger.info(f"Fetched {len(resolved_issues)} resolved issues")
 
             self.logger.info(
-                f"Found {len(created_issues)} created and {len(resolved_issues)} resolved issues"
+                f"Total: {len(created_issues)} created, {len(resolved_issues)} resolved issues"
             )
 
             # Group issues by time periods
@@ -205,7 +207,11 @@ class IssueVelocityService:
         jql = self._build_created_issues_jql(filters)
         self.logger.debug(f"Created issues JQL: {jql}")
 
-        issues = self.jira_processor.jira_assistant.fetch_issues(jql, max_results=1000)
+        issues = self.jira_processor.jira_assistant.fetch_issues(
+            jql_query=jql,
+            fields="key,summary,issuetype,status,priority,assignee,created,resolutiondate,labels,customfield_10851",
+            max_results=100  # Use 100 to work with JIRA limitation on custom fields
+        )
         return self._process_issues_data(issues, "created")
 
     def _fetch_resolved_issues(self, filters: Dict) -> List[Dict]:
@@ -213,7 +219,11 @@ class IssueVelocityService:
         jql = self._build_resolved_issues_jql(filters)
         self.logger.debug(f"Resolved issues JQL: {jql}")
 
-        issues = self.jira_processor.jira_assistant.fetch_issues(jql, max_results=1000)
+        issues = self.jira_processor.jira_assistant.fetch_issues(
+            jql_query=jql,
+            fields="key,summary,issuetype,status,priority,assignee,created,resolutiondate,labels,customfield_10851", 
+            max_results=100  # Use 100 to work with JIRA limitation on custom fields
+        )
         return self._process_issues_data(issues, "resolved")
 
     def _build_created_issues_jql(self, filters: Dict) -> str:
@@ -233,7 +243,7 @@ class IssueVelocityService:
 
         # Team filter
         if filters.get("team"):
-            jql_parts.append(f"\"Squad[Dropdown]\" = '{filters['team']}'")
+            jql_parts.append(f"'Squad[Dropdown]' = '{filters['team']}'")
 
         # Labels filter
         if filters.get("labels"):
@@ -250,8 +260,8 @@ class IssueVelocityService:
         # Date filter for resolution
         start_date = filters["start_date"].strftime("%Y-%m-%d")
         end_date = filters["end_date"].strftime("%Y-%m-%d")
-        jql_parts.append(f"resolved >= '{start_date}'")
-        jql_parts.append(f"resolved <= '{end_date}'")
+        jql_parts.append(f"resolutiondate >= '{start_date}'")
+        jql_parts.append(f"resolutiondate <= '{end_date}'")
 
         # Only resolved issues
         jql_parts.append("statusCategory = Done")
@@ -263,14 +273,14 @@ class IssueVelocityService:
 
         # Team filter
         if filters.get("team"):
-            jql_parts.append(f"\"Squad[Dropdown]\" = '{filters['team']}'")
+            jql_parts.append(f"'Squad[Dropdown]' = '{filters['team']}'")
 
         # Labels filter
         if filters.get("labels"):
             for label in filters["labels"]:
                 jql_parts.append(f"labels = '{label}'")
 
-        jql = " AND ".join(jql_parts) + " ORDER BY resolved ASC"
+        jql = " AND ".join(jql_parts) + " ORDER BY resolutiondate ASC"
         return jql
 
     def _process_issues_data(self, issues: List[Dict], _date_type: str) -> List[Dict]:
@@ -291,12 +301,12 @@ class IssueVelocityService:
                     ),
                     "assignee": self._get_assignee_name(issue.get("fields", {}).get("assignee")),
                     "created": issue.get("fields", {}).get("created"),
-                    "resolved": issue.get("fields", {}).get("resolved"),
+                    "resolved": issue.get("fields", {}).get("resolutiondate"),
                     "labels": issue.get("fields", {}).get("labels", []),
                 }
 
                 # Add team info if available
-                squad_field = issue.get("fields", {}).get("customfield_12431")
+                squad_field = issue.get("fields", {}).get("customfield_10851")  # Squad[Dropdown]
                 if squad_field:
                     issue_data["team"] = squad_field.get("value", "Unknown")
 

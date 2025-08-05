@@ -132,12 +132,12 @@ class IssuesCreationAnalysisService:
 
             # Fetch issues with pagination to get all results
             self.logger.info(f"Executing JQL query: {jql_query}")
-            # Fetch issues - No custom fields, so can use higher maxResults
+            # Fetch issues with pagination to get all results
             # Our fetch_issues method handles pagination automatically to get all results
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields="key,summary,created,issuetype,project,labels,status,assignee,priority",
-                max_results=1000,  # Higher limit since no custom fields
+                max_results=100,  # Use 100 to work with JIRA API limitations
                 expand_changelog=False,
             )
 
