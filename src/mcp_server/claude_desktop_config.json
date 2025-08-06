@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pytoolkit-management": {
+      "command": "python",
+      "args": ["/Users/vitormendonca/git-pessoal/python/PyToolkit/src/mcp/management_mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "/Users/vitormendonca/git-pessoal/python/PyToolkit"
+      }
+    }
+  }
+}

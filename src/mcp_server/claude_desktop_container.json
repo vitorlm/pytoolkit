@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pytoolkit-management-container": {
+      "transport": "http",
+      "url": "http://localhost:8000/mcp",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}

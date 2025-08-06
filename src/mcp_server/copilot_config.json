@@ -1,0 +1,45 @@
+{
+  "mcp_servers": [
+    {
+      "name": "pytoolkit-management", 
+      "description": "PyToolkit MCP Management Server - Integrates JIRA, SonarQube, CircleCI, and LinearB for team management and reporting",
+      "command": "python",
+      "args": ["/Users/vitormendonca/git-pessoal/python/PyToolkit/src/mcp/management_mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "/Users/vitormendonca/git-pessoal/python/PyToolkit"
+      },
+      "capabilities": ["tools", "resources", "prompts"],
+      "transport": "stdio",
+      "version": "1.0.0",
+      "features": {
+        "weekly_reports": "Automated weekly engineering reports compatible with run_reports.sh",
+        "quarterly_analysis": "Q1-C1, Q1-C2 quarterly/cycle analysis instead of sprints", 
+        "quality_monitoring": "SonarQube + CI/CD quality tracking",
+        "team_metrics": "JIRA + LinearB team performance metrics",
+        "template_compatibility": "Direct integration with report_template.md structure"
+      },
+      "tools": {
+        "jira": 4,
+        "sonarqube": 4,
+        "circleci": 3,
+        "linearb": 4,
+        "health": 1,
+        "total": 16
+      },
+      "resources": {
+        "team": 4,
+        "quality": 4, 
+        "pipeline": 4,
+        "weekly": 5,
+        "total": 17
+      },
+      "prompts": {
+        "weekly": 5,
+        "quarterly": 3,
+        "quality": 3,
+        "team": 2,
+        "total": 13
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+services:
+  # MCP Server with stdio (for Claude Desktop local connections)
+  mcp-server-stdio:
+    build: 
+      context: ../..  # Build from PyToolkit root
+      dockerfile: src/mcp_server/Dockerfile
+    container_name: pytoolkit-mcp-server-stdio
+    volumes:
+      # Mount source for development
+      - ../../src:/app/src
+      - ../../data:/app/data
+      - ../../cache:/app/cache
+      - ../../logs:/app/logs
+      - ../../output:/app/output
+      # Mount environment files
+      - ../../.env:/app/.env:ro
+      - ../../src/domains/syngenta/jira/.env:/app/src/domains/syngenta/jira/.env:ro
+      - ../../src/domains/syngenta/sonarqube/.env:/app/src/domains/syngenta/sonarqube/.env:ro
+    environment:
+      - PYTHONPATH=/app
+      - MCP_SERVER_MODE=stdio
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '/app'); from src.mcp_server.management_mcp_server import ManagementMCPServer; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    command: ["python", "src/mcp_server/management_mcp_server.py"]
+
+  # MCP Server with HTTP (for remote connections)
+  mcp-server-http:
+    build: 
+      context: ../..  # Build from PyToolkit root
+      dockerfile: src/mcp_server/Dockerfile
+    container_name: pytoolkit-mcp-server-http
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source for development
+      - ../../src:/app/src
+      - ../../data:/app/data
+      - ../../cache:/app/cache
+      - ../../logs:/app/logs
+      - ../../output:/app/output
+      # Mount environment files
+      - ../../.env:/app/.env:ro
+      - ../../src/domains/syngenta/jira/.env:/app/src/domains/syngenta/jira/.env:ro
+      - ../../src/domains/syngenta/sonarqube/.env:/app/src/domains/syngenta/sonarqube/.env:ro
+    environment:
+      - PYTHONPATH=/app
+      - MCP_SERVER_PORT=8000
+      - MCP_SERVER_HOST=0.0.0.0
+      - MCP_SERVER_MODE=http
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '/app'); from src.mcp_server.http_mcp_server import HTTPMCPServer; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - mcp-network
+    command: ["python", "src/mcp_server/http_mcp_server.py"]
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  mcp-data:
+    driver: local
+  mcp-cache:
+    driver: local
+  mcp-logs:
+    driver: local

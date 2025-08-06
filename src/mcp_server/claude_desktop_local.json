@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pytoolkit-management-local": {
+      "command": "/Users/vitormendonca/git-pessoal/python/PyToolkit/src/mcp_server/run_mcp_server.sh",
+      "args": []
+    }
+  }
+}
