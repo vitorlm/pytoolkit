@@ -71,7 +71,10 @@ class TubeHomologaInvestigationService:
         """
         # Validate output format
         if output_format not in ["json", "csv"]:
-            raise ValueError(f"Unsupported output format: {output_format}. Supported formats: json, csv")
+            raise ValueError(
+                f"Unsupported output format: {output_format}. "
+                f"Supported formats: json, csv"
+            )
 
         self.logger.info("Starting deleted products investigation")
 
@@ -153,7 +156,8 @@ class TubeHomologaInvestigationService:
             # Log first few invalid UUIDs for debugging
             for invalid in invalid_uuids[:5]:
                 self.logger.warning(
-                    f"  Row {invalid['row_number']}: '{invalid['raw_pk']}' " f"({invalid['country_code']})"
+                    f"  Row {invalid['row_number']}: '{invalid['raw_pk']}' "
+                    f"({invalid['country_code']})"
                 )
             if len(invalid_uuids) > 5:
                 self.logger.warning(f"  ... and {len(invalid_uuids) - 5} more")
@@ -220,7 +224,9 @@ class TubeHomologaInvestigationService:
                 }
             else:
                 # Default fallback
-                self.logger.warning("No recognized table format found, using catalog_items as fallback")
+                self.logger.warning(
+                    "No recognized table format found, using catalog_items as fallback"
+                )
                 return {
                     "table_name": "catalog_items",
                     "format": "fallback",
@@ -285,7 +291,8 @@ class TubeHomologaInvestigationService:
             batch = [product for product in deleted_products if product["country_code"] == country]
 
             self.logger.info(
-                f"Processing country batch {batch_idx + 1}/{total_batches} for country '{country}' ({len(batch)} products)"
+                f"Processing country batch {batch_idx + 1}/{total_batches} "
+                f"for country '{country}' ({len(batch)} products)"
             )
 
             self._process_batch(conn, batch, results, summary_only, table_config)
@@ -306,7 +313,10 @@ class TubeHomologaInvestigationService:
     ):
         """Process a batch of deleted products."""
         # Create a list of PKs for batch query
-        pk_list = [product["pk"] for product in batch if self._validate_and_format_uuid(product["pk"]) is not None]
+        pk_list = [
+            product["pk"] for product in batch
+            if self._validate_and_format_uuid(product["pk"]) is not None
+        ]
         pk_placeholders = ",".join(["?" for _ in pk_list])
 
         # Query database for matching products using detected table format
@@ -319,7 +329,7 @@ class TubeHomologaInvestigationService:
         table_name = table_config["table_name"]
 
         query = f"""
-        SELECT 
+        SELECT
             {pk_col} AS pk,
             {country_col} AS country,
             {entity_type_col} AS entity_type,
@@ -523,13 +533,17 @@ class TubeHomologaInvestigationService:
             writer.writerow(["STATISTICS BY COUNTRY"])
             writer.writerow(["Country", "Total", "Found", "Match Rate (%)"])
             for country, stats in results["by_country"].items():
-                writer.writerow([country, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"])
+                writer.writerow(
+                    [country, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"]
+                )
             writer.writerow([])
 
             # Write statistics by entity type
             writer.writerow(["STATISTICS BY ENTITY TYPE"])
             writer.writerow(["Entity Type", "Total", "Found", "Match Rate (%)"])
             for entity_type, stats in results["by_entity_type"].items():
-                writer.writerow([entity_type, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"])
+                writer.writerow(
+                    [entity_type, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"]
+                )
 
         self.logger.info("CSV summary saved successfully")

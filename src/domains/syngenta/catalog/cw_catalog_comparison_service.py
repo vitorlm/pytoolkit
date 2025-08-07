@@ -31,16 +31,26 @@ class CWCatalogComparisonService:
     def _apply_config_defaults(self, **kwargs) -> Dict[str, Any]:
         """Apply configuration defaults to parameters."""
         return {
-            "api_base_url": kwargs.get("api_base_url") or self.config.CROPWISE_API_BASE_URL,
+            "api_base_url": kwargs.get("api_base_url")
+            or self.config.CROPWISE_API_BASE_URL,
             "api_key": kwargs.get("api_key") or self.config.CROPWISE_API_KEY,
             "org_id": kwargs.get("org_id") or self.config.DEFAULT_ORG_ID,
             "source": kwargs.get("source") or self.config.DEFAULT_SOURCE,
             "batch_size": kwargs.get("batch_size") or self.config.DEFAULT_BATCH_SIZE,
-            "cache_duration_minutes": kwargs.get("cache_duration_minutes") or self.config.DEFAULT_CACHE_DURATION,
+            "cache_duration_minutes": kwargs.get("cache_duration_minutes")
+            or self.config.DEFAULT_CACHE_DURATION,
             **{
                 k: v
                 for k, v in kwargs.items()
-                if k not in ["api_base_url", "api_key", "org_id", "source", "batch_size", "cache_duration_minutes"]
+                if k
+                not in [
+                    "api_base_url",
+                    "api_key",
+                    "org_id",
+                    "source",
+                    "batch_size",
+                    "cache_duration_minutes",
+                ]
             },
         }
 
@@ -76,12 +86,19 @@ class CWCatalogComparisonService:
         Returns:
             Dictionary with comparison results showing which CSV products exist in API
         """
-        country_msg = f" for country: {country_filter}" if country_filter else " without country filter"
+        country_msg = (
+            f" for country: {country_filter}"
+            if country_filter
+            else " without country filter"
+        )
         self.logger.info(f"Starting optimized CSV vs API comparison{country_msg}")
 
         # Apply configuration defaults
         config = self._apply_config_defaults(
-            country_filter=country_filter, output_path=output_path, include_deleted=include_deleted, **config_overrides
+            country_filter=country_filter,
+            output_path=output_path,
+            include_deleted=include_deleted,
+            **config_overrides,
         )
 
         # Validate required parameters
@@ -98,9 +115,14 @@ class CWCatalogComparisonService:
             raise ValueError(f"No products found in CSV file: {csv_path}")
 
         if not country_filter:
-            self.logger.info(f"Found {csv_stats['total_products']} products in CSV (all countries)")
+            self.logger.info(
+                f"Found {csv_stats['total_products']} products in CSV (all countries)"
+            )
         else:
-            self.logger.info(f"Found {csv_stats['total_products']} products in CSV for country '{country_filter}'")
+            self.logger.info(
+                f"Found {csv_stats['total_products']} products in CSV "
+                f"for country '{country_filter}'"
+            )
 
         # Build unique CSV IDs per country (always available in products_by_country)
         unique_csv_ids_by_country = {
@@ -110,9 +132,13 @@ class CWCatalogComparisonService:
 
         api_products_by_country = {}
         for country, ids in unique_csv_ids_by_country.items():
-            self.logger.info(f"Processing country '{country}' with {len(ids)} unique product IDs from CSV")
+            self.logger.info(
+                f"Processing country '{country}' with {len(ids)} unique product IDs from CSV"
+            )
             cache_key = f"api_products_by_ids_{country}_{len(ids)}_{include_deleted}"
-            cached_products = self.cache.load(cache_key, expiration_minutes=config["cache_duration_minutes"])
+            cached_products = self.cache.load(
+                cache_key, expiration_minutes=config["cache_duration_minutes"]
+            )
 
             if cached_products is None:
                 country_products = api_client.get_products_by_ids_in_batches(
@@ -125,10 +151,15 @@ class CWCatalogComparisonService:
                 # Cache only after successfully reading all products from the country
                 self.cache.save(cache_key, country_products)
                 api_products_by_country[country] = country_products
-                self.logger.info(f"Downloaded and cached {len(country_products)} products for country '{country}'")
+                self.logger.info(
+                    f"Downloaded and cached {len(country_products)} products "
+                    f"for country '{country}'"
+                )
             else:
                 api_products_by_country[country] = cached_products
-                self.logger.info(f"Using cached data: {len(cached_products)} products for country '{country}'")
+                self.logger.info(
+                    f"Using cached data: {len(cached_products)} products for country '{country}'"
+                )
 
         # Perform comparison for each country
         country_comparisons = {}
@@ -147,15 +178,25 @@ class CWCatalogComparisonService:
 
             # Perform deletion status analysis for this country
             country_comparison = self._analyze_deletion_status(
-                csv_products=csv_country_products, api_products=api_country_products, country_filter=country
+                csv_products=csv_country_products,
+                api_products=api_country_products,
+                country_filter=country,
             )
             country_comparisons[country] = country_comparison
 
             # Update overall stats
-            overall_stats["products_found_in_api"] += country_comparison["summary"]["products_found_in_api"]
-            overall_stats["products_not_found_in_api"] += country_comparison["summary"]["products_not_found_in_api"]
-            overall_stats["products_ready_for_deletion"] += country_comparison["summary"]["products_ready_for_deletion"]
-            overall_stats["products_already_deleted"] += country_comparison["summary"]["products_already_deleted"]
+            overall_stats["products_found_in_api"] += country_comparison["summary"][
+                "products_found_in_api"
+            ]
+            overall_stats["products_not_found_in_api"] += country_comparison["summary"][
+                "products_not_found_in_api"
+            ]
+            overall_stats["products_ready_for_deletion"] += country_comparison[
+                "summary"
+            ]["products_ready_for_deletion"]
+            overall_stats["products_already_deleted"] += country_comparison["summary"][
+                "products_already_deleted"
+            ]
 
         # Build complete comparison result
         comparison_result = {
@@ -183,7 +224,10 @@ class CWCatalogComparisonService:
         return comparison_result
 
     def _analyze_deletion_status(
-        self, csv_products: List[Dict[str, str]], api_products: List[Dict[str, Any]], country_filter: str
+        self,
+        csv_products: List[Dict[str, str]],
+        api_products: List[Dict[str, Any]],
+        country_filter: str,
     ) -> Dict[str, Any]:
         """
         Analyze deletion status of CSV products against API results.
@@ -202,7 +246,9 @@ class CWCatalogComparisonService:
         self.logger.info(f"Analyzing deletion status for {country_filter}")
 
         # Create lookup dictionary for API products by ID
-        api_products_by_id = {product.get("id", "").lower(): product for product in api_products}
+        api_products_by_id = {
+            product.get("id", "").lower(): product for product in api_products
+        }
 
         # Track different categories based on deletion status
         products_ready_for_deletion = []  # CSV products found in API and NOT deleted
@@ -249,9 +295,17 @@ class CWCatalogComparisonService:
                 "products_not_found_in_api": not_found_count,
                 "products_ready_for_deletion": ready_for_deletion_count,
                 "products_already_deleted": already_deleted_count,
-                "found_percentage": (found_count / total_csv * 100) if total_csv > 0 else 0,
-                "already_deleted_percentage": (already_deleted_count / total_csv * 100) if total_csv > 0 else 0,
-                "ready_for_deletion_percentage": (ready_for_deletion_count / total_csv * 100) if total_csv > 0 else 0,
+                "found_percentage": (found_count / total_csv * 100)
+                if total_csv > 0
+                else 0,
+                "already_deleted_percentage": (already_deleted_count / total_csv * 100)
+                if total_csv > 0
+                else 0,
+                "ready_for_deletion_percentage": (
+                    ready_for_deletion_count / total_csv * 100
+                )
+                if total_csv > 0
+                else 0,
             },
             "products_ready_for_deletion": products_ready_for_deletion,
             "products_already_deleted": products_already_deleted,
@@ -267,7 +321,9 @@ class CWCatalogComparisonService:
 
         return result
 
-    def _save_id_comparison_report(self, comparison_result: Dict[str, Any], output_path: str):
+    def _save_id_comparison_report(
+        self, comparison_result: Dict[str, Any], output_path: str
+    ):
         """Save comprehensive ID-based comparison report."""
         output_dir = os.path.dirname(output_path)
         if output_dir:
@@ -282,7 +338,9 @@ class CWCatalogComparisonService:
         summary_csv_path = f"{base_name}_summary.csv"
         self._save_id_comparison_summary_csv(comparison_result, summary_csv_path)
 
-    def _save_id_comparison_summary_csv(self, comparison_result: Dict[str, Any], csv_path: str):
+    def _save_id_comparison_summary_csv(
+        self, comparison_result: Dict[str, Any], csv_path: str
+    ):
         """Save summary CSV for deletion status analysis."""
         fieldnames = [
             "country_code",
@@ -301,89 +359,171 @@ class CWCatalogComparisonService:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
 
-            for country, country_comparison in comparison_result["country_comparisons"].items():
+            for country, country_comparison in comparison_result[
+                "country_comparisons"
+            ].items():
                 summary = country_comparison["summary"]
                 writer.writerow(
                     {
                         "country_code": country,
                         "total_csv_products": summary["total_csv_products"],
                         "products_found_in_api": summary["products_found_in_api"],
-                        "products_not_found_in_api": summary["products_not_found_in_api"],
-                        "products_ready_for_deletion": summary["products_ready_for_deletion"],
+                        "products_not_found_in_api": summary[
+                            "products_not_found_in_api"
+                        ],
+                        "products_ready_for_deletion": summary[
+                            "products_ready_for_deletion"
+                        ],
                         "products_already_deleted": summary["products_already_deleted"],
                         "found_percentage": f"{summary['found_percentage']:.1f}%",
-                        "ready_for_deletion_percentage": f"{summary['ready_for_deletion_percentage']:.1f}%",
-                        "already_deleted_percentage": f"{summary['already_deleted_percentage']:.1f}%",
+                        "ready_for_deletion_percentage": (
+                            f"{summary['ready_for_deletion_percentage']:.1f}%"
+                        ),
+                        "already_deleted_percentage": (
+                            f"{summary['already_deleted_percentage']:.1f}%"
+                        ),
                         "comparison_method": "deletion_status_analysis",
                     }
                 )
 
     def print_simplified_deletion_summary(self, comparison_result: Dict[str, Any]):
-        """Print simplified deletion summary showing only country, already deleted, and need to be deleted."""
+        """
+        Print simplified deletion summary showing only country,
+        already deleted, and need to be deleted.
+        """
         print("\n" + "=" * 50)
         print("SIMPLIFIED DELETION SUMMARY")
         print("=" * 50)
         print(f"{'Country':<10} {'Already Deleted':<15} {'Need to Delete':<15}")
         print("-" * 50)
-        
+
         # Sort countries alphabetically for consistent output
         sorted_countries = sorted(comparison_result["country_comparisons"].items())
-        
+
         total_already_deleted = 0
         total_need_to_delete = 0
-        
+
         for country, country_comparison in sorted_countries:
             if "summary" in country_comparison:
                 summary = country_comparison["summary"]
                 already_deleted = summary["products_already_deleted"]
                 need_to_delete = summary["products_ready_for_deletion"]
-                
+
                 print(f"{country:<10} {already_deleted:<15} {need_to_delete:<15}")
-                
+
                 total_already_deleted += already_deleted
                 total_need_to_delete += need_to_delete
-        
+
         print("-" * 50)
-        print(f"{'TOTAL':<10} {total_already_deleted:<15} {total_need_to_delete:<15}")
+        print(
+            f"{'TOTAL':<10} {total_already_deleted:<15} {total_need_to_delete:<15}"
+        )
         print("=" * 50)
 
-    def save_simplified_deletion_csv(self, comparison_result: Dict[str, Any], csv_path: str):
-        """Save simplified deletion CSV with only country, already deleted, and need to delete columns."""
+    def save_simplified_deletion_csv(
+        self, comparison_result: Dict[str, Any], csv_path: str
+    ):
+        """
+        Save simplified deletion CSV with only country, already deleted,
+        and need to delete columns.
+        """
         fieldnames = ["country", "already_deleted", "need_to_delete"]
-        
+
         with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            
+
             # Sort countries alphabetically for consistent output
             sorted_countries = sorted(comparison_result["country_comparisons"].items())
-            
+
             total_already_deleted = 0
             total_need_to_delete = 0
-            
+
             for country, country_comparison in sorted_countries:
                 if "summary" in country_comparison:
                     summary = country_comparison["summary"]
                     already_deleted = summary["products_already_deleted"]
                     need_to_delete = summary["products_ready_for_deletion"]
-                    
-                    writer.writerow({
-                        "country": country,
-                        "already_deleted": already_deleted,
-                        "need_to_delete": need_to_delete
-                    })
-                    
+
+                    writer.writerow(
+                        {
+                            "country": country,
+                            "already_deleted": already_deleted,
+                            "need_to_delete": need_to_delete,
+                        }
+                    )
+
                     total_already_deleted += already_deleted
                     total_need_to_delete += need_to_delete
-            
+
             # Add total row
-            writer.writerow({
-                "country": "TOTAL",
-                "already_deleted": total_already_deleted,
-                "need_to_delete": total_need_to_delete
-            })
-        
+            writer.writerow(
+                {
+                    "country": "TOTAL",
+                    "already_deleted": total_already_deleted,
+                    "need_to_delete": total_need_to_delete,
+                }
+            )
+
         self.logger.info(f"Simplified deletion CSV saved to: {csv_path}")
+
+    def save_bulk_delete_csv(self, comparison_result: Dict[str, Any], csv_path: str):
+        """
+        Save CSV file formatted for bulk-product-delete command.
+
+        Contains columns:
+        - country: Country code (ISO2)
+        - product_id: UUID of the product to delete
+        - csv_name: Product name from CSV (trade_name field)
+        - api_name: Product name from API response
+        - names_match: Boolean indicating if CSV and API names match (case-insensitive)
+
+        Only includes products that need to be deleted (exist in API and not deleted).
+        """
+        fieldnames = ["country", "product_id", "csv_name", "api_name", "names_match"]
+
+        with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            total_products = 0
+
+            # Process each country's comparison results
+            for country, country_comparison in comparison_result[
+                "country_comparisons"
+            ].items():
+                if "products_ready_for_deletion" in country_comparison:
+                    products_to_delete = country_comparison[
+                        "products_ready_for_deletion"
+                    ]
+
+                    for product in products_to_delete:
+                        csv_name = product.get("trade_name", "").strip()
+                        api_name = product.get("api_name", "").strip()
+
+                        # Compare names (case-insensitive)
+                        names_match = (
+                            csv_name.lower() == api_name.lower()
+                            if csv_name and api_name
+                            else False
+                        )
+
+                        writer.writerow(
+                            {
+                                "country": country,
+                                "product_id": product["id"],
+                                "csv_name": csv_name,
+                                "api_name": api_name,
+                                "names_match": names_match,
+                            }
+                        )
+
+                        total_products += 1
+
+        self.logger.info(
+            f"Bulk delete CSV saved to: {csv_path} with {total_products} "
+            f"products ready for deletion"
+        )
 
     def compare_csv_against_api(
         self,
@@ -406,9 +546,15 @@ class CWCatalogComparisonService:
                 **{k: v for k, v in kwargs.items() if k != "batch_size"},
             )
 
-        self.logger.info("Using original method - downloading all products from country")
+        self.logger.info(
+            "Using original method - downloading all products from country"
+        )
         return self._compare_csv_against_api_original(
-            csv_path=csv_path, api_base_url=api_base_url, api_key=api_key, country_filter=country_filter, **kwargs
+            csv_path=csv_path,
+            api_base_url=api_base_url,
+            api_key=api_key,
+            country_filter=country_filter,
+            **kwargs,
         )
 
     def _compare_csv_against_api_original(
@@ -425,7 +571,8 @@ class CWCatalogComparisonService:
         cache_duration_minutes: int = 60,
     ) -> Dict[str, Any]:
         """
-        Original implementation: Compare CSV products against CW Catalog API by downloading all country products.
+        Original implementation: Compare CSV products against CW Catalog API
+        by downloading all country products.
 
         This method downloads all products from a country and then compares against CSV.
         Less efficient for large datasets but provides complete country overview.
@@ -450,7 +597,10 @@ class CWCatalogComparisonService:
                 f"Available countries: {list(csv_products_by_country.keys())}"
             )
 
-        self.logger.info(f"CSV analysis for {country_filter}: {len(csv_products_by_country[country_filter])} products")
+        self.logger.info(
+            f"CSV analysis for {country_filter}: "
+            f"{len(csv_products_by_country[country_filter])} products"
+        )
 
         # Download API products for the specified country only
         api_results = {}
@@ -482,8 +632,12 @@ class CWCatalogComparisonService:
 
         try:
             # Check cache first
-            cache_key = f"api_products_{org_id}_{country_filter}_{source}_{include_deleted}"
-            api_products = self.cache.load(cache_key, expiration_minutes=cache_duration_minutes)
+            cache_key = (
+                f"api_products_{org_id}_{country_filter}_{source}_{include_deleted}"
+            )
+            api_products = self.cache.load(
+                cache_key, expiration_minutes=cache_duration_minutes
+            )
 
             if api_products is None:
                 # Download from API
@@ -496,9 +650,13 @@ class CWCatalogComparisonService:
                 )
                 # Cache the results
                 self.cache.save(cache_key, api_products)
-                self.logger.info(f"Downloaded and cached {len(api_products)} products for {country_filter}")
+                self.logger.info(
+                    f"Downloaded and cached {len(api_products)} products for {country_filter}"
+                )
             else:
-                self.logger.info(f"Using cached data: {len(api_products)} products for {country_filter}")
+                self.logger.info(
+                    f"Using cached data: {len(api_products)} products for {country_filter}"
+                )
 
             api_results[country_filter] = api_products
 
@@ -506,16 +664,24 @@ class CWCatalogComparisonService:
             country_comparison = self._compare_country_data(
                 csv_products_by_country[country_filter], api_products, country_filter
             )
-            comparison_results["country_comparisons"][country_filter] = country_comparison
+            comparison_results["country_comparisons"][country_filter] = (
+                country_comparison
+            )
 
             # Update overall stats
             comparison_results["overall_comparison"]["api_total"] += len(api_products)
-            comparison_results["overall_comparison"]["matched_by_id"] += country_comparison["matched_by_id"]
-            comparison_results["overall_comparison"]["matched_by_name_country"] += country_comparison[
-                "matched_by_name_country"
+            comparison_results["overall_comparison"]["matched_by_id"] += (
+                country_comparison["matched_by_id"]
+            )
+            comparison_results["overall_comparison"]["matched_by_name_country"] += (
+                country_comparison["matched_by_name_country"]
+            )
+            comparison_results["overall_comparison"]["csv_only"] += country_comparison[
+                "csv_only"
             ]
-            comparison_results["overall_comparison"]["csv_only"] += country_comparison["csv_only"]
-            comparison_results["overall_comparison"]["api_only"] += country_comparison["api_only"]
+            comparison_results["overall_comparison"]["api_only"] += country_comparison[
+                "api_only"
+            ]
             comparison_results["overall_comparison"]["countries_processed"] += 1
 
         except Exception as e:
@@ -531,7 +697,9 @@ class CWCatalogComparisonService:
 
         # Save API data and comparison results
         if output_path:
-            self._save_comprehensive_report(comparison_results, api_results, output_path)
+            self._save_comprehensive_report(
+                comparison_results, api_results, output_path
+            )
 
         return comparison_results
 
@@ -554,9 +722,13 @@ class CWCatalogComparisonService:
             "row_number": row_num,
         }
 
-    def _analyze_csv(self, csv_path: str, country_filter: Optional[str] = None) -> Dict[str, Any]:
+    def _analyze_csv(
+        self, csv_path: str, country_filter: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Analyze CSV file and group products by country."""
-        filter_msg = f" (filtering for country: {country_filter})" if country_filter else ""
+        filter_msg = (
+            f" (filtering for country: {country_filter})" if country_filter else ""
+        )
         self.logger.info(f"Analyzing CSV file: {csv_path}{filter_msg}")
 
         products_by_country = defaultdict(list)
@@ -581,7 +753,10 @@ class CWCatalogComparisonService:
                     continue
 
                 # Apply country filter if specified
-                if country_filter and product_data["country_code"].upper() != country_filter.upper():
+                if (
+                    country_filter
+                    and product_data["country_code"].upper() != country_filter.upper()
+                ):
                     continue
 
                 products_by_country[product_data["country_code"]].append(product_data)
@@ -596,7 +771,11 @@ class CWCatalogComparisonService:
 
         return {
             "products_by_country": dict(products_by_country),
-            "products": [prod for country_list in products_by_country.values() for prod in country_list],
+            "products": [
+                prod
+                for country_list in products_by_country.values()
+                for prod in country_list
+            ],
             "invalid_records": invalid_records,
             "stats": {
                 "total_products": total_products,
@@ -606,12 +785,16 @@ class CWCatalogComparisonService:
         }
 
     def _compare_country_data(
-        self, csv_products: List[Dict[str, str]], api_products: List[Dict[str, Any]], country_code: str
+        self,
+        csv_products: List[Dict[str, str]],
+        api_products: List[Dict[str, Any]],
+        country_code: str,
     ) -> Dict[str, Any]:
         """Compare CSV products against API products for a specific country."""
 
         self.logger.debug(
-            f"Comparing {len(csv_products)} CSV products vs {len(api_products)} API products for {country_code}"
+            f"Comparing {len(csv_products)} CSV products vs "
+            f"{len(api_products)} API products for {country_code}"
         )
 
         # Create lookup sets for efficient matching
@@ -636,7 +819,11 @@ class CWCatalogComparisonService:
             if csv_id in api_products_by_id:
                 api_product = api_products_by_id[csv_id]
                 matched_by_id.append(
-                    {"csv_product": csv_product, "api_product": api_product, "match_method": "exact_id"}
+                    {
+                        "csv_product": csv_product,
+                        "api_product": api_product,
+                        "match_method": "exact_id",
+                    }
                 )
 
             # Try name match if no ID match
@@ -650,7 +837,11 @@ class CWCatalogComparisonService:
 
                 if best_match:
                     matched_by_name_country.append(
-                        {"csv_product": csv_product, "api_product": best_match, "match_method": "name_country"}
+                        {
+                            "csv_product": csv_product,
+                            "api_product": best_match,
+                            "match_method": "name_country",
+                        }
                     )
                 else:
                     csv_only.append(csv_product)
@@ -659,7 +850,11 @@ class CWCatalogComparisonService:
 
         # Find API-only products (not in CSV)
         csv_ids = {prod["id"].lower() for prod in csv_products}
-        csv_names = {prod["trade_name"].lower().strip() for prod in csv_products if prod["trade_name"].strip()}
+        csv_names = {
+            prod["trade_name"].lower().strip()
+            for prod in csv_products
+            if prod["trade_name"].strip()
+        }
 
         api_only = []
         for api_product in api_products:
@@ -677,9 +872,17 @@ class CWCatalogComparisonService:
             "matched_by_name_country": len(matched_by_name_country),
             "csv_only": len(csv_only),
             "api_only": len(api_only),
-            "match_rate_by_id": (len(matched_by_id) / len(csv_products) * 100) if csv_products else 0,
+            "match_rate_by_id": (len(matched_by_id) / len(csv_products) * 100)
+            if csv_products
+            else 0,
             "total_match_rate": (
-                ((len(matched_by_id) + len(matched_by_name_country)) / len(csv_products) * 100) if csv_products else 0
+                (
+                    (len(matched_by_id) + len(matched_by_name_country))
+                    / len(csv_products)
+                    * 100
+                )
+                if csv_products
+                else 0
             ),
             "matches_by_id": matched_by_id,
             "matches_by_name_country": matched_by_name_country,
@@ -699,9 +902,12 @@ class CWCatalogComparisonService:
         overall = results["overall_comparison"]
 
         if overall["csv_total"] > 0:
-            overall["id_match_rate"] = (overall["matched_by_id"] / overall["csv_total"]) * 100
+            overall["id_match_rate"] = (
+                overall["matched_by_id"] / overall["csv_total"]
+            ) * 100
             overall["total_match_rate"] = (
-                (overall["matched_by_id"] + overall["matched_by_name_country"]) / overall["csv_total"]
+                (overall["matched_by_id"] + overall["matched_by_name_country"])
+                / overall["csv_total"]
             ) * 100
         else:
             overall["id_match_rate"] = 0
@@ -718,7 +924,8 @@ class CWCatalogComparisonService:
                         "api_count": comparison["api_count"],
                         "id_matches": comparison["matched_by_id"],
                         "name_matches": comparison["matched_by_name_country"],
-                        "total_matches": comparison["matched_by_id"] + comparison["matched_by_name_country"],
+                        "total_matches": comparison["matched_by_id"]
+                        + comparison["matched_by_name_country"],
                         "match_rate": comparison["total_match_rate"],
                     }
                 )
@@ -730,12 +937,19 @@ class CWCatalogComparisonService:
         # Add API statistics
         results["api_stats"] = {
             "total_products": overall["api_total"],
-            "countries_with_data": len([c for c in results["country_comparisons"].values() if "error" not in c]),
-            "countries_with_errors": len([c for c in results["country_comparisons"].values() if "error" in c]),
+            "countries_with_data": len(
+                [c for c in results["country_comparisons"].values() if "error" not in c]
+            ),
+            "countries_with_errors": len(
+                [c for c in results["country_comparisons"].values() if "error" in c]
+            ),
         }
 
     def _save_comprehensive_report(
-        self, comparison_results: Dict[str, Any], api_results: Dict[str, List[Dict[str, Any]]], output_path: str
+        self,
+        comparison_results: Dict[str, Any],
+        api_results: Dict[str, List[Dict[str, Any]]],
+        output_path: str,
     ):
         """Save comprehensive comparison report and API data."""
 
@@ -784,7 +998,8 @@ class CWCatalogComparisonService:
             "api_products": comparison["api_count"],
             "id_matches": comparison["matched_by_id"],
             "name_matches": comparison["matched_by_name_country"],
-            "total_matches": comparison["matched_by_id"] + comparison["matched_by_name_country"],
+            "total_matches": comparison["matched_by_id"]
+            + comparison["matched_by_name_country"],
             "id_match_rate": f"{comparison['match_rate_by_id']:.1f}%",
             "total_match_rate": f"{comparison['total_match_rate']:.1f}%",
             "csv_only": comparison["csv_only"],

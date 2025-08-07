@@ -8,6 +8,7 @@ This command validates and investigates deleted TUBE_HOMOLOGA products by:
 """
 
 from argparse import ArgumentParser, Namespace
+from utils.cache_manager.cache_manager import CacheManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -49,13 +50,17 @@ class TubeHomologaInvestigationCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument("--csv-path", required=True, help="Path to CSV file with deleted products")
+        parser.add_argument(
+            "--csv-path", required=True, help="Path to CSV file with deleted products"
+        )
         parser.add_argument(
             "--db-path",
             default="data/dynamodb_export.duckdb",
             help="Path to DuckDB catalog database (default: data/dynamodb_export.duckdb)",
         )
-        parser.add_argument("--output-path", help="Path to save detailed report (optional)")
+        parser.add_argument(
+            "--output-path", help="Path to save detailed report (optional)"
+        )
         parser.add_argument(
             "--output-format",
             choices=["json", "csv"],
@@ -67,11 +72,25 @@ class TubeHomologaInvestigationCommand(BaseCommand):
             action="store_true",
             help="Show only summary statistics, no detailed listing",
         )
+        parser.add_argument(
+            "--clear-cache",
+            action="store_true",
+            help="Clear all cached data before execution",
+        )
 
     @staticmethod
     def main(args: Namespace):
         ensure_env_loaded()
-        logger = LogManager.get_instance().get_logger("TubeHomologaInvestigationCommand")
+        logger = LogManager.get_instance().get_logger(
+            "TubeHomologaInvestigationCommand"
+        )
+
+        # Clear cache if requested
+        if args.clear_cache:
+            cache = CacheManager.get_instance()
+            cache.clear_all()
+            logger.info("Cache cleared successfully")
+            print("✅ Cache cleared")
 
         try:
             logger.info("Starting TUBE_HOMOLOGA deleted products investigation")
@@ -79,7 +98,9 @@ class TubeHomologaInvestigationCommand(BaseCommand):
             logger.info(f"Database: {args.db_path}")
 
             # Import here to avoid circular import issues
-            from .tube_homologa_investigation_service import TubeHomologaInvestigationService
+            from .tube_homologa_investigation_service import (
+                TubeHomologaInvestigationService,
+            )
 
             service = TubeHomologaInvestigationService()
             result = service.investigate_deleted_products(
@@ -133,11 +154,15 @@ class TubeHomologaInvestigationCommand(BaseCommand):
             if args.output_path:
                 format_info = f" ({args.output_format} format)"
                 if args.output_format == "csv":
-                    print(f"\nDetailed report saved to: {args.output_path}{format_info}")
+                    print(
+                        f"\nDetailed report saved to: {args.output_path}{format_info}"
+                    )
                     summary_path = args.output_path.replace(".csv", "_summary.csv")
                     print(f"Summary report saved to: {summary_path}")
                 else:
-                    print(f"\nDetailed report saved to: {args.output_path}{format_info}")
+                    print(
+                        f"\nDetailed report saved to: {args.output_path}{format_info}"
+                    )
 
         except Exception as e:
             logger.error(f"Investigation failed: {e}", exc_info=True)
