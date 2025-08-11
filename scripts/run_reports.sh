@@ -232,9 +232,9 @@ echo ""
 
 # Step counter for progress tracking
 if [ "$TRIBE_MODE" = true ]; then
-    TOTAL_STEPS=6  # Tribe mode: 6 main reports
+    TOTAL_STEPS=8  # Tribe mode: 5 JIRA reports + 3 cycle time reports = 8 total
 else
-    TOTAL_STEPS=8  # Team mode: 8 reports including cycle time
+    TOTAL_STEPS=10  # Team mode: 5 JIRA reports + 3 cycle time reports + 2 others = 10 total
 fi
 STEP=1
 
@@ -284,7 +284,7 @@ if [ "$TRIBE_MODE" = true ]; then
     python src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
-      --issue-types 'Story,Task,Epic,Technical Debt,Improvement' \
+      --issue-types 'Story,Task,Technical Debt,Improvement,Defect' \
       --status-categories 'Done' \
       --include-no-due-date \
       --output-file "$OUTPUT_DIR/jira/tribe-tasks-2weeks.json"
@@ -294,17 +294,41 @@ if [ "$TRIBE_MODE" = true ]; then
     ((STEP++))
     python src/main.py syngenta jira open-issues \
       --project-key "$PROJECT_KEY" \
-      --issue-types 'Bug,Support,Story,Task,Epic' \
+      --issue-types 'Bug,Support,Story,Task,Technical Debt,Improvement,Defect' \
       --output-file "$OUTPUT_DIR/jira/tribe-open-issues.json"
 
-    echo "⏱️  [$STEP/$TOTAL_STEPS] TRIBE – Cycle Time Analysis (Last Week)"
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TRIBE – Cycle Time Analysis - Bugs (Last Week)"
     echo "   ⏳ Period: $JIRA_LAST_WEEK"
     echo "   👥 Scope: Complete tribe (CWS project)"
+    echo "   🐛 Issue Types: Bug"
     ((STEP++))
     python src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
-      --output-file "$OUTPUT_DIR/jira/tribe-cycle-time-lastweek.json"
+      --issue-types "Bug" \
+      --output-file "$OUTPUT_DIR/jira/tribe-cycle-time-bugs-lastweek.json"
+
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TRIBE – Cycle Time Analysis - Support (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Scope: Complete tribe (CWS project)"
+    echo "   🎧 Issue Types: Support"
+    ((STEP++))
+    python src/main.py syngenta jira cycle-time \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --issue-types "Support" \
+      --output-file "$OUTPUT_DIR/jira/tribe-cycle-time-support-lastweek.json"
+
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TRIBE – Cycle Time Analysis - Development (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Scope: Complete tribe (CWS project)"
+    echo "   🚀 Issue Types: Story,Task,Technical Debt,Improvement,Defect"
+    ((STEP++))
+    python src/main.py syngenta jira cycle-time \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --issue-types "Story,Task,Technical Debt,Improvement,Defect" \
+      --output-file "$OUTPUT_DIR/jira/tribe-cycle-time-development-lastweek.json"
 else
     # Team-specific reports (with team filter)
     echo "📊 [$STEP/$TOTAL_STEPS] TEAM – Bug & Support (Combined 2 Weeks)"
@@ -353,7 +377,7 @@ else
     python src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
-      --issue-types 'Story,Task,Epic,Technical Debt,Improvement' \
+      --issue-types 'Story,Task,Technical Debt,Improvement,Defect' \
       --status-categories 'Done' \
       --include-no-due-date \
       --output-file "$OUTPUT_DIR/jira/team-tasks-2weeks.json" \
@@ -368,16 +392,42 @@ else
       --team "$TEAM" \
       --output-file "$OUTPUT_DIR/jira/team-open-bugs-support.json"
 
-    # JIRA Cycle Time Report
-    echo "⏱️  [$STEP/$TOTAL_STEPS] TEAM – Cycle Time Analysis (Last Week)"
+    # JIRA Cycle Time Reports
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TEAM – Cycle Time Analysis - Bugs (Last Week)"
     echo "   ⏳ Period: $JIRA_LAST_WEEK"
     echo "   👥 Team: $TEAM"
+    echo "   🐛 Issue Types: Bug"
     ((STEP++))
     python src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --team "$TEAM" \
-      --output-file "$OUTPUT_DIR/jira/team-cycle-time-lastweek.json"
+      --issue-types "Bug" \
+      --output-file "$OUTPUT_DIR/jira/team-cycle-time-bugs-lastweek.json"
+
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TEAM – Cycle Time Analysis - Support (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Team: $TEAM"
+    echo "   🎧 Issue Types: Support"
+    ((STEP++))
+    python src/main.py syngenta jira cycle-time \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --team "$TEAM" \
+      --issue-types "Support" \
+      --output-file "$OUTPUT_DIR/jira/team-cycle-time-support-lastweek.json"
+
+    echo "⏱️  [$STEP/$TOTAL_STEPS] TEAM – Cycle Time Analysis - Development (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Team: $TEAM"
+    echo "   🚀 Issue Types: Story,Task,Technical Debt,Improvement,Defect"
+    ((STEP++))
+    python src/main.py syngenta jira cycle-time \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --team "$TEAM" \
+      --issue-types "Story,Task,Technical Debt,Improvement,Defect" \
+      --output-file "$OUTPUT_DIR/jira/team-cycle-time-development-lastweek.json"
 fi
 
 # SonarQube Report
@@ -466,7 +516,9 @@ if [ "$TRIBE_MODE" = true ]; then
 - Bug & Support Issues (week before): \`jira/tribe-bugs-support-weekbefore.json\`
 - Task Completion (2 weeks): \`jira/tribe-tasks-2weeks.json\`  
 - Open Issues (all types): \`jira/tribe-open-issues.json\`
-- Cycle Time Analysis: \`jira/tribe-cycle-time-lastweek.json\`
+- Cycle Time Analysis - Bugs: \`jira/tribe-cycle-time-bugs-lastweek.json\`
+- Cycle Time Analysis - Support: \`jira/tribe-cycle-time-support-lastweek.json\`
+- Cycle Time Analysis - Development: \`jira/tribe-cycle-time-development-lastweek.json\`
 
 ### Code Quality Analysis
 - SonarQube Metrics (27 projects): \`sonarqube/tribe-quality-metrics.json\`
@@ -481,7 +533,9 @@ else
 - Bug & Support Issues (week before): \`jira/team-bugs-support-weekbefore.json\`
 - Task Completion (2 weeks): \`jira/team-tasks-2weeks.json\`
 - Open Issues: \`jira/team-open-bugs-support.json\`
-- Cycle Time Analysis: \`jira/team-cycle-time-lastweek.json\`
+- Cycle Time Analysis - Bugs: \`jira/team-cycle-time-bugs-lastweek.json\`
+- Cycle Time Analysis - Support: \`jira/team-cycle-time-support-lastweek.json\`
+- Cycle Time Analysis - Development: \`jira/team-cycle-time-development-lastweek.json\`
 
 ### Code Quality Analysis
 - SonarQube Metrics (team projects): \`sonarqube/team-quality-metrics.json\`
@@ -533,7 +587,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "📁 Output directory: $OUTPUT_DIR"
     echo ""
     echo "📊 Generated reports:"
-    printf "   • %-30s %s\n" "JIRA tribe reports:" "6 files"
+    printf "   • %-30s %s\n" "JIRA tribe reports:" "8 files (5 adherence + 3 cycle time)"
     printf "   • %-30s %s\n" "SonarQube analysis:" "1 file (27 projects)"
     printf "   • %-30s %s\n" "LinearB metrics:" "CSV files (tribe parent team)"
     printf "   • %-30s %s\n" "Consolidated summary:" "1 markdown file"
@@ -543,7 +597,7 @@ else
     echo "📁 Output directory: $OUTPUT_DIR"
     echo ""
     echo "� Generated reports:"
-    printf "   • %-30s %s\n" "JIRA team reports:" "6 files"
+    printf "   • %-30s %s\n" "JIRA team reports:" "8 files (5 adherence + 3 cycle time)"
     printf "   • %-30s %s\n" "SonarQube analysis:" "1 file (team projects)"
     printf "   • %-30s %s\n" "LinearB metrics:" "CSV files ($TEAM team)"
     printf "   • %-30s %s\n" "Consolidated summary:" "1 markdown file"
