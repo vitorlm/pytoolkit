@@ -8,8 +8,8 @@ from typing import Any
 
 from mcp.types import GetPromptResult, Prompt, PromptArgument
 
-from src.mcp_server.adapters.jira_adapter import JiraAdapter
-from src.mcp_server.adapters.linearb_adapter import LinearBAdapter
+from ..adapters.jira_adapter import JiraAdapter
+from ..adapters.linearb_adapter import LinearBAdapter
 
 from .base_prompt import BasePromptHandler
 
@@ -85,20 +85,12 @@ class TeamPerformancePromptHandler(BasePromptHandler):
 
             try:
                 # JIRA data
-                health_data["velocity"] = self.jira_adapter.get_velocity_analysis(
-                    project_key, time_period
-                )
-                health_data["cycle_time"] = self.jira_adapter.get_cycle_time_analysis(
-                    project_key, time_period
-                )
-                health_data["adherence"] = self.jira_adapter.get_adherence_analysis(
-                    project_key, time_period
-                )
+                health_data["velocity"] = self.jira_adapter.get_velocity_analysis(project_key, time_period)
+                health_data["cycle_time"] = self.jira_adapter.get_cycle_time_analysis(project_key, time_period)
+                health_data["adherence"] = self.jira_adapter.get_adherence_analysis(project_key, time_period)
 
                 # LinearB data
-                health_data["engineering_metrics"] = self.linearb_adapter.get_engineering_metrics(
-                    time_period
-                )
+                health_data["engineering_metrics"] = self.linearb_adapter.get_engineering_metrics(time_period)
                 health_data["team_performance"] = self.linearb_adapter.get_team_performance()
 
             except Exception as e:
@@ -145,9 +137,7 @@ Provide comprehensive health assessment with specific areas for improvement."""
             ],
         )
 
-    async def _generate_productivity_improvement_plan(
-        self, args: dict[str, Any]
-    ) -> GetPromptResult:
+    async def _generate_productivity_improvement_plan(self, args: dict[str, Any]) -> GetPromptResult:
         """Gera plano de melhoria de produtividade."""
         project_key = args["project_key"]
         focus_areas = args.get("focus_areas", "velocity,cycle-time,quality").split(",")
@@ -163,24 +153,22 @@ Provide comprehensive health assessment with specific areas for improvement."""
             try:
                 # JIRA productivity data
                 if "velocity" in focus_areas:
-                    productivity_data["velocity_analysis"] = (
-                        self.jira_adapter.get_velocity_analysis(project_key, "last-3-months")
+                    productivity_data["velocity_analysis"] = self.jira_adapter.get_velocity_analysis(
+                        project_key, "last-3-months"
                     )
 
                 if "cycle-time" in focus_areas:
-                    productivity_data["cycle_time_analysis"] = (
-                        self.jira_adapter.get_cycle_time_analysis(project_key, "last-month")
+                    productivity_data["cycle_time_analysis"] = self.jira_adapter.get_cycle_time_analysis(
+                        project_key, "last-month"
                     )
 
                 if "quality" in focus_areas:
-                    productivity_data["adherence_analysis"] = (
-                        self.jira_adapter.get_adherence_analysis(project_key, "last-month")
+                    productivity_data["adherence_analysis"] = self.jira_adapter.get_adherence_analysis(
+                        project_key, "last-month"
                     )
 
                 # LinearB productivity metrics
-                productivity_data["engineering_metrics"] = (
-                    self.linearb_adapter.get_engineering_metrics("last-month")
-                )
+                productivity_data["engineering_metrics"] = self.linearb_adapter.get_engineering_metrics("last-month")
                 productivity_data["team_performance"] = self.linearb_adapter.get_team_performance()
 
             except Exception as e:
@@ -211,9 +199,7 @@ Provide comprehensive health assessment with specific areas for improvement."""
 7. Risk mitigation
 """
 
-        data_content = self.format_data_for_prompt(
-            productivity_data, f"Productivity Data - {project_key}"
-        )
+        data_content = self.format_data_for_prompt(productivity_data, f"Productivity Data - {project_key}")
 
         user_content = f"""Create productivity improvement plan based on this data:
 

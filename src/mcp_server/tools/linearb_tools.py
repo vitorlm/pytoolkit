@@ -3,7 +3,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from src.mcp_server.adapters.linearb_adapter import LinearBAdapter
+from ..adapters.linearb_adapter import LinearBAdapter
 from utils.logging.logging_manager import LogManager
 
 
@@ -99,9 +99,7 @@ class LinearBTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executes specific LinearB tool."""
         self.logger.info(f"Executing LinearB tool: {name} with args: {arguments}")
 
@@ -141,9 +139,7 @@ class LinearBTools:
         """
         time_range = args.get("time_range", "last-week")
         team_ids = args.get("team_ids")
-        self.logger.info(
-            f"Getting engineering metrics for range: {time_range}, teams: {team_ids}"
-        )
+        self.logger.info(f"Getting engineering metrics for range: {time_range}, teams: {team_ids}")
 
         try:
             data = self.adapter.get_engineering_metrics(time_range, team_ids)
@@ -155,9 +151,7 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "engineering_metrics",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -204,9 +198,7 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "team_performance",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -218,11 +210,7 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get team performance: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve team performance: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve team performance: {str(e)}")]
 
     async def _get_pr_metrics(self, args: dict[str, Any]) -> list[TextContent]:
         """
@@ -261,9 +249,7 @@ class LinearBTools:
                 "pr_metrics": pr_analysis,
                 "summary": {
                     "analysis_type": "pr_metrics",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -275,11 +261,7 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get PR metrics: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve PR metrics: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve PR metrics: {str(e)}")]
 
     async def _get_deployment_metrics(self, args: dict[str, Any]) -> list[TextContent]:
         """
@@ -318,9 +300,7 @@ class LinearBTools:
                 "deployment_metrics": deployment_analysis,
                 "summary": {
                     "analysis_type": "deployment_metrics",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -332,8 +312,4 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get deployment metrics: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve deployment metrics: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve deployment metrics: {str(e)}")]

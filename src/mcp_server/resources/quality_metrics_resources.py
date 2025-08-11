@@ -10,8 +10,8 @@ from typing import Any
 from mcp.types import Resource, TextResourceContents
 from pydantic import AnyUrl
 
-from src.mcp_server.adapters.circleci_adapter import CircleCIAdapter
-from src.mcp_server.adapters.sonarqube_adapter import SonarQubeAdapter
+from ..adapters.circleci_adapter import CircleCIAdapter
+from ..adapters.sonarqube_adapter import SonarQubeAdapter
 
 from .base_resource import BaseResourceHandler
 
@@ -155,9 +155,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
                 "pipeline_security_checks": lambda: self._get_pipeline_security_status(),
             }
 
-            return self.aggregate_data_safely(
-                data_sources, required_sources=["vulnerabilities_by_severity"]
-            )
+            return self.aggregate_data_safely(data_sources, required_sources=["vulnerabilities_by_severity"])
 
         security_data = self.cached_resource_operation(
             "security_vulnerabilities_summary",
@@ -189,9 +187,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
                 "pipeline_success_rates": lambda: self._get_pipeline_success_weekly(),
             }
 
-            weekly_data = self.aggregate_data_safely(
-                data_sources, required_sources=["sonarqube_weekly_snapshot"]
-            )
+            weekly_data = self.aggregate_data_safely(data_sources, required_sources=["sonarqube_weekly_snapshot"])
 
             # Adiciona metadados compatíveis com report_template.md
             weekly_data["weekly_report_metadata"] = {

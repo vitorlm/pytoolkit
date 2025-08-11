@@ -9,8 +9,8 @@ from typing import Any
 
 from mcp.types import GetPromptResult, Prompt, PromptArgument
 
-from src.mcp_server.adapters.jira_adapter import JiraAdapter
-from src.mcp_server.adapters.linearb_adapter import LinearBAdapter
+from ..adapters.jira_adapter import JiraAdapter
+from ..adapters.linearb_adapter import LinearBAdapter
 
 from .base_prompt import BasePromptHandler
 
@@ -107,9 +107,7 @@ class QuarterlyReviewPromptHandler(BasePromptHandler):
         # Parse period
         period_info = self.parse_quarter_cycle(quarter_cycle)
 
-        def _collect_quarterly_data(
-            project_key: str, period_info: dict, include_recs: bool
-        ) -> dict[str, Any]:
+        def _collect_quarterly_data(project_key: str, period_info: dict, include_recs: bool) -> dict[str, Any]:
             data = {
                 "period_info": period_info,
                 "timestamp": self.get_current_timestamp(),
@@ -118,15 +116,9 @@ class QuarterlyReviewPromptHandler(BasePromptHandler):
             try:
                 # JIRA quarterly data
                 data["quarterly_jira_data"] = {
-                    "velocity": self.jira_adapter.get_velocity_analysis(
-                        project_key, time_period="last-quarter"
-                    ),
-                    "cycle_time": self.jira_adapter.get_cycle_time_analysis(
-                        project_key, time_period="last-quarter"
-                    ),
-                    "adherence": self.jira_adapter.get_adherence_analysis(
-                        project_key, time_period="last-quarter"
-                    ),
+                    "velocity": self.jira_adapter.get_velocity_analysis(project_key, time_period="last-quarter"),
+                    "cycle_time": self.jira_adapter.get_cycle_time_analysis(project_key, time_period="last-quarter"),
+                    "adherence": self.jira_adapter.get_adherence_analysis(project_key, time_period="last-quarter"),
                 }
 
                 # Cycle metrics
@@ -136,9 +128,7 @@ class QuarterlyReviewPromptHandler(BasePromptHandler):
 
                 # LinearB quarterly metrics
                 data["linearb_quarterly_metrics"] = {
-                    "engineering_metrics": self.linearb_adapter.get_engineering_metrics(
-                        "last-quarter"
-                    ),
+                    "engineering_metrics": self.linearb_adapter.get_engineering_metrics("last-quarter"),
                     "team_performance": self.linearb_adapter.get_team_performance(),
                 }
 
@@ -190,9 +180,7 @@ class QuarterlyReviewPromptHandler(BasePromptHandler):
 - Quarterly Planning Considerations
 """
 
-        data_content = self.format_data_for_prompt(
-            quarterly_data, f"Quarterly Data - {period_info['period_code']}"
-        )
+        data_content = self.format_data_for_prompt(quarterly_data, f"Quarterly Data - {period_info['period_code']}")
 
         user_content = f"""Analyze this quarterly/cycle data and provide comprehensive review:
 
@@ -224,12 +212,8 @@ Focus on cycle-specific insights and recommendations for sustainable quarterly d
             try:
                 # JIRA cycle metrics for retrospective
                 data["cycle_metrics"] = {
-                    "velocity": self.jira_adapter.get_velocity_analysis(
-                        project_key, time_period="last-quarter"
-                    ),
-                    "cycle_time": self.jira_adapter.get_cycle_time_analysis(
-                        project_key, time_period="last-quarter"
-                    ),
+                    "velocity": self.jira_adapter.get_velocity_analysis(project_key, time_period="last-quarter"),
+                    "cycle_time": self.jira_adapter.get_cycle_time_analysis(project_key, time_period="last-quarter"),
                     "completion_rate": self.jira_adapter.get_adherence_analysis(
                         project_key, time_period="last-quarter"
                     ),
@@ -242,9 +226,7 @@ Focus on cycle-specific insights and recommendations for sustainable quarterly d
 
                 # LinearB team performance metrics
                 data["team_performance"] = {
-                    "engineering_metrics": self.linearb_adapter.get_engineering_metrics(
-                        "last-quarter"
-                    ),
+                    "engineering_metrics": self.linearb_adapter.get_engineering_metrics("last-quarter"),
                     "team_productivity": self.linearb_adapter.get_team_performance(),
                 }
 
@@ -277,9 +259,7 @@ Focus on cycle-specific insights and recommendations for sustainable quarterly d
 **Format**: Organize findings into retrospective categories with supporting quarterly data.
 """
 
-        data_content = self.format_data_for_prompt(
-            retro_data, f"Retrospective Data - {period_info['period_code']}"
-        )
+        data_content = self.format_data_for_prompt(retro_data, f"Retrospective Data - {period_info['period_code']}")
 
         user_content = f"""Structure this data for a quarterly/cycle retrospective meeting:
 
@@ -310,9 +290,7 @@ Identify patterns and areas for improvement within the quarterly/cycle context."
                 # Historical velocity data for planning
                 time_period = f"last-{cycles_history * 3}-months"  # Assuming 3-month cycles
                 data["velocity_history"] = {
-                    "historical_velocity": self.jira_adapter.get_velocity_analysis(
-                        project_key, time_period=time_period
-                    )
+                    "historical_velocity": self.jira_adapter.get_velocity_analysis(project_key, time_period=time_period)
                 }
 
                 # Cycle performance trends
@@ -324,9 +302,7 @@ Identify patterns and areas for improvement within the quarterly/cycle context."
 
                 # Quarterly patterns analysis (using available comprehensive dashboard)
                 data["quarterly_patterns"] = {
-                    "comprehensive_dashboard": self.jira_adapter.get_comprehensive_dashboard(
-                        project_key
-                    ),
+                    "comprehensive_dashboard": self.jira_adapter.get_comprehensive_dashboard(project_key),
                     "team_performance": self.linearb_adapter.get_team_performance(),
                 }
 
@@ -345,9 +321,7 @@ Identify patterns and areas for improvement within the quarterly/cycle context."
         )
 
         current_period = self.parse_quarter_cycle("current")
-        system_content = self.create_quarterly_context(
-            current_period["quarter"], current_period["cycle"]
-        )
+        system_content = self.create_quarterly_context(current_period["quarter"], current_period["cycle"])
 
         system_content += """
 **Task**: Provide data-driven insights for next cycle planning.
@@ -362,9 +336,7 @@ Identify patterns and areas for improvement within the quarterly/cycle context."
 **Output**: Actionable planning recommendations with quarterly data support.
 """
 
-        data_content = self.format_data_for_prompt(
-            planning_data, f"Planning Data ({cycles_history} cycles history)"
-        )
+        data_content = self.format_data_for_prompt(planning_data, f"Planning Data ({cycles_history} cycles history)")
 
         user_content = f"""Provide cycle planning insights based on this historical quarterly data:
 

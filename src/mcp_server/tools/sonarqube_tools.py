@@ -3,7 +3,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from src.mcp_server.adapters.sonarqube_adapter import SonarQubeAdapter
+from ..adapters.sonarqube_adapter import SonarQubeAdapter
 from utils.logging.logging_manager import LogManager
 
 
@@ -90,9 +90,7 @@ class SonarQubeTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executa tool SonarQube específica."""
         self.logger.info(f"Executing SonarQube tool: {name} with args: {arguments}")
 
@@ -141,14 +139,8 @@ class SonarQubeTools:
                 "metrics": data,
                 "summary": {
                     "analysis_type": "project_metrics",
-                    "metrics_count": (
-                        len(data.get("measures", []))
-                        if isinstance(data, dict)
-                        else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "metrics_count": (len(data.get("measures", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -201,14 +193,8 @@ class SonarQubeTools:
                 "issue_type": issue_type,
                 "issues": filtered_issues,
                 "summary": {
-                    "total_issues": (
-                        len(filtered_issues)
-                        if isinstance(filtered_issues, list)
-                        else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_issues": (len(filtered_issues) if isinstance(filtered_issues, list) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -244,9 +230,7 @@ class SonarQubeTools:
             Exception: If quality overview retrieval fails
         """
         use_project_list = args.get("use_project_list", True)
-        self.logger.info(
-            f"Getting quality overview, use_project_list: {use_project_list}"
-        )
+        self.logger.info(f"Getting quality overview, use_project_list: {use_project_list}")
 
         try:
             if use_project_list:
@@ -259,17 +243,11 @@ class SonarQubeTools:
                 "quality_overview": data,
                 "configuration": {
                     "use_project_list": use_project_list,
-                    "projects_analyzed": (
-                        len(data.get("projects", []))
-                        if isinstance(data, dict)
-                        else "N/A"
-                    ),
+                    "projects_analyzed": (len(data.get("projects", [])) if isinstance(data, dict) else "N/A"),
                 },
                 "summary": {
                     "analysis_type": "quality_overview",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -281,15 +259,9 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get quality overview: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve quality overview: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve quality overview: {str(e)}")]
 
-    async def _compare_projects_quality(
-        self, args: dict[str, Any]
-    ) -> list[TextContent]:
+    async def _compare_projects_quality(self, args: dict[str, Any]) -> list[TextContent]:
         """
         Compare quality metrics between projects.
 
@@ -327,11 +299,7 @@ class SonarQubeTools:
                     "code_smells",
                     "coverage",
                 ],
-                "timestamp": (
-                    comparison_data.get(project_keys[0], {}).get("timestamp")
-                    if project_keys
-                    else None
-                ),
+                "timestamp": (comparison_data.get(project_keys[0], {}).get("timestamp") if project_keys else None),
             }
 
             formatted_result = {
@@ -348,8 +316,4 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to compare projects quality: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to compare projects quality: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to compare projects quality: {str(e)}")]

@@ -3,7 +3,7 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from src.mcp_server.adapters.jira_adapter import JiraAdapter
+from ..adapters.jira_adapter import JiraAdapter
 from utils.logging.logging_manager import LogManager
 
 
@@ -26,10 +26,7 @@ class JiraTools:
         return [
             Tool(
                 name="jira_get_epic_monitoring",
-                description=(
-                    "Obtém dados de monitoramento de épicos JIRA com status, "
-                    "datas e problemas identificados"
-                ),
+                description=("Obtém dados de monitoramento de épicos JIRA com status, datas e problemas identificados"),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -95,9 +92,7 @@ class JiraTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executa tool JIRA específica."""
         self.logger.info(f"Executing JIRA tool: {name} with args: {arguments}")
 
@@ -145,12 +140,8 @@ class JiraTools:
                 "project_key": project_key,
                 "epic_monitoring": data,
                 "summary": {
-                    "total_epics": (
-                        len(data.get("epics", [])) if isinstance(data, dict) else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_epics": (len(data.get("epics", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -187,9 +178,7 @@ class JiraTools:
         """
         project_key = args["project_key"]
         days_back = args.get("days_back", 30)
-        self.logger.info(
-            f"Getting cycle time metrics for {project_key}, last {days_back} days"
-        )
+        self.logger.info(f"Getting cycle time metrics for {project_key}, last {days_back} days")
 
         try:
             data = self.adapter.get_cycle_time_analysis(project_key, days_back)
@@ -199,12 +188,8 @@ class JiraTools:
                 "analysis_period_days": days_back,
                 "cycle_time_data": data,
                 "summary": {
-                    "total_issues_analyzed": (
-                        len(data.get("issues", [])) if isinstance(data, dict) else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_issues_analyzed": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -242,9 +227,7 @@ class JiraTools:
         """
         project_key = args["project_key"]
         sprints = args.get("sprints", 5)
-        self.logger.info(
-            f"Getting team velocity for {project_key}, last {sprints} sprints"
-        )
+        self.logger.info(f"Getting team velocity for {project_key}, last {sprints} sprints")
 
         try:
             data = self.adapter.get_velocity_analysis(project_key, sprints)
@@ -255,9 +238,7 @@ class JiraTools:
                 "velocity_data": data,
                 "summary": {
                     "analysis_type": "team_velocity",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -303,9 +284,7 @@ class JiraTools:
                 "adherence_analysis": data,
                 "summary": {
                     "analysis_type": "issue_adherence",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 

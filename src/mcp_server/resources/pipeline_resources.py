@@ -10,8 +10,8 @@ from typing import Any
 from mcp.types import Resource, TextResourceContents
 from pydantic import AnyUrl
 
-from src.mcp_server.adapters.circleci_adapter import CircleCIAdapter
-from src.mcp_server.adapters.linearb_adapter import LinearBAdapter
+from ..adapters.circleci_adapter import CircleCIAdapter
+from ..adapters.linearb_adapter import LinearBAdapter
 
 from .base_resource import BaseResourceHandler
 
@@ -78,21 +78,13 @@ class PipelineResourceHandler(BaseResourceHandler):
         def _generate_pipeline_status() -> dict[str, Any]:
             # Main Syngenta Digital pipelines
             data_sources = {
-                "main_pipeline": lambda: self.circleci_adapter.get_pipeline_status(
-                    "gh/syngenta-digital/main", 20
-                ),
-                "api_pipeline": lambda: self.circleci_adapter.get_pipeline_status(
-                    "gh/syngenta-digital/api", 20
-                ),
+                "main_pipeline": lambda: self.circleci_adapter.get_pipeline_status("gh/syngenta-digital/main", 20),
+                "api_pipeline": lambda: self.circleci_adapter.get_pipeline_status("gh/syngenta-digital/api", 20),
                 "frontend_pipeline": lambda: self.circleci_adapter.get_pipeline_status(
                     "gh/syngenta-digital/frontend", 20
                 ),
-                "mobile_pipeline": lambda: self.circleci_adapter.get_pipeline_status(
-                    "gh/syngenta-digital/mobile", 15
-                ),
-                "deployment_metrics": lambda: self.linearb_adapter.get_engineering_metrics(
-                    "last-week"
-                ),
+                "mobile_pipeline": lambda: self.circleci_adapter.get_pipeline_status("gh/syngenta-digital/mobile", 15),
+                "deployment_metrics": lambda: self.linearb_adapter.get_engineering_metrics("last-week"),
                 "pipeline_health_summary": lambda: self._get_pipeline_health_summary(),
             }
 
@@ -121,18 +113,10 @@ class PipelineResourceHandler(BaseResourceHandler):
 
         def _generate_success_rates() -> dict[str, Any]:
             data_sources = {
-                "main_builds": lambda: self.circleci_adapter.get_build_metrics(
-                    "gh/syngenta-digital/main", 30
-                ),
-                "api_builds": lambda: self.circleci_adapter.get_build_metrics(
-                    "gh/syngenta-digital/api", 30
-                ),
-                "frontend_builds": lambda: self.circleci_adapter.get_build_metrics(
-                    "gh/syngenta-digital/frontend", 30
-                ),
-                "mobile_builds": lambda: self.circleci_adapter.get_build_metrics(
-                    "gh/syngenta-digital/mobile", 30
-                ),
+                "main_builds": lambda: self.circleci_adapter.get_build_metrics("gh/syngenta-digital/main", 30),
+                "api_builds": lambda: self.circleci_adapter.get_build_metrics("gh/syngenta-digital/api", 30),
+                "frontend_builds": lambda: self.circleci_adapter.get_build_metrics("gh/syngenta-digital/frontend", 30),
+                "mobile_builds": lambda: self.circleci_adapter.get_build_metrics("gh/syngenta-digital/mobile", 30),
                 "overall_trends": lambda: self._get_build_trends_analysis(),
             }
 
@@ -167,9 +151,7 @@ class PipelineResourceHandler(BaseResourceHandler):
             data_sources = {
                 "quarterly_deployment_frequency": lambda: self._get_quarterly_deployment_data(),
                 "weekly_deployment_patterns": lambda: self._get_weekly_deployment_patterns(),
-                "linearb_deployment_metrics": lambda: self.linearb_adapter.get_engineering_metrics(
-                    "last-quarter"
-                ),
+                "linearb_deployment_metrics": lambda: self.linearb_adapter.get_engineering_metrics("last-quarter"),
                 "deployment_success_rates": lambda: self._get_deployment_success_analysis(),
                 "cycle_time_correlation": lambda: self._get_deployment_cycle_correlation(),
             }
@@ -204,9 +186,7 @@ class PipelineResourceHandler(BaseResourceHandler):
                 "deployment_health": lambda: self._get_deployment_health_indicators(),
                 "security_scans_status": lambda: self._get_security_scans_summary(),
                 "infrastructure_health": lambda: self._get_infrastructure_health(),
-                "linearb_ci_cd_metrics": lambda: self.linearb_adapter.get_engineering_metrics(
-                    "last-month"
-                ),
+                "linearb_ci_cd_metrics": lambda: self.linearb_adapter.get_engineering_metrics("last-month"),
             }
 
             raw_data = self.aggregate_data_safely(data_sources)
@@ -383,9 +363,7 @@ class PipelineResourceHandler(BaseResourceHandler):
                 project_success_rates.append(simulated_rate)
 
         if project_success_rates:
-            analysis["overall_success_rate"] = sum(project_success_rates) / len(
-                project_success_rates
-            )
+            analysis["overall_success_rate"] = sum(project_success_rates) / len(project_success_rates)
 
         return analysis
 

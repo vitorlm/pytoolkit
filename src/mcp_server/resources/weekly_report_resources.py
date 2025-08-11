@@ -11,9 +11,9 @@ from typing import Any
 from mcp.types import Resource, TextResourceContents
 from pydantic import AnyUrl
 
-from src.mcp_server.adapters.jira_adapter import JiraAdapter
-from src.mcp_server.adapters.linearb_adapter import LinearBAdapter
-from src.mcp_server.adapters.sonarqube_adapter import SonarQubeAdapter
+from ..adapters.jira_adapter import JiraAdapter
+from ..adapters.linearb_adapter import LinearBAdapter
+from ..adapters.sonarqube_adapter import SonarQubeAdapter
 
 from .base_resource import BaseResourceHandler
 
@@ -95,28 +95,16 @@ class WeeklyReportResourceHandler(BaseResourceHandler):
 
             data_sources = {
                 # JIRA Reports - replicating run_reports.sh commands
-                "jira_bugs_support_2weeks": lambda: self._get_jira_bugs_support_combined(
-                    date_ranges["two_weeks"]
-                ),
-                "jira_bugs_support_lastweek": lambda: self._get_jira_bugs_support_week(
-                    date_ranges["last_week"]
-                ),
-                "jira_bugs_support_weekbefore": lambda: self._get_jira_bugs_support_week(
-                    date_ranges["week_before"]
-                ),
-                "jira_tasks_2weeks": lambda: self._get_jira_tasks_completion(
-                    date_ranges["two_weeks"]
-                ),
+                "jira_bugs_support_2weeks": lambda: self._get_jira_bugs_support_combined(date_ranges["two_weeks"]),
+                "jira_bugs_support_lastweek": lambda: self._get_jira_bugs_support_week(date_ranges["last_week"]),
+                "jira_bugs_support_weekbefore": lambda: self._get_jira_bugs_support_week(date_ranges["week_before"]),
+                "jira_tasks_2weeks": lambda: self._get_jira_tasks_completion(date_ranges["two_weeks"]),
                 "jira_open_issues": lambda: self._get_jira_open_issues(),
-                "jira_cycle_time_lastweek": lambda: self._get_jira_cycle_time(
-                    date_ranges["last_week"]
-                ),
+                "jira_cycle_time_lastweek": lambda: self._get_jira_cycle_time(date_ranges["last_week"]),
                 # SonarQube Report
                 "sonarqube_quality_metrics": lambda: self.sonarqube_adapter.get_all_projects_with_metrics(),
                 # LinearB Report
-                "linearb_engineering_metrics": lambda: self._get_linearb_weekly_metrics(
-                    date_ranges["linearb_range"]
-                ),
+                "linearb_engineering_metrics": lambda: self._get_linearb_weekly_metrics(date_ranges["linearb_range"]),
             }
 
             # Aggregate all data (JIRA is mandatory)
@@ -247,9 +235,7 @@ Compatible with report_template.md structure""",
             return {
                 "current_week_metrics": current_week_metrics,
                 "previous_week_metrics": previous_week_metrics,
-                "comparison_analysis": self._generate_linearb_comparison(
-                    current_week_metrics, previous_week_metrics
-                ),
+                "comparison_analysis": self._generate_linearb_comparison(current_week_metrics, previous_week_metrics),
                 "template_formatted": True,
                 "linearb_time_range": date_ranges["linearb_range"],
             }
