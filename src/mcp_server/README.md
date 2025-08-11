@@ -238,39 +238,79 @@ The MCP server is built on four core component types that work together to provi
   - `get_pr_metrics()` - Pull request metrics from LinearB API
   - `get_deployment_metrics()` - Real deployment performance data
 
-### 🛠️ Tools (16 Components)
-**Purpose**: Direct action execution for LLMs
+### 🛠️ Tools (17 Components)
+**Purpose**: Direct action execution for LLMs with **project and team agnostic** capabilities
 **Location**: `src/mcp/tools/`
 
-Tools provide immediate, actionable functionality:
+All tools are designed to support both **team-specific** and **tribe-wide** operations, matching the functionality of `run_reports.sh`.
 
-#### JIRA Tools (4 tools)
-- `jira_get_epic_monitoring` - Monitor epic progress
+#### JIRA Tools (5 tools) ✅ **Enhanced with Team Agnostic Parameters**
+- `jira_get_epic_monitoring` - Monitor epic progress 
+  - **Parameters**: `project_key` (required), `team` (optional - if not provided, returns all teams)
 - `jira_get_cycle_time_metrics` - Team performance analysis
+  - **Parameters**: `project_key`, `team`, `time_period`, `issue_types`
 - `jira_get_team_velocity` - Velocity based on sprint history
+  - **Parameters**: `project_key`, `team`, `time_period`, `issue_types`
 - `jira_get_issue_adherence` - Due date adherence analysis
+  - **Parameters**: `project_key`, `team`, `time_period`, `issue_types`, `status_categories`, `priorities`
+- `jira_get_open_issues` - **NEW**: Open issues analysis (matches run_reports.sh)
+  - **Parameters**: `project_key`, `team`, `issue_types`, `status_categories`, `priorities`
 
-#### SonarQube Tools (4 tools)
+#### SonarQube Tools (4 tools) ✅ **Enhanced with Organization Filtering**
 - `sonar_get_project_metrics` - Quality metrics for specific project
+  - **Parameters**: `project_key` (required), `organization` (optional)
 - `sonar_get_project_issues` - Issues by type and severity
-- `sonar_get_quality_overview` - Overview across all projects
+  - **Parameters**: `project_key`, `issue_type`, `organization`
+- `sonar_get_quality_overview` - Overview across all or filtered projects
+  - **Parameters**: `organization` (optional), `project_keys` (optional - for team-specific filtering)
 - `sonar_compare_projects_quality` - Compare multiple projects
+  - **Parameters**: `project_keys` (array), `organization`
 
-#### CircleCI Tools (3 tools) 
-- `circleci_get_pipeline_status` - Real pipeline status and metrics
-- `circleci_get_build_metrics` - Actual build performance data  
-- `circleci_analyze_deployment_frequency` - Real deployment analytics
-- **Integration**: Complete integration with PyToolkit CircleCI service
+#### LinearB Tools (5 tools) ✅ **Enhanced with Comprehensive Parameters**
+- `linearb_get_engineering_metrics` - Engineering productivity data
+  - **Parameters**: `time_range`, `team_ids` (optional), `filter_type`, `granularity`, `aggregation`
+- `linearb_get_team_performance` - Team performance analytics
+  - **Parameters**: `team_ids` (optional), `time_range`, `filter_type`
+- `linearb_get_pr_metrics` - Pull request metrics
+  - **Parameters**: `time_range`, `team_ids` (optional), `filter_type`
+- `linearb_get_deployment_metrics` - Deployment performance data
+  - **Parameters**: `time_range`, `team_ids` (optional), `filter_type`, `granularity`, `aggregation`
+- `linearb_export_report` - **NEW**: Comprehensive report export (matches run_reports.sh)
+  - **Parameters**: `team_ids`, `time_range`, `filter_type`, `granularity`, `aggregation`, `format`, `beautified`, `return_no_data`
 
-#### LinearB Tools (4 tools) 
-- `linearb_get_engineering_metrics` - Real engineering productivity data
-- `linearb_get_team_performance` - Actual team performance analytics
-- `linearb_get_pr_metrics` - Real pull request metrics from LinearB API
-- `linearb_get_deployment_metrics` - Actual deployment performance data
-- **Integration**: Complete integration with PyToolkit LinearB service
+#### CircleCI Tools (3 tools) ✅ **Project-Centric Design**
+- `circleci_get_pipeline_status` - Pipeline status and metrics
+  - **Parameters**: `project_slug` (required), `limit`
+- `circleci_get_build_metrics` - Build performance data  
+  - **Parameters**: `project_slug` (required), `days`
+- `circleci_analyze_deployment_frequency` - Deployment analytics
+  - **Parameters**: `project_slug` (required), `days`
 
 #### System Tools (1 tool)
 - `health_check` - Server health verification
+
+### 🎯 **Project/Team Agnostic Design**
+
+All tools now support the dual-mode operation pattern from `run_reports.sh`:
+
+**Team-Specific Mode** (Catalog team example):
+```json
+{
+  "project_key": "CWS",
+  "team": "Catalog",
+  "time_period": "last-week"
+}
+```
+
+**Tribe-Wide Mode** (all teams in project):
+```json
+{
+  "project_key": "CWS",
+  "time_period": "last-week"
+}
+```
+
+This allows LLMs to generate reports for individual teams or entire tribes with the same tools.
 
 ### 📚 Resources (17 Components)
 **Purpose**: Structured data aggregation with intelligent caching
@@ -304,31 +344,45 @@ Resources provide rich, contextual data by combining multiple sources:
 - `weekly://template_ready_data` - Pre-formatted template data (30min cache)
 
 ### 💬 Prompts (13 Components)
-**Purpose**: Specialized AI prompts for complex analysis
+**Purpose**: Specialized AI prompts for complex analysis with **project/team agnostic** support
 **Location**: `src/mcp/prompts/`
 
-Prompts provide sophisticated AI-driven analysis and reporting:
+Prompts provide sophisticated AI-driven analysis and reporting with full support for both team-specific and tribe-wide operations:
 
-#### Weekly Report Prompts (5 prompts)
+#### Weekly Report Prompts (5 prompts) ✅ **Team Agnostic Enhanced**
+
 - `generate_weekly_engineering_report` - Complete weekly report generation
+  - **Parameters**: `project_key` (default: "CWS"), `team_name` (optional - defaults to tribe-wide), `include_comparison`, `output_format`
+  - **Team-Specific**: `{"project_key": "CWS", "team_name": "Catalog"}`
+  - **Tribe-Wide**: `{"project_key": "CWS"}` (no team_name = all teams)
 - `analyze_weekly_data_collection` - Data-driven insights from collections
-- `format_template_sections` - Precise template formatting
+  - **Parameters**: `focus_areas`, `include_recommendations`
+- `format_template_sections` - Precise template formatting  
+  - **Parameters**: `sections`, `week_range`
 - `generate_next_actions` - Data-driven action items
 - `compare_weekly_metrics` - Trend analysis for improvements
 
 #### Quarterly Review Prompts (3 prompts)
+
 - `quarterly_cycle_analysis` - Complete Q1-C1, Q1-C2 analysis
-- `quarterly_retrospective_data` - Retrospective data preparation
+- `quarterly_retrospective_data` - Retrospective data preparation  
 - `cycle_planning_insights` - Strategic cycle planning
 
-#### Quality Report Prompts (3 prompts)
-- `code_quality_report` - Comprehensive quality assessment
-- `technical_debt_prioritization` - Prioritized technical debt analysis
-- `security_assessment` - Security analysis and recommendations
+#### Quality Report Prompts (3 prompts) ✅ **Project Filtering Enhanced**
 
-#### Team Performance Prompts (2 prompts)
+- `code_quality_report` - Comprehensive quality assessment
+  - **Parameters**: `project_key` (optional), `include_trends`
+- `technical_debt_prioritization` - Prioritized technical debt analysis
+  - **Parameters**: `project_key` (required)
+- `security_assessment` - Security analysis and recommendations
+  - **Parameters**: `include_all_projects` (for organization-wide analysis)
+
+#### Team Performance Prompts (2 prompts) ✅ **Project/Team Agnostic**
+
 - `team_health_assessment` - Comprehensive team evaluation
+  - **Parameters**: `project_key` (required), `time_period`
 - `productivity_improvement_plan` - Data-driven improvement recommendations
+  - **Parameters**: `project_key` (required), `focus_areas`
 
 ## 🎯 Usage Examples
 

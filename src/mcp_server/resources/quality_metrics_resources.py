@@ -18,9 +18,9 @@ from .base_resource import BaseResourceHandler
 
 class QualityMetricsResourceHandler(BaseResourceHandler):
     """
-    Handler para resources de métricas de qualidade.
+    Handler for quality metrics resources.
 
-    Agrega dados de:
+    Aggregates data from:
     - SonarQube: Qualidade de código, issues, quality gates
     - CircleCI: Build success, pipeline health
     """
@@ -31,7 +31,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         self.circleci_adapter = CircleCIAdapter()
 
     def get_resource_definitions(self) -> list[Resource]:
-        """Define resources de métricas de qualidade."""
+        """Define quality metrics resources."""
         return [
             Resource(
                 uri=AnyUrl("quality://code_quality_overview"),
@@ -42,7 +42,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
             Resource(
                 uri=AnyUrl("quality://technical_debt_analysis"),
                 name="Technical Debt Analysis",
-                description="Análise de débito técnico com priorização baseada em dados",
+                description="Technical debt analysis with data-based prioritization",
                 mimeType="text/markdown",
             ),
             Resource(
@@ -60,7 +60,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         ]
 
     async def get_resource_content(self, uri: str) -> TextResourceContents:
-        """Obtém conteúdo do resource baseado na URI."""
+        """Gets resource content based on URI."""
         if uri == "quality://code_quality_overview":
             return await self._get_code_quality_overview()
         elif uri == "quality://technical_debt_analysis":
@@ -73,7 +73,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
             raise ValueError(f"Unknown quality resource URI: {uri}")
 
     async def _get_code_quality_overview(self) -> TextResourceContents:
-        """Gera overview de qualidade de código."""
+        """Generates code quality overview."""
 
         def _generate_quality_overview() -> dict[str, Any]:
             data_sources = {
@@ -106,10 +106,10 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         )
 
     async def _get_technical_debt_analysis(self) -> TextResourceContents:
-        """Gera análise de débito técnico."""
+        """Generates technical debt analysis."""
 
         def _generate_debt_analysis() -> dict[str, Any]:
-            # Busca issues de múltiplos tipos do SonarQube
+            # Search for issues of multiple types from SonarQube
             data_sources = {
                 "code_smells_critical": lambda: self._get_critical_code_smells(),
                 "bugs_by_severity": lambda: self._get_bugs_by_severity(),
@@ -120,7 +120,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
 
             raw_data = self.aggregate_data_safely(data_sources)
 
-            # Adiciona análise de priorização
+            # Add prioritization analysis
             debt_analysis = self._analyze_technical_debt(raw_data)
             raw_data["debt_analysis"] = debt_analysis
 
@@ -129,7 +129,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         debt_data = self.cached_resource_operation(
             "technical_debt_analysis",
             _generate_debt_analysis,
-            expiration_minutes=240,  # Cache por 4 horas (análise pesada)
+            expiration_minutes=240,  # Cache for 4 hours (heavy analysis)
         )
 
         content = self.format_resource_content(
@@ -145,7 +145,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         )
 
     async def _get_security_vulnerabilities_summary(self) -> TextResourceContents:
-        """Gera relatório de vulnerabilidades de segurança."""
+        """Generates security vulnerabilities report."""
 
         def _generate_security_summary() -> dict[str, Any]:
             data_sources = {
@@ -160,7 +160,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         security_data = self.cached_resource_operation(
             "security_vulnerabilities_summary",
             _generate_security_summary,
-            expiration_minutes=60,  # Segurança precisa ser mais atual
+            expiration_minutes=60,  # Security needs to be more current
         )
 
         content = self.format_resource_content(
@@ -176,7 +176,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         )
 
     async def _get_weekly_quality_health(self) -> TextResourceContents:
-        """Gera relatório semanal de saúde de qualidade."""
+        """Generates weekly quality health report."""
 
         def _generate_weekly_quality() -> dict[str, Any]:
             data_sources = {
@@ -189,7 +189,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
 
             weekly_data = self.aggregate_data_safely(data_sources, required_sources=["sonarqube_weekly_snapshot"])
 
-            # Adiciona metadados compatíveis com report_template.md
+            # Add metadata compatible with report_template.md
             weekly_data["weekly_report_metadata"] = {
                 "template_section": "SonarCloud – Quality & Security Health",
                 "compatible_with_run_reports": True,
@@ -208,7 +208,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         weekly_data = self.cached_resource_operation(
             "weekly_quality_health",
             _generate_weekly_quality,
-            expiration_minutes=60,  # Cache por 1 hora para dados semanais
+            expiration_minutes=60,  # Cache for 1 hour for weekly data
         )
 
         content = self.format_resource_content(
@@ -224,8 +224,8 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         )
 
     def _get_syngenta_projects_summary(self) -> dict[str, Any]:
-        """Obtém resumo dos projetos Syngenta."""
-        # Baseado na lista de projetos do SonarQube adapter
+        """Gets Syngenta projects summary."""
+        # Based on SonarQube adapter projects list
         return {
             "total_projects": "placeholder_count",
             "projects_with_quality_gate_passed": "placeholder_count",
@@ -235,7 +235,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_quality_gates_summary(self) -> dict[str, Any]:
-        """Obtém resumo dos quality gates."""
+        """Gets quality gates summary."""
         return {
             "passed": "placeholder_count",
             "failed": "placeholder_count",
@@ -245,7 +245,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_critical_code_smells(self) -> dict[str, Any]:
-        """Obtém code smells críticos."""
+        """Gets critical code smells."""
         return {
             "critical_count": "placeholder_count",
             "major_count": "placeholder_count",
@@ -254,7 +254,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_bugs_by_severity(self) -> dict[str, Any]:
-        """Obtém bugs por severidade."""
+        """Gets bugs by severity."""
         return {
             "blocker": "placeholder_count",
             "critical": "placeholder_count",
@@ -265,7 +265,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_maintainability_summary(self) -> dict[str, Any]:
-        """Obtém resumo de manutenibilidade."""
+        """Gets maintainability summary."""
         return {
             "rating_A": "placeholder_count",
             "rating_B": "placeholder_count",
@@ -276,7 +276,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_coverage_analysis(self) -> dict[str, Any]:
-        """Obtém análise de cobertura."""
+        """Gets coverage analysis."""
         return {
             "average_coverage": "placeholder_percentage",
             "projects_above_80": "placeholder_count",
@@ -285,7 +285,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_vulnerabilities_by_severity(self) -> dict[str, Any]:
-        """Obtém vulnerabilidades por severidade."""
+        """Gets vulnerabilities by severity."""
         return {
             "blocker": "placeholder_count",
             "critical": "placeholder_count",
@@ -296,7 +296,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_security_hotspots_summary(self) -> dict[str, Any]:
-        """Obtém resumo dos security hotspots."""
+        """Gets security hotspots summary."""
         return {
             "total_hotspots": "placeholder_count",
             "reviewed_percentage": "placeholder_percentage",
@@ -305,7 +305,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_security_rating_overview(self) -> dict[str, Any]:
-        """Obtém overview do security rating."""
+        """Gets security rating overview."""
         return {
             "rating_A": "placeholder_count",
             "rating_B": "placeholder_count",
@@ -316,7 +316,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_pipeline_security_status(self) -> dict[str, Any]:
-        """Obtém status de segurança dos pipelines."""
+        """Gets pipeline security status."""
         return {
             "pipelines_with_security_scans": "placeholder_count",
             "pipelines_failing_security": "placeholder_count",
@@ -325,7 +325,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_critical_issues_weekly(self) -> dict[str, Any]:
-        """Obtém issues críticos da semana."""
+        """Gets weekly critical issues."""
         return {
             "new_critical_bugs": "placeholder_count",
             "new_vulnerabilities": "placeholder_count",
@@ -334,7 +334,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_coverage_trends_weekly(self) -> dict[str, Any]:
-        """Obtém tendências de cobertura semanal."""
+        """Gets weekly coverage trends."""
         return {
             "current_week_average": "placeholder_percentage",
             "previous_week_average": "placeholder_percentage",
@@ -344,7 +344,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _get_pipeline_success_weekly(self) -> dict[str, Any]:
-        """Obtém taxa de sucesso dos pipelines semanal."""
+        """Gets weekly pipeline success rate."""
         return {
             "success_rate_current": "placeholder_percentage",
             "success_rate_previous": "placeholder_percentage",
@@ -354,7 +354,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
         }
 
     def _analyze_technical_debt(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Analisa débito técnico e gera recomendações."""
+        """Analyzes technical debt and generates recommendations."""
         # Create explicit lists for type clarity
         critical_issues: list[str] = []
         high_issues: list[str] = []
@@ -375,7 +375,7 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
             "focus_areas": focus_areas,
         }
 
-        # Análise simples baseada em dados do SonarQube
+        # Simple analysis based on SonarQube data
         sources = data.get("sources", {})
 
         if "bugs_by_severity" in sources:

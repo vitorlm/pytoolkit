@@ -16,9 +16,9 @@ from .base_prompt import BasePromptHandler
 
 class TeamPerformancePromptHandler(BasePromptHandler):
     """
-    Handler para prompts de performance de equipe.
+    Handler for team performance prompts.
 
-    Combina dados de:
+    Combines data from:
     - JIRA: Team velocity, cycle time, adherence
     - LinearB: Engineering productivity, PR metrics
     """
@@ -29,7 +29,7 @@ class TeamPerformancePromptHandler(BasePromptHandler):
         self.linearb_adapter = LinearBAdapter()
 
     def get_prompt_definitions(self) -> list[Prompt]:
-        """Define prompts de performance de equipe."""
+        """Define team performance prompts."""
         return [
             Prompt(
                 name="team_health_assessment",
@@ -62,7 +62,7 @@ class TeamPerformancePromptHandler(BasePromptHandler):
         ]
 
     async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
-        """Gera conteúdo do prompt específico."""
+        """Generates specific prompt content."""
         if name == "team_health_assessment":
             return await self._generate_team_health_assessment(arguments)
         elif name == "productivity_improvement_plan":
@@ -71,7 +71,7 @@ class TeamPerformancePromptHandler(BasePromptHandler):
             raise ValueError(f"Unknown team performance prompt: {name}")
 
     async def _generate_team_health_assessment(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera avaliação de saúde da equipe."""
+        """Generates team health assessment."""
         project_key = args["project_key"]
         time_period = args.get("time_period", "last-month")
 
@@ -138,7 +138,7 @@ Provide comprehensive health assessment with specific areas for improvement."""
         )
 
     async def _generate_productivity_improvement_plan(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera plano de melhoria de produtividade."""
+        """Generates productivity improvement plan."""
         project_key = args["project_key"]
         focus_areas = args.get("focus_areas", "velocity,cycle-time,quality").split(",")
 

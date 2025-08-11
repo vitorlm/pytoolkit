@@ -8,7 +8,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class CircleCITools:
-    """Tools MCP para integração com CircleCI via PyToolkit."""
+    """MCP Tools for CircleCI integration via PyToolkit."""
 
     def __init__(self):
         """
@@ -22,21 +22,21 @@ class CircleCITools:
 
     @staticmethod
     def get_tool_definitions() -> list[Tool]:
-        """Retorna definições de todas as CircleCI tools."""
+        """Returns definitions of all CircleCI tools."""
         return [
             Tool(
                 name="circleci_get_pipeline_status",
-                description="Obtém status dos pipelines mais recentes de um projeto",
+                description="Gets status of the most recent pipelines of a project",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_slug": {
                             "type": "string",
-                            "description": "Slug do projeto CircleCI (formato: gh/org/repo)",
+                            "description": "CircleCI project slug (format: gh/org/repo)",
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Número de pipelines a buscar (padrão: 10)",
+                            "description": "Number of pipelines to fetch (default: 10)",
                             "default": 10,
                         },
                     },
@@ -45,17 +45,17 @@ class CircleCITools:
             ),
             Tool(
                 name="circleci_get_build_metrics",
-                description="Obtém métricas de performance de builds e deployments",
+                description="Gets build and deployment performance metrics",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_slug": {
                             "type": "string",
-                            "description": "Slug do projeto CircleCI",
+                            "description": "CircleCI project slug",
                         },
                         "days": {
                             "type": "integer",
-                            "description": "Período para análise em dias (padrão: 30)",
+                            "description": "Analysis period in days (default: 30)",
                             "default": 30,
                         },
                     },
@@ -64,17 +64,17 @@ class CircleCITools:
             ),
             Tool(
                 name="circleci_analyze_deployment_frequency",
-                description="Analisa frequência e sucesso de deployments",
+                description="Analyzes deployment frequency and success rates",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_slug": {
                             "type": "string",
-                            "description": "Slug do projeto CircleCI",
+                            "description": "CircleCI project slug",
                         },
                         "days": {
                             "type": "integer",
-                            "description": "Período para análise (padrão: 30)",
+                            "description": "Analysis period (default: 30)",
                             "default": 30,
                         },
                     },
@@ -84,7 +84,7 @@ class CircleCITools:
         ]
 
     async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Executa tool CircleCI específica."""
+        """Executes specific CircleCI tool."""
         self.logger.info(f"Executing CircleCI tool: {name} with args: {arguments}")
 
         try:
@@ -222,11 +222,11 @@ class CircleCITools:
         self.logger.info(f"Analyzing deployment frequency for {project_slug}, last {days} days")
 
         try:
-            # Reutiliza métricas de build para análise de deployment
-            # O adapter CircleCI pode expandir isso no futuro
+            # Reuse build metrics for deployment analysis
+            # The CircleCI adapter can expand this in the future
             build_data = self.adapter.get_build_metrics(project_slug, days)
 
-            # Criar análise específica de deployment baseado nos dados de build
+            # Create specific deployment analysis based on build data
             deployment_analysis = {
                 "project_slug": project_slug,
                 "analysis_period_days": days,

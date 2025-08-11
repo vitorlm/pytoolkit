@@ -19,12 +19,12 @@ from .base_prompt import BasePromptHandler
 
 class WeeklyReportPromptHandler(BasePromptHandler):
     """
-    Handler para prompts de geração de relatórios semanais.
+    Handler for weekly report generation prompts.
 
-    Especializado em gerar prompts que:
-    - Executam workflow equivalente ao run_reports.sh
-    - Formatam dados conforme report_template.md
-    - Geram análises semanais consistentes
+    Specialized in generating prompts that:
+    - Execute workflow equivalent to run_reports.sh
+    - Format data according to report_template.md
+    - Generate consistent weekly analyses
     """
 
     def __init__(self) -> None:
@@ -35,7 +35,7 @@ class WeeklyReportPromptHandler(BasePromptHandler):
         self.circleci_adapter = CircleCIAdapter()
 
     def get_prompt_definitions(self) -> list[Prompt]:
-        """Define prompts de relatórios semanais."""
+        """Define weekly report prompts."""
         return [
             Prompt(
                 name="generate_weekly_engineering_report",
@@ -48,7 +48,7 @@ class WeeklyReportPromptHandler(BasePromptHandler):
                     ),
                     PromptArgument(
                         name="team_name",
-                        description="Team name for analysis (default: Catalog)",
+                        description="Team name for analysis (optional, default: all teams for tribe-wide report)",
                         required=False,
                     ),
                     PromptArgument(
@@ -130,7 +130,7 @@ class WeeklyReportPromptHandler(BasePromptHandler):
         ]
 
     async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
-        """Gera conteúdo do prompt específico."""
+        """Generates specific prompt content."""
         if name == "generate_weekly_engineering_report":
             return await self._generate_weekly_engineering_report(arguments)
         elif name == "analyze_weekly_data_collection":
@@ -145,10 +145,10 @@ class WeeklyReportPromptHandler(BasePromptHandler):
             raise ValueError(f"Unknown weekly report prompt: {name}")
 
     async def _generate_weekly_engineering_report(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera relatório completo de engenharia semanal."""
+        """Generates complete weekly engineering report."""
 
         def _collect_weekly_report_data(project_key: str, team_name: str, include_comparison: bool) -> dict[str, Any]:
-            # Simula execução completa do run_reports.sh
+            # Simulates complete execution of run_reports.sh
             data_sources = {
                 # JIRA Data Collection (equivalente aos comandos do script)
                 "jira_bugs_support_2weeks": self._simulate_jira_bugs_support_2weeks(project_key, team_name),
@@ -163,28 +163,32 @@ class WeeklyReportPromptHandler(BasePromptHandler):
                 "linearb_engineering_metrics": self._simulate_linearb_metrics(),
             }
 
-            # Adiciona dados de comparação se solicitado
+            # Add comparison data if requested
             if include_comparison:
                 data_sources["comparison_analysis"] = self._generate_comparison_analysis(data_sources)
 
             return data_sources
 
         project_key = args.get("project_key", "CWS")
-        team_name = args.get("team_name", "Catalog")
+        team_name = args.get("team_name")  # Allow None for tribe-wide reports
         include_comparison = args.get("include_comparison", True)
         output_format = args.get("output_format", "markdown")
 
-        # Coleta dados semanais com cache
+        # Default to Catalog only if team_name is explicitly empty string, not if None
+        if team_name == "":
+            team_name = "Catalog"
+
+        # Collect weekly data with cache
         weekly_data = self.cached_prompt_generation(
             "weekly_engineering_report",
             _collect_weekly_report_data,
-            expiration_minutes=30,  # Cache curto para dados semanais
+            expiration_minutes=30,  # Short cache for weekly data
             project_key=project_key,
             team_name=team_name,
             include_comparison=include_comparison,
         )
 
-        # Cria contexto especializado para relatório semanal
+        # Create specialized context for weekly report
         system_content = self.create_weekly_report_context()
         system_content += f"""
         **Current Task**: Generate complete weekly engineering report equivalent to run_reports.sh execution.
@@ -205,11 +209,12 @@ class WeeklyReportPromptHandler(BasePromptHandler):
 
         **Output Format**: {output_format}
         **Project**: {project_key}
-        **Team**: {team_name}
+        **Team**: {team_name if team_name else "All Teams (Tribe-wide)"}
         """
 
-        # Formata dados para o prompt
-        data_content = self.format_data_for_prompt(weekly_data, f"Weekly Engineering Data - {team_name} Team")
+        # Format data for prompt
+        team_display = f"{team_name} Team" if team_name else "All Teams (Tribe-wide)"
+        data_content = self.format_data_for_prompt(weekly_data, f"Weekly Engineering Data - {team_display}")
 
         user_content = f"""Generate a complete weekly engineering report using this collected data:
 
@@ -231,7 +236,7 @@ class WeeklyReportPromptHandler(BasePromptHandler):
 - Professional formatting suitable for engineering leadership"""
 
         return GetPromptResult(
-            description=f"Complete weekly engineering report for {team_name} team - {project_key} project",
+            description=f"Complete weekly engineering report for {team_display} - {project_key} project",
             messages=[
                 self.create_system_message(system_content),
                 self.create_user_message(user_content),
@@ -239,7 +244,7 @@ class WeeklyReportPromptHandler(BasePromptHandler):
         )
 
     async def _analyze_weekly_data_collection(self, args: dict[str, Any]) -> GetPromptResult:
-        """Analisa dados coletados semanalmente."""
+        """Analyzes weekly collected data."""
 
         def _collect_analysis_data(focus_areas: list[str]) -> dict[str, Any]:
             analysis_data = {}
@@ -320,7 +325,7 @@ Focus on actionable insights that can drive immediate improvements."""
         )
 
     async def _format_template_sections(self, args: dict[str, Any]) -> GetPromptResult:
-        """Formata dados para seções específicas do template."""
+        """Formats data for specific template sections."""
 
         def _collect_section_data(sections: list[str], week_range: str) -> dict[str, Any]:
             section_data = {}
@@ -399,7 +404,7 @@ Output each section with its proper markdown formatting ready for copy-paste int
         )
 
     async def _generate_next_actions(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera seção Next Actions do relatório."""
+        """Generates Next Actions section of the report."""
 
         def _collect_next_actions_data(priority_level: str, team_context: str) -> dict[str, Any]:
             return {
@@ -478,7 +483,7 @@ Format as markdown lists ready for insertion into report template."""
         )
 
     async def _compare_weekly_metrics(self, args: dict[str, Any]) -> GetPromptResult:
-        """Compara métricas semanais e identifica tendências."""
+        """Compares weekly metrics and identifies trends."""
 
         def _collect_comparison_data(weeks: int, metrics_focus: list[str]) -> dict[str, Any]:
             return {
@@ -818,7 +823,7 @@ Provide actionable insights that can guide team process adjustments and improvem
 
     # Template data methods
     def _get_bugs_support_template_data(self, week_range: str) -> dict[str, Any]:
-        """Dados formatados para seção bugs/support do template."""
+        """Formatted data for bugs/support template section."""
         return {
             "p1_current": "2",
             "p1_previous": "4",
@@ -832,11 +837,11 @@ Provide actionable insights that can guide team process adjustments and improvem
         }
 
     def _get_cycle_time_template_data(self, week_range: str) -> dict[str, Any]:
-        """Dados formatados para seção cycle time do template."""
+        """Formatted data for cycle time template section."""
         return {"average_hours": "24.5", "median_hours": "18.2", "max_hours": "72.1"}
 
     def _get_adherence_template_data(self, week_range: str) -> dict[str, Any]:
-        """Dados formatados para seção adherence do template."""
+        """Formatted data for adherence template section."""
         return {
             "early_count": 5,
             "early_pct": "20.8%",
@@ -850,7 +855,7 @@ Provide actionable insights that can guide team process adjustments and improvem
         }
 
     def _get_linearb_template_data(self, week_range: str) -> dict[str, Any]:
-        """Dados formatados para seção LinearB do template."""
+        """Formatted data for LinearB template section."""
         return {
             "cycle_time_current": "24.5 h",
             "cycle_time_previous": "26.1 h",
@@ -867,7 +872,7 @@ Provide actionable insights that can guide team process adjustments and improvem
         }
 
     def _get_sonarqube_template_data(self) -> dict[str, Any]:
-        """Dados formatados para seção SonarQube do template."""
+        """Formatted data for SonarQube template section."""
         return {
             "quality_gate": "PASSED",
             "coverage": "78.5%",

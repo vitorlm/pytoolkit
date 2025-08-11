@@ -8,7 +8,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class SonarQubeTools:
-    """Tools MCP para integração com SonarQube via PyToolkit."""
+    """MCP Tools for SonarQube integration via PyToolkit."""
 
     def __init__(self):
         """
@@ -22,35 +22,39 @@ class SonarQubeTools:
 
     @staticmethod
     def get_tool_definitions() -> list[Tool]:
-        """Retorna definições de todas as SonarQube tools."""
+        """Returns definitions of all SonarQube tools."""
         return [
             Tool(
                 name="sonar_get_project_metrics",
-                description="Obtém métricas de qualidade de código de um projeto específico",
+                description="Gets code quality metrics of a specific project",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto no SonarQube",
-                        }
+                            "description": "SonarQube project key",
+                        },
+                        "organization": {
+                            "type": "string",
+                            "description": "SonarQube organization (optional). If not provided, uses default configuration.",
+                        },
                     },
                     "required": ["project_key"],
                 },
             ),
             Tool(
                 name="sonar_get_project_issues",
-                description="Obtém issues (bugs, vulnerabilidades, code smells) de um projeto",
+                description="Gets issues (bugs, vulnerabilities, code smells) of a project",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto no SonarQube",
+                            "description": "SonarQube project key",
                         },
                         "issue_type": {
                             "type": "string",
-                            "description": "Tipo de issue: BUG, VULNERABILITY, CODE_SMELL",
+                            "description": "Issue type: BUG, VULNERABILITY, CODE_SMELL",
                             "enum": ["BUG", "VULNERABILITY", "CODE_SMELL"],
                             "default": "BUG",
                         },
@@ -60,29 +64,42 @@ class SonarQubeTools:
             ),
             Tool(
                 name="sonar_get_quality_overview",
-                description="Obtém overview de qualidade de todos os projetos configurados",
+                description="Gets quality overview of projects with flexible filters",
                 inputSchema={
                     "type": "object",
                     "properties": {
+                        "organization": {
+                            "type": "string",
+                            "description": "SonarQube organization (ex: 'syngenta-digital'). If not provided, uses default configuration.",
+                        },
+                        "project_keys": {
+                            "type": "string",
+                            "description": "Comma-separated list of specific project keys to analyze (optional). If not provided, uses all available projects.",
+                        },
                         "use_project_list": {
                             "type": "boolean",
-                            "description": "Usar lista pré-definida de projetos Syngenta",
+                            "description": "Use pre-defined Syngenta projects list (default: true). Ignored if project_keys is provided.",
                             "default": True,
-                        }
+                        },
+                        "include_measures": {
+                            "type": "boolean",
+                            "description": "Include detailed metrics for each project (default: true)",
+                            "default": True,
+                        },
                     },
                     "required": [],
                 },
             ),
             Tool(
                 name="sonar_compare_projects_quality",
-                description="Compara métricas de qualidade entre múltiplos projetos",
+                description="Compares quality metrics between multiple projects",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_keys": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Lista de chaves de projetos para comparar",
+                            "description": "List of project keys to compare",
                         }
                     },
                     "required": ["project_keys"],
@@ -91,7 +108,7 @@ class SonarQubeTools:
         ]
 
     async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Executa tool SonarQube específica."""
+        """Executes specific SonarQube tool."""
         self.logger.info(f"Executing SonarQube tool: {name} with args: {arguments}")
 
         try:
@@ -120,7 +137,9 @@ class SonarQubeTools:
         including bugs, vulnerabilities, code smells, coverage, and ratings.
 
         Args:
-            args: Dictionary containing project_key
+            args: Dictionary containing project_key and optional organization
+                  Note: organization parameter is accepted for consistency but
+                  currently not used in project-specific queries
 
         Returns:
             list[TextContent]: Formatted project metrics results
@@ -129,13 +148,17 @@ class SonarQubeTools:
             Exception: If project metrics retrieval fails
         """
         project_key = args["project_key"]
-        self.logger.info(f"Getting project metrics for: {project_key}")
+        organization = args.get("organization")
+        self.logger.info(f"Getting project metrics for: {project_key} (org: {organization})")
 
         try:
+            # Note: The underlying service currently doesn't support organization parameter
+            # for individual project queries, only for project listing/filtering
             data = self.adapter.get_project_details(project_key)
 
             formatted_result = {
                 "project_key": project_key,
+                "organization": organization,
                 "metrics": data,
                 "summary": {
                     "analysis_type": "project_metrics",
@@ -180,11 +203,11 @@ class SonarQubeTools:
         self.logger.info(f"Getting {issue_type} issues for project: {project_key}")
 
         try:
-            # Note: O método get_project_details pode incluir informações sobre issues
-            # Vamos usar isso como base e filtrar por tipo se necessário
+            # Note: The get_project_details method can include information about issues
+            # We'll use this as a base and filter by type if necessary
             data = self.adapter.get_project_details(project_key, include_issues=True)
 
-            # Filtrar issues por tipo se disponível
+            # Filter issues by type if available
             issues_data = data.get("issues", {})
             filtered_issues = issues_data.get(issue_type.lower(), issues_data)
 
@@ -217,11 +240,11 @@ class SonarQubeTools:
         """
         Retrieve quality overview.
 
-        Gets a comprehensive quality overview across all configured projects
-        or the predefined Syngenta Digital project list.
+        Gets a comprehensive quality overview across projects with flexible filtering options.
+        Supports organization filtering, specific project selection, and predefined project lists.
 
         Args:
-            args: Dictionary containing optional use_project_list parameter
+            args: Dictionary containing optional filtering parameters
 
         Returns:
             list[TextContent]: Formatted quality overview results
@@ -229,20 +252,39 @@ class SonarQubeTools:
         Raises:
             Exception: If quality overview retrieval fails
         """
+        organization = args.get("organization")
+        project_keys_str = args.get("project_keys")
         use_project_list = args.get("use_project_list", True)
-        self.logger.info(f"Getting quality overview, use_project_list: {use_project_list}")
+        include_measures = args.get("include_measures", True)
+
+        # Parse project keys if provided
+        project_keys = None
+        if project_keys_str:
+            project_keys = [key.strip() for key in project_keys_str.split(",")]
+            use_project_list = False  # Override use_project_list if specific projects are provided
+
+        self.logger.info(
+            f"Getting quality overview - org: {organization}, project_keys: {project_keys}, use_project_list: {use_project_list}"
+        )
 
         try:
-            if use_project_list:
-                data = self.adapter.get_all_projects_with_metrics()
+            if project_keys:
+                # Get metrics for specific projects by passing project_keys parameter
+                data = self.adapter.get_all_projects_with_metrics(organization=organization, project_keys=project_keys)
+            elif use_project_list:
+                # Use predefined project list
+                data = self.adapter.get_all_projects_with_metrics(organization=organization)
             else:
-                # Fallback para dashboard geral
+                # Fallback to general dashboard
                 data = self.adapter.get_quality_dashboard()
 
             formatted_result = {
                 "quality_overview": data,
                 "configuration": {
+                    "organization": organization,
+                    "project_keys": project_keys,
                     "use_project_list": use_project_list,
+                    "include_measures": include_measures,
                     "projects_analyzed": (len(data.get("projects", [])) if isinstance(data, dict) else "N/A"),
                 },
                 "summary": {
@@ -288,7 +330,7 @@ class SonarQubeTools:
                 project_data = self.adapter.get_project_details(project_key)
                 comparison_data[project_key] = project_data
 
-            # Criar sumário comparativo
+            # Create comparative summary
             comparison_summary = {
                 "projects_compared": len(project_keys),
                 "projects": project_keys,

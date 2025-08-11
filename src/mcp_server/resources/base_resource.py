@@ -44,35 +44,31 @@ class BaseResourceHandler(ABC):
 
     @abstractmethod
     def get_resource_definitions(self) -> list[Resource]:
-        """Retorna definições dos resources."""
+        """Returns resource definitions."""
 
     @abstractmethod
     async def get_resource_content(self, uri: str) -> TextResourceContents:
-        """Obtém conteúdo de um resource específico."""
+        """Gets content of a specific resource."""
 
     def get_cache_key(self, operation: str, **kwargs) -> str:
         """Generates cache key for resources."""
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"resource_{self.resource_name}_{operation}_{params}"
 
-    def cached_resource_operation(
-        self, operation: str, func, expiration_minutes: int = 120, **kwargs
-    ) -> Any:
+    def cached_resource_operation(self, operation: str, func, expiration_minutes: int = 120, **kwargs) -> Any:
         """
         Executes resource operation with long cache (resources are heavier).
 
         Args:
             operation: Operation name
             func: Function to be executed
-            expiration_minutes: Tempo de cache (padrão: 2 horas)
+            expiration_minutes: Cache time (default: 2 hours)
             **kwargs: Parameters for the function
         """
         cache_key = self.get_cache_key(operation, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(
-            cache_key, expiration_minutes=expiration_minutes
-        )
+        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
         if cached_result is not None:
             self.logger.debug(f"Resource cache hit for {operation}")
             return cached_result
@@ -82,7 +78,7 @@ class BaseResourceHandler(ABC):
             self.logger.info(f"Generating resource {operation} - cache miss")
             result = func(**kwargs)
 
-            # Salva no cache
+            # Save to cache
             self.cache.save(cache_key, result)
             self.logger.info(f"Cached resource result for {operation}")
 
@@ -102,7 +98,7 @@ class BaseResourceHandler(ABC):
 
         Args:
             data_sources: dict with source name and function to get data
-            required_sources: Fontes obrigatórias (falha se não funcionarem)
+            required_sources: Required sources (fail if they don't work)
         """
         # Create explicit dictionaries for type clarity
         sources: dict[str, Any] = {}
@@ -140,10 +136,8 @@ class BaseResourceHandler(ABC):
 
         return aggregated_data
 
-    def format_resource_content(
-        self, data: dict[str, Any], title: str, description: str
-    ) -> str:
-        """Formata conteúdo do resource de forma padronizada."""
+    def format_resource_content(self, data: dict[str, Any], title: str, description: str) -> str:
+        """Formats resource content in a standardized way."""
         formatted_content = f"""# {title}
 
 {description}
@@ -158,13 +152,11 @@ class BaseResourceHandler(ABC):
         for source_name, source_data in data.get("sources", {}).items():
             formatted_content += f"\n### {source_name}\n"
             if isinstance(source_data, dict):
-                formatted_content += (
-                    f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
-                )
+                formatted_content += f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
             else:
                 formatted_content += f"{source_data}\n"
 
-        # Lista erros se houver
+        # List errors if any
         if data.get("errors"):
             formatted_content += "\n## Errors\n"
             for source_name, error in data["errors"].items():
@@ -174,7 +166,7 @@ class BaseResourceHandler(ABC):
 
     def parse_quarter_cycle(self, period: str) -> dict[str, Any]:
         """
-        Analisa período no formato Q1-C1, Q2-C2, etc.
+        Analyzes period in format Q1-C1, Q2-C2, etc.
 
         Args:
             period: Period in format "Q1-C1" or "current" for current period
@@ -183,7 +175,7 @@ class BaseResourceHandler(ABC):
             dict with quarter and cycle information
         """
         if period.lower() == "current":
-            # Determina quartil/ciclo atual baseado na data
+            # Determine current quarter/cycle based on date
             current_date = datetime.now()
             quarter = ((current_date.month - 1) // 3) + 1
 
@@ -198,7 +190,7 @@ class BaseResourceHandler(ABC):
                 "is_current": True,
             }
 
-        # Parse formato Q1-C1, Q2-C2, etc.
+        # Parse format Q1-C1, Q2-C2, etc.
         try:
             parts = period.upper().split("-")
             quarter_part = parts[0].replace("Q", "")
@@ -211,9 +203,7 @@ class BaseResourceHandler(ABC):
                 "is_current": False,
             }
         except (IndexError, ValueError):
-            self.logger.warning(
-                f"Invalid period format '{period}', using current period"
-            )
+            self.logger.warning(f"Invalid period format '{period}', using current period")
             return self.parse_quarter_cycle("current")
 
     def get_period_days(self, _quarter: int, _cycle: int) -> int:
@@ -221,15 +211,17 @@ class BaseResourceHandler(ABC):
         Returns approximate number of days for a quarter/cycle.
 
         Args:
-            quarter: Número do quartil (1-4)
-            cycle: Número do ciclo (1-2)
+            quarter: Quarter number (1-4)
+            cycle: Cycle number (1-2)
 
         Returns:
-            Número aproximado de dias
+            Approximate number of days
         """
-        # Cada quartil tem ~90 dias, cada ciclo ~45 dias
+        # Each quarter has ~90 days, each cycle ~45 days
         return 45
 
     def format_quarter_cycle_summary(self, period_info: dict[str, Any]) -> str:
-        """Formata resumo do período de quartil/ciclo."""
-        return f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"
+        """Formats quarter/cycle period summary."""
+        return (
+            f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"
+        )

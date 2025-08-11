@@ -8,7 +8,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class JiraTools:
-    """Tools MCP para integração com JIRA via PyToolkit."""
+    """MCP Tools for JIRA integration via PyToolkit."""
 
     def __init__(self):
         """
@@ -22,36 +22,56 @@ class JiraTools:
 
     @staticmethod
     def get_tool_definitions() -> list[Tool]:
-        """Retorna definições de todas as JIRA tools."""
+        """Returns definitions of all JIRA tools."""
         return [
             Tool(
                 name="jira_get_epic_monitoring",
-                description=("Obtém dados de monitoramento de épicos JIRA com status, datas e problemas identificados"),
+                description=("Gets JIRA epic monitoring data with status, dates and identified issues"),
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto JIRA (ex: 'SCRUM', 'DEV')",
-                        }
+                            "description": "JIRA project key (ex: 'SCRUM', 'DEV')",
+                        },
+                        "team": {
+                            "type": "string",
+                            "description": "Team name to filter (optional). If not provided, returns data from all teams in the project.",
+                        },
                     },
                     "required": ["project_key"],
                 },
             ),
             Tool(
                 name="jira_get_cycle_time_metrics",
-                description="Obtém métricas de cycle time para análise de performance da equipe",
+                description="Gets cycle time metrics for team performance analysis",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto JIRA",
+                            "description": "JIRA project key",
                         },
-                        "days_back": {
-                            "type": "integer",
-                            "description": "Número de dias para análise histórica (padrão: 30)",
-                            "default": 30,
+                        "time_period": {
+                            "type": "string",
+                            "description": "Analysis period: 'last-week', 'last-2-weeks', 'last-month', 'N-days' (ex: '30-days'), or date range (ex: '2025-01-01,2025-01-31')",
+                            "default": "last-week",
+                        },
+                        "issue_types": {
+                            "type": "string",
+                            "description": "Comma-separated list of issue types (ex: 'Bug,Story,Task'). If not provided, uses 'Bug,Story'",
+                        },
+                        "team": {
+                            "type": "string",
+                            "description": "Team name to filter (optional). If not provided, analyzes all teams in the project.",
+                        },
+                        "priorities": {
+                            "type": "string",
+                            "description": "Comma-separated list of priorities to filter (optional)",
+                        },
+                        "status_categories": {
+                            "type": "string",
+                            "description": "Comma-separated list of status categories to include (optional)",
                         },
                     },
                     "required": ["project_key"],
@@ -59,18 +79,31 @@ class JiraTools:
             ),
             Tool(
                 name="jira_get_team_velocity",
-                description="Obtém dados de velocidade da equipe baseado em sprints anteriores",
+                description="Gets team velocity data based on previous sprints",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto JIRA",
+                            "description": "JIRA project key",
                         },
-                        "sprints": {
-                            "type": "integer",
-                            "description": "Número de sprints para análise (padrão: 5)",
-                            "default": 5,
+                        "time_period": {
+                            "type": "string",
+                            "description": "Analysis period: 'last-6-months', 'last-3-months', 'last-month', or date range",
+                            "default": "last-6-months",
+                        },
+                        "issue_types": {
+                            "type": "string",
+                            "description": "Comma-separated list of issue types (ex: 'Story,Task,Epic,Technical Debt,Improvement')",
+                        },
+                        "aggregation": {
+                            "type": "string",
+                            "description": "Temporal aggregation: 'monthly', 'quarterly' (default: 'monthly')",
+                            "default": "monthly",
+                        },
+                        "team": {
+                            "type": "string",
+                            "description": "Team name to filter (optional). If not provided, analyzes all teams in the project.",
                         },
                     },
                     "required": ["project_key"],
@@ -78,14 +111,66 @@ class JiraTools:
             ),
             Tool(
                 name="jira_get_issue_adherence",
-                description="Analisa aderência da equipe a prazos e datas de entrega",
+                description="Analyzes team adherence to deadlines and delivery dates",
                 inputSchema={
                     "type": "object",
                     "properties": {
                         "project_key": {
                             "type": "string",
-                            "description": "Chave do projeto JIRA",
-                        }
+                            "description": "JIRA project key",
+                        },
+                        "time_period": {
+                            "type": "string",
+                            "description": "Analysis period: 'last-week', 'last-2-weeks', 'last-month', 'N-days' (ex: '30-days'), or date range (ex: '2025-01-01,2025-01-31')",
+                            "default": "last-month",
+                        },
+                        "issue_types": {
+                            "type": "string",
+                            "description": "Comma-separated list of issue types (ex: 'Bug,Support,Story,Task'). If not provided, uses 'Bug,Story'",
+                        },
+                        "team": {
+                            "type": "string",
+                            "description": "Team name to filter (optional). If not provided, analyzes all teams in the project.",
+                        },
+                        "status_categories": {
+                            "type": "string",
+                            "description": "Comma-separated list of status categories to include (ex: 'Done,In Progress,To Do')",
+                        },
+                        "include_no_due_date": {
+                            "type": "boolean",
+                            "description": "Include issues without due date in analysis (default: false)",
+                            "default": False,
+                        },
+                    },
+                    "required": ["project_key"],
+                },
+            ),
+            Tool(
+                name="jira_get_open_issues",
+                description="Gets list of open issues in the project with optional filters",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "project_key": {
+                            "type": "string",
+                            "description": "JIRA project key",
+                        },
+                        "issue_types": {
+                            "type": "string",
+                            "description": "Comma-separated list of issue types (ex: 'Bug,Support,Story,Task')",
+                        },
+                        "team": {
+                            "type": "string",
+                            "description": "Team name to filter (optional). If not provided, returns issues from all teams in the project.",
+                        },
+                        "status_categories": {
+                            "type": "string",
+                            "description": "Comma-separated list of status categories to include (ex: 'To Do,In Progress'). If not provided, includes all non-'Done' categories",
+                        },
+                        "priorities": {
+                            "type": "string",
+                            "description": "Comma-separated list of priorities to filter (optional)",
+                        },
                     },
                     "required": ["project_key"],
                 },
@@ -93,7 +178,7 @@ class JiraTools:
         ]
 
     async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Executa tool JIRA específica."""
+        """Executes specific JIRA tool."""
         self.logger.info(f"Executing JIRA tool: {name} with args: {arguments}")
 
         try:
@@ -105,6 +190,8 @@ class JiraTools:
                 return await self._get_team_velocity(arguments)
             elif name == "jira_get_issue_adherence":
                 return await self._get_issue_adherence(arguments)
+            elif name == "jira_get_open_issues":
+                return await self._get_open_issues(arguments)
             else:
                 error_msg = f"Unknown JIRA tool '{name}'"
                 self.logger.error(error_msg)
@@ -122,7 +209,7 @@ class JiraTools:
         and identified problems for the specified project.
 
         Args:
-            args: Dictionary containing project_key and other parameters
+            args: Dictionary containing project_key and optional team parameter
 
         Returns:
             list[TextContent]: Formatted epic monitoring results
@@ -131,13 +218,19 @@ class JiraTools:
             Exception: If epic monitoring data retrieval fails
         """
         project_key = args["project_key"]
-        self.logger.info(f"Getting epic monitoring data for project: {project_key}")
+        team = args.get("team")
+        self.logger.info(f"Getting epic monitoring data for project: {project_key}, team: {team}")
 
         try:
-            data = self.adapter.get_epic_monitoring_data(project_key)
+            if team:
+                data = self.adapter.get_epic_monitoring_data(project_key, team)
+            else:
+                # Call without team parameter to get all teams
+                data = self.adapter.get_epic_monitoring_data(project_key)
 
             formatted_result = {
                 "project_key": project_key,
+                "team": team,
                 "epic_monitoring": data,
                 "summary": {
                     "total_epics": (len(data.get("epics", [])) if isinstance(data, dict) else "N/A"),
@@ -148,7 +241,7 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Epic Monitoring Data for {project_key}:\n{json.dumps(formatted_result, indent=2)}",
+                    text=f"Epic Monitoring Data for {project_key} (team: {team or 'all'}):\n{json.dumps(formatted_result, indent=2)}",
                 )
             ]
         except Exception as e:
@@ -168,7 +261,7 @@ class JiraTools:
         providing insights into team performance and delivery efficiency.
 
         Args:
-            args: Dictionary containing project_key and optional days_back parameter
+            args: Dictionary containing project_key and optional analysis parameters
 
         Returns:
             list[TextContent]: Formatted cycle time analysis results
@@ -177,15 +270,31 @@ class JiraTools:
             Exception: If cycle time analysis fails
         """
         project_key = args["project_key"]
-        days_back = args.get("days_back", 30)
-        self.logger.info(f"Getting cycle time metrics for {project_key}, last {days_back} days")
+        time_period = args.get("time_period", "last-week")
+        issue_types_str = args.get("issue_types", "Bug,Story")
+        team = args.get("team")
+        priorities_str = args.get("priorities")
+        status_categories_str = args.get("status_categories")
+
+        # Parse comma-separated strings into lists
+        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
+        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
+
+        self.logger.info(f"Getting cycle time metrics for {project_key}, period: {time_period}, team: {team}")
 
         try:
-            data = self.adapter.get_cycle_time_analysis(project_key, days_back)
+            data = self.adapter.get_cycle_time_analysis(
+                project_key=project_key, time_period=time_period, issue_types=issue_types, team=team
+            )
 
             formatted_result = {
                 "project_key": project_key,
-                "analysis_period_days": days_back,
+                "time_period": time_period,
+                "issue_types": issue_types,
+                "team": team,
+                "priorities": priorities,
+                "status_categories": status_categories,
                 "cycle_time_data": data,
                 "summary": {
                     "total_issues_analyzed": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
@@ -196,7 +305,7 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Cycle Time Metrics for {project_key} (last {days_back} days):\n"
+                    text=f"Cycle Time Metrics for {project_key} (period: {time_period}, team: {team or 'all'}):\n"
                     f"{json.dumps(formatted_result, indent=2)}",
                 )
             ]
@@ -217,7 +326,7 @@ class JiraTools:
         insights into team productivity and capacity planning.
 
         Args:
-            args: Dictionary containing project_key and optional sprints parameter
+            args: Dictionary containing project_key and optional analysis parameters
 
         Returns:
             list[TextContent]: Formatted team velocity analysis results
@@ -226,15 +335,35 @@ class JiraTools:
             Exception: If velocity analysis fails
         """
         project_key = args["project_key"]
-        sprints = args.get("sprints", 5)
-        self.logger.info(f"Getting team velocity for {project_key}, last {sprints} sprints")
+        time_period = args.get("time_period", "last-6-months")
+        issue_types_str = args.get("issue_types", "Story,Task,Epic,Technical Debt,Improvement")
+        aggregation = args.get("aggregation", "monthly")
+        team = args.get("team")
+
+        # Parse comma-separated string into list
+        issue_types = (
+            [t.strip() for t in issue_types_str.split(",")]
+            if issue_types_str
+            else ["Story", "Task", "Epic", "Technical Debt", "Improvement"]
+        )
+
+        self.logger.info(f"Getting team velocity for {project_key}, period: {time_period}, team: {team}")
 
         try:
-            data = self.adapter.get_velocity_analysis(project_key, sprints)
+            data = self.adapter.get_velocity_analysis(
+                project_key=project_key,
+                time_period=time_period,
+                issue_types=issue_types,
+                aggregation=aggregation,
+                team=team,
+            )
 
             formatted_result = {
                 "project_key": project_key,
-                "sprints_analyzed": sprints,
+                "time_period": time_period,
+                "issue_types": issue_types,
+                "aggregation": aggregation,
+                "team": team,
                 "velocity_data": data,
                 "summary": {
                     "analysis_type": "team_velocity",
@@ -245,7 +374,7 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Team Velocity for {project_key} (last {sprints} sprints):\n{json.dumps(formatted_result, indent=2)}",
+                    text=f"Team Velocity for {project_key} (period: {time_period}, team: {team or 'all'}):\n{json.dumps(formatted_result, indent=2)}",
                 )
             ]
         except Exception as e:
@@ -265,7 +394,7 @@ class JiraTools:
         providing insights into planning accuracy and delivery reliability.
 
         Args:
-            args: Dictionary containing project_key
+            args: Dictionary containing project_key and optional analysis parameters
 
         Returns:
             list[TextContent]: Formatted adherence analysis results
@@ -274,13 +403,30 @@ class JiraTools:
             Exception: If adherence analysis fails
         """
         project_key = args["project_key"]
-        self.logger.info(f"Getting issue adherence analysis for {project_key}")
+        time_period = args.get("time_period", "last-month")
+        issue_types_str = args.get("issue_types", "Bug,Story")
+        team = args.get("team")
+        status_categories_str = args.get("status_categories")
+        include_no_due_date = args.get("include_no_due_date", False)
+
+        # Parse comma-separated strings into lists
+        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
+        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
+
+        self.logger.info(f"Getting issue adherence analysis for {project_key}, period: {time_period}, team: {team}")
 
         try:
-            data = self.adapter.get_adherence_analysis(project_key)
+            data = self.adapter.get_adherence_analysis(
+                project_key=project_key, time_period=time_period, issue_types=issue_types, team=team
+            )
 
             formatted_result = {
                 "project_key": project_key,
+                "time_period": time_period,
+                "issue_types": issue_types,
+                "team": team,
+                "status_categories": status_categories,
+                "include_no_due_date": include_no_due_date,
                 "adherence_analysis": data,
                 "summary": {
                     "analysis_type": "issue_adherence",
@@ -291,7 +437,7 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Issue Adherence Analysis for {project_key}:\n{json.dumps(formatted_result, indent=2)}",
+                    text=f"Issue Adherence Analysis for {project_key} (period: {time_period}, team: {team or 'all'}):\n{json.dumps(formatted_result, indent=2)}",
                 )
             ]
         except Exception as e:
@@ -300,5 +446,75 @@ class JiraTools:
                 TextContent(
                     type="text",
                     text=f"Failed to retrieve issue adherence analysis for {project_key}: {str(e)}",
+                )
+            ]
+
+    async def _get_open_issues(self, args: dict[str, Any]) -> list[TextContent]:
+        """
+        Execute open issues analysis.
+
+        Retrieves and formats currently open issues in the project with optional filtering.
+
+        Args:
+            args: Dictionary containing project_key and optional filtering parameters
+
+        Returns:
+            list[TextContent]: Formatted open issues results
+
+        Raises:
+            Exception: If open issues retrieval fails
+        """
+        project_key = args["project_key"]
+        issue_types_str = args.get("issue_types", "Bug,Support,Story,Task")
+        team = args.get("team")
+        status_categories_str = args.get("status_categories", "To Do,In Progress")
+        priorities_str = args.get("priorities")
+
+        # Parse comma-separated strings into lists
+        issue_types = (
+            [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Support", "Story", "Task"]
+        )
+        status_categories = (
+            [s.strip() for s in status_categories_str.split(",")] if status_categories_str else ["To Do", "In Progress"]
+        )
+        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+
+        self.logger.info(f"Getting open issues for {project_key}, team: {team}")
+
+        try:
+            data = self.adapter.get_open_issues(
+                project_key=project_key,
+                issue_types=issue_types,
+                team=team,
+                status_categories=status_categories,
+                priorities=priorities,
+            )
+
+            formatted_result = {
+                "project_key": project_key,
+                "issue_types": issue_types,
+                "team": team,
+                "status_categories": status_categories,
+                "priorities": priorities,
+                "open_issues_data": data,
+                "summary": {
+                    "analysis_type": "open_issues",
+                    "total_open_issues": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                },
+            }
+
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Open Issues for {project_key} (team: {team or 'all'}):\n{json.dumps(formatted_result, indent=2)}",
+                )
+            ]
+        except Exception as e:
+            self.logger.error(f"Failed to get open issues: {e}")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Failed to retrieve open issues for {project_key}: {str(e)}",
                 )
             ]

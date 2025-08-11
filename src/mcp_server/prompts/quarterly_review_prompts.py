@@ -88,7 +88,7 @@ class QuarterlyReviewPromptHandler(BasePromptHandler):
         ]
 
     async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
-        """Gera conteúdo do prompt específico."""
+        """Generates specific prompt content."""
         if name == "quarterly_cycle_analysis":
             return await self._generate_quarterly_cycle_analysis(arguments)
         elif name == "quarterly_retrospective_data":

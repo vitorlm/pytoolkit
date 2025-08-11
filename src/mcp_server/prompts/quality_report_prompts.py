@@ -66,7 +66,7 @@ class QualityReportPromptHandler(BasePromptHandler):
         ]
 
     async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
-        """Gera conteúdo do prompt específico."""
+        """Generates specific prompt content."""
         if name == "code_quality_report":
             return await self._generate_code_quality_report(arguments)
         elif name == "technical_debt_prioritization":
@@ -77,7 +77,7 @@ class QualityReportPromptHandler(BasePromptHandler):
             raise ValueError(f"Unknown quality prompt: {name}")
 
     async def _generate_code_quality_report(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera relatório de qualidade de código."""
+        """Generates code quality report."""
         project_key = args.get("project_key")
         include_trends = args.get("include_trends", False)
 
@@ -159,7 +159,7 @@ Provide actionable insights and prioritized recommendations."""
         )
 
     async def _generate_technical_debt_prioritization(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera priorização de débito técnico."""
+        """Generates technical debt prioritization."""
         project_key = args["project_key"]
 
         def _collect_debt_data(project_key: str) -> dict[str, Any]:
@@ -225,7 +225,7 @@ Provide ranked action plan with effort estimates and business impact assessment.
         )
 
     async def _generate_security_assessment(self, args: dict[str, Any]) -> GetPromptResult:
-        """Gera avaliação de segurança."""
+        """Generates security assessment."""
         include_all_projects = args.get("include_all_projects", True)
 
         def _collect_security_data(include_all: bool) -> dict[str, Any]:

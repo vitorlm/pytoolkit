@@ -17,6 +17,7 @@ from domains.syngenta.jira.issue_resolution_time_service import (
     IssueResolutionTimeService,
 )
 from domains.syngenta.jira.issue_velocity_service import IssueVelocityService
+from domains.syngenta.jira.open_issues_service import OpenIssuesService
 
 from .base_adapter import BaseAdapter
 
@@ -53,6 +54,7 @@ class JiraAdapter(BaseAdapter):
                 "velocity": IssueVelocityService(),
                 "adherence": IssueAdherenceService(),
                 "resolution_time": IssueResolutionTimeService(),
+                "open_issues": OpenIssuesService(),
             }
 
             self.logger.info("All JIRA services initialized successfully")
@@ -69,9 +71,7 @@ class JiraAdapter(BaseAdapter):
             _ = self.service  # Trigger lazy loading
         return self._services
 
-    def get_epic_monitoring_data(
-        self, project_key: str, team: str = "Catalog"
-    ) -> dict[str, Any]:
+    def get_epic_monitoring_data(self, project_key: str, team: str | None = None) -> dict[str, Any]:
         """
         Get epic monitoring data with problem detection.
 
@@ -86,15 +86,19 @@ class JiraAdapter(BaseAdapter):
         def _fetch_epic_data(**kwargs) -> dict[str, Any]:
             epic_service = self.services["epic_monitor"]
 
-            # Get epics for the team
-            epics = epic_service.get_catalog_epics()  # Currently hardcoded to Catalog
+            # Get epics - currently the service only supports Catalog team
+            # TODO: Update EpicMonitorService to support team parameter
+            epics = epic_service.get_catalog_epics()
 
             # Analyze problems
             problematic_epics = epic_service.analyze_epic_problems(epics)
 
             return {
                 "project_key": project_key,
-                "team": team,
+                "team": team or "Catalog",  # Default to Catalog for now
+                "note": "Epic monitoring currently supports only Catalog team. Team parameter will be ignored."
+                if team and team != "Catalog"
+                else None,
                 "total_epics": len(epics),
                 "problematic_epics_count": len(problematic_epics),
                 "epics": [
@@ -103,12 +107,8 @@ class JiraAdapter(BaseAdapter):
                         "summary": epic.summary,
                         "status": epic.status,
                         "assignee": epic.assignee_name,
-                        "start_date": (
-                            epic.start_date.isoformat() if epic.start_date else None
-                        ),
-                        "due_date": (
-                            epic.due_date.isoformat() if epic.due_date else None
-                        ),
+                        "start_date": (epic.start_date.isoformat() if epic.start_date else None),
+                        "due_date": (epic.due_date.isoformat() if epic.due_date else None),
                         "fix_version": epic.fix_version,
                         "problems": epic.problems,
                     }
@@ -311,9 +311,56 @@ class JiraAdapter(BaseAdapter):
             squad=squad,
         )
 
-    def get_comprehensive_dashboard(
-        self, project_key: str, team: str | None = None
+    def get_open_issues(
+        self,
+        project_key: str,
+        issue_types: list[str] | None = None,
+        team: str | None = None,
+        status_categories: list[str] | None = None,
+        priorities: list[str] | None = None,
     ) -> dict[str, Any]:
+        """
+        Get currently open issues with optional filtering.
+
+        Args:
+            project_key: JIRA project key
+            issue_types: list of issue types to include
+            team: Team filter
+            status_categories: list of status categories to include
+            priorities: list of priorities to filter (note: not currently supported by OpenIssuesService)
+
+        Returns:
+            Open issues data with breakdowns and metrics
+        """
+        if issue_types is None:
+            issue_types = ["Bug", "Support", "Story", "Task"]
+
+        if status_categories is None:
+            status_categories = ["To Do", "In Progress"]
+
+        def _fetch_open_issues(**kwargs) -> dict[str, Any]:
+            open_issues_service = self.services["open_issues"]
+
+            return open_issues_service.fetch_open_issues(
+                project_key=kwargs["project_key"],
+                issue_types=kwargs["issue_types"],
+                team=kwargs.get("team"),
+                status_categories=kwargs["status_categories"],
+                verbose=False,
+                output_file=None,
+            )
+
+        return self.cached_operation(
+            "open_issues",
+            _fetch_open_issues,
+            expiration_minutes=15,  # Shorter cache for current state
+            project_key=project_key,
+            issue_types=issue_types,
+            team=team,
+            status_categories=status_categories,
+        )
+
+    def get_comprehensive_dashboard(self, project_key: str, team: str | None = None) -> dict[str, Any]:
         """
         Get comprehensive dashboard with all key metrics.
 
@@ -392,17 +439,13 @@ class JiraAdapter(BaseAdapter):
             base_health.update(
                 {
                     "jira_connectivity": "healthy",
-                    "available_services": (
-                        list(self._services.keys()) if self._services else []
-                    ),
+                    "available_services": (list(self._services.keys()) if self._services else []),
                     "test_operation": "project_issue_types_fetch",
                     "test_result_count": len(test_result) if test_result else 0,
                 }
             )
 
         except Exception as e:
-            base_health.update(
-                {"jira_connectivity": "unhealthy", "connectivity_error": str(e)}
-            )
+            base_health.update({"jira_connectivity": "unhealthy", "connectivity_error": str(e)})
 
         return base_health
