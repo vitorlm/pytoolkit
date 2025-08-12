@@ -1,0 +1,137 @@
+# Weekly Engineering Report
+
+**Report Week Range:** {{ report_week_range }}  
+**Comparison Period:** {{ comparison_period }}  
+**Report Date:** {{ report_date }}
+
+---
+
+## **Bugs & Support Overview**
+
+| Issue Type      | Week [Current] Count | Week [Previous] Count | Change          |
+| --------------- | -------------------: | --------------------: | --------------: |
+| Bugs            | {{ bugs_support.bugs.current_count | default(0) }}               | {{ bugs_support.bugs.previous_count | default(0) }}                | {{ bugs_support.bugs.change_indicator | default('➡️ 0') }}            |
+| Support         | {{ bugs_support.support.current_count | default(0) }}               | {{ bugs_support.support.previous_count | default(0) }}                | {{ bugs_support.support.change_indicator | default('➡️ 0') }}            |
+| **Total**       | **{{ bugs_support.total.current_count | default(0) }}**               | **{{ bugs_support.total.previous_count | default(0) }}**                | **{{ bugs_support.total.change_indicator | default('➡️ 0') }}**            |
+
+### Oldest Open Issues
+
+| Type          | Issue ID       | Opened Date    | Description                                | Assignee          |
+| ------------- | -------------- | ------------- | ------------------------------------------| ----------------- |
+{% for issue in oldest_issues %}
+| {{ issue.type }} | {{ issue.key }} | {{ issue.created_date }} | {{ issue.summary[:40] }}... | {{ issue.assignee | default('None') }} |
+{% else %}
+| Support | N/A | N/A | No open issues found | None |
+{% endfor %}
+
+*Note: If open issues data is incomplete or missing, mention it here.*
+
+---
+
+## **Cycle Time Summary (Last Week)**
+
+**Period:** {{ cycle_time.period }}  
+**Issues Analyzed:** {{ cycle_time.total_issues }}  
+
+| Metric               | Value (hours)       |
+| -------------------- | -------------------:|
+| Average Cycle Time   | {{ cycle_time.average_hours | round(1) }} h |
+| Median Cycle Time    | {{ cycle_time.median_hours | round(1) }} h  |
+| Max Cycle Time       | {{ cycle_time.max_hours | round(1) }} h     |
+
+| Priority          | Count | Avg. Cycle Time (h) |
+| ----------------- | -----:| -------------------:|
+{% for priority in cycle_time.priority_breakdown %}
+| {{ priority.name }}     | {{ priority.count }}      | {{ priority.avg_hours | round(1) }} h             |
+{% endfor %}
+
+---
+
+## **Adherence**
+
+**Data Source:** Jira  
+**Resolution Period:** {{ adherence.resolution_period }}
+
+### Bugs & Support
+
+| Category     | Current Week Issues | Current % | Previous Week Issues | Previous % | Change (pp)             |
+| ------------ | -------------------:| ----------------:| --------------------:| -----------------:| ----------------------: |
+{% for category in adherence.bugs_support %}
+| {{ category.name }}        | {{ category.current_count }}                  | {{ category.current_percentage }}%           | {{ category.previous_count }}                   | {{ category.previous_percentage }}%            | {{ category.change_indicator }}                 |
+{% endfor %}
+
+**Overall Adherence (only counting issues with due dates):** {{ adherence.overall_adherence }}%
+
+### Stories/Tasks/Improvement/Technical Debts
+
+**Period:** {{ tasks.period }}  
+**Issues Analyzed:** {{ tasks.total_issues }}
+
+| Category     | Count | Percentage |
+| ------------ | -----:| ----------:|
+{% for category in tasks.categories %}
+| {{ category.name }}        | {{ category.count }}    | {{ category.percentage }}%     |
+{% endfor %}
+
+**Overall Adherence (only counting issues with due dates):** {{ tasks.overall_adherence }}%
+
+**Issue Type Breakdown:**
+
+{% for issue_type in tasks.issue_types %}
+- {{ issue_type.name }}: {{ issue_type.count }} issues
+{% endfor %}
+
+---
+
+## **LinearB Metrics Comparison**
+
+| Metric                  | Week [Current] | Week [Previous] | Change          |
+| ----------------------- | --------------: | -------------: | --------------: |
+{% for metric in linearb_metrics %}
+| {{ metric.name }} | {{ metric.current_value }}          | {{ metric.previous_value }}         | {{ metric.change_indicator }}        |
+{% endfor %}
+
+### **Key Metrics Summary – Week [Current]:**
+
+- Review Depth: {{ linearb_summary.review_depth }} comments per review ({{ linearb_summary.review_depth_change }} from Week Previous)
+- PRs Merged Without Review: {{ linearb_summary.prs_without_review }} ({{ linearb_summary.prs_without_review_change }} from Week Previous)
+- PR Maturity: {{ linearb_summary.pr_maturity }}% ({{ linearb_summary.pr_maturity_change }} from Week Previous)
+
+---
+
+## **SonarCloud – Quality & Security Health**
+
+| Project Name                    | Quality Gate | Coverage | Bugs | Reliability | Code Smells | Security Hotspots Reviewed |
+| ------------------------------ | ------------ | -------- | ---- | ----------- | ----------- | -------------------------- |
+{% for project in sonar_projects %}
+| {{ project.name[:30] }}           | {{ project.quality_gate }}     | {{ project.coverage }}%   | {{ project.bugs }}    | {{ project.reliability }}         | {{ project.code_smells }}           | {{ project.security_hotspots }}%                       |
+{% endfor %}
+
+**Weekly Health Status:** {{ sonar_summary.health_status }}
+
+**Key Observations:**
+
+{% for observation in sonar_summary.observations %}
+- {{ observation }}
+{% endfor %}
+
+---
+
+## **Next Actions**
+
+### Immediate (This Week)
+
+{% for action in next_actions.immediate %}
+1. {{ action }}  
+{% endfor %}
+
+### Short Term (Next 2 Weeks)
+
+{% for action in next_actions.short_term %}
+1. {{ action }}  
+{% endfor %}
+
+---
+
+*Report Generated:* {{ report_timestamp }}  
+*Data Sources:* Jira ({{ data_sources.jira_project }} project), LinearB (Team ID: {{ data_sources.linearb_team_id }}), SonarCloud ({{ data_sources.sonar_org }} org)
