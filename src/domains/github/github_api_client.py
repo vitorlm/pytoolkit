@@ -18,13 +18,13 @@ from utils.logging.logging_manager import LogManager
 class GitHubApiClient:
     """GitHub REST API client with rate limiting and caching."""
 
-    BASE_URL = "https://api.github.com"
-    API_VERSION = "2022-11-28"
-
     def __init__(self, max_workers: int = 4):
         self.logger = LogManager.get_instance().get_logger("GitHubApiClient")
         self.cache = CacheManager.get_instance()
         self.max_workers = max_workers
+
+        self.base_url = os.getenv("GITHUB_BASE_URL", "https://api.github.com")
+        self.api_version = os.getenv("GITHUB_API_VERSION", "2022-11-28")
 
         self.token = os.getenv("GITHUB_TOKEN")
         if not self.token:
@@ -35,7 +35,7 @@ class GitHubApiClient:
         self.headers = {
             "Authorization": f"Bearer {self.token}",
             "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": self.API_VERSION,
+            "X-GitHub-Api-Version": self.api_version,
             "User-Agent": "PyToolkit-PR-Analyzer/1.0",
         }
 
@@ -69,7 +69,7 @@ class GitHubApiClient:
                 self.logger.debug(f"Using cached data for {endpoint}")
                 return cached_data
 
-        url = urljoin(self.BASE_URL, endpoint.lstrip("/"))
+        url = urljoin(self.base_url, endpoint.lstrip("/"))
         max_retries = 5
         base_delay = 1
 
@@ -268,7 +268,7 @@ class GitHubApiClient:
     def resolve_team_members_parallel(self, team_specs: List[str]) -> set:
         """Resolve team members from multiple teams in parallel."""
         self.logger.info(f"Resolving members for {len(team_specs)} teams")
-        all_members = set()
+        all_members: set[str] = set()
 
         # Parse team specifications
         teams_to_resolve = []

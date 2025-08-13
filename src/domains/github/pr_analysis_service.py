@@ -260,7 +260,7 @@ class PrAnalysisService:
         args: Namespace,
     ) -> Dict[str, Any]:
         """Calculate lead time metrics for a PR."""
-        lead_time_data = {
+        lead_time_data: Dict[str, Any] = {
             "lead_time_seconds": None,
             "lead_time_hours": None,
             "lead_time_days": None,
@@ -327,7 +327,7 @@ class PrAnalysisService:
                 if pr["lead_time_hours"] is not None
             ]
 
-            metrics = {
+            metrics: Dict[str, Any] = {
                 "total_prs": len(pr_data),
                 "external_prs": len(external_prs),
                 "merged_external_prs": len(merged_prs),
@@ -359,7 +359,7 @@ class PrAnalysisService:
                     )
 
             # Repository breakdown
-            repo_counts = {}
+            repo_counts: Dict[str, int] = {}
             for pr in external_prs:
                 repo = pr["repo"]
                 repo_counts[repo] = repo_counts.get(repo, 0) + 1
