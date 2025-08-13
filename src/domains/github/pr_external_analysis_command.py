@@ -27,31 +27,31 @@ class PrExternalAnalysisCommand(BaseCommand):
     @staticmethod
     def get_help() -> str:
         return """
-Analyze GitHub Pull Requests authored by contributors who are NOT members of 
-specified CODEOWNERS teams, computing lead time from PR creation to merge.
+                Analyze GitHub Pull Requests authored by contributors who are NOT members of 
+                specified CODEOWNERS teams, computing lead time from PR creation to merge.
 
-Examples:
-  # Analyze specific repos with default CODEOWNERS teams
-  python src/main.py github pr-external-analysis --org syngenta-digital --repos repo1 repo2
-  
-  # Analyze all repos with custom teams and date range
-  python src/main.py github pr-external-analysis \\
-    --org syngenta-digital --all-repos \\
-    --codeowners-teams @syngenta-digital/team1 @syngenta-digital/team2 \\
-    --since 2024-01-01T00:00:00Z --until 2024-12-31T23:59:59Z
-  
-  # Output only CSV format with verbose logging
-  python src/main.py github pr-external-analysis \\
-    --org syngenta-digital --repos my-repo \\
-    --format csv --verbose --output ./custom-output
+                Examples:
+                # Analyze specific repos with default CODEOWNERS teams
+                python src/main.py github pr-external-analysis --org syngenta-digital --repos repo1 repo2
+                
+                # Analyze all repos with custom teams and date range
+                python src/main.py github pr-external-analysis \\
+                    --org syngenta-digital --all-repos \\
+                    --codeowners-teams @syngenta-digital/team1 @syngenta-digital/team2 \\
+                    --since 2024-01-01T00:00:00Z --until 2024-12-31T23:59:59Z
+                
+                # Output only CSV format with verbose logging
+                python src/main.py github pr-external-analysis \\
+                    --org syngenta-digital --repos my-repo \\
+                    --format csv --verbose --output ./custom-output
 
-Setup:
-  1. Add your GitHub token to .env file:
-     GITHUB_TOKEN=your_github_token_here
-  
-  2. Get your token from: https://github.com/settings/tokens
-     Required scopes: repo, read:org
-        """
+                Setup:
+                1. Add your GitHub token to .env file:
+                    GITHUB_TOKEN=your_github_token_here
+                
+                2. Get your token from: https://github.com/settings/tokens
+                    Required scopes: repo, read:org
+            """
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
@@ -63,9 +63,7 @@ Setup:
 
         # Repository selection (mutually exclusive)
         repo_group = parser.add_mutually_exclusive_group(required=True)
-        repo_group.add_argument(
-            "--repos", nargs="+", help="One or more repository names within the org"
-        )
+        repo_group.add_argument("--repos", nargs="+", help="One or more repository names within the org")
         repo_group.add_argument(
             "--all-repos",
             action="store_true",
@@ -122,9 +120,14 @@ Setup:
 
         # Output options
         parser.add_argument(
+            "--output-dir",
+            default="./output",
+            help="Output directory for all artifacts (default: ./output)",
+        )
+        parser.add_argument(
             "--output",
-            default="./out/pr_external_owners",
-            help="Output file path prefix (default: ./out/pr_external_owners)",
+            default="github_external_prs",
+            help="Output file prefix within output-dir (default: github_external_prs)",
         )
         parser.add_argument(
             "--format",
@@ -142,14 +145,38 @@ Setup:
         parser.add_argument(
             "--max-workers",
             type=int,
-            default=4,
-            help="Maximum concurrent API workers (default: 4)",
+            default=6,
+            help="Maximum concurrent API workers (default: 6)",
+        )
+
+        # Enrichment options
+        parser.add_argument(
+            "--include-size-metrics",
+            action="store_true",
+            default=True,
+            help="Include PR size metrics (additions, deletions, changed_files, commits)",
+        )
+        parser.add_argument(
+            "--no-size-metrics",
+            dest="include_size_metrics",
+            action="store_false",
+            help="Disable PR size metrics collection",
+        )
+        parser.add_argument(
+            "--include-review-metrics",
+            action="store_true",
+            default=True,
+            help="Include PR review metrics (reviews, approvals, comments, response times)",
+        )
+        parser.add_argument(
+            "--no-review-metrics",
+            dest="include_review_metrics",
+            action="store_false",
+            help="Disable PR review metrics collection",
         )
 
         # Verbose logging
-        parser.add_argument(
-            "--verbose", action="store_true", help="Enable verbose (DEBUG) logging"
-        )
+        parser.add_argument("--verbose", action="store_true", help="Enable verbose (DEBUG) logging")
 
     @staticmethod
     def main(args: Namespace):
@@ -168,9 +195,7 @@ Setup:
             # Execute analysis
             results = service.analyze_external_prs(args)
 
-            logger.info(
-                f"Analysis completed successfully. Processed {results.get('total_prs', 0)} PRs"
-            )
+            logger.info(f"Analysis completed successfully. Processed {results.get('total_prs', 0)} PRs")
             logger.info(f"External PRs found: {results.get('external_prs', 0)}")
             logger.info(f"Output saved to: {args.output}")
 

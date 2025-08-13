@@ -7,6 +7,7 @@ Business logic for analyzing PRs from external contributors and computing metric
 import csv
 import os
 import statistics
+import time
 from argparse import Namespace
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -131,13 +132,56 @@ class PrAnalysisService:
 
                 # Get PRs for this repository
                 prs = self.github_client.get_pull_requests(owner, repo_name, args.state)
+                self.logger.info(f"Found {len(prs)} PRs in {owner}/{repo_name}")
 
-                for pr in prs:
-                    pr_data = self._process_single_pr(
-                        pr, owner, repo_name, team_members, args
-                    )
-                    if pr_data:
-                        all_pr_data.append(pr_data)
+                if not prs:
+                    continue
+
+                # Step 1: Pre-filter PRs before expensive enrichment
+                filtered_prs = []
+                external_count = 0
+                
+                self.logger.info(f"Pre-filtering {len(prs)} PRs to identify external contributors...")
+                
+                for i, pr in enumerate(prs, 1):
+                    if i % 100 == 0 or i == len(prs):
+                        self.logger.info(f"Pre-filtering progress: {i}/{len(prs)} PRs processed")
+                    
+                    # Quick check: is this an external contributor?
+                    author = pr.get("user", {}).get("login", "")
+                    if author in team_members:
+                        continue  # Skip team members early
+                    
+                    # Apply date filters early (before expensive API calls)
+                    created_at_str = pr.get("created_at", "")
+                    merged_at_str = pr.get("merged_at")
+                    
+                    created_at = self._parse_timestamp(created_at_str)
+                    merged_at = self._parse_timestamp(merged_at_str) if merged_at_str else None
+                    
+                    if not self._passes_date_filters(created_at, merged_at, args):
+                        continue
+                    
+                    # Skip unmerged PRs unless explicitly included
+                    if not merged_at and not args.include_unmerged:
+                        continue
+                    
+                    filtered_prs.append(pr)
+                    external_count += 1
+                
+                self.logger.info(f"After pre-filtering: {len(filtered_prs)} external PRs need enrichment (reduced from {len(prs)} total PRs)")
+                
+                if not filtered_prs:
+                    self.logger.info(f"No external PRs found in {owner}/{repo_name} after filtering")
+                    continue
+
+                # Step 2: Process filtered PRs with enrichment and progress tracking
+                repo_pr_data = self._process_filtered_prs(
+                    filtered_prs, owner, repo_name, team_members, args
+                )
+                
+                all_pr_data.extend(repo_pr_data)
+                self.logger.info(f"Completed processing {owner}/{repo_name}: {len(repo_pr_data)} PRs added")
 
             except Exception as e:
                 self.logger.error(
@@ -145,7 +189,7 @@ class PrAnalysisService:
                 )
                 continue
 
-        self.logger.info(f"Collected data for {len(all_pr_data)} PRs")
+        self.logger.info(f"Collected data for {len(all_pr_data)} PRs across all repositories")
         return all_pr_data
 
     def _process_single_pr(
@@ -202,6 +246,21 @@ class PrAnalysisService:
                 "base_branch": pr.get("base", {}).get("ref", ""),
                 "is_team_member": is_team_member,
                 **lead_time_data,
+                # Size metrics
+                "additions": pr.get("additions"),
+                "deletions": pr.get("deletions"),
+                "changed_files": pr.get("changed_files"),
+                "commits": pr.get("commits"),
+                # Review and discussion metrics
+                "reviews_count": pr.get("reviews_count"),
+                "approvals_count": pr.get("approvals_count"),
+                "review_comments": pr.get("review_comments"),
+                "issue_comments": pr.get("issue_comments"),
+                "requested_reviewers_count": pr.get("requested_reviewers_count"),
+                "requested_reviewers": pr.get("requested_reviewers"),
+                "requested_teams": pr.get("requested_teams"),
+                "time_to_first_review_seconds": pr.get("time_to_first_review_seconds"),
+                "first_response_latency_seconds": pr.get("first_response_latency_seconds"),
             }
 
             return pr_data
@@ -304,6 +363,86 @@ class PrAnalysisService:
 
         return lead_time_data
 
+    def _process_filtered_prs(
+        self, 
+        filtered_prs: List[Dict[str, Any]], 
+        owner: str, 
+        repo_name: str, 
+        team_members: set, 
+        args: Namespace
+    ) -> List[Dict[str, Any]]:
+        """Process pre-filtered PRs with enrichment and progress tracking."""
+        
+        processed_prs = []
+        total_prs = len(filtered_prs)
+        
+        # Determine if we need enrichment
+        needs_enrichment = args.include_size_metrics or args.include_review_metrics
+        
+        if needs_enrichment:
+            self.logger.info(f"Starting enrichment for {total_prs} PRs in {owner}/{repo_name}...")
+            self.logger.info(f"Each PR requires 1-4 API calls. Estimated time: {total_prs * 2}-{total_prs * 8} seconds")
+            
+            # Track timing for progress estimation
+            start_time = time.time()
+            
+            # Process PRs with progress tracking
+            for i, pr in enumerate(filtered_prs, 1):
+                try:
+                    # Progress logging every 10 PRs or at key milestones
+                    if i % 10 == 0 or i == total_prs or i in [1, 5, 25, 50, 100]:
+                        elapsed = time.time() - start_time
+                        rate = i / elapsed if elapsed > 0 else 0
+                        remaining = total_prs - i
+                        eta_seconds = remaining / rate if rate > 0 else 0
+                        
+                        self.logger.info(
+                            f"Enrichment progress: {i}/{total_prs} PRs ({(i/total_prs)*100:.1f}%) | "
+                            f"Rate: {rate:.2f} PRs/sec | ETA: {eta_seconds/60:.1f} min"
+                        )
+                    
+                    # Enrich PR with additional metadata
+                    enriched_pr = self.github_client.enrich_pull_request(
+                        owner, repo_name, pr, 
+                        args.include_size_metrics, 
+                        args.include_review_metrics
+                    )
+                    
+                    pr_data = self._process_single_pr(
+                        enriched_pr, owner, repo_name, team_members, args
+                    )
+                    
+                    if pr_data:
+                        processed_prs.append(pr_data)
+                        
+                except Exception as e:
+                    self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+                    continue
+            
+            total_time = time.time() - start_time
+            self.logger.info(f"Enrichment completed in {total_time/60:.2f} minutes ({total_time/total_prs:.2f}s per PR)")
+        else:
+            # No enrichment needed - process quickly
+            self.logger.info(f"Processing {total_prs} PRs without enrichment (fast mode)...")
+            
+            for i, pr in enumerate(filtered_prs, 1):
+                try:
+                    if i % 50 == 0 or i == total_prs:
+                        self.logger.info(f"Processing progress: {i}/{total_prs} PRs ({(i/total_prs)*100:.1f}%)")
+                    
+                    pr_data = self._process_single_pr(
+                        pr, owner, repo_name, team_members, args
+                    )
+                    
+                    if pr_data:
+                        processed_prs.append(pr_data)
+                        
+                except Exception as e:
+                    self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+                    continue
+        
+        return processed_prs
+
     def _calculate_metrics(
         self, pr_data: List[Dict[str, Any]], args: Namespace
     ) -> Dict[str, Any]:
@@ -383,22 +522,23 @@ class PrAnalysisService:
 
         try:
             # Ensure output directory exists
-            output_dir = os.path.dirname(args.output)
-            if output_dir:
-                FileManager.create_folder(output_dir)
+            FileManager.create_folder(args.output_dir)
+
+            # Build full output path
+            output_path = os.path.join(args.output_dir, args.output)
 
             # Filter to external PRs
             external_prs = [pr for pr in pr_data if not pr["is_team_member"]]
 
             # Generate CSV output
             if args.format in ["csv", "both"]:
-                self._generate_csv_output(external_prs, args.output)
+                self._generate_csv_output(external_prs, output_path)
 
             # Generate JSON output
             if args.format in ["json", "both"]:
-                self._generate_json_output(external_prs, metrics, args.output)
+                self._generate_json_output(external_prs, metrics, output_path)
 
-            self.logger.info("Output generation completed")
+            self.logger.info(f"Output generation completed in {args.output_dir}")
 
         except Exception as e:
             self.logger.error(f"Failed to generate outputs: {e}")
@@ -425,6 +565,7 @@ class PrAnalysisService:
                 "closed_at",
                 "state",
                 "base_branch",
+                "is_team_member",
                 "is_merged",
                 "lead_time_seconds",
                 "lead_time_hours",
@@ -432,6 +573,21 @@ class PrAnalysisService:
                 "age_seconds",
                 "age_hours",
                 "age_days",
+                # Size metrics
+                "additions",
+                "deletions",
+                "changed_files",
+                "commits",
+                # Review and discussion metrics
+                "reviews_count",
+                "approvals_count",
+                "review_comments",
+                "issue_comments",
+                "requested_reviewers_count",
+                "requested_reviewers",
+                "requested_teams",
+                "time_to_first_review_seconds",
+                "first_response_latency_seconds",
             ]
 
             with open(csv_file, "w", newline="", encoding="utf-8") as f:
@@ -440,7 +596,14 @@ class PrAnalysisService:
 
                 for pr in pr_data:
                     # Create a filtered dict with only the columns we want
-                    row = {col: pr.get(col, "") for col in columns}
+                    row = {}
+                    for col in columns:
+                        value = pr.get(col, "")
+                        # Handle list/array fields by converting to JSON string
+                        if col in ["requested_reviewers", "requested_teams"] and isinstance(value, list):
+                            row[col] = ",".join(value) if value else ""
+                        else:
+                            row[col] = value
                     writer.writerow(row)
 
             self.logger.info(f"CSV output written to: {csv_file}")
@@ -476,11 +639,12 @@ class PrAnalysisService:
     def _get_output_files(self, args: Namespace) -> List[str]:
         """Get list of generated output files."""
         files = []
+        output_path = os.path.join(args.output_dir, args.output)
 
         if args.format in ["csv", "both"]:
-            files.append(f"{args.output}.csv")
+            files.append(f"{output_path}.csv")
 
         if args.format in ["json", "both"]:
-            files.append(f"{args.output}.json")
+            files.append(f"{output_path}.json")
 
         return files
