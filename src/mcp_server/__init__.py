@@ -18,20 +18,12 @@ __all__ = [
     "MCPServerConfig",
     "FULL_MCP_AVAILABLE",
     "get_management_server",
-    "get_http_server",
 ]
 
 
 # Import servers only when needed to avoid dependency issues
 def get_management_server():
-    """Get the management MCP server instance."""
+    """Get the management MCP server instance (STDIO transport only)."""
     from .management_mcp_server import ManagementMCPServer
 
     return ManagementMCPServer
-
-
-def get_http_server():
-    """Get the HTTP MCP server instance."""
-    from .http_mcp_server import HTTPMCPServer
-
-    return HTTPMCPServer

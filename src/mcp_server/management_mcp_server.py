@@ -311,12 +311,9 @@ class ManagementMCPServer:
             await self.server.run(read_stream, write_stream, self.server.create_initialization_options())
 
     async def run_http(self, port: int = 8000):
-        """Run server via HTTP (for ChatGPT/Copilot)."""
-        self.logger.info(f"Starting MCP server with HTTP transport on port {port}")
-
-        # TODO: Implement HTTP transport in next phase
-        # For now, stdio only
-        raise NotImplementedError("HTTP transport will be implemented in Phase 6")
+        """HTTP transport not supported - MCP server runs in STDIO mode only for local usage."""
+        self.logger.error("HTTP transport is not supported. This MCP server runs in STDIO mode only for local usage.")
+        raise NotImplementedError("HTTP transport is not supported. Use STDIO mode only.")
 
 
 # Main function for execution

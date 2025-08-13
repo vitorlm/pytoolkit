@@ -1,8 +1,9 @@
 {
   "mcpServers": {
-    "pytoolkit-management-local": {
+    "pytoolkit-management": {
       "command": "/Users/vitormendonca/git-pessoal/python/PyToolkit/src/mcp_server/run_mcp_server.sh",
-      "args": []
+      "args": [],
+      "description": "PyToolkit MCP Server for software engineering management insights (STDIO transport only)"
     }
   }
 }

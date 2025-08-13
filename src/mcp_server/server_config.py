@@ -13,8 +13,7 @@ class MCPServerConfig:
 
     # Transport Configuration
     TRANSPORTS = [
-        {"type": "stdio"},  # For Claude Desktop
-        {"type": "http", "port": 8000},  # For ChatGPT/Copilot
+        {"type": "stdio"},  # For Claude Desktop (local only)
     ]
 
     # PyToolkit Integration

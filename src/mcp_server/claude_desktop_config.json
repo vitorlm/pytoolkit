@@ -5,7 +5,8 @@
       "args": [],
       "env": {
         "PYTHONPATH": "/Users/vitormendonca/git-pessoal/python/PyToolkit/src"
-      }
+      },
+      "description": "PyToolkit MCP Server for software engineering management insights (STDIO transport only)"
     }
   }
 }

@@ -22,14 +22,6 @@ source "$PROJECT_ROOT/.venv/bin/activate"
 # Set PYTHONPATH
 export PYTHONPATH="$PROJECT_ROOT/src"
 
-# Determine which server to run based on arguments or environment
-SERVER_MODE="${MCP_SERVER_MODE:-stdio}"
-
-if [ "$1" = "--http" ] || [ "$SERVER_MODE" = "http" ]; then
-    # Only show HTTP startup message to stderr so it doesn't interfere with JSON-RPC
-    echo "Starting HTTP MCP Server..." >&2
-    exec python "$PROJECT_ROOT/src/mcp_server/http_mcp_server.py" "${@:2}"
-else
-    # For stdio mode, don't output any messages as they interfere with JSON-RPC protocol
-    exec python "$PROJECT_ROOT/src/mcp_server/management_mcp_server.py" "$@"
-fi
+# MCP Server runs in STDIO mode only (for local usage)
+# Don't output any messages as they interfere with JSON-RPC protocol
+exec python "$PROJECT_ROOT/src/mcp_server/management_mcp_server.py" "$@"
