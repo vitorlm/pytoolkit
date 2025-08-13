@@ -112,14 +112,22 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
             # Define data sources for performance dashboard
             data_sources = {
                 "current_cycle_velocity": lambda: self._get_current_cycle_data(),
-                "jira_cycle_time": lambda: self.jira_adapter.get_cycle_time_analysis("CWS", time_period="last-month"),
-                "linearb_engineering": lambda: self.linearb_adapter.get_engineering_metrics("last-month"),
+                "jira_cycle_time": lambda: self.jira_adapter.get_cycle_time_analysis(
+                    "CWS", time_period="last-month"
+                ),
+                "linearb_engineering": lambda: self.linearb_adapter.get_engineering_metrics(
+                    "last-month"
+                ),
                 "linearb_team_performance": lambda: self.linearb_adapter.get_team_performance(),
-                "recent_adherence": lambda: self.jira_adapter.get_adherence_analysis("CWS"),
+                "recent_adherence": lambda: self.jira_adapter.get_adherence_analysis(
+                    "CWS"
+                ),
             }
 
             # JIRA is required, LinearB is optional
-            return self.aggregate_data_safely(data_sources, required_sources=["current_cycle_velocity"])
+            return self.aggregate_data_safely(
+                data_sources, required_sources=["current_cycle_velocity"]
+            )
 
         # Cache for 2 hours (dashboard is heavy)
         dashboard_data = self.cached_resource_operation(
@@ -156,19 +164,31 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
         def _generate_quarterly_summary() -> dict[str, Any]:
             # Determine current period
             period_info = self.parse_quarter_cycle("current")
-            days_in_cycle = self.get_period_days(period_info["quarter"], period_info["cycle"])
+            days_in_cycle = self.get_period_days(
+                period_info["quarter"], period_info["cycle"]
+            )
 
             data_sources = {
-                "quarterly_jira_data": lambda: self.jira_adapter.get_epic_monitoring_data("CWS"),
-                "cycle_adherence": lambda: self.jira_adapter.get_adherence_analysis("CWS"),
-                "cycle_velocity": lambda: self.jira_adapter.get_velocity_analysis("CWS"),  # Current cycle
+                "quarterly_jira_data": lambda: self.jira_adapter.get_epic_monitoring_data(
+                    "CWS"
+                ),
+                "cycle_adherence": lambda: self.jira_adapter.get_adherence_analysis(
+                    "CWS"
+                ),
+                "cycle_velocity": lambda: self.jira_adapter.get_velocity_analysis(
+                    "CWS"
+                ),  # Current cycle
                 "linearb_cycle_metrics": lambda: self.linearb_adapter.get_engineering_metrics(
                     "last-2-months"
                 ),  # Broader for quarterly view
-                "bugs_support_summary": lambda: self._get_bugs_support_summary(days_in_cycle),
+                "bugs_support_summary": lambda: self._get_bugs_support_summary(
+                    days_in_cycle
+                ),
             }
 
-            aggregated = self.aggregate_data_safely(data_sources, required_sources=["quarterly_jira_data"])
+            aggregated = self.aggregate_data_safely(
+                data_sources, required_sources=["quarterly_jira_data"]
+            )
             aggregated["period_info"] = period_info
 
             return aggregated
@@ -179,7 +199,9 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
             expiration_minutes=180,  # Cache for 3 hours for quarterly data
         )
 
-        period_info = quarterly_data.get("period_info", self.parse_quarter_cycle("current"))
+        period_info = quarterly_data.get(
+            "period_info", self.parse_quarter_cycle("current")
+        )
 
         content = self.format_resource_content(
             quarterly_data,
@@ -198,11 +220,15 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
 
         def _generate_health_indicators() -> dict[str, Any]:
             data_sources = {
-                "velocity_trend": lambda: self.jira_adapter.get_velocity_analysis("CWS"),  # Current analysis
+                "velocity_trend": lambda: self.jira_adapter.get_velocity_analysis(
+                    "CWS"
+                ),  # Current analysis
                 "cycle_time_trend": lambda: self.jira_adapter.get_cycle_time_analysis(
                     "CWS", time_period="last-2-months"
                 ),
-                "adherence_rate": lambda: self.jira_adapter.get_adherence_analysis("CWS"),
+                "adherence_rate": lambda: self.jira_adapter.get_adherence_analysis(
+                    "CWS"
+                ),
                 "engineering_health": lambda: self.linearb_adapter.get_team_performance(),
                 "bugs_health": lambda: self._get_bugs_health_metrics(),
             }
@@ -222,7 +248,9 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
             expiration_minutes=90,  # Cache por 1.5 horas
         )
 
-        period_info = health_data.get("period_info", self.parse_quarter_cycle("current"))
+        period_info = health_data.get(
+            "period_info", self.parse_quarter_cycle("current")
+        )
 
         content = self.format_resource_content(
             health_data,
@@ -246,13 +274,19 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
                 "jira_cycle_time_weekly": lambda: self.jira_adapter.get_cycle_time_analysis(
                     "CWS", time_period="last-week"
                 ),  # Last week
-                "jira_adherence_weekly": lambda: self.jira_adapter.get_adherence_analysis("CWS"),
-                "linearb_weekly": lambda: self.linearb_adapter.get_engineering_metrics("last-week"),
+                "jira_adherence_weekly": lambda: self.jira_adapter.get_adherence_analysis(
+                    "CWS"
+                ),
+                "linearb_weekly": lambda: self.linearb_adapter.get_engineering_metrics(
+                    "last-week"
+                ),
                 "sonarqube_current": lambda: self._get_sonarqube_weekly_summary(),
                 "open_issues_summary": lambda: self._get_open_issues_summary(),
             }
 
-            weekly_data = self.aggregate_data_safely(data_sources, required_sources=["jira_bugs_support_weekly"])
+            weekly_data = self.aggregate_data_safely(
+                data_sources, required_sources=["jira_bugs_support_weekly"]
+            )
 
             # Add weekly report metadata
             weekly_data["report_metadata"] = {
@@ -281,7 +315,9 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
             "Weekly engineering metrics compatible with report_template.md format, based on run_reports.sh data collection",
         )
 
-        return TextResourceContents(uri=AnyUrl("team://weekly_metrics"), mimeType="text/markdown", text=content)
+        return TextResourceContents(
+            uri=AnyUrl("team://weekly_metrics"), mimeType="text/markdown", text=content
+        )
 
     def _get_current_cycle_data(self) -> dict[str, Any]:
         """Gets current cycle data."""
@@ -295,7 +331,9 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
             "quarter": period_info["quarter"],
             "cycle": period_info["cycle"],
             "velocity_data": velocity_data,
-            "days_in_cycle": self.get_period_days(period_info["quarter"], period_info["cycle"]),
+            "days_in_cycle": self.get_period_days(
+                period_info["quarter"], period_info["cycle"]
+            ),
         }
 
     def _get_bugs_support_summary(self, days_back: int) -> dict[str, Any]:
@@ -387,7 +425,9 @@ class TeamMetricsResourceHandler(BaseResourceHandler):
 
         # Add recommendations based on analysis
         if data.get("errors"):
-            recommendations.append("Some data sources are unavailable - consider investigating connectivity issues")
+            recommendations.append(
+                "Some data sources are unavailable - consider investigating connectivity issues"
+            )
 
         recommendations.append("Continue monitoring quarterly/cycle metrics for trends")
 

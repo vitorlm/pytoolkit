@@ -272,15 +272,15 @@ class CycleTimeCommand(BaseCommand):
                     f"\nThe command failed because one or more issue types are not valid for project {args.project_key}."
                 )
                 print(f"You provided: {args.issue_types}")
-                print(f"\nTo fix this issue:")
+                print("\nTo fix this issue:")
                 print(
-                    f"1. Use the list-custom-fields command to see available issue types:"
+                    "1. Use the list-custom-fields command to see available issue types:"
                 )
                 print(
                     f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}"
                 )
-                print(f"2. Or try with common issue types:")
-                print(f"   --issue-types 'Bug,Story,Task,Epic'")
+                print("2. Or try with common issue types:")
+                print("   --issue-types 'Bug,Story,Task,Epic'")
                 print("=" * 50)
             else:
                 logger.error(f"Failed to execute cycle time analysis: {e}")

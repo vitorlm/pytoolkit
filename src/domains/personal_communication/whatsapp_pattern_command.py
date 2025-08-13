@@ -1,5 +1,4 @@
 from argparse import ArgumentParser, Namespace
-import json
 from typing import List, Dict, Any
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
@@ -138,13 +137,13 @@ File format: WhatsApp chat export (.txt format)
                 total_with_urls = len([m for m in messages if m.contains_url()])
                 domain_stats = service.get_domain_statistics(messages)
                 
-                print(f"\nWhatsApp Chat Summary:")
+                print("\nWhatsApp Chat Summary:")
                 print(f"  Total messages: {len(messages)}")
                 print(f"  Messages with URLs: {total_with_urls}")
                 print(f"  Unique domains: {len(domain_stats)}")
                 
                 if domain_stats:
-                    print(f"\nTop domains:")
+                    print("\nTop domains:")
                     for domain, count in list(domain_stats.items())[:10]:
                         print(f"    {domain}: {count}")
                 

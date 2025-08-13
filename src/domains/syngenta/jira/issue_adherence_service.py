@@ -243,7 +243,7 @@ class IssueAdherenceService:
             # Check if this is a JQL error and provide helpful suggestions
             error_str = str(e)
             if ("400" in error_str and ("does not exist for the field 'type'" in error_str or "invalid issue type" in error_str.lower())):
-                self.logger.error(f"JQL Query Error (400): Invalid issue type detected.")
+                self.logger.error("JQL Query Error (400): Invalid issue type detected.")
                 self.logger.error(f"Original query: {jql_query}")
                 
                 # Try to fetch available issue types for the project
@@ -256,7 +256,7 @@ class IssueAdherenceService:
                     invalid_types = [t for t in issue_types if t not in type_names]
                     if invalid_types:
                         self.logger.error(f"Invalid issue types provided: {invalid_types}")
-                        self.logger.error(f"Suggested command with valid types:")
+                        self.logger.error("Suggested command with valid types:")
                         valid_types = [t for t in issue_types if t in type_names]
                         suggested_types = ','.join(valid_types) if valid_types else ','.join(type_names[:5])
                         self.logger.error(f"--issue-types '{suggested_types}'")

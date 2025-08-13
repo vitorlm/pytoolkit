@@ -107,7 +107,9 @@ class SonarQubeTools:
             ),
         ]
 
-    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    async def execute_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> list[TextContent]:
         """Executes specific SonarQube tool."""
         self.logger.info(f"Executing SonarQube tool: {name} with args: {arguments}")
 
@@ -149,7 +151,9 @@ class SonarQubeTools:
         """
         project_key = args["project_key"]
         organization = args.get("organization")
-        self.logger.info(f"Getting project metrics for: {project_key} (org: {organization})")
+        self.logger.info(
+            f"Getting project metrics for: {project_key} (org: {organization})"
+        )
 
         try:
             # Note: The underlying service currently doesn't support organization parameter
@@ -162,8 +166,14 @@ class SonarQubeTools:
                 "metrics": data,
                 "summary": {
                     "analysis_type": "project_metrics",
-                    "metrics_count": (len(data.get("measures", [])) if isinstance(data, dict) else "N/A"),
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "metrics_count": (
+                        len(data.get("measures", []))
+                        if isinstance(data, dict)
+                        else "N/A"
+                    ),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -216,8 +226,14 @@ class SonarQubeTools:
                 "issue_type": issue_type,
                 "issues": filtered_issues,
                 "summary": {
-                    "total_issues": (len(filtered_issues) if isinstance(filtered_issues, list) else "N/A"),
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "total_issues": (
+                        len(filtered_issues)
+                        if isinstance(filtered_issues, list)
+                        else "N/A"
+                    ),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -261,7 +277,9 @@ class SonarQubeTools:
         project_keys = None
         if project_keys_str:
             project_keys = [key.strip() for key in project_keys_str.split(",")]
-            use_project_list = False  # Override use_project_list if specific projects are provided
+            use_project_list = (
+                False  # Override use_project_list if specific projects are provided
+            )
 
         self.logger.info(
             f"Getting quality overview - org: {organization}, project_keys: {project_keys}, use_project_list: {use_project_list}"
@@ -270,10 +288,14 @@ class SonarQubeTools:
         try:
             if project_keys:
                 # Get metrics for specific projects by passing project_keys parameter
-                data = self.adapter.get_all_projects_with_metrics(organization=organization, project_keys=project_keys)
+                data = self.adapter.get_all_projects_with_metrics(
+                    organization=organization, project_keys=project_keys
+                )
             elif use_project_list:
                 # Use predefined project list
-                data = self.adapter.get_all_projects_with_metrics(organization=organization)
+                data = self.adapter.get_all_projects_with_metrics(
+                    organization=organization
+                )
             else:
                 # Fallback to general dashboard
                 data = self.adapter.get_quality_dashboard()
@@ -285,11 +307,17 @@ class SonarQubeTools:
                     "project_keys": project_keys,
                     "use_project_list": use_project_list,
                     "include_measures": include_measures,
-                    "projects_analyzed": (len(data.get("projects", [])) if isinstance(data, dict) else "N/A"),
+                    "projects_analyzed": (
+                        len(data.get("projects", []))
+                        if isinstance(data, dict)
+                        else "N/A"
+                    ),
                 },
                 "summary": {
                     "analysis_type": "quality_overview",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -301,9 +329,15 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get quality overview: {e}")
-            return [TextContent(type="text", text=f"Failed to retrieve quality overview: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to retrieve quality overview: {str(e)}"
+                )
+            ]
 
-    async def _compare_projects_quality(self, args: dict[str, Any]) -> list[TextContent]:
+    async def _compare_projects_quality(
+        self, args: dict[str, Any]
+    ) -> list[TextContent]:
         """
         Compare quality metrics between projects.
 
@@ -341,7 +375,11 @@ class SonarQubeTools:
                     "code_smells",
                     "coverage",
                 ],
-                "timestamp": (comparison_data.get(project_keys[0], {}).get("timestamp") if project_keys else None),
+                "timestamp": (
+                    comparison_data.get(project_keys[0], {}).get("timestamp")
+                    if project_keys
+                    else None
+                ),
             }
 
             formatted_result = {
@@ -358,4 +396,8 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to compare projects quality: {e}")
-            return [TextContent(type="text", text=f"Failed to compare projects quality: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to compare projects quality: {str(e)}"
+                )
+            ]

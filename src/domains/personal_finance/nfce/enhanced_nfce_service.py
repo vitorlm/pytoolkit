@@ -3,12 +3,10 @@
 Enhanced NFCe Service - Integrates hybrid similarity detection with NFCe processing
 """
 
-import json
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
 from domains.personal_finance.nfce.nfce_processor_service import NFCeService
 from domains.personal_finance.nfce.similarity.enhanced_similarity_calculator import EnhancedSimilarityCalculator
 from domains.personal_finance.nfce.similarity.feature_extractor import FeatureExtractor
@@ -329,19 +327,19 @@ class EnhancedNFCeService(NFCeService):
             "# RELATÓRIO DE ANÁLISE DE SIMILARIDADE DE PRODUTOS NFCe",
             "=" * 60,
             "",
-            f"📊 **ESTATÍSTICAS GERAIS**",
+            "📊 **ESTATÍSTICAS GERAIS**",
             f"Total de produtos analisados: {analysis.get('total_products', 0)}",
             f"Total de notas fiscais: {analysis.get('total_invoices', 0)}",
             f"Threshold de similaridade: {analysis.get('similarity_threshold', 0):.2f}",
             f"Data da análise: {analysis.get('analysis_timestamp', 'N/A')}",
             "",
-            f"🎯 **RESULTADOS DA SIMILARIDADE**",
+            "🎯 **RESULTADOS DA SIMILARIDADE**",
             f"Grupos similares encontrados: {analysis['statistics']['total_similar_groups']}",
             f"Produtos com similaridade: {analysis['statistics']['total_similar_products']}",
             f"Taxa de similaridade: {analysis['statistics']['similarity_rate']:.1f}%",
             f"Estabelecimentos únicos: {analysis['statistics']['unique_establishments']}",
             "",
-            f"💰 **ANÁLISE DE PREÇOS**",
+            "💰 **ANÁLISE DE PREÇOS**",
             f"Variação média de preços: {analysis['statistics']['average_price_variation']:.1f}%",
             f"Variação máxima de preços: {analysis['statistics']['max_price_variation']:.1f}%",
             f"Grupos com variação de preço: {analysis['statistics']['groups_with_price_variation']}",
@@ -402,8 +400,6 @@ class EnhancedNFCeService(NFCeService):
                 return True
             
             # Convert JSON data back to InvoiceData objects
-            from domains.personal_finance.nfce.models.invoice_data import InvoiceData
-            from decimal import Decimal
             
             saved_count = 0
             failed_count = 0

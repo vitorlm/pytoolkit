@@ -163,7 +163,7 @@ class HybridSimilarityTestCommand(BaseCommand):
             print(f"   💬 {result.explanation}")
         
         accuracy = correct_predictions / total_predictions
-        print(f"\n📊 RESULTADO FINAL:")
+        print("\n📊 RESULTADO FINAL:")
         print(f"Acurácia: {accuracy:.1%} ({correct_predictions}/{total_predictions})")
         
         if accuracy >= 0.9:
@@ -232,7 +232,7 @@ class HybridSimilarityTestCommand(BaseCommand):
             avg_confidence = sum(confidences) / len(confidences)
             avg_score = sum(scores) / len(scores)
             
-            print(f"\n🎯 MÉTRICAS DO SISTEMA HÍBRIDO:")
+            print("\n🎯 MÉTRICAS DO SISTEMA HÍBRIDO:")
             print(f"Accuracy:    {accuracy:.1%} ({tp + tn}/{len(actuals)})")
             print(f"Precision:   {precision:.1%}")
             print(f"Recall:      {recall:.1%}")
@@ -240,7 +240,7 @@ class HybridSimilarityTestCommand(BaseCommand):
             print(f"Confiança Média: {avg_confidence:.3f}")
             print(f"Score Médio:     {avg_score:.3f}")
             
-            print(f"\n📈 Confusion Matrix:")
+            print("\n📈 Confusion Matrix:")
             print(f"True Positives:  {tp}")
             print(f"False Positives: {fp}")  
             print(f"True Negatives:  {tn}")
@@ -250,7 +250,7 @@ class HybridSimilarityTestCommand(BaseCommand):
             baseline_f1 = 0.848  # Previous best result
             improvement = (f1 - baseline_f1) * 100
             
-            print(f"\n📊 COMPARAÇÃO COM BASELINE:")
+            print("\n📊 COMPARAÇÃO COM BASELINE:")
             print(f"Baseline F1-Score: {baseline_f1:.1%}")
             print(f"Híbrido F1-Score:  {f1:.1%}")
             if improvement > 0:

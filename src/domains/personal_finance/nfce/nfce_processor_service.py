@@ -4,9 +4,8 @@ NFCe Service - Business logic for processing Brazilian electronic invoices (NFCe
 """
 
 import json
-import asyncio
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from decimal import Decimal

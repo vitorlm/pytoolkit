@@ -55,7 +55,9 @@ class BaseResourceHandler(ABC):
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"resource_{self.resource_name}_{operation}_{params}"
 
-    def cached_resource_operation(self, operation: str, func, expiration_minutes: int = 120, **kwargs) -> Any:
+    def cached_resource_operation(
+        self, operation: str, func, expiration_minutes: int = 120, **kwargs
+    ) -> Any:
         """
         Executes resource operation with long cache (resources are heavier).
 
@@ -68,7 +70,9 @@ class BaseResourceHandler(ABC):
         cache_key = self.get_cache_key(operation, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
+        cached_result = self.cache.load(
+            cache_key, expiration_minutes=expiration_minutes
+        )
         if cached_result is not None:
             self.logger.debug(f"Resource cache hit for {operation}")
             return cached_result
@@ -136,7 +140,9 @@ class BaseResourceHandler(ABC):
 
         return aggregated_data
 
-    def format_resource_content(self, data: dict[str, Any], title: str, description: str) -> str:
+    def format_resource_content(
+        self, data: dict[str, Any], title: str, description: str
+    ) -> str:
         """Formats resource content in a standardized way."""
         formatted_content = f"""# {title}
 
@@ -152,7 +158,9 @@ class BaseResourceHandler(ABC):
         for source_name, source_data in data.get("sources", {}).items():
             formatted_content += f"\n### {source_name}\n"
             if isinstance(source_data, dict):
-                formatted_content += f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
+                formatted_content += (
+                    f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
+                )
             else:
                 formatted_content += f"{source_data}\n"
 
@@ -203,7 +211,9 @@ class BaseResourceHandler(ABC):
                 "is_current": False,
             }
         except (IndexError, ValueError):
-            self.logger.warning(f"Invalid period format '{period}', using current period")
+            self.logger.warning(
+                f"Invalid period format '{period}', using current period"
+            )
             return self.parse_quarter_cycle("current")
 
     def get_period_days(self, _quarter: int, _cycle: int) -> int:
@@ -222,6 +232,4 @@ class BaseResourceHandler(ABC):
 
     def format_quarter_cycle_summary(self, period_info: dict[str, Any]) -> str:
         """Formats quarter/cycle period summary."""
-        return (
-            f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"
-        )
+        return f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"

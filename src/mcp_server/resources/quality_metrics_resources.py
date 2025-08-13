@@ -85,7 +85,9 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
                 "overall_quality_gates": lambda: self._get_quality_gates_summary(),
             }
 
-            return self.aggregate_data_safely(data_sources, required_sources=["sonarqube_overview"])
+            return self.aggregate_data_safely(
+                data_sources, required_sources=["sonarqube_overview"]
+            )
 
         quality_data = self.cached_resource_operation(
             "code_quality_overview",
@@ -155,7 +157,9 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
                 "pipeline_security_checks": lambda: self._get_pipeline_security_status(),
             }
 
-            return self.aggregate_data_safely(data_sources, required_sources=["vulnerabilities_by_severity"])
+            return self.aggregate_data_safely(
+                data_sources, required_sources=["vulnerabilities_by_severity"]
+            )
 
         security_data = self.cached_resource_operation(
             "security_vulnerabilities_summary",
@@ -187,7 +191,9 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
                 "pipeline_success_rates": lambda: self._get_pipeline_success_weekly(),
             }
 
-            weekly_data = self.aggregate_data_safely(data_sources, required_sources=["sonarqube_weekly_snapshot"])
+            weekly_data = self.aggregate_data_safely(
+                data_sources, required_sources=["sonarqube_weekly_snapshot"]
+            )
 
             # Add metadata compatible with report_template.md
             weekly_data["weekly_report_metadata"] = {
@@ -400,9 +406,16 @@ class QualityMetricsResourceHandler(BaseResourceHandler):
             coverage_data = sources["coverage_analysis"]
             if isinstance(coverage_data, dict):
                 projects_low_coverage = coverage_data.get("projects_below_60", 0)
-                if str(projects_low_coverage).isdigit() and int(projects_low_coverage) > 0:
-                    medium_issues.append(f"{projects_low_coverage} projects with low coverage")
-                    recommendations.append("Improve test coverage for identified projects")
+                if (
+                    str(projects_low_coverage).isdigit()
+                    and int(projects_low_coverage) > 0
+                ):
+                    medium_issues.append(
+                        f"{projects_low_coverage} projects with low coverage"
+                    )
+                    recommendations.append(
+                        "Improve test coverage for identified projects"
+                    )
                     focus_areas.append("Test Coverage")
 
         return analysis

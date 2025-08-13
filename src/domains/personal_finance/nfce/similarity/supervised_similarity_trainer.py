@@ -3,9 +3,8 @@
 Supervised Similarity Trainer - Learn from user feedback to improve similarity detection
 """
 
-import json
 import numpy as np
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import pickle
@@ -13,15 +12,14 @@ from pathlib import Path
 
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.metrics import confusion_matrix, roc_auc_score
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.preprocessing import StandardScaler
 
 from utils.logging.logging_manager import LogManager
 from utils.data.json_manager import JSONManager
-from utils.file_manager import FileManager
 from .feature_extractor import ProductFeatures
-from .similarity_calculator import SimilarityCalculator, SimilarityResult
+from .similarity_calculator import SimilarityCalculator
 
 
 @dataclass

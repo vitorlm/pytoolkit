@@ -1,7 +1,7 @@
 import os
 import glob
 import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from jinja2 import Environment, FileSystemLoader
 import pandas as pd
 

@@ -71,7 +71,9 @@ class JiraAdapter(BaseAdapter):
             _ = self.service  # Trigger lazy loading
         return self._services
 
-    def get_epic_monitoring_data(self, project_key: str, team: str | None = None) -> dict[str, Any]:
+    def get_epic_monitoring_data(
+        self, project_key: str, team: str | None = None
+    ) -> dict[str, Any]:
         """
         Get epic monitoring data with problem detection.
 
@@ -96,9 +98,11 @@ class JiraAdapter(BaseAdapter):
             return {
                 "project_key": project_key,
                 "team": team or "Catalog",  # Default to Catalog for now
-                "note": "Epic monitoring currently supports only Catalog team. Team parameter will be ignored."
-                if team and team != "Catalog"
-                else None,
+                "note": (
+                    "Epic monitoring currently supports only Catalog team. Team parameter will be ignored."
+                    if team and team != "Catalog"
+                    else None
+                ),
                 "total_epics": len(epics),
                 "problematic_epics_count": len(problematic_epics),
                 "epics": [
@@ -107,8 +111,12 @@ class JiraAdapter(BaseAdapter):
                         "summary": epic.summary,
                         "status": epic.status,
                         "assignee": epic.assignee_name,
-                        "start_date": (epic.start_date.isoformat() if epic.start_date else None),
-                        "due_date": (epic.due_date.isoformat() if epic.due_date else None),
+                        "start_date": (
+                            epic.start_date.isoformat() if epic.start_date else None
+                        ),
+                        "due_date": (
+                            epic.due_date.isoformat() if epic.due_date else None
+                        ),
                         "fix_version": epic.fix_version,
                         "problems": epic.problems,
                     }
@@ -360,7 +368,9 @@ class JiraAdapter(BaseAdapter):
             status_categories=status_categories,
         )
 
-    def get_comprehensive_dashboard(self, project_key: str, team: str | None = None) -> dict[str, Any]:
+    def get_comprehensive_dashboard(
+        self, project_key: str, team: str | None = None
+    ) -> dict[str, Any]:
         """
         Get comprehensive dashboard with all key metrics.
 
@@ -439,13 +449,17 @@ class JiraAdapter(BaseAdapter):
             base_health.update(
                 {
                     "jira_connectivity": "healthy",
-                    "available_services": (list(self._services.keys()) if self._services else []),
+                    "available_services": (
+                        list(self._services.keys()) if self._services else []
+                    ),
                     "test_operation": "project_issue_types_fetch",
                     "test_result_count": len(test_result) if test_result else 0,
                 }
             )
 
         except Exception as e:
-            base_health.update({"jira_connectivity": "unhealthy", "connectivity_error": str(e)})
+            base_health.update(
+                {"jira_connectivity": "unhealthy", "connectivity_error": str(e)}
+            )
 
         return base_health

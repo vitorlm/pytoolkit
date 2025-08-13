@@ -1,5 +1,5 @@
 import re
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 from bs4 import BeautifulSoup, Tag

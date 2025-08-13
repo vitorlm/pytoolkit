@@ -83,7 +83,9 @@ class CircleCITools:
             ),
         ]
 
-    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    async def execute_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> list[TextContent]:
         """Executes specific CircleCI tool."""
         self.logger.info(f"Executing CircleCI tool: {name} with args: {arguments}")
 
@@ -133,7 +135,9 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "pipeline_status",
                     "pipelines_analyzed": limit,
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -182,7 +186,9 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "build_metrics",
                     "period_days": days,
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -201,7 +207,9 @@ class CircleCITools:
                 )
             ]
 
-    async def _analyze_deployment_frequency(self, args: dict[str, Any]) -> list[TextContent]:
+    async def _analyze_deployment_frequency(
+        self, args: dict[str, Any]
+    ) -> list[TextContent]:
         """
         Analyze deployment frequency and success rates.
 
@@ -219,7 +227,9 @@ class CircleCITools:
         """
         project_slug = args["project_slug"]
         days = args.get("days", 30)
-        self.logger.info(f"Analyzing deployment frequency for {project_slug}, last {days} days")
+        self.logger.info(
+            f"Analyzing deployment frequency for {project_slug}, last {days} days"
+        )
 
         try:
             # Reuse build metrics for deployment analysis
@@ -244,7 +254,11 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "deployment_frequency",
                     "period_days": days,
-                    "timestamp": (build_data.get("timestamp") if isinstance(build_data, dict) else None),
+                    "timestamp": (
+                        build_data.get("timestamp")
+                        if isinstance(build_data, dict)
+                        else None
+                    ),
                 },
             }
 

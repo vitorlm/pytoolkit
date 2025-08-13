@@ -5,7 +5,7 @@ Brazilian Product Normalizer - Advanced normalization for Brazilian product name
 
 import re
 import unicodedata
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 from utils.logging.logging_manager import LogManager
 from utils.cache_manager.cache_manager import CacheManager

@@ -183,7 +183,7 @@ class CycleTimeService:
                 or "invalid issue type" in error_str.lower()
             ):
                 self.logger.error(
-                    f"JQL Query Error (400): Invalid issue type detected."
+                    "JQL Query Error (400): Invalid issue type detected."
                 )
                 self.logger.error(f"Original query: {jql_query}")
 
@@ -203,7 +203,7 @@ class CycleTimeService:
                         self.logger.error(
                             f"Invalid issue types provided: {invalid_types}"
                         )
-                        self.logger.error(f"Suggested command with valid types:")
+                        self.logger.error("Suggested command with valid types:")
                         valid_types = [t for t in issue_types if t in type_names]
                         suggested_types = (
                             ",".join(valid_types)

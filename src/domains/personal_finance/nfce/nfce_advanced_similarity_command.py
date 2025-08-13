@@ -231,7 +231,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
             
             if successful > 0:
                 logger.info(f"✅ Advanced similarity analysis completed: {successful}/{total_processed} processed")
-                print(f"✅ Analysis completed successfully!")
+                print("✅ Analysis completed successfully!")
             else:
                 logger.warning("No data was processed successfully")
                 print("⚠️  No data was processed - check input file and logs")
@@ -282,13 +282,13 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
         print(f"📋 Total de notas fiscais: {analysis.get('total_invoices', 0)}")
         print(f"🎯 Threshold: {analysis.get('similarity_threshold', 0):.2f}")
         print()
-        print(f"🔍 RESULTADOS:")
+        print("🔍 RESULTADOS:")
         print(f"   Grupos similares: {stats.get('total_similar_groups', 0)}")
         print(f"   Produtos similares: {stats.get('total_similar_products', 0)}")
         print(f"   Taxa de similaridade: {stats.get('similarity_rate', 0):.1f}%")
         print(f"   Alta confiança: {stats.get('high_confidence_groups', 0)} grupos")
         print()
-        print(f"💰 ANÁLISE DE PREÇOS:")
+        print("💰 ANÁLISE DE PREÇOS:")
         print(f"   Variação média: {stats.get('average_price_variation', 0):.1f}%")
         print(f"   Variação máxima: {stats.get('max_price_variation', 0):.1f}%")
         print(f"   Estabelecimentos únicos: {stats.get('unique_establishments', 0)}")

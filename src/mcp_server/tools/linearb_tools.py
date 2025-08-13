@@ -256,7 +256,9 @@ class LinearBTools:
             ),
         ]
 
-    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
+    async def execute_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> list[TextContent]:
         """Executes specific LinearB tool."""
         self.logger.info(f"Executing LinearB tool: {name} with args: {arguments}")
 
@@ -321,7 +323,9 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "engineering_metrics",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -375,7 +379,9 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "team_performance",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -387,7 +393,11 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get team performance: {e}")
-            return [TextContent(type="text", text=f"Failed to retrieve team performance: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to retrieve team performance: {str(e)}"
+                )
+            ]
 
     async def _get_pr_metrics(self, args: dict[str, Any]) -> list[TextContent]:
         """
@@ -409,7 +419,9 @@ class LinearBTools:
         team_ids = args.get("team_ids")
         filter_type = args.get("filter_type", "team")
 
-        self.logger.info(f"Getting PR metrics - range: {time_range}, teams: {team_ids}, filter: {filter_type}")
+        self.logger.info(
+            f"Getting PR metrics - range: {time_range}, teams: {team_ids}, filter: {filter_type}"
+        )
 
         try:
             # Reuse engineering metrics for PR analysis
@@ -431,7 +443,9 @@ class LinearBTools:
                 "pr_metrics": pr_analysis,
                 "summary": {
                     "analysis_type": "pr_metrics",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -443,7 +457,11 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get PR metrics: {e}")
-            return [TextContent(type="text", text=f"Failed to retrieve PR metrics: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to retrieve PR metrics: {str(e)}"
+                )
+            ]
 
     async def _get_deployment_metrics(self, args: dict[str, Any]) -> list[TextContent]:
         """
@@ -495,7 +513,9 @@ class LinearBTools:
                 "deployment_metrics": deployment_analysis,
                 "summary": {
                     "analysis_type": "deployment_metrics",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -507,7 +527,11 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get deployment metrics: {e}")
-            return [TextContent(type="text", text=f"Failed to retrieve deployment metrics: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to retrieve deployment metrics: {str(e)}"
+                )
+            ]
 
     async def _export_report(self, args: dict[str, Any]) -> list[TextContent]:
         """
@@ -559,7 +583,9 @@ class LinearBTools:
                 "report_data": data,
                 "summary": {
                     "analysis_type": "export_report",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -571,4 +597,8 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to export LinearB report: {e}")
-            return [TextContent(type="text", text=f"Failed to export LinearB report: {str(e)}")]
+            return [
+                TextContent(
+                    type="text", text=f"Failed to export LinearB report: {str(e)}"
+                )
+            ]

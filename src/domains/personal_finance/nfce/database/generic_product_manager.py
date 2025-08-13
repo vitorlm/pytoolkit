@@ -5,7 +5,7 @@ Generic Product Manager - Manages product deduplication and similarity matching
 
 import json
 import uuid
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal

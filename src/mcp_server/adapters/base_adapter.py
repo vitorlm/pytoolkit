@@ -57,7 +57,9 @@ class BaseAdapter(ABC):
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"{self.adapter_name}_{operation}_{params}"
 
-    def cached_operation(self, operation: str, func, expiration_minutes: int = 60, **kwargs) -> Any:
+    def cached_operation(
+        self, operation: str, func, expiration_minutes: int = 60, **kwargs
+    ) -> Any:
         """
         Execute operation with automatic caching.
 
@@ -70,7 +72,9 @@ class BaseAdapter(ABC):
         cache_key = self.get_cache_key(operation, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
+        cached_result = self.cache.load(
+            cache_key, expiration_minutes=expiration_minutes
+        )
         if cached_result is not None:
             self.logger.debug(f"Cache hit for {operation}")
             return cached_result

@@ -51,7 +51,9 @@ class TeamPerformancePromptHandler(BasePromptHandler):
                 name="productivity_improvement_plan",
                 description="Data-based productivity improvement plan",
                 arguments=[
-                    PromptArgument(name="project_key", description="Project key", required=True),
+                    PromptArgument(
+                        name="project_key", description="Project key", required=True
+                    ),
                     PromptArgument(
                         name="focus_areas",
                         description="Specific focus areas (velocity, cycle-time, quality)",
@@ -61,7 +63,9 @@ class TeamPerformancePromptHandler(BasePromptHandler):
             ),
         ]
 
-    async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
+    async def get_prompt_content(
+        self, name: str, arguments: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates specific prompt content."""
         if name == "team_health_assessment":
             return await self._generate_team_health_assessment(arguments)
@@ -70,12 +74,16 @@ class TeamPerformancePromptHandler(BasePromptHandler):
         else:
             raise ValueError(f"Unknown team performance prompt: {name}")
 
-    async def _generate_team_health_assessment(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_team_health_assessment(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates team health assessment."""
         project_key = args["project_key"]
         time_period = args.get("time_period", "last-month")
 
-        def _collect_team_health_data(project_key: str, time_period: str) -> dict[str, Any]:
+        def _collect_team_health_data(
+            project_key: str, time_period: str
+        ) -> dict[str, Any]:
             # Collect real data from adapters
             health_data: dict[str, Any] = {
                 "timestamp": self.get_current_timestamp(),
@@ -85,13 +93,23 @@ class TeamPerformancePromptHandler(BasePromptHandler):
 
             try:
                 # JIRA data
-                health_data["velocity"] = self.jira_adapter.get_velocity_analysis(project_key, time_period)
-                health_data["cycle_time"] = self.jira_adapter.get_cycle_time_analysis(project_key, time_period)
-                health_data["adherence"] = self.jira_adapter.get_adherence_analysis(project_key, time_period)
+                health_data["velocity"] = self.jira_adapter.get_velocity_analysis(
+                    project_key, time_period
+                )
+                health_data["cycle_time"] = self.jira_adapter.get_cycle_time_analysis(
+                    project_key, time_period
+                )
+                health_data["adherence"] = self.jira_adapter.get_adherence_analysis(
+                    project_key, time_period
+                )
 
                 # LinearB data
-                health_data["engineering_metrics"] = self.linearb_adapter.get_engineering_metrics(time_period)
-                health_data["team_performance"] = self.linearb_adapter.get_team_performance()
+                health_data["engineering_metrics"] = (
+                    self.linearb_adapter.get_engineering_metrics(time_period)
+                )
+                health_data["team_performance"] = (
+                    self.linearb_adapter.get_team_performance()
+                )
 
             except Exception as e:
                 health_data["error"] = str(e)
@@ -121,7 +139,9 @@ class TeamPerformancePromptHandler(BasePromptHandler):
 7. Workload distribution
 """
 
-        data_content = self.format_data_for_prompt(health_data, f"Team Health Data - {project_key}")
+        data_content = self.format_data_for_prompt(
+            health_data, f"Team Health Data - {project_key}"
+        )
 
         user_content = f"""Assess the health of this development team:
 
@@ -137,12 +157,16 @@ Provide comprehensive health assessment with specific areas for improvement."""
             ],
         )
 
-    async def _generate_productivity_improvement_plan(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_productivity_improvement_plan(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates productivity improvement plan."""
         project_key = args["project_key"]
         focus_areas = args.get("focus_areas", "velocity,cycle-time,quality").split(",")
 
-        def _collect_productivity_data(project_key: str, focus_areas: list[str]) -> dict[str, Any]:
+        def _collect_productivity_data(
+            project_key: str, focus_areas: list[str]
+        ) -> dict[str, Any]:
             # Collect real productivity data from adapters
             productivity_data: dict[str, Any] = {
                 "timestamp": self.get_current_timestamp(),
@@ -153,23 +177,33 @@ Provide comprehensive health assessment with specific areas for improvement."""
             try:
                 # JIRA productivity data
                 if "velocity" in focus_areas:
-                    productivity_data["velocity_analysis"] = self.jira_adapter.get_velocity_analysis(
-                        project_key, "last-3-months"
+                    productivity_data["velocity_analysis"] = (
+                        self.jira_adapter.get_velocity_analysis(
+                            project_key, "last-3-months"
+                        )
                     )
 
                 if "cycle-time" in focus_areas:
-                    productivity_data["cycle_time_analysis"] = self.jira_adapter.get_cycle_time_analysis(
-                        project_key, "last-month"
+                    productivity_data["cycle_time_analysis"] = (
+                        self.jira_adapter.get_cycle_time_analysis(
+                            project_key, "last-month"
+                        )
                     )
 
                 if "quality" in focus_areas:
-                    productivity_data["adherence_analysis"] = self.jira_adapter.get_adherence_analysis(
-                        project_key, "last-month"
+                    productivity_data["adherence_analysis"] = (
+                        self.jira_adapter.get_adherence_analysis(
+                            project_key, "last-month"
+                        )
                     )
 
                 # LinearB productivity metrics
-                productivity_data["engineering_metrics"] = self.linearb_adapter.get_engineering_metrics("last-month")
-                productivity_data["team_performance"] = self.linearb_adapter.get_team_performance()
+                productivity_data["engineering_metrics"] = (
+                    self.linearb_adapter.get_engineering_metrics("last-month")
+                )
+                productivity_data["team_performance"] = (
+                    self.linearb_adapter.get_team_performance()
+                )
 
             except Exception as e:
                 productivity_data["error"] = str(e)
@@ -199,7 +233,9 @@ Provide comprehensive health assessment with specific areas for improvement."""
 7. Risk mitigation
 """
 
-        data_content = self.format_data_for_prompt(productivity_data, f"Productivity Data - {project_key}")
+        data_content = self.format_data_for_prompt(
+            productivity_data, f"Productivity Data - {project_key}"
+        )
 
         user_content = f"""Create productivity improvement plan based on this data:
 

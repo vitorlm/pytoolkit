@@ -129,7 +129,9 @@ class WeeklyReportPromptHandler(BasePromptHandler):
             ),
         ]
 
-    async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
+    async def get_prompt_content(
+        self, name: str, arguments: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates specific prompt content."""
         if name == "generate_weekly_engineering_report":
             return await self._generate_weekly_engineering_report(arguments)
@@ -144,19 +146,35 @@ class WeeklyReportPromptHandler(BasePromptHandler):
         else:
             raise ValueError(f"Unknown weekly report prompt: {name}")
 
-    async def _generate_weekly_engineering_report(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_weekly_engineering_report(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates complete weekly engineering report."""
 
-        def _collect_weekly_report_data(project_key: str, team_name: str, include_comparison: bool) -> dict[str, Any]:
+        def _collect_weekly_report_data(
+            project_key: str, team_name: str, include_comparison: bool
+        ) -> dict[str, Any]:
             # Simulates complete execution of run_reports.sh
             data_sources = {
                 # JIRA Data Collection (equivalente aos comandos do script)
-                "jira_bugs_support_2weeks": self._simulate_jira_bugs_support_2weeks(project_key, team_name),
-                "jira_bugs_support_lastweek": self._simulate_jira_bugs_support_week(project_key, team_name, "last"),
-                "jira_bugs_support_weekbefore": self._simulate_jira_bugs_support_week(project_key, team_name, "before"),
-                "jira_tasks_2weeks": self._simulate_jira_tasks_2weeks(project_key, team_name),
-                "jira_open_issues": self._simulate_jira_open_issues(project_key, team_name),
-                "jira_cycle_time_lastweek": self._simulate_jira_cycle_time(project_key, team_name),
+                "jira_bugs_support_2weeks": self._simulate_jira_bugs_support_2weeks(
+                    project_key, team_name
+                ),
+                "jira_bugs_support_lastweek": self._simulate_jira_bugs_support_week(
+                    project_key, team_name, "last"
+                ),
+                "jira_bugs_support_weekbefore": self._simulate_jira_bugs_support_week(
+                    project_key, team_name, "before"
+                ),
+                "jira_tasks_2weeks": self._simulate_jira_tasks_2weeks(
+                    project_key, team_name
+                ),
+                "jira_open_issues": self._simulate_jira_open_issues(
+                    project_key, team_name
+                ),
+                "jira_cycle_time_lastweek": self._simulate_jira_cycle_time(
+                    project_key, team_name
+                ),
                 # SonarQube Data Collection
                 "sonarqube_quality_metrics": self._simulate_sonarqube_quality_metrics(),
                 # LinearB Data Collection
@@ -165,7 +183,9 @@ class WeeklyReportPromptHandler(BasePromptHandler):
 
             # Add comparison data if requested
             if include_comparison:
-                data_sources["comparison_analysis"] = self._generate_comparison_analysis(data_sources)
+                data_sources["comparison_analysis"] = (
+                    self._generate_comparison_analysis(data_sources)
+                )
 
             return data_sources
 
@@ -214,7 +234,9 @@ class WeeklyReportPromptHandler(BasePromptHandler):
 
         # Format data for prompt
         team_display = f"{team_name} Team" if team_name else "All Teams (Tribe-wide)"
-        data_content = self.format_data_for_prompt(weekly_data, f"Weekly Engineering Data - {team_display}")
+        data_content = self.format_data_for_prompt(
+            weekly_data, f"Weekly Engineering Data - {team_display}"
+        )
 
         user_content = f"""Generate a complete weekly engineering report using this collected data:
 
@@ -243,7 +265,9 @@ class WeeklyReportPromptHandler(BasePromptHandler):
             ],
         )
 
-    async def _analyze_weekly_data_collection(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _analyze_weekly_data_collection(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Analyzes weekly collected data."""
 
         def _collect_analysis_data(focus_areas: list[str]) -> dict[str, Any]:
@@ -252,9 +276,13 @@ class WeeklyReportPromptHandler(BasePromptHandler):
             if "all" in focus_areas or "bugs" in focus_areas:
                 analysis_data["bugs_analysis"] = self._get_bugs_analysis_data()
             if "all" in focus_areas or "cycle-time" in focus_areas:
-                analysis_data["cycle_time_analysis"] = self._get_cycle_time_analysis_data()
+                analysis_data["cycle_time_analysis"] = (
+                    self._get_cycle_time_analysis_data()
+                )
             if "all" in focus_areas or "adherence" in focus_areas:
-                analysis_data["adherence_analysis"] = self._get_adherence_analysis_data()
+                analysis_data["adherence_analysis"] = (
+                    self._get_adherence_analysis_data()
+                )
             if "all" in focus_areas or "quality" in focus_areas:
                 analysis_data["quality_analysis"] = self._get_quality_analysis_data()
             if "all" in focus_areas or "linearb" in focus_areas:
@@ -263,7 +291,11 @@ class WeeklyReportPromptHandler(BasePromptHandler):
             return analysis_data
 
         focus_areas_str = args.get("focus_areas", "all")
-        focus_areas = [area.strip() for area in focus_areas_str.split(",")] if focus_areas_str != "all" else ["all"]
+        focus_areas = (
+            [area.strip() for area in focus_areas_str.split(",")]
+            if focus_areas_str != "all"
+            else ["all"]
+        )
         include_recommendations = args.get("include_recommendations", True)
 
         analysis_data = self.cached_prompt_generation(
@@ -291,8 +323,12 @@ class WeeklyReportPromptHandler(BasePromptHandler):
 - Risk assessment and priority recommendations
 """
 
-        focus_display = ", ".join(focus_areas) if "all" not in focus_areas else "All Areas"
-        data_content = self.format_data_for_prompt(analysis_data, f"Weekly Analysis Data - Focus: {focus_display}")
+        focus_display = (
+            ", ".join(focus_areas) if "all" not in focus_areas else "All Areas"
+        )
+        data_content = self.format_data_for_prompt(
+            analysis_data, f"Weekly Analysis Data - Focus: {focus_display}"
+        )
 
         recommendations_instruction = (
             """
@@ -327,15 +363,23 @@ Focus on actionable insights that can drive immediate improvements."""
     async def _format_template_sections(self, args: dict[str, Any]) -> GetPromptResult:
         """Formats data for specific template sections."""
 
-        def _collect_section_data(sections: list[str], week_range: str) -> dict[str, Any]:
+        def _collect_section_data(
+            sections: list[str], week_range: str
+        ) -> dict[str, Any]:
             section_data = {}
 
             if "all" in sections or "bugs_support" in sections:
-                section_data["bugs_support"] = self._get_bugs_support_template_data(week_range)
+                section_data["bugs_support"] = self._get_bugs_support_template_data(
+                    week_range
+                )
             if "all" in sections or "cycle_time" in sections:
-                section_data["cycle_time"] = self._get_cycle_time_template_data(week_range)
+                section_data["cycle_time"] = self._get_cycle_time_template_data(
+                    week_range
+                )
             if "all" in sections or "adherence" in sections:
-                section_data["adherence"] = self._get_adherence_template_data(week_range)
+                section_data["adherence"] = self._get_adherence_template_data(
+                    week_range
+                )
             if "all" in sections or "linearb" in sections:
                 section_data["linearb"] = self._get_linearb_template_data(week_range)
             if "all" in sections or "sonarqube" in sections:
@@ -344,7 +388,11 @@ Focus on actionable insights that can drive immediate improvements."""
             return section_data
 
         sections_str = args.get("sections", "all")
-        sections = [s.strip() for s in sections_str.split(",")] if sections_str != "all" else ["all"]
+        sections = (
+            [s.strip() for s in sections_str.split(",")]
+            if sections_str != "all"
+            else ["all"]
+        )
         week_range = args.get("week_range", "current_week")
 
         section_data = self.cached_prompt_generation(
@@ -375,8 +423,12 @@ Focus on actionable insights that can drive immediate improvements."""
 - SonarQube: Project quality table with health status
 """
 
-        sections_display = ", ".join(sections) if "all" not in sections else "All Sections"
-        data_content = self.format_data_for_prompt(section_data, f"Template Section Data - {sections_display}")
+        sections_display = (
+            ", ".join(sections) if "all" not in sections else "All Sections"
+        )
+        data_content = self.format_data_for_prompt(
+            section_data, f"Template Section Data - {sections_display}"
+        )
 
         user_content = f"""Format the following data for direct insertion into report_template.md sections:
 
@@ -406,7 +458,9 @@ Output each section with its proper markdown formatting ready for copy-paste int
     async def _generate_next_actions(self, args: dict[str, Any]) -> GetPromptResult:
         """Generates Next Actions section of the report."""
 
-        def _collect_next_actions_data(priority_level: str, team_context: str) -> dict[str, Any]:
+        def _collect_next_actions_data(
+            priority_level: str, team_context: str
+        ) -> dict[str, Any]:
             return {
                 "priority_level": priority_level,
                 "team_context": team_context,
@@ -449,7 +503,9 @@ Output each section with its proper markdown formatting ready for copy-paste int
 - Consider dependencies and prerequisites
 """
 
-        data_content = self.format_data_for_prompt(actions_data, "Next Actions Analysis Data")
+        data_content = self.format_data_for_prompt(
+            actions_data, "Next Actions Analysis Data"
+        )
 
         priority_instruction = {
             "immediate": "Focus only on immediate, urgent actions for this week",
@@ -485,7 +541,9 @@ Format as markdown lists ready for insertion into report template."""
     async def _compare_weekly_metrics(self, args: dict[str, Any]) -> GetPromptResult:
         """Compares weekly metrics and identifies trends."""
 
-        def _collect_comparison_data(weeks: int, metrics_focus: list[str]) -> dict[str, Any]:
+        def _collect_comparison_data(
+            weeks: int, metrics_focus: list[str]
+        ) -> dict[str, Any]:
             return {
                 "comparison_weeks": weeks,
                 "metrics_focus": metrics_focus,
@@ -496,7 +554,11 @@ Format as markdown lists ready for insertion into report template."""
 
         comparison_weeks = args.get("comparison_weeks", 4)
         metrics_focus_str = args.get("metrics_focus", "all")
-        metrics_focus = [m.strip() for m in metrics_focus_str.split(",")] if metrics_focus_str != "all" else ["all"]
+        metrics_focus = (
+            [m.strip() for m in metrics_focus_str.split(",")]
+            if metrics_focus_str != "all"
+            else ["all"]
+        )
 
         comparison_data = self.cached_prompt_generation(
             "weekly_metrics_comparison",
@@ -530,7 +592,9 @@ Format as markdown lists ready for insertion into report template."""
 - Recommendations based on trend analysis
 """
 
-        metrics_display = ", ".join(metrics_focus) if "all" not in metrics_focus else "All Metrics"
+        metrics_display = (
+            ", ".join(metrics_focus) if "all" not in metrics_focus else "All Metrics"
+        )
         data_content = self.format_data_for_prompt(
             comparison_data,
             f"Weekly Metrics Comparison - {comparison_weeks} weeks - Focus: {metrics_display}",
@@ -563,7 +627,9 @@ Provide actionable insights that can guide team process adjustments and improvem
         )
 
     # Helper methods for analysis and calculations
-    def _calculate_week_over_week_changes(self, current_week: dict, previous_week: dict) -> dict[str, Any]:
+    def _calculate_week_over_week_changes(
+        self, current_week: dict, previous_week: dict
+    ) -> dict[str, Any]:
         """Calculate week-over-week changes in metrics."""
         try:
             if not current_week.get("data") or not previous_week.get("data"):
@@ -571,9 +637,15 @@ Provide actionable insights that can guide team process adjustments and improvem
 
             # This would contain logic to compare metrics between weeks
             return {
-                "bugs_change": self._calculate_metric_change(current_week, previous_week, "bugs"),
-                "support_change": self._calculate_metric_change(current_week, previous_week, "support"),
-                "completion_rate_change": self._calculate_metric_change(current_week, previous_week, "completion_rate"),
+                "bugs_change": self._calculate_metric_change(
+                    current_week, previous_week, "bugs"
+                ),
+                "support_change": self._calculate_metric_change(
+                    current_week, previous_week, "support"
+                ),
+                "completion_rate_change": self._calculate_metric_change(
+                    current_week, previous_week, "completion_rate"
+                ),
             }
         except Exception as e:
             return {"error": str(e), "note": "Week-over-week calculation failed"}
@@ -589,7 +661,9 @@ Provide actionable insights that can guide team process adjustments and improvem
         except Exception as e:
             return {"error": str(e), "note": "Trend analysis failed"}
 
-    def _identify_significant_variations(self, data_sources: dict[str, Any]) -> list[dict[str, Any]]:
+    def _identify_significant_variations(
+        self, data_sources: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         """Identify significant variations in the data."""
         try:
             variations: list[dict[str, Any]] = []
@@ -604,7 +678,9 @@ Provide actionable insights that can guide team process adjustments and improvem
                 }
             ]
 
-    def _generate_performance_indicators(self, data_sources: dict[str, Any]) -> dict[str, Any]:
+    def _generate_performance_indicators(
+        self, data_sources: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate performance indicators from data sources."""
         try:
             return {
@@ -615,7 +691,9 @@ Provide actionable insights that can guide team process adjustments and improvem
         except Exception as e:
             return {"error": str(e), "note": "Performance indicators generation failed"}
 
-    def _calculate_metric_change(self, current: dict, previous: dict, metric: str) -> dict[str, Any]:
+    def _calculate_metric_change(
+        self, current: dict, previous: dict, metric: str
+    ) -> dict[str, Any]:
         """Calculate change in a specific metric."""
         # Placeholder implementation
         return {"metric": metric, "change": 0, "percentage": 0}
@@ -636,7 +714,9 @@ Provide actionable insights that can guide team process adjustments and improvem
             "security": "stable",
         }
 
-    def _extract_engineering_trends(self, data_sources: dict[str, Any]) -> dict[str, Any]:
+    def _extract_engineering_trends(
+        self, data_sources: dict[str, Any]
+    ) -> dict[str, Any]:
         """Extract engineering productivity trends."""
         return {"pr_cycle_time": "stable", "deployment_frequency": "improving"}
 
@@ -653,7 +733,9 @@ Provide actionable insights that can guide team process adjustments and improvem
 
     def _detect_metric_outliers(self, weeks: int) -> list[dict[str, Any]]:
         """Detect outliers in metrics."""
-        return [{"week": "2024-W10", "metric": "cycle_time", "value": 48.5, "threshold": 30}]
+        return [
+            {"week": "2024-W10", "metric": "cycle_time", "value": 48.5, "threshold": 30}
+        ]
 
     def _calculate_confidence_intervals(self, weeks: int) -> dict[str, Any]:
         """Calculate confidence intervals for metrics."""
@@ -675,7 +757,9 @@ Provide actionable insights that can guide team process adjustments and improvem
         return ["Code review process", "Test automation coverage"]
 
     # Data simulation methods (placeholders that would be replaced with real adapters)
-    def _simulate_jira_bugs_support_2weeks(self, project_key: str, team_name: str) -> dict[str, Any]:
+    def _simulate_jira_bugs_support_2weeks(
+        self, project_key: str, team_name: str
+    ) -> dict[str, Any]:
         """Collect JIRA bugs/support data for 2 weeks."""
         try:
             return {
@@ -694,7 +778,9 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": "JIRA bugs/support data collection failed",
             }
 
-    def _simulate_jira_bugs_support_week(self, project_key: str, team_name: str, week_type: str) -> dict[str, Any]:
+    def _simulate_jira_bugs_support_week(
+        self, project_key: str, team_name: str, week_type: str
+    ) -> dict[str, Any]:
         """Collect JIRA bugs/support data for specific week."""
         time_period = "last-week" if week_type == "last" else "7-days"
         try:
@@ -715,7 +801,9 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": f"JIRA {week_type} week data collection failed",
             }
 
-    def _simulate_jira_tasks_2weeks(self, project_key: str, team_name: str) -> dict[str, Any]:
+    def _simulate_jira_tasks_2weeks(
+        self, project_key: str, team_name: str
+    ) -> dict[str, Any]:
         """Collect JIRA tasks data for 2 weeks."""
         issue_types = ["Story", "Task", "Epic", "Technical Debt", "Improvement"]
         try:
@@ -736,10 +824,16 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": "JIRA tasks data collection failed",
             }
 
-    def _simulate_jira_open_issues(self, project_key: str, team_name: str) -> dict[str, Any]:
+    def _simulate_jira_open_issues(
+        self, project_key: str, team_name: str
+    ) -> dict[str, Any]:
         """Collect JIRA open issues data."""
         try:
-            return {"epic_monitoring": self.jira_adapter.get_epic_monitoring_data(project_key, team_name)}
+            return {
+                "epic_monitoring": self.jira_adapter.get_epic_monitoring_data(
+                    project_key, team_name
+                )
+            }
         except Exception as e:
             return {
                 "error": str(e),
@@ -749,10 +843,14 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": "JIRA open issues data collection failed",
             }
 
-    def _simulate_jira_cycle_time(self, project_key: str, team_name: str) -> dict[str, Any]:
+    def _simulate_jira_cycle_time(
+        self, project_key: str, team_name: str
+    ) -> dict[str, Any]:
         """Collect JIRA cycle time data."""
         try:
-            cycle_time_data = self.jira_adapter.get_cycle_time_analysis(project_key, time_period="last-week")
+            cycle_time_data = self.jira_adapter.get_cycle_time_analysis(
+                project_key, time_period="last-week"
+            )
             return cycle_time_data
         except Exception as e:
             return {
@@ -797,20 +895,30 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": "LinearB metrics collection failed",
             }
 
-    def _generate_comparison_analysis(self, data_sources: dict[str, Any]) -> dict[str, Any]:
+    def _generate_comparison_analysis(
+        self, data_sources: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate comparison analysis from data sources."""
         try:
             # Extract current and previous week data for comparison
             current_week = data_sources.get("jira_bugs_support_lastweek", {})
             previous_week = data_sources.get("jira_bugs_support_weekbefore", {})
-            linearb_comparison = data_sources.get("linearb_engineering_metrics", {}).get("comparison", {})
+            linearb_comparison = data_sources.get(
+                "linearb_engineering_metrics", {}
+            ).get("comparison", {})
 
             return {
-                "week_over_week_changes": self._calculate_week_over_week_changes(current_week, previous_week),
+                "week_over_week_changes": self._calculate_week_over_week_changes(
+                    current_week, previous_week
+                ),
                 "trend_analysis": self._analyze_trends(data_sources),
-                "significant_variations": self._identify_significant_variations(data_sources),
+                "significant_variations": self._identify_significant_variations(
+                    data_sources
+                ),
                 "linearb_trends": linearb_comparison,
-                "performance_indicators": self._generate_performance_indicators(data_sources),
+                "performance_indicators": self._generate_performance_indicators(
+                    data_sources
+                ),
             }
         except Exception as e:
             return {
@@ -888,8 +996,12 @@ Provide actionable insights that can guide team process adjustments and improvem
         """Get bugs analysis data."""
         try:
             return {
-                "adherence": self.jira_adapter.get_adherence_analysis("CWS", time_period="last-week"),
-                "resolution_time": self.jira_adapter.get_resolution_time_analysis("CWS", time_period="last-week"),
+                "adherence": self.jira_adapter.get_adherence_analysis(
+                    "CWS", time_period="last-week"
+                ),
+                "resolution_time": self.jira_adapter.get_resolution_time_analysis(
+                    "CWS", time_period="last-week"
+                ),
             }
         except Exception as e:
             return {"error": str(e), "note": "Bugs analysis data collection failed"}
@@ -897,7 +1009,9 @@ Provide actionable insights that can guide team process adjustments and improvem
     def _get_cycle_time_analysis_data(self) -> dict[str, Any]:
         """Get cycle time analysis data."""
         try:
-            return self.jira_adapter.get_cycle_time_analysis("CWS", time_period="last-week")
+            return self.jira_adapter.get_cycle_time_analysis(
+                "CWS", time_period="last-week"
+            )
         except Exception as e:
             return {
                 "error": str(e),
@@ -907,7 +1021,9 @@ Provide actionable insights that can guide team process adjustments and improvem
     def _get_adherence_analysis_data(self) -> dict[str, Any]:
         """Get adherence analysis data."""
         try:
-            return self.jira_adapter.get_adherence_analysis("CWS", time_period="last-week")
+            return self.jira_adapter.get_adherence_analysis(
+                "CWS", time_period="last-week"
+            )
         except Exception as e:
             return {
                 "error": str(e),
@@ -939,8 +1055,12 @@ Provide actionable insights that can guide team process adjustments and improvem
         """Get trend data for action recommendations."""
         try:
             return {
-                "velocity": self.jira_adapter.get_velocity_analysis("CWS", time_period="last-6-months"),
-                "cycle_time": self.jira_adapter.get_cycle_time_analysis("CWS", time_period="last-3-months"),
+                "velocity": self.jira_adapter.get_velocity_analysis(
+                    "CWS", time_period="last-6-months"
+                ),
+                "cycle_time": self.jira_adapter.get_cycle_time_analysis(
+                    "CWS", time_period="last-3-months"
+                ),
             }
         except Exception as e:
             return {"error": str(e), "note": "Trends analysis failed"}
@@ -964,8 +1084,12 @@ Provide actionable insights that can guide team process adjustments and improvem
         try:
             time_period = f"last-{weeks * 7}-days"
             return {
-                "velocity": self.jira_adapter.get_velocity_analysis("CWS", time_period=time_period),
-                "adherence": self.jira_adapter.get_adherence_analysis("CWS", time_period=time_period),
+                "velocity": self.jira_adapter.get_velocity_analysis(
+                    "CWS", time_period=time_period
+                ),
+                "adherence": self.jira_adapter.get_adherence_analysis(
+                    "CWS", time_period=time_period
+                ),
             }
         except Exception as e:
             return {
@@ -973,7 +1097,9 @@ Provide actionable insights that can guide team process adjustments and improvem
                 "note": "Historical metrics data collection failed",
             }
 
-    def _generate_trend_analysis(self, weeks: int, metrics_focus: list[str]) -> dict[str, Any]:
+    def _generate_trend_analysis(
+        self, weeks: int, metrics_focus: list[str]
+    ) -> dict[str, Any]:
         """Generate trend analysis."""
         try:
             return {

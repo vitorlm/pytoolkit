@@ -4,12 +4,10 @@ Advanced Embedding Engine - Multi-model embedding system optimized for Brazilian
 """
 
 import numpy as np
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional
 from dataclasses import dataclass
-import torch
 from utils.logging.logging_manager import LogManager
 from utils.cache_manager.cache_manager import CacheManager
-from .feature_extractor import ProductFeatures
 
 
 @dataclass

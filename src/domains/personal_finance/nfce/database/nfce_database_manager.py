@@ -1,17 +1,13 @@
 import os
-import hashlib
 import uuid
 from typing import List, Dict, Optional, Any, Tuple
-from decimal import Decimal
-from datetime import datetime
 from pathlib import Path
 
 from utils.logging.logging_manager import LogManager
 from utils.data.duckdb_manager import DuckDBManager
 from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
-from domains.personal_finance.nfce.utils.cnpj_relationship_detector import CNPJRelationshipDetector
 from domains.personal_finance.nfce.models.invoice_data import (
-    InvoiceData, EstablishmentData, ProductData, ConsumerData, TaxData
+    InvoiceData, EstablishmentData, ProductData
 )
 
 

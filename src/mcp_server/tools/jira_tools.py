@@ -1,9 +1,11 @@
 import json
 from typing import Any
+from pydantic import ValidationError
 
 from mcp.types import TextContent, Tool
 
 from ..adapters.jira_adapter import JiraAdapter
+from ..validators import MCPToolValidator
 from utils.logging.logging_manager import LogManager
 
 
@@ -19,6 +21,7 @@ class JiraTools:
         """
         self.adapter = JiraAdapter()
         self.logger = LogManager.get_instance().get_logger("JiraTools")
+        self.validator = MCPToolValidator()
 
     @staticmethod
     def get_tool_definitions() -> list[Tool]:
@@ -26,7 +29,9 @@ class JiraTools:
         return [
             Tool(
                 name="jira_get_epic_monitoring",
-                description=("Gets JIRA epic monitoring data with status, dates and identified issues"),
+                description=(
+                    "Gets JIRA epic monitoring data with status, dates and identified issues"
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -37,6 +42,15 @@ class JiraTools:
                         "team": {
                             "type": "string",
                             "description": "Team name to filter (optional). If not provided, returns data from all teams in the project.",
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "Optional file path to save results in JSON format",
+                        },
+                        "verbose": {
+                            "type": "boolean",
+                            "description": "Enable verbose output with detailed information",
+                            "default": False,
                         },
                     },
                     "required": ["project_key"],
@@ -72,6 +86,15 @@ class JiraTools:
                         "status_categories": {
                             "type": "string",
                             "description": "Comma-separated list of status categories to include (optional)",
+                        },
+                        "output_file": {
+                            "type": "string",
+                            "description": "Optional file path to save results in JSON format",
+                        },
+                        "verbose": {
+                            "type": "boolean",
+                            "description": "Enable verbose output with detailed information",
+                            "default": False,
                         },
                     },
                     "required": ["project_key"],
@@ -177,21 +200,48 @@ class JiraTools:
             ),
         ]
 
-    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Executes specific JIRA tool."""
+    async def execute_tool(
+        self, name: str, arguments: dict[str, Any]
+    ) -> list[TextContent]:
+        """Executes specific JIRA tool with validation."""
         self.logger.info(f"Executing JIRA tool: {name} with args: {arguments}")
 
         try:
+            # Validate arguments using Pydantic models
+            try:
+                validated_args = self.validator.validate_tool_args(name, arguments)
+                self.logger.debug(f"Arguments validated successfully for {name}")
+            except ValidationError as e:
+                self.logger.warning(f"Validation failed for {name}: {e}")
+                return self.validator.format_validation_error(e, name)
+            except ValueError:
+                # Tool not found in validator
+                self.logger.debug(
+                    f"No validator for {name}, proceeding without validation"
+                )
+                validated_args = None
+
+            # Execute tool with validated arguments
             if name == "jira_get_epic_monitoring":
-                return await self._get_epic_monitoring(arguments)
+                return await self._get_epic_monitoring(
+                    validated_args.model_dump() if validated_args else arguments
+                )
             elif name == "jira_get_cycle_time_metrics":
-                return await self._get_cycle_time_metrics(arguments)
+                return await self._get_cycle_time_metrics(
+                    validated_args.model_dump() if validated_args else arguments
+                )
             elif name == "jira_get_team_velocity":
-                return await self._get_team_velocity(arguments)
+                return await self._get_team_velocity(
+                    validated_args.model_dump() if validated_args else arguments
+                )
             elif name == "jira_get_issue_adherence":
-                return await self._get_issue_adherence(arguments)
+                return await self._get_issue_adherence(
+                    arguments
+                )  # No validator model yet
             elif name == "jira_get_open_issues":
-                return await self._get_open_issues(arguments)
+                return await self._get_open_issues(
+                    validated_args.model_dump() if validated_args else arguments
+                )
             else:
                 error_msg = f"Unknown JIRA tool '{name}'"
                 self.logger.error(error_msg)
@@ -219,7 +269,9 @@ class JiraTools:
         """
         project_key = args["project_key"]
         team = args.get("team")
-        self.logger.info(f"Getting epic monitoring data for project: {project_key}, team: {team}")
+        self.logger.info(
+            f"Getting epic monitoring data for project: {project_key}, team: {team}"
+        )
 
         try:
             if team:
@@ -233,8 +285,12 @@ class JiraTools:
                 "team": team,
                 "epic_monitoring": data,
                 "summary": {
-                    "total_epics": (len(data.get("epics", [])) if isinstance(data, dict) else "N/A"),
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "total_epics": (
+                        len(data.get("epics", [])) if isinstance(data, dict) else "N/A"
+                    ),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -277,15 +333,30 @@ class JiraTools:
         status_categories_str = args.get("status_categories")
 
         # Parse comma-separated strings into lists
-        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
-        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
-        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
+        issue_types = (
+            [t.strip() for t in issue_types_str.split(",")]
+            if issue_types_str
+            else ["Bug", "Story"]
+        )
+        priorities = (
+            [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+        )
+        status_categories = (
+            [s.strip() for s in status_categories_str.split(",")]
+            if status_categories_str
+            else None
+        )
 
-        self.logger.info(f"Getting cycle time metrics for {project_key}, period: {time_period}, team: {team}")
+        self.logger.info(
+            f"Getting cycle time metrics for {project_key}, period: {time_period}, team: {team}"
+        )
 
         try:
             data = self.adapter.get_cycle_time_analysis(
-                project_key=project_key, time_period=time_period, issue_types=issue_types, team=team
+                project_key=project_key,
+                time_period=time_period,
+                issue_types=issue_types,
+                team=team,
             )
 
             formatted_result = {
@@ -297,8 +368,12 @@ class JiraTools:
                 "status_categories": status_categories,
                 "cycle_time_data": data,
                 "summary": {
-                    "total_issues_analyzed": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "total_issues_analyzed": (
+                        len(data.get("issues", [])) if isinstance(data, dict) else "N/A"
+                    ),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -336,7 +411,9 @@ class JiraTools:
         """
         project_key = args["project_key"]
         time_period = args.get("time_period", "last-6-months")
-        issue_types_str = args.get("issue_types", "Story,Task,Epic,Technical Debt,Improvement")
+        issue_types_str = args.get(
+            "issue_types", "Story,Task,Epic,Technical Debt,Improvement"
+        )
         aggregation = args.get("aggregation", "monthly")
         team = args.get("team")
 
@@ -347,7 +424,9 @@ class JiraTools:
             else ["Story", "Task", "Epic", "Technical Debt", "Improvement"]
         )
 
-        self.logger.info(f"Getting team velocity for {project_key}, period: {time_period}, team: {team}")
+        self.logger.info(
+            f"Getting team velocity for {project_key}, period: {time_period}, team: {team}"
+        )
 
         try:
             data = self.adapter.get_velocity_analysis(
@@ -367,7 +446,9 @@ class JiraTools:
                 "velocity_data": data,
                 "summary": {
                     "analysis_type": "team_velocity",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -410,14 +491,27 @@ class JiraTools:
         include_no_due_date = args.get("include_no_due_date", False)
 
         # Parse comma-separated strings into lists
-        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
-        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
+        issue_types = (
+            [t.strip() for t in issue_types_str.split(",")]
+            if issue_types_str
+            else ["Bug", "Story"]
+        )
+        status_categories = (
+            [s.strip() for s in status_categories_str.split(",")]
+            if status_categories_str
+            else None
+        )
 
-        self.logger.info(f"Getting issue adherence analysis for {project_key}, period: {time_period}, team: {team}")
+        self.logger.info(
+            f"Getting issue adherence analysis for {project_key}, period: {time_period}, team: {team}"
+        )
 
         try:
             data = self.adapter.get_adherence_analysis(
-                project_key=project_key, time_period=time_period, issue_types=issue_types, team=team
+                project_key=project_key,
+                time_period=time_period,
+                issue_types=issue_types,
+                team=team,
             )
 
             formatted_result = {
@@ -430,7 +524,9 @@ class JiraTools:
                 "adherence_analysis": data,
                 "summary": {
                     "analysis_type": "issue_adherence",
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 
@@ -472,12 +568,18 @@ class JiraTools:
 
         # Parse comma-separated strings into lists
         issue_types = (
-            [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Support", "Story", "Task"]
+            [t.strip() for t in issue_types_str.split(",")]
+            if issue_types_str
+            else ["Bug", "Support", "Story", "Task"]
         )
         status_categories = (
-            [s.strip() for s in status_categories_str.split(",")] if status_categories_str else ["To Do", "In Progress"]
+            [s.strip() for s in status_categories_str.split(",")]
+            if status_categories_str
+            else ["To Do", "In Progress"]
         )
-        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+        priorities = (
+            [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+        )
 
         self.logger.info(f"Getting open issues for {project_key}, team: {team}")
 
@@ -499,8 +601,12 @@ class JiraTools:
                 "open_issues_data": data,
                 "summary": {
                     "analysis_type": "open_issues",
-                    "total_open_issues": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
-                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
+                    "total_open_issues": (
+                        len(data.get("issues", [])) if isinstance(data, dict) else "N/A"
+                    ),
+                    "timestamp": (
+                        data.get("timestamp") if isinstance(data, dict) else None
+                    ),
                 },
             }
 

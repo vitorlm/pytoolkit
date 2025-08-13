@@ -6,11 +6,11 @@ Enhanced Similarity Calculator - Integrates SBERT embeddings with Brazilian toke
 import math
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 from dataclasses import dataclass
 from utils.logging.logging_manager import LogManager
 from .feature_extractor import ProductFeatures
-from .hybrid_similarity_engine import HybridSimilarityEngine, HybridSimilarityResult
+from .hybrid_similarity_engine import HybridSimilarityEngine
 
 
 @dataclass

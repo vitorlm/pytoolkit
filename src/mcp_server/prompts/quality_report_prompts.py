@@ -50,7 +50,11 @@ class QualityReportPromptHandler(BasePromptHandler):
             Prompt(
                 name="technical_debt_prioritization",
                 description="Data-based technical debt prioritization",
-                arguments=[PromptArgument(name="project_key", description="Project key", required=True)],
+                arguments=[
+                    PromptArgument(
+                        name="project_key", description="Project key", required=True
+                    )
+                ],
             ),
             Prompt(
                 name="security_assessment",
@@ -65,7 +69,9 @@ class QualityReportPromptHandler(BasePromptHandler):
             ),
         ]
 
-    async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
+    async def get_prompt_content(
+        self, name: str, arguments: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates specific prompt content."""
         if name == "code_quality_report":
             return await self._generate_code_quality_report(arguments)
@@ -76,12 +82,16 @@ class QualityReportPromptHandler(BasePromptHandler):
         else:
             raise ValueError(f"Unknown quality prompt: {name}")
 
-    async def _generate_code_quality_report(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_code_quality_report(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates code quality report."""
         project_key = args.get("project_key")
         include_trends = args.get("include_trends", False)
 
-        def _collect_quality_data(project_key: str, include_trends: bool) -> dict[str, Any]:
+        def _collect_quality_data(
+            project_key: str, include_trends: bool
+        ) -> dict[str, Any]:
             data: dict[str, Any] = {
                 "timestamp": self.get_current_timestamp(),
                 "project_key": project_key,
@@ -92,7 +102,9 @@ class QualityReportPromptHandler(BasePromptHandler):
                 # SonarQube quality data
                 if project_key:
                     data["sonarqube_data"] = {
-                        "project_details": self.sonarqube_adapter.get_project_details(project_key, include_issues=True)
+                        "project_details": self.sonarqube_adapter.get_project_details(
+                            project_key, include_issues=True
+                        )
                     }
                 else:
                     data["sonarqube_data"] = {
@@ -102,16 +114,24 @@ class QualityReportPromptHandler(BasePromptHandler):
 
                 # CI/CD pipeline health
                 data["pipeline_health"] = {
-                    "pipeline_status": self.circleci_adapter.get_pipeline_status(project_key),
-                    "build_metrics": self.circleci_adapter.get_build_metrics(project_key),
-                    "deployment_frequency": self.circleci_adapter.analyze_deployment_frequency(project_key),
+                    "pipeline_status": self.circleci_adapter.get_pipeline_status(
+                        project_key
+                    ),
+                    "build_metrics": self.circleci_adapter.get_build_metrics(
+                        project_key
+                    ),
+                    "deployment_frequency": self.circleci_adapter.analyze_deployment_frequency(
+                        project_key
+                    ),
                 }
 
                 # Trends analysis if requested (using available historical data)
                 if include_trends:
                     data["trends"] = {
                         "quality_dashboard": self.sonarqube_adapter.get_quality_dashboard(),
-                        "build_metrics_extended": self.circleci_adapter.get_build_metrics(project_key, limit=200),
+                        "build_metrics_extended": self.circleci_adapter.get_build_metrics(
+                            project_key, limit=200
+                        ),
                     }
 
             except Exception as e:
@@ -142,7 +162,9 @@ class QualityReportPromptHandler(BasePromptHandler):
 """
 
         target = project_key if project_key else "All Projects"
-        data_content = self.format_data_for_prompt(quality_data, f"Code Quality Data - {target}")
+        data_content = self.format_data_for_prompt(
+            quality_data, f"Code Quality Data - {target}"
+        )
 
         user_content = f"""Generate comprehensive code quality report based on this data:
 
@@ -158,7 +180,9 @@ Provide actionable insights and prioritized recommendations."""
             ],
         )
 
-    async def _generate_technical_debt_prioritization(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_technical_debt_prioritization(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates technical debt prioritization."""
         project_key = args["project_key"]
 
@@ -171,12 +195,18 @@ Provide actionable insights and prioritized recommendations."""
             try:
                 # Technical debt analysis from SonarQube
                 data["technical_debt_data"] = {
-                    "project_details": self.sonarqube_adapter.get_project_details(project_key, include_issues=True),
-                    "quality_dashboard": self.sonarqube_adapter.get_quality_dashboard(focus_projects=[project_key]),
+                    "project_details": self.sonarqube_adapter.get_project_details(
+                        project_key, include_issues=True
+                    ),
+                    "quality_dashboard": self.sonarqube_adapter.get_quality_dashboard(
+                        focus_projects=[project_key]
+                    ),
                 }
 
                 # Security-related technical debt (included in project details)
-                data["security_debt"] = {"security_analysis": "Security metrics included in project_details above"}
+                data["security_debt"] = {
+                    "security_analysis": "Security metrics included in project_details above"
+                }
 
                 # Reliability issues (included in project details)
                 data["reliability_debt"] = {
@@ -208,7 +238,9 @@ Provide actionable insights and prioritized recommendations."""
 5. Effort to fix
 """
 
-        data_content = self.format_data_for_prompt(debt_data, f"Technical Debt Data - {project_key}")
+        data_content = self.format_data_for_prompt(
+            debt_data, f"Technical Debt Data - {project_key}"
+        )
 
         user_content = f"""Prioritize technical debt items in this data:
 
@@ -224,7 +256,9 @@ Provide ranked action plan with effort estimates and business impact assessment.
             ],
         )
 
-    async def _generate_security_assessment(self, args: dict[str, Any]) -> GetPromptResult:
+    async def _generate_security_assessment(
+        self, args: dict[str, Any]
+    ) -> GetPromptResult:
         """Generates security assessment."""
         include_all_projects = args.get("include_all_projects", True)
 
@@ -243,10 +277,14 @@ Provide ranked action plan with effort estimates and business impact assessment.
                     }
                 else:
                     # Single project security assessment would need project_key parameter
-                    data["security_data"] = {"quality_dashboard": self.sonarqube_adapter.get_quality_dashboard()}
+                    data["security_data"] = {
+                        "quality_dashboard": self.sonarqube_adapter.get_quality_dashboard()
+                    }
 
                 # Common security analysis (using available methods)
-                data["security_analysis"] = {"available_metrics": self.sonarqube_adapter.get_available_metrics()}
+                data["security_analysis"] = {
+                    "available_metrics": self.sonarqube_adapter.get_available_metrics()
+                }
 
             except Exception as e:
                 data["error"] = str(e)
@@ -274,7 +312,9 @@ Provide ranked action plan with effort estimates and business impact assessment.
 """
 
         scope = "All Projects" if include_all_projects else "Main Project"
-        data_content = self.format_data_for_prompt(security_data, f"Security Data - {scope}")
+        data_content = self.format_data_for_prompt(
+            security_data, f"Security Data - {scope}"
+        )
 
         user_content = f"""Conduct security assessment based on this data:
 

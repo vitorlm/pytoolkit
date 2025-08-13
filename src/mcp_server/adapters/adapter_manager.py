@@ -36,7 +36,9 @@ class AdapterManager:
 
     def __init__(self) -> None:
         if AdapterManager._instance is not None:
-            raise RuntimeError("AdapterManager is a singleton. Use get_instance() instead.")
+            raise RuntimeError(
+                "AdapterManager is a singleton. Use get_instance() instead."
+            )
 
         self.logger = LogManager.get_instance().get_logger("AdapterManager")
         self._adapters: dict[str, BaseAdapter] = {}
@@ -65,7 +67,9 @@ class AdapterManager:
         """
         if adapter_name not in self._adapter_registry:
             available = ", ".join(self._adapter_registry.keys())
-            raise ValueError(f"Unknown adapter '{adapter_name}'. Available: {available}")
+            raise ValueError(
+                f"Unknown adapter '{adapter_name}'. Available: {available}"
+            )
 
         # Lazy initialization
         if adapter_name not in self._adapters:
@@ -118,7 +122,9 @@ class AdapterManager:
 
         for name, adapter_class in self._adapter_registry.items():
             # Get class name as description since adapters don't take constructor args
-            descriptions[name] = f"{adapter_class.__name__} - {name.title()} Integration"
+            descriptions[name] = (
+                f"{adapter_class.__name__} - {name.title()} Integration"
+            )
 
         return descriptions
 
@@ -157,7 +163,8 @@ class AdapterManager:
         healthy_adapters = sum(
             1
             for adapter_health in health_status["adapters"].values()
-            if isinstance(adapter_health, dict) and adapter_health.get("status") == "healthy"
+            if isinstance(adapter_health, dict)
+            and adapter_health.get("status") == "healthy"
         )
 
         health_status["adapter_manager"].update(

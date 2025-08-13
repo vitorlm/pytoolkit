@@ -6,8 +6,7 @@ Similarity Training Command - Interactive training data collection for similarit
 import os
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import List, Dict, Any, Optional
-import json
+from typing import List, Optional
 from datetime import datetime
 
 from utils.command.base_command import BaseCommand
@@ -340,7 +339,7 @@ class SimilarityTrainingHandler:
             if norm2.extracted_brand:
                 print(f"Brand: {norm2.extracted_brand}")
             
-            print(f"\nSimilarity Details:")
+            print("\nSimilarity Details:")
             print(f"  Algorithm Score: {similarity_score:.3f}")
             print(f"  Brand Match: {norm1.extracted_brand == norm2.extracted_brand if norm1.extracted_brand and norm2.extracted_brand else 'N/A'}")
             print(f"  Categories: {', '.join(norm1.category_hints)} | {', '.join(norm2.category_hints)}")
@@ -394,7 +393,7 @@ class SimilarityTrainingHandler:
         
         self._save_labeled_pairs()
         
-        print(f"\n✅ Training data collection completed!")
+        print("\n✅ Training data collection completed!")
         print(f"   Labeled: {labeled_count}")
         print(f"   Skipped: {skipped_count}")
         print(f"   Total training examples: {len(self.trainer.training_examples)}")
@@ -491,7 +490,7 @@ class SimilarityTrainingHandler:
             )
             
             # Display results
-            print(f"\n✅ Model training completed!")
+            print("\n✅ Model training completed!")
             print(f"   Accuracy:  {performance.accuracy:.3f}")
             print(f"   Precision: {performance.precision:.3f}")
             print(f"   Recall:    {performance.recall:.3f}")
@@ -499,10 +498,10 @@ class SimilarityTrainingHandler:
             print(f"   AUC Score: {performance.auc_score:.3f}")
             
             if detailed:
-                print(f"\n📊 Confusion Matrix:")
+                print("\n📊 Confusion Matrix:")
                 cm = performance.confusion_matrix
-                print(f"                 Predicted")
-                print(f"              Not Same  Same")
+                print("                 Predicted")
+                print("              Not Same  Same")
                 print(f"Actual Not Same  {cm[0][0]:4d}   {cm[0][1]:4d}")
                 print(f"       Same      {cm[1][0]:4d}   {cm[1][1]:4d}")
             
@@ -524,7 +523,7 @@ class SimilarityTrainingHandler:
         # Get training statistics
         stats = self.trainer.get_training_statistics()
         
-        print(f"Training Data Summary:")
+        print("Training Data Summary:")
         print(f"  Total examples: {stats['total_examples']}")
         print(f"  Positive examples: {stats['positive_examples']}")
         print(f"  Negative examples: {stats['negative_examples']}")
@@ -535,17 +534,17 @@ class SimilarityTrainingHandler:
         print(f"  Current model available: {stats['current_model_available']}")
         
         if stats['models_trained'] > 0:
-            print(f"\n📊 Performance History:")
+            print("\n📊 Performance History:")
             for i, perf in enumerate(self.trainer.performance_history[-3:], 1):  # Last 3 models
                 print(f"  Model {i}: F1={perf.f1_score:.3f}, Acc={perf.accuracy:.3f}, AUC={perf.auc_score:.3f}")
         
         if detailed and self.trainer.current_model is not None:
-            print(f"\n🔍 Detailed Analysis:")
+            print("\n🔍 Detailed Analysis:")
             
             # Test on some examples
             test_pairs = self._get_candidate_pairs(max_pairs=10)
             if test_pairs:
-                print(f"Sample predictions on new data:")
+                print("Sample predictions on new data:")
                 for i, (prod1, prod2, feat1, feat2, orig_score) in enumerate(test_pairs[:5], 1):
                     is_similar, confidence = self.trainer.predict_similarity(feat1, feat2)
                     print(f"  {i}. {prod1[:40]}...")
@@ -567,7 +566,7 @@ class SimilarityTrainingHandler:
         
         try:
             self.trainer.export_training_data(output_file, format)
-            print(f"✅ Training data exported successfully")
+            print("✅ Training data exported successfully")
             
             # Show export summary
             stats = self.trainer.get_training_statistics()
@@ -627,14 +626,14 @@ class SimilarityTrainingHandler:
             else:
                 emb_similarity = None
             
-            print(f"   Results:")
+            print("   Results:")
             print(f"     Original Algorithm: {orig_score:.3f}")
             if ml_confidence is not None:
                 print(f"     ML Model: {ml_confidence:.3f} ({'Similar' if ml_similar else 'Different'})")
             if emb_similarity is not None:
                 print(f"     Advanced Embeddings: {emb_similarity:.3f}")
             
-            print(f"   Normalized:")
+            print("   Normalized:")
             print(f"     A: {norm1.normalized} (Brand: {norm1.extracted_brand or 'N/A'})")
             print(f"     B: {norm2.normalized} (Brand: {norm2.extracted_brand or 'N/A'})")
             print()

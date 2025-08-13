@@ -5,7 +5,7 @@ Hybrid Similarity Engine - Combines SBERT embeddings with Brazilian token rules
 
 import math
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple
 from dataclasses import dataclass
 import numpy as np
 from utils.logging.logging_manager import LogManager
