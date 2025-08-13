@@ -5,7 +5,7 @@
 # Usage: Run this script weekly to get consistent metrics for analysis
 # Supports both team-specific and tribe-wide reporting based on configuration
 
-# Handle help option
+# Handle help option and config selection
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "🚀 Weekly Metrics Report Script"
     echo ""
@@ -14,8 +14,10 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "  Automatically detects configuration type and adapts behavior accordingly."
     echo ""
     echo "USAGE:"
-    echo "  ./run_reports.sh              # Interactive mode (if multiple configs)"
-    echo "  ./run_reports.sh --help       # Show this help"
+    echo "  ./run_reports.sh                      # Interactive mode (if multiple configs)"
+    echo "  ./run_reports.sh --config team        # Use team-specific config"
+    echo "  ./run_reports.sh --config tribe       # Use tribe-wide config"
+    echo "  ./run_reports.sh --help               # Show this help"
     echo ""
     echo "CONFIGURATION:"
     echo "  Place .env files in the scripts/ directory:"
@@ -30,6 +32,7 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "FEATURES:"
     echo "  ✓ Intelligent configuration detection"
     echo "  ✓ Interactive selection for multiple configs"
+    echo "  ✓ Non-interactive mode with --config parameter"
     echo "  ✓ Adaptive JIRA filtering and SonarQube project selection"
     echo "  ✓ Consolidated reporting with analysis recommendations"
     echo ""
@@ -72,19 +75,20 @@ get_user_selection() {
     local configs=("$@")
     local max_options=${#configs[@]}
     
-    while true; do
-        echo -n "👉 Select option (0-$max_options): "
-        read -r selection
-        
-        if [[ "$selection" == "0" ]]; then
-            echo "❌ Exiting script."
-            exit 0
-        elif [[ "$selection" =~ ^[1-9][0-9]*$ ]] && [ "$selection" -le "$max_options" ]; then
-            return $((selection - 1))
-        else
-            echo "⚠️  Invalid selection. Please enter a number between 0 and $max_options."
-        fi
-    done
+    echo -n "👉 Select option (0-$max_options): "
+    read -r selection
+    
+    if [[ "$selection" == "0" ]]; then
+        echo "❌ Exiting script."
+        exit 0
+    elif [[ "$selection" == "1" ]] && [ "$max_options" -ge 1 ]; then
+        return 0
+    elif [[ "$selection" == "2" ]] && [ "$max_options" -ge 2 ]; then
+        return 1
+    else
+        echo "⚠️  Invalid selection. Please enter a number between 0 and $max_options."
+        exit 1
+    fi
 }
 
 # Auto-detect configuration files and handle selection
@@ -107,12 +111,30 @@ elif [ ${#CONFIG_FILES[@]} -eq 1 ]; then
     SELECTED_CONFIG="${CONFIG_FILES[0]}"
     echo "🔧 Found configuration: $SELECTED_CONFIG"
 else
-    # Multiple config files found - show interactive menu
-    show_config_menu "${CONFIG_FILES[@]}"
-    get_user_selection "${CONFIG_FILES[@]}"
-    SELECTED_CONFIG="${CONFIG_FILES[$?]}"
-    echo ""
-    echo "✅ Selected configuration: $SELECTED_CONFIG"
+    # Multiple config files found - check for --config parameter
+    if [[ "$1" == "--config" && "$2" == "team" ]]; then
+        SELECTED_CONFIG="config_reports.env"
+        if [[ ! -f "$SELECTED_CONFIG" ]]; then
+            echo "❌ Team configuration file 'config_reports.env' not found"
+            exit 1
+        fi
+        echo "🔧 Using team configuration: $SELECTED_CONFIG"
+    elif [[ "$1" == "--config" && "$2" == "tribe" ]]; then
+        SELECTED_CONFIG="config_reports_tribe.env"
+        if [[ ! -f "$SELECTED_CONFIG" ]]; then
+            echo "❌ Tribe configuration file 'config_reports_tribe.env' not found"
+            exit 1
+        fi
+        echo "🔧 Using tribe configuration: $SELECTED_CONFIG"
+    else
+        # Interactive mode
+        show_config_menu "${CONFIG_FILES[@]}"
+        get_user_selection "${CONFIG_FILES[@]}"
+        SELECTION_INDEX=$?
+        SELECTED_CONFIG="${CONFIG_FILES[$SELECTION_INDEX]}"
+        echo ""
+        echo "✅ Selected configuration: $SELECTED_CONFIG"
+    fi
 fi
 
 # Load the selected configuration
@@ -144,6 +166,7 @@ fi
 # Configuration (with defaults if not loaded from config)
 PROJECT_KEY="${PROJECT_KEY:-CWS}"
 SONARQUBE_ORGANIZATION="${SONARQUBE_ORGANIZATION:-syngenta-digital}"
+SONARQUBE_PROJECT_KEYS="${SONARQUBE_PROJECT_KEYS:-}"
 INCLUDE_OPTIONAL_REPORTS="${INCLUDE_OPTIONAL_REPORTS:-true}"
 CLEAR_CACHE="${CLEAR_CACHE:-true}"
 USE_DATE_SUFFIX="${USE_DATE_SUFFIX:-true}"
@@ -165,6 +188,19 @@ else
     echo "📊 Mode: TEAM-SPECIFIC reporting"
     echo "   👥 Team: $TEAM"
     echo "   📋 LinearB Team: $LINEARB_TEAM_ID"
+fi
+
+# Validate team-specific configuration
+if [ "$TRIBE_MODE" = false ] && [ -z "$SONARQUBE_PROJECT_KEYS" ]; then
+    echo "❌ Error: SONARQUBE_PROJECT_KEYS is required for team-specific reporting"
+    echo ""
+    echo "Please add SONARQUBE_PROJECT_KEYS to your configuration file:"
+    echo "   SONARQUBE_PROJECT_KEYS=\"project1,project2,project3\""
+    echo ""
+    echo "You can find your project keys by running:"
+    echo "   python src/main.py syngenta sonarqube sonarqube --operation list-projects"
+    echo ""
+    exit 1
 fi
 
 # Set up output directory
