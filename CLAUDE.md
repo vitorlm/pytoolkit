@@ -14,9 +14,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `python src/main.py <domain> <command> [args]` - Executes specific commands
 
 ### Code Quality
-- `flake8 src/` - Lints Python code
-- `black src/` - Formats Python code
-- `isort src/` - Sorts imports
+- `ruff check src/` - Lints and formats Python code
+- `ruff format src/` - Formats Python code (alternative to ruff check --fix)
 
 ### Alternative Package Management
 - `poetry install` - Install dependencies using Poetry (alternative to pip)

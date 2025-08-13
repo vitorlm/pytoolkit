@@ -196,3 +196,21 @@ def ensure_sonarqube_env_loaded() -> None:
 
     if missing_vars:
         print(f"Warning: Required SonarQube environment variables missing: {missing_vars}")
+
+
+def ensure_github_env_loaded() -> None:
+    """
+    Ensure GitHub-specific environment variables are loaded.
+    """
+    # First load the general environment
+    load_env_file()
+
+    # Then load the domain-specific environment
+    load_domain_env("domains/github")
+
+    # Check if the required variables are available
+    required_vars = ["GITHUB_TOKEN"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    if missing_vars:
+        print(f"Warning: Required GitHub environment variables missing: {missing_vars}")
