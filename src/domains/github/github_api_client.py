@@ -5,15 +5,18 @@ GitHub API Client for PR analysis with rate limiting and caching.
 import os
 import random
 import time
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import requests
-
 from utils.cache_manager.cache_manager import CacheManager
 from utils.logging.logging_manager import LogManager
+
+# Allow override via environment variable
+GRAPHQL_ENDPOINT = os.getenv("GITHUB_GRAPHQL_ENDPOINT", "https://api.github.com/graphql")
 
 
 class GitHubApiClient:
@@ -38,6 +41,79 @@ class GitHubApiClient:
             "User-Agent": "PyToolkit-PR-Analyzer/1.0",
         }
 
+        # Separate headers for GraphQL (needs JSON accept)
+        self.graphql_headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "PyToolkit-PR-Analyzer/1.0",
+        }
+
+        # Debug: mostrar caminho do módulo carregado (para evitar confusão de múltiplas cópias)
+        try:
+            self.logger.debug(f"GitHubApiClient loaded from: {__file__}")
+        except Exception:
+            pass
+
+    # ----------------------------- GraphQL Support -----------------------------
+    def post_graphql(
+        self, query: str, variables: Dict[str, Any], max_retries: int = 5, backoff_base: float = 1.0
+    ) -> Dict[str, Any]:
+        """Execute a GraphQL POST request with retry/backoff.
+
+        Args:
+            query: GraphQL query string
+            variables: Variables dict
+            max_retries: Maximum attempts
+            backoff_base: Base seconds for exponential backoff
+
+        Returns:
+            Parsed JSON response ("data" object)
+        """
+        url = GRAPHQL_ENDPOINT
+        attempt = 0
+        while attempt < max_retries:
+            try:
+                resp = requests.post(
+                    url,
+                    headers=self.graphql_headers,
+                    data=json.dumps({"query": query, "variables": variables}),
+                    timeout=30,
+                )
+                if resp.status_code == 200:
+                    payload = resp.json()
+                    if "errors" in payload:
+                        # Always surface full error list for visibility
+                        self.logger.warning(
+                            f"GraphQL errors (attempt {attempt + 1}/{max_retries}): "
+                            + "; ".join(str(e.get("message")) for e in payload.get("errors", []))
+                        )
+                        # Detect transient classes we should retry
+                        joined = " ".join(e.get("message", "").lower() for e in payload.get("errors", []))
+                        if any(k in joined for k in ["rate limit", "secondary rate limit", "timeout", "timed out"]):
+                            raise RuntimeError("Transient GraphQL error")
+                    # Return full payload (data + optionally errors) so caller can inspect repository presence
+                    return payload
+                elif resp.status_code in (502, 503, 504, 429):
+                    self.logger.warning(
+                        f"GraphQL transient status {resp.status_code} attempt {attempt + 1}/{max_retries}"
+                    )
+                elif resp.status_code == 401:
+                    raise ValueError("Unauthorized GraphQL request - invalid token")
+                else:
+                    self.logger.error(f"GraphQL unexpected status {resp.status_code}: {resp.text[:200]}")
+                    # Non-retryable
+                    break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    self.logger.error(f"GraphQL request failed permanently: {e}")
+                    raise
+                delay = backoff_base * (2**attempt) + random.uniform(0, 0.25)
+                self.logger.debug(f"GraphQL retry in {delay:.2f}s after error: {e}")
+                time.sleep(delay)
+            attempt += 1
+        return {}
+
     def _make_request(
         self,
         method: str,
@@ -45,7 +121,7 @@ class GitHubApiClient:
         cache_key: Optional[str] = None,
         cache_expiration: int = 60,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
         Make a request to the GitHub API with caching and retry logic.
 
@@ -137,7 +213,7 @@ class GitHubApiClient:
         **kwargs,
     ) -> List[Dict[str, Any]]:
         """Get all pages of results from a paginated endpoint."""
-        all_data = []
+        all_data: List[Dict[str, Any]] = []
         page = 1
         pages_fetched = 0
 
@@ -151,6 +227,12 @@ class GitHubApiClient:
             cache_key = f"{endpoint.replace('/', '_')}_page_{page}_{per_page}"
 
             try:
+                # Better progress logging for longer operations
+                if page == 1:
+                    self.logger.info(f"📡 Starting to fetch data from {endpoint}")
+                elif page % 5 == 0:  # Log every 5 pages
+                    self.logger.info(f"📡 Fetching page {page} from {endpoint} (total items so far: {len(all_data)})")
+
                 data = self._make_request(
                     "GET",
                     endpoint,
@@ -160,18 +242,25 @@ class GitHubApiClient:
                 )
 
                 if not data or (isinstance(data, list) and len(data) == 0):
+                    self.logger.info(f"📡 Finished fetching from {endpoint} - no more data on page {page}")
                     break
 
                 if isinstance(data, list):
-                    all_data.extend(data)
+                    all_data.extend(data)  # type: ignore
                 else:
                     all_data.append(data)
 
                 pages_fetched += 1
-                self.logger.debug(f"Fetched page {page} from {endpoint}, got {len(data)} items")
+
+                # More informative progress for first few pages and larger datasets
+                if page <= 3 or len(all_data) % 200 == 0 or (isinstance(data, list) and len(data) < per_page):
+                    self.logger.info(f"📡 Page {page} from {endpoint}: +{len(data)} items (total: {len(all_data)})")
 
                 # If we got less than per_page items, this is probably the last page
                 if isinstance(data, list) and len(data) < per_page:
+                    self.logger.info(
+                        f"📡 Completed fetching from {endpoint}: {len(all_data)} total items across {pages_fetched} pages"
+                    )
                     break
 
                 page += 1
@@ -277,7 +366,7 @@ class GitHubApiClient:
 
     def get_pull_request_details(self, owner: str, repo: str, pr_number: int) -> Dict[str, Any]:
         """Get detailed information for a specific pull request."""
-        self.logger.debug(f"Fetching PR details for {owner}/{repo}#{pr_number}")
+        self.logger.info(f"🔍 Fetching PR details for {owner}/{repo}#{pr_number}")
 
         try:
             pr_details = self._make_request(
@@ -288,14 +377,14 @@ class GitHubApiClient:
             )
 
             if pr_details:
-                self.logger.debug(f"Retrieved PR details for {owner}/{repo}#{pr_number}")
+                self.logger.info(f"✅ Retrieved PR details for {owner}/{repo}#{pr_number}")
             else:
-                self.logger.warning(f"No PR details found for {owner}/{repo}#{pr_number}")
+                self.logger.warning(f"⚠️ No PR details found for {owner}/{repo}#{pr_number}")
 
             return pr_details
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch PR details for {owner}/{repo}#{pr_number}: {e}")
+            self.logger.error(f"❌ Failed to fetch PR details for {owner}/{repo}#{pr_number}: {e}")
             return {}
 
     def get_pull_request_reviews(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
@@ -344,6 +433,7 @@ class GitHubApiClient:
         pr_data: Dict[str, Any],
         include_size_metrics: bool = True,
         include_review_metrics: bool = True,
+        include_review_rounds: bool = False,
     ) -> Dict[str, Any]:
         """
         Enrich a pull request with additional metadata using parallel API calls.
@@ -354,6 +444,7 @@ class GitHubApiClient:
             pr_data: Basic PR data from pulls API
             include_size_metrics: Whether to include size metrics
             include_review_metrics: Whether to include review/discussion metrics
+            include_review_rounds: Whether to include review rounds calculation
 
         Returns:
             Enriched PR data dictionary
@@ -366,16 +457,29 @@ class GitHubApiClient:
         enriched_data = pr_data.copy()
 
         try:
-            if include_size_metrics or include_review_metrics:
+            if include_size_metrics or include_review_metrics or include_review_rounds:
+                # Count API calls for progress tracking
+                api_calls_needed = []
+                if include_size_metrics or include_review_metrics or include_review_rounds:
+                    api_calls_needed.append("pr_details")
+                if include_review_metrics or include_review_rounds:
+                    api_calls_needed.extend(["reviews", "review_comments", "issue_comments"])
+                if include_review_rounds:
+                    api_calls_needed.extend(["timeline", "commits"])
+
+                self.logger.info(
+                    f"🔍 Enriching PR #{pr_number} with {len(api_calls_needed)} API calls: {', '.join(api_calls_needed)}"
+                )
+
                 # Use parallel execution for multiple API calls
-                with ThreadPoolExecutor(max_workers=min(4, self.max_workers)) as executor:
+                with ThreadPoolExecutor(max_workers=min(6, self.max_workers)) as executor:
                     future_tasks: Dict[str, Any] = {}
 
                     # Always get PR details if we need any enrichment
                     future_tasks["pr_details"] = executor.submit(self.get_pull_request_details, owner, repo, pr_number)
 
                     # Only fetch review data if review metrics are needed
-                    if include_review_metrics:
+                    if include_review_metrics or include_review_rounds:
                         future_tasks["reviews"] = executor.submit(self.get_pull_request_reviews, owner, repo, pr_number)
                         future_tasks["review_comments"] = executor.submit(
                             self.get_pull_request_comments, owner, repo, pr_number
@@ -383,6 +487,11 @@ class GitHubApiClient:
                         future_tasks["issue_comments"] = executor.submit(
                             self.get_issue_comments, owner, repo, pr_number
                         )
+
+                    # Fetch timeline and commits if review rounds are needed
+                    if include_review_rounds:
+                        future_tasks["timeline"] = executor.submit(self.get_issue_timeline, owner, repo, pr_number)
+                        future_tasks["commits"] = executor.submit(self.get_pull_request_commits, owner, repo, pr_number)
 
                     # Collect results with proper typing
                     results: Dict[str, Any] = {}
@@ -416,7 +525,7 @@ class GitHubApiClient:
                     )
 
                 # Add review metrics
-                if include_review_metrics:
+                if include_review_metrics or include_review_rounds:
                     reviews: List[Dict[str, Any]] = results.get("reviews", [])
                     review_comments: List[Dict[str, Any]] = results.get("review_comments", [])
                     issue_comments: List[Dict[str, Any]] = results.get("issue_comments", [])
@@ -470,19 +579,27 @@ class GitHubApiClient:
                             first_response_time = min(response_times)
                             first_response_latency_seconds = int((first_response_time - created_at).total_seconds())
 
-                    enriched_data.update(
-                        {
-                            "requested_reviewers": [r.get("login") for r in requested_reviewers],
-                            "requested_teams": [t.get("slug") for t in requested_teams],
-                            "requested_reviewers_count": len(requested_reviewers) + len(requested_teams),
-                            "reviews_count": len(reviews),
-                            "approvals_count": approvals_count,
-                            "review_comments": len(review_comments),
-                            "issue_comments": len(issue_comments),
-                            "time_to_first_review_seconds": time_to_first_review_seconds,
-                            "first_response_latency_seconds": first_response_latency_seconds,
-                        }
-                    )
+                    if include_review_metrics:
+                        enriched_data.update(
+                            {
+                                "requested_reviewers": [r.get("login") for r in requested_reviewers],
+                                "requested_teams": [t.get("slug") for t in requested_teams],
+                                "requested_reviewers_count": len(requested_reviewers) + len(requested_teams),
+                                "reviews_count": len(reviews),
+                                "approvals_count": approvals_count,
+                                "review_comments": len(review_comments),
+                                "issue_comments": len(issue_comments),
+                                "time_to_first_review_seconds": time_to_first_review_seconds,
+                                "first_response_latency_seconds": first_response_latency_seconds,
+                            }
+                        )
+
+                    # Calculate review rounds if requested
+                    if include_review_rounds:
+                        review_rounds_data = self._calculate_review_rounds(
+                            reviews, results.get("timeline", []), results.get("commits", []), created_at
+                        )
+                        enriched_data.update(review_rounds_data)
                 else:
                     enriched_data.update(
                         {
@@ -495,6 +612,9 @@ class GitHubApiClient:
                             "issue_comments": None,
                             "time_to_first_review_seconds": None,
                             "first_response_latency_seconds": None,
+                            "review_rounds": None,
+                            "synchronize_after_first_review": None,
+                            "re_review_pushes": None,
                         }
                     )
 
@@ -515,6 +635,9 @@ class GitHubApiClient:
                         "issue_comments": None,
                         "time_to_first_review_seconds": None,
                         "first_response_latency_seconds": None,
+                        "review_rounds": None,
+                        "synchronize_after_first_review": None,
+                        "re_review_pushes": None,
                     }
                 )
 
@@ -524,6 +647,157 @@ class GitHubApiClient:
             self.logger.error(f"Failed to enrich PR {owner}/{repo}#{pr_number}: {e}")
             return enriched_data
 
+    def get_issue_timeline(self, owner: str, repo: str, issue_number: int) -> List[Dict[str, Any]]:
+        """Get timeline events for an issue/PR."""
+        self.logger.debug(f"Fetching timeline for {owner}/{repo}#{issue_number}")
+
+        try:
+            timeline = self.get_paginated_data(f"/repos/{owner}/{repo}/issues/{issue_number}/timeline")
+            self.logger.debug(f"Found {len(timeline)} timeline events for {owner}/{repo}#{issue_number}")
+            return timeline
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch timeline for {owner}/{repo}#{issue_number}: {e}")
+            return []
+
+    def get_pull_request_commits(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
+        """Get all commits for a pull request."""
+        self.logger.debug(f"Fetching commits for {owner}/{repo}#{pr_number}")
+
+        try:
+            commits = self.get_paginated_data(f"/repos/{owner}/{repo}/pulls/{pr_number}/commits")
+            self.logger.debug(f"Found {len(commits)} commits for {owner}/{repo}#{pr_number}")
+            return commits
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch commits for {owner}/{repo}#{pr_number}: {e}")
+            return []
+
+    def _calculate_review_rounds(
+        self,
+        reviews: List[Dict[str, Any]],
+        timeline: List[Dict[str, Any]],
+        commits: List[Dict[str, Any]],
+        created_at: Optional[datetime],
+    ) -> Dict[str, Any]:
+        """
+        Calculate review rounds for a PR.
+
+        A review round is counted for each sequence: review → synchronize → review
+
+        Args:
+            reviews: List of review submissions
+            timeline: List of timeline events
+            commits: List of commits for fallback calculation
+            created_at: PR creation timestamp
+
+        Returns:
+            Dictionary with review_rounds, synchronize_after_first_review, re_review_pushes
+        """
+        review_rounds = 0
+        synchronize_after_first_review = 0
+        re_review_pushes = 0
+        try:
+            if not reviews or not created_at:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Parse review timestamps
+            review_events: List[tuple[str, datetime, Dict[str, Any]]] = []
+            for review in reviews:
+                submitted_at = review.get("submitted_at")
+                if submitted_at:
+                    ts = self._parse_timestamp(submitted_at)
+                    if ts:
+                        review_events.append(("review", ts, review))
+
+            # Synchronize events (treat as commits/pushes)
+            commit_events: List[tuple[str, datetime, Dict[str, Any]]] = []
+            for event in timeline:
+                if event.get("event") == "synchronize":
+                    timestamp_str = event.get("created_at")
+                    if timestamp_str:
+                        ts = self._parse_timestamp(timestamp_str)
+                        if ts:
+                            commit_events.append(("commit", ts, event))
+
+            # Fallback to commits list if timeline lacks synchronize events
+            if not commit_events and commits:
+                for commit in commits:
+                    commit_date_str = commit.get("commit", {}).get("author", {}).get("date")
+                    if commit_date_str:
+                        c_ts = self._parse_timestamp(commit_date_str)
+                        if c_ts:
+                            commit_events.append(("commit", c_ts, commit))
+
+            all_events = review_events + commit_events
+            all_events.sort(key=lambda x: x[1])
+
+            if not all_events:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Find first review
+            first_review_time = None
+            for event_type, timestamp, _ in all_events:
+                if event_type == "review":
+                    first_review_time = timestamp
+                    break
+
+            if not first_review_time:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Count review rounds: transitions from review → synchronize → review
+            last_event_type = None
+            in_review_round = False
+
+            for event_type, timestamp, _ in all_events:
+                if event_type == "review":
+                    if last_event_type == "commit" and in_review_round:
+                        review_rounds += 1
+                        in_review_round = False
+                    elif last_event_type != "review":
+                        in_review_round = True
+                elif event_type == "commit":
+                    if timestamp > first_review_time:
+                        synchronize_after_first_review += 1
+
+                last_event_type = event_type
+
+            # Fallback calculation using commits if timeline is unavailable
+            if review_rounds == 0 and synchronize_after_first_review == 0 and commits:
+                # Count commits pushed after first review
+                for commit in commits:
+                    commit_date_str = commit.get("commit", {}).get("author", {}).get("date")
+                    if commit_date_str:
+                        commit_date = self._parse_timestamp(commit_date_str)
+                        if commit_date and first_review_time and commit_date > first_review_time:
+                            re_review_pushes += 1
+
+            return {
+                "review_rounds": review_rounds,
+                "synchronize_after_first_review": synchronize_after_first_review,
+                "re_review_pushes": re_review_pushes,
+            }
+
+        except Exception as e:
+            self.logger.warning(f"Failed to calculate review rounds: {e}")
+            return {
+                "review_rounds": review_rounds,
+                "synchronize_after_first_review": synchronize_after_first_review,
+                "re_review_pushes": re_review_pushes,
+            }
+
     def _parse_timestamp(self, timestamp_str: str) -> Optional[datetime]:
         """Parse ISO 8601 timestamp string to datetime object."""
         if not timestamp_str:
@@ -532,3 +806,578 @@ class GitHubApiClient:
             return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         except Exception:
             return None
+
+    # ----------------------- GraphQL PR Fetch (Fast Path) -----------------------
+    def fetch_pull_requests_graphql(
+        self,
+        owner: str,
+        repo: str,
+        since_iso: Optional[str],
+        page_size: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Fetch PRs via GraphQL (updatedAt DESC) with early cutoff.
+
+        Returns REST-like dicts. Adds diagnostics if empty. Does NOT fallback automatically; caller can decide.
+        """
+        query = """
+        query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
+          rateLimit { 
+            cost 
+            remaining 
+            resetAt 
+            used 
+          }
+          repository(owner: $owner, name: $name) {
+            pullRequests(
+              first: $pageSize, 
+              after: $cursor, 
+              orderBy: {field: UPDATED_AT, direction: DESC}, 
+              states: [OPEN, MERGED, CLOSED]
+            ) {
+              totalCount
+              pageInfo {
+                hasNextPage 
+                endCursor
+              }
+              nodes {
+                number
+                url
+                title
+                state
+                createdAt
+                mergedAt
+                updatedAt
+                closedAt
+                baseRefName
+                headRefName
+                author {
+                  login
+                }
+                authorAssociation
+                isDraft
+                additions
+                deletions
+                changedFiles
+                commits {
+                  totalCount
+                }
+                comments {
+                  totalCount
+                }
+                reviewThreads {
+                  totalCount
+                }
+                reviews(first: 100) {
+                  nodes {
+                    state
+                    submittedAt
+                    author {
+                      login
+                    }
+                  }
+                }
+                reviewRequests(first: 100) {
+                  nodes {
+                    requestedReviewer {
+                      __typename
+                      ... on User {
+                        login
+                      }
+                      ... on Team {
+                        slug
+                      }
+                    }
+                  }
+                }
+                timelineItems(first: 100) {
+                  nodes {
+                    __typename
+                    ... on PullRequestCommit {
+                      commit {
+                        committedDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+        variables: Dict[str, Any] = {"owner": owner, "name": repo, "pageSize": page_size, "cursor": None}
+        cutoff = self._parse_timestamp(since_iso) if since_iso else None
+        all_prs: List[Dict[str, Any]] = []
+        page_index = 0
+
+        while True:
+            raw = self.post_graphql(query, variables)
+            data = raw.get("data", {}) if isinstance(raw, dict) else {}
+            errors = raw.get("errors") if isinstance(raw, dict) else None
+
+            # More detailed error and data logging
+            if page_index == 0:
+                self.logger.info(f"GraphQL response structure: data={type(data)}, errors={type(errors)}")
+                if isinstance(data, dict):
+                    self.logger.info(f"GraphQL data keys: {list(data.keys())}")
+                else:
+                    self.logger.error(f"GraphQL data is not a dict: {data}")
+
+                if errors:
+                    messages = " | ".join(str(e.get("message")) for e in errors if isinstance(e, dict))
+                    self.logger.error(f"GraphQL errors: {messages}")
+                    if "Could not resolve to a Repository" in messages:
+                        self.logger.error(f"GraphQL repo resolve failed {owner}/{repo}: {messages}")
+                        break
+
+                # Debug: log full raw response when debugging
+                if os.getenv("GITHUB_GRAPHQL_DEBUG") == "1":
+                    import json
+
+                    self.logger.info(f"RAW GraphQL response: {json.dumps(raw, indent=2)[:2000]}")
+
+            repo_data = data.get("repository") if isinstance(data, dict) else None
+            if page_index == 0:
+                if repo_data is None:
+                    self.logger.error(f"GraphQL: repository data is None for {owner}/{repo}")
+                    if isinstance(data, dict) and len(data) == 0:
+                        self.logger.error(
+                            "GraphQL returned empty data object - possible authentication or permission issue"
+                        )
+                    break
+                else:
+                    self.logger.info(f"GraphQL: repository found for {owner}/{repo}")
+
+            pr_connection = (repo_data or {}).get("pullRequests", {})
+            nodes = pr_connection.get("nodes", []) if isinstance(pr_connection, dict) else []
+            total_count = pr_connection.get("totalCount") if isinstance(pr_connection, dict) else None
+
+            if page_index == 0:
+                rl = data.get("rateLimit") if isinstance(data, dict) else None
+                if isinstance(rl, dict):
+                    rl_used = int(rl.get("used") or 0)
+                    rl_remaining = int(rl.get("remaining") or 0)
+                    rl_cost = rl.get("cost")
+                    self.logger.info(
+                        f"📊 GraphQL Rate Limit: cost={rl_cost}, used={rl_used}/{rl_used + rl_remaining}, remaining={rl_remaining}, resets at {rl.get('resetAt')}"
+                    )
+
+                # Show total count from first page
+                if repo_data and isinstance(repo_data, dict):
+                    pr_connection = repo_data.get("pullRequests", {})
+                    if isinstance(pr_connection, dict):
+                        total_count = pr_connection.get("totalCount", 0)
+                        self.logger.info(f"🎯 Repository has {total_count} total PRs to process")
+
+                # Debug logging
+                if os.getenv("GITHUB_GRAPHQL_DEBUG") == "1":
+                    try:
+                        import json as _json
+
+                        self.logger.info(f"GraphQL DEBUG: {_json.dumps(raw)[:900]}")
+                    except Exception:
+                        pass
+
+            if not nodes:
+                if page_index == 0:
+                    self.logger.warning(
+                        f"GraphQL returned zero PR nodes for {owner}/{repo} (page_size={page_size}, since={since_iso})."
+                    )
+                    if total_count:
+                        self.logger.error(
+                            f"GraphQL anomaly: totalCount={total_count} but nodes list empty. Raw payload will be logged."
+                        )
+                    try:
+                        import json as _json
+
+                        self.logger.info(f"GraphQL RAW FIRST PAGE: {_json.dumps(raw)[:900]}")
+                    except Exception:
+                        pass
+                    try:
+                        import json as _json
+
+                        self.logger.info(f"GraphQL RAW FIRST PAGE: {_json.dumps(raw)[:900]}")
+                    except Exception:
+                        pass
+                    try:
+                        import json as _json
+
+                        snippet = _json.dumps(raw)[:600]
+                        self.logger.debug(f"GraphQL empty first page raw snippet: {snippet}")
+                    except Exception:
+                        pass
+                break
+
+            batch: List[Dict[str, Any]] = []
+            for node in nodes:
+                updated_at = node.get("updatedAt")
+                updated_dt = self._parse_timestamp(updated_at) if updated_at else None
+                if cutoff and updated_dt and updated_dt < cutoff:
+                    # Early cutoff reached; stop completely
+                    batch.append(self._map_graphql_pr(owner, repo, node))
+                    self.logger.info(f"⏰ Early cutoff reached at PR #{node.get('number')} (updated: {updated_at})")
+                    break
+                batch.append(self._map_graphql_pr(owner, repo, node))
+
+            if isinstance(batch, list):
+                all_prs.extend(batch)
+                self.logger.info(f"📄 Page {page_index + 1}: processed {len(batch)} PRs (total so far: {len(all_prs)})")
+
+                # Show progress for large datasets
+                if total_count and total_count > 100:
+                    progress_pct = (len(all_prs) / total_count) * 100
+                    self.logger.info(f"📈 Progress: {len(all_prs)}/{total_count} PRs ({progress_pct:.1f}%)")
+
+            # Stop if cutoff triggered inside loop
+            if cutoff and batch:
+                last_updated = self._parse_timestamp(batch[-1].get("updated_at", ""))
+                if last_updated and last_updated < cutoff:
+                    break
+
+            page_info = pr_connection.get("pageInfo", {}) if isinstance(pr_connection, dict) else {}
+            if not page_info.get("hasNextPage"):
+                break
+            variables["cursor"] = page_info.get("endCursor")
+            page_index += 1
+
+        self.logger.info(
+            f"✅ GraphQL completed: fetched {len(all_prs)} PRs for {owner}/{repo} in {page_index + 1} API calls"
+        )
+
+        # Final rate limit check
+        if page_index > 0:  # Don't repeat if only one page
+            try:
+                final_rl = (
+                    self.post_graphql("query { rateLimit { remaining used } }", {}).get("data", {}).get("rateLimit", {})
+                )
+                if final_rl:
+                    fr_used = int(final_rl.get("used") or 0)
+                    fr_remaining = int(final_rl.get("remaining") or 0)
+                    self.logger.info(f"📊 Final Rate Limit: {fr_used}/{fr_used + fr_remaining} used")
+            except Exception:
+                pass
+
+        return all_prs
+
+    def _map_graphql_pr(self, owner: str, repo: str, node: Dict[str, Any]) -> Dict[str, Any]:
+        """Map a GraphQL PR node to REST-like schema expected downstream."""
+        number = node.get("number")
+        created_at = node.get("createdAt")
+        merged_at = node.get("mergedAt")
+        closed_at = node.get("closedAt")  # May be present for closed (merged or not)
+        state_raw = (node.get("state") or "").lower()
+        state = "closed" if state_raw in {"merged", "closed"} else state_raw
+
+        reviews_nodes = node.get("reviews", {}).get("nodes", [])
+        approvals_count = sum(1 for r in reviews_nodes if (r.get("state") == "APPROVED"))
+        review_times = [self._parse_timestamp(r.get("submittedAt")) for r in reviews_nodes if r.get("submittedAt")]
+        created_dt = self._parse_timestamp(created_at) if created_at else None
+        time_to_first_review_seconds = None
+        first_response_latency_seconds = None
+
+        if created_dt:
+            # Calculate time to first review
+            if review_times:
+                valid_review_times = [t for t in review_times if t]
+                if valid_review_times:
+                    first_review_time = min(valid_review_times)
+                    time_to_first_review_seconds = int((first_review_time - created_dt).total_seconds())
+                    first_response_latency_seconds = time_to_first_review_seconds
+
+        requested_nodes = node.get("reviewRequests", {}).get("nodes", [])
+        requested_reviewers: List[str] = []
+        requested_teams: List[str] = []
+        for n in requested_nodes:
+            rr = n.get("requestedReviewer", {}) or {}
+            typename = rr.get("__typename")
+            if typename == "User":
+                login_val = rr.get("login")
+                if isinstance(login_val, str):
+                    requested_reviewers.append(login_val)
+            elif typename == "Team":
+                slug_val = rr.get("slug")
+                if isinstance(slug_val, str):
+                    requested_teams.append(slug_val)
+
+        commits_total = node.get("commits", {}).get("totalCount")
+
+        # Calculate review rounds using timeline data (commit events)
+        timeline_nodes = node.get("timelineItems", {}).get("nodes", [])
+        review_rounds_data = self._calculate_review_rounds_from_timeline(reviews_nodes, timeline_nodes, created_dt)
+
+        pr_dict: Dict[str, Any] = {
+            "repo": f"{owner}/{repo}",
+            "number": number,
+            "html_url": node.get("url"),
+            "title": node.get("title"),
+            "state": state,
+            "created_at": created_at,
+            "merged_at": merged_at,
+            # closedAt comes from GraphQL; if absent but mergedAt present treat closed_at as mergedAt
+            "closed_at": closed_at or merged_at or None,
+            "updated_at": node.get("updatedAt"),
+            "user": {"login": (node.get("author") or {}).get("login")},
+            "base": {"ref": node.get("baseRefName")},
+            "head": {"ref": node.get("headRefName")},
+            "additions": node.get("additions"),
+            "deletions": node.get("deletions"),
+            "changed_files": node.get("changedFiles"),
+            "commits": commits_total,
+            "reviews_count": len(reviews_nodes),
+            "approvals_count": approvals_count,
+            "review_comments": node.get("reviewThreads", {}).get("totalCount") or 0,
+            "issue_comments": node.get("comments", {}).get("totalCount") or 0,
+            "requested_reviewers": requested_reviewers,
+            "requested_teams": requested_teams,
+            "requested_reviewers_count": len(requested_reviewers) + len(requested_teams),
+            "time_to_first_review_seconds": time_to_first_review_seconds,
+            "first_response_latency_seconds": first_response_latency_seconds,
+            "is_draft": node.get("isDraft"),
+            "author_association": node.get("authorAssociation"),
+            # Review rounds from GraphQL timeline data
+            "review_rounds": review_rounds_data.get("review_rounds"),
+            "synchronize_after_first_review": review_rounds_data.get("synchronize_after_first_review"),
+            "re_review_pushes": review_rounds_data.get("re_review_pushes"),
+            "source_api": "graphql",
+        }
+        return pr_dict
+
+    def _calculate_review_rounds_from_timeline(
+        self,
+        reviews_nodes: List[Dict[str, Any]],
+        timeline_nodes: List[Dict[str, Any]],
+        created_at: Optional[datetime],
+    ) -> Dict[str, Any]:
+        """
+        Calculate review rounds using GraphQL timeline data.
+
+        Args:
+            reviews_nodes: Review nodes from GraphQL
+            timeline_nodes: Timeline nodes from GraphQL (synchronize events)
+            created_at: PR creation timestamp
+
+        Returns:
+            Dictionary with review_rounds, synchronize_after_first_review, re_review_pushes
+        """
+        review_rounds = 0
+        synchronize_after_first_review = 0
+        re_review_pushes = 0
+
+        try:
+            if not reviews_nodes or not created_at:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Parse and sort review events
+            review_events = []
+            for review in reviews_nodes:
+                submitted_at = review.get("submittedAt")
+                if submitted_at:
+                    timestamp = self._parse_timestamp(submitted_at)
+                    if timestamp:
+                        review_events.append(("review", timestamp, review))
+
+            # Parse commit events from timeline (PullRequestCommit)
+            commit_events = []
+            for event in timeline_nodes:
+                if event.get("__typename") == "PullRequestCommit":
+                    commit_data = event.get("commit", {})
+                    timestamp_str = commit_data.get("committedDate")
+                    if timestamp_str:
+                        timestamp = self._parse_timestamp(timestamp_str)
+                        if timestamp:
+                            commit_events.append(("commit", timestamp, event))
+
+            # Combine and sort all events chronologically
+            all_events = review_events + commit_events
+            all_events.sort(key=lambda x: x[1])  # Sort by timestamp
+
+            if not all_events:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Find first review
+            first_review_time = None
+            for event_type, timestamp, _ in all_events:
+                if event_type == "review":
+                    first_review_time = timestamp
+                    break
+
+            if not first_review_time:
+                return {
+                    "review_rounds": review_rounds,
+                    "synchronize_after_first_review": synchronize_after_first_review,
+                    "re_review_pushes": re_review_pushes,
+                }
+
+            # Count review rounds: transitions from review → synchronize → review
+            last_event_type = None
+            in_review_round = False
+
+            for event_type, timestamp, _ in all_events:
+                if event_type == "review":
+                    if last_event_type == "commit" and in_review_round:
+                        review_rounds += 1
+                        in_review_round = False
+                    elif last_event_type != "review":
+                        in_review_round = True
+                elif event_type == "commit":
+                    if timestamp > first_review_time:
+                        synchronize_after_first_review += 1
+
+                last_event_type = event_type
+
+            # re_review_pushes is essentially same as commits after first review
+            re_review_pushes = synchronize_after_first_review
+
+            return {
+                "review_rounds": review_rounds,
+                "synchronize_after_first_review": synchronize_after_first_review,
+                "re_review_pushes": re_review_pushes,
+            }
+
+        except Exception as e:
+            self.logger.warning(f"Failed to calculate review rounds from GraphQL: {e}")
+            return {
+                "review_rounds": review_rounds,
+                "synchronize_after_first_review": synchronize_after_first_review,
+                "re_review_pushes": re_review_pushes,
+            }
+
+    def apply_heuristic_review_rounds(self, prs: List[Dict[str, Any]]) -> None:
+        """Apply a lightweight heuristic for review rounds on already mapped GraphQL PRs.
+
+        Heuristic logic:
+        - If commits > 1 and there is at least one review, assume at least 1 review round.
+        - Additional rounds approximated by floor((commits - 1) / 2) bounded by reviews_count - 1.
+        - synchronize_after_first_review approximated by max(commits - 1, 0).
+        - re_review_pushes approximated by max(commits - reviews_count, 0).
+        This intentionally over-simplifies to avoid REST timeline calls.
+        """
+        for pr in prs:
+            try:
+                if pr.get("source_api") != "graphql":
+                    continue
+                commits = pr.get("commits") or 0
+                reviews = pr.get("reviews_count") or 0
+                if not commits or not reviews:
+                    pr["review_rounds"] = 0
+                    pr["synchronize_after_first_review"] = 0
+                    pr["re_review_pushes"] = 0
+                    continue
+                base_rounds = 1 if commits > 1 else 0
+                extra = max((commits - 2) // 2, 0)
+                max_possible = max(reviews - 1, 0)
+                review_rounds = min(base_rounds + extra, max_possible)
+                pr["review_rounds"] = review_rounds
+                pr["synchronize_after_first_review"] = max(commits - 1, 0)
+                pr["re_review_pushes"] = max(commits - reviews, 0)
+            except Exception as e:
+                self.logger.debug(f"Heuristic review rounds failed for PR {pr.get('number')}: {e}")
+
+    def get_enriched_pull_requests_graphql(
+        self,
+        owner: str,
+        repo: str,
+        since_iso: Optional[str] = None,
+        page_size: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get enriched pull requests using GraphQL - replaces multiple REST API calls.
+
+        This method fetches all the data that would normally require:
+        - 1 REST call for PRs list
+        - 6 REST calls per PR for enrichment (details, reviews, comments, timeline, commits)
+
+        Instead, it uses a single GraphQL query that gets all the data at once.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            since_iso: ISO timestamp to filter PRs updated since this date
+            page_size: Number of PRs to fetch per page
+
+        Returns:
+            List of enriched PR dictionaries with all metrics included
+        """
+        self.logger.info(f"Fetching enriched PRs via GraphQL for {owner}/{repo}")
+
+        try:
+            # Use the enhanced GraphQL query that includes all the data we need
+            prs = self.fetch_pull_requests_graphql(owner, repo, since_iso, page_size)
+
+            # No automatic fallback - focus on fixing GraphQL
+            if len(prs) == 0:
+                self.logger.warning(
+                    f"GraphQL returned 0 PRs for {owner}/{repo}. Check GraphQL query and authentication."
+                )
+
+            self.logger.info(
+                f"GraphQL optimization: fetched {len(prs)} PRs with full enrichment "
+                f"in {len(prs) // page_size + 1} API calls instead of {1 + len(prs) * 6} REST calls"
+            )
+
+            return prs
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch enriched PRs via GraphQL: {e}")
+            raise e  # Re-raise to force fixing GraphQL instead of fallback
+
+    def _quick_rest_pr_check(self, owner: str, repo: str) -> List[Dict[str, Any]]:
+        """Quick REST call to check if repository has PRs (first page only)."""
+        try:
+            data = self._make_request(
+                "GET",
+                f"/repos/{owner}/{repo}/pulls",
+                cache_key=f"quick_pr_check_{owner}_{repo}",
+                cache_expiration=5,  # 5 minutes cache
+                params={"state": "all", "per_page": 10, "page": 1},
+            )
+            if isinstance(data, list):
+                return [d for d in data if isinstance(d, dict)]  # type: ignore[return-value]
+            return []
+        except Exception as e:
+            self.logger.warning(f"Quick REST PR check failed: {e}")
+            return []
+
+    def _fallback_to_rest_enrichment(
+        self,
+        owner: str,
+        repo: str,
+        since_iso: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fallback method using the original REST API approach.
+        This maintains compatibility when GraphQL fails.
+        """
+        self.logger.warning("Using REST fallback - this will be slower due to multiple API calls")
+
+        # Get basic PR list
+        prs = self.get_pull_requests(owner, repo, state="all")
+
+        # Filter by date if provided
+        if since_iso:
+            cutoff = self._parse_timestamp(since_iso)
+            if cutoff:
+                filtered: List[Dict[str, Any]] = []
+                for pr in prs:
+                    upd = self._parse_timestamp(pr.get("updated_at", ""))
+                    if upd and upd >= cutoff:
+                        filtered.append(pr)
+                prs = filtered
+
+        # Enrich each PR with detailed data (this is the expensive part)
+        enriched_prs = []
+        for pr in prs:
+            enriched_pr = self.enrich_pull_request(
+                owner, repo, pr, include_size_metrics=True, include_review_metrics=True, include_review_rounds=True
+            )
+            enriched_prs.append(enriched_pr)
+
+        return enriched_prs
+        return enriched_prs

@@ -47,9 +47,10 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         - requested_reviewers_count: Number of requested reviewers
 
         Analyses performed:
-        - Monthly trends for PR counts and lead times
+        - Monthly trends for PR counts and lead times (work-days only)
         - Correlation between PR size and lead time
-        - CODEOWNERS workload pressure metrics
+        - CODEOWNERS workload pressure metrics with work-day calculations
+        - External PR workload intensity (excludes weekends)
         - Recommendations for workload management
 
         Examples:
@@ -64,6 +65,15 @@ class PrWorkloadAnalysisCommand(BaseCommand):
 
         # Generate monthly trend charts
         python src/main.py github pr-workload-analysis --file data/pr_data.json --generate-charts
+
+        # Analyze PRs from a specific date range (work-days only calculations)
+        python src/main.py github pr-workload-analysis --file data/pr_data.json --start-date 2024-01-01 --end-date 2024-12-31
+
+        # Analyze PRs from start date to current date
+        python src/main.py github pr-workload-analysis --file data/pr_data.json --start-date 2024-06-01
+
+        # Analyze with custom team size
+        python src/main.py github pr-workload-analysis --file data/pr_data.json --team-size 8
 
         Output files (saved to output/ folder):
         - pr_workload_summary.json: Complete analysis results
@@ -101,6 +111,23 @@ class PrWorkloadAnalysisCommand(BaseCommand):
 
         parser.add_argument(
             "--min-records", type=int, default=10, help="Minimum number of records required for analysis (default: 10)"
+        )
+
+        parser.add_argument(
+            "--start-date",
+            help="Filter PRs created on or after this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+        )
+
+        parser.add_argument(
+            "--end-date", 
+            help="Filter PRs created on or before this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). If start-date is provided and end-date is not, current date is used"
+        )
+
+        parser.add_argument(
+            "--team-size",
+            type=int,
+            default=6,
+            help="Number of engineers on the team who can review PRs (default: 6)"
         )
 
     @staticmethod
