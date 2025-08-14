@@ -135,13 +135,25 @@ class PrAnalysisService:
                         f"⚡ Using optimized GraphQL path (page_size={getattr(args, 'graphql_page_size', 50)}) for {owner}/{repo_name}"
                     )
                     self.logger.info("🔥 This will fetch ALL PR data in 1-2 API calls instead of hundreds!")
-                    # Use the new optimized method that gets all data in one go
-                    prs = self.github_client.get_enriched_pull_requests_graphql(
-                        owner,
-                        repo_name,
-                        args.since if getattr(args, "merged_window", False) is False else None,
-                        getattr(args, "graphql_page_size", 50),
-                    )
+
+                    # Use enhanced GraphQL method with approvers if requested
+                    if getattr(args, "include_approvers", True):
+                        self.logger.info("📊 Including approver data in GraphQL query")
+                        prs = self.github_client.fetch_pull_requests_graphql_with_reviews(
+                            owner,
+                            repo_name,
+                            args.since if getattr(args, "merged_window", False) is False else None,
+                            getattr(args, "until", None),
+                            getattr(args, "graphql_page_size", 50),
+                        )
+                    else:
+                        # Use basic GraphQL method without enhanced approver data
+                        prs = self.github_client.get_enriched_pull_requests_graphql(
+                            owner,
+                            repo_name,
+                            args.since if getattr(args, "merged_window", False) is False else None,
+                            getattr(args, "graphql_page_size", 50),
+                        )
                 else:
                     self.logger.info(f"🐌 Using slower REST API for {owner}/{repo_name} (consider --use-graphql)")
                     prs = self.github_client.get_pull_requests(owner, repo_name, args.state)
@@ -186,7 +198,9 @@ class PrAnalysisService:
                 # Step 2: Process filtered PRs with enrichment and progress tracking
                 # Note: if using GraphQL, PRs are already enriched
                 is_graphql = getattr(args, "use_graphql", False)
-                repo_pr_data = self._process_filtered_prs(filtered_prs, owner, repo_name, team_members, args, is_graphql)
+                repo_pr_data = self._process_filtered_prs(
+                    filtered_prs, owner, repo_name, team_members, args, is_graphql
+                )
 
                 all_pr_data.extend(repo_pr_data)
                 self.logger.info(f"Completed processing {owner}/{repo_name}: {len(repo_pr_data)} PRs added")
@@ -370,7 +384,13 @@ class PrAnalysisService:
         return lead_time_data
 
     def _process_filtered_prs(
-        self, filtered_prs: List[Dict[str, Any]], owner: str, repo_name: str, team_members: set, args: Namespace, is_graphql: bool = False
+        self,
+        filtered_prs: List[Dict[str, Any]],
+        owner: str,
+        repo_name: str,
+        team_members: set,
+        args: Namespace,
+        is_graphql: bool = False,
     ) -> List[Dict[str, Any]]:
         """Process pre-filtered PRs with enrichment and progress tracking."""
 
@@ -378,9 +398,8 @@ class PrAnalysisService:
         total_prs = len(filtered_prs)
 
         # Determine if we need enrichment (skip if GraphQL already provided enriched data)
-        needs_enrichment = (
-            not is_graphql and 
-            (args.include_size_metrics or args.include_review_metrics or getattr(args, "include_review_rounds", False))
+        needs_enrichment = not is_graphql and (
+            args.include_size_metrics or args.include_review_metrics or getattr(args, "include_review_rounds", False)
         )
 
         if is_graphql:
@@ -618,6 +637,13 @@ class PrAnalysisService:
                 "review_rounds",
                 "synchronize_after_first_review",
                 "re_review_pushes",
+                # New approver fields
+                "approvers",
+                "approvers_count",
+                "latest_approvals",
+                "review_decision",
+                "approvals_valid_now",
+                "approvals_after_last_push",
             ]
 
             with open(csv_file, "w", newline="", encoding="utf-8") as f:
@@ -630,8 +656,15 @@ class PrAnalysisService:
                     for col in columns:
                         value = pr.get(col, "")
                         # Handle list/array fields by converting to JSON string
-                        if col in ["requested_reviewers", "requested_teams"] and isinstance(value, list):
+                        if col in ["requested_reviewers", "requested_teams", "approvers"] and isinstance(value, list):
                             row[col] = ",".join(value) if value else ""
+                        elif col == "latest_approvals" and isinstance(value, list):
+                            # Convert latest_approvals to a more readable format
+                            row[col] = (
+                                "; ".join([f"{a.get('login', '')}@{a.get('submitted_at', '')}" for a in value])
+                                if value
+                                else ""
+                            )
                         else:
                             row[col] = value
                     writer.writerow(row)

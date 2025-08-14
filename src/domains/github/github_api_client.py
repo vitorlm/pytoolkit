@@ -148,7 +148,7 @@ class GitHubApiClient:
 
         for attempt in range(max_retries):
             try:
-                self.logger.debug(f"Making {method} request to {endpoint}")
+                self.logger.info(f"Making {method} request to {endpoint}")
                 response = requests.request(method, url, headers=self.headers, **kwargs)
 
                 # Log rate limit info
@@ -807,13 +807,248 @@ class GitHubApiClient:
         except Exception:
             return None
 
+    # ----------------------- GraphQL PR Fetch with Approvers (Enhanced) -----------------------
+    def fetch_pull_requests_graphql_with_reviews(
+        self,
+        owner: str,
+        repo: str,
+        since_iso: Optional[str] = None,
+        until_iso: Optional[str] = None,
+        page_size: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch PRs via GraphQL with comprehensive review and approval data.
+
+        This method fetches all the approval and review data needed for the new fields:
+        - approvers: List[str] - unique reviewer logins who have at least one APPROVED review
+        - approvers_count: int - len(approvers)
+        - latest_approvals: List[{"login": str, "submitted_at": str}] - last APPROVED per reviewer
+        - review_decision: Optional[str] - PullRequest.reviewDecision
+        - approvals_valid_now: Optional[int] - heuristic count of approvals considered valid
+        - approvals_after_last_push: Optional[int] - approvals submitted after last push
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            since_iso: ISO timestamp to filter PRs updated since this date
+            page_size: Number of PRs to fetch per page
+
+        Returns:
+            List of enriched PR dictionaries with approval data
+        """
+        query = """
+        query($owner: String!, $name: String!, $pageSize: Int!, $cursor: String) {
+          rateLimit { 
+            cost 
+            remaining 
+            resetAt 
+            used 
+          }
+          repository(owner: $owner, name: $name) {
+            pullRequests(
+              first: $pageSize, 
+              after: $cursor, 
+              orderBy: {field: UPDATED_AT, direction: DESC}, 
+              states: [OPEN, MERGED, CLOSED]
+            ) {
+              totalCount
+              pageInfo {
+                hasNextPage 
+                endCursor
+              }
+              nodes {
+                number
+                url
+                title
+                state
+                createdAt
+                mergedAt
+                updatedAt
+                closedAt
+                baseRefName
+                headRefName
+                author {
+                  login
+                }
+                authorAssociation
+                isDraft
+                additions
+                deletions
+                changedFiles
+                commits {
+                  totalCount
+                }
+                comments {
+                  totalCount
+                }
+                reviewThreads {
+                  totalCount
+                }
+                reviewDecision
+                reviews(first: 100) {
+                  nodes {
+                    state
+                    submittedAt
+                    author {
+                      login
+                    }
+                  }
+                }
+                latestOpinionatedReviews(first: 100) {
+                  nodes {
+                    state
+                    submittedAt
+                    author {
+                      login
+                    }
+                  }
+                }
+                reviewRequests(first: 100) {
+                  nodes {
+                    requestedReviewer {
+                      __typename
+                      ... on User {
+                        login
+                      }
+                      ... on Team {
+                        slug
+                      }
+                    }
+                  }
+                }
+                timelineItems(first: 100, itemTypes: [PULL_REQUEST_COMMIT]) {
+                  nodes {
+                    __typename
+                    ... on PullRequestCommit {
+                      commit {
+                        committedDate
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """
+
+        variables: Dict[str, Any] = {"owner": owner, "name": repo, "pageSize": page_size, "cursor": None}
+        since_cutoff = self._parse_timestamp(since_iso) if since_iso else None
+        until_cutoff = self._parse_timestamp(until_iso) if until_iso else None
+        all_prs: List[Dict[str, Any]] = []
+        page_index = 0
+
+        self.logger.info(f"Fetching PRs with review data via GraphQL for {owner}/{repo}")
+        if since_cutoff or until_cutoff:
+            self.logger.info(f"🗓️  Date filtering: since={since_cutoff}, until={until_cutoff}")
+
+        while True:
+            raw = self.post_graphql(query, variables)
+            data = raw.get("data", {}) if isinstance(raw, dict) else {}
+            errors = raw.get("errors") if isinstance(raw, dict) else None
+
+            # Handle errors and repository validation
+            if page_index == 0:
+                if errors:
+                    messages = " | ".join(str(e.get("message")) for e in errors if isinstance(e, dict))
+                    self.logger.error(f"GraphQL errors: {messages}")
+                    if "Could not resolve to a Repository" in messages:
+                        self.logger.error(f"GraphQL repo resolve failed {owner}/{repo}: {messages}")
+                        break
+
+            repo_data = data.get("repository") if isinstance(data, dict) else None
+            if page_index == 0:
+                if repo_data is None:
+                    self.logger.error(f"GraphQL: repository data is None for {owner}/{repo}")
+                    break
+
+            pr_connection = (repo_data or {}).get("pullRequests", {})
+            nodes = pr_connection.get("nodes", []) if isinstance(pr_connection, dict) else []
+            total_count = pr_connection.get("totalCount") if isinstance(pr_connection, dict) else None
+
+            # Rate limit and progress logging (first page only)
+            if page_index == 0:
+                rl = data.get("rateLimit") if isinstance(data, dict) else None
+                if isinstance(rl, dict):
+                    rl_used = int(rl.get("used") or 0)
+                    rl_remaining = int(rl.get("remaining") or 0)
+                    self.logger.info(f"📊 Rate Limit: {rl_used}/{rl_used + rl_remaining} used")
+
+                if total_count:
+                    self.logger.info(f"🎯 Repository has {total_count} total PRs to process")
+
+            if not nodes:
+                if page_index == 0:
+                    self.logger.warning(
+                        f"GraphQL returned zero PR nodes for {owner}/{repo} (page_size={page_size}, since={since_iso})."
+                    )
+                    self.logger.warning(f"PR connection data: {pr_connection}")
+                break
+            
+            self.logger.info(f"📄 Page {page_index + 1}: processing {len(nodes)} PR nodes")
+
+            batch: List[Dict[str, Any]] = []
+            skipped_too_recent = 0
+            since_cutoff_reached = False
+            
+            for node in nodes:
+                updated_at = node.get("updatedAt")
+                updated_dt = self._parse_timestamp(updated_at) if updated_at else None
+                
+                # Apply date filtering (PRs are ordered by updatedAt DESC - newest first)
+                if since_cutoff and updated_dt and updated_dt < since_cutoff:
+                    # PR updated before since date - stop processing entirely
+                    self.logger.info(f"⏰ Since cutoff reached at PR #{node.get('number')} (updated: {updated_at})")
+                    since_cutoff_reached = True
+                    break
+                
+                if until_cutoff and updated_dt and updated_dt > until_cutoff:
+                    # PR updated after until date - skip this PR but continue (we haven't reached our date range yet)
+                    skipped_too_recent += 1
+                    continue
+                
+                # PR is within our date range (or no date filters applied)
+                batch.append(self._map_graphql_pr_with_approvers(owner, repo, node))
+            
+            if skipped_too_recent > 0:
+                self.logger.info(f"⏭️  Skipped {skipped_too_recent} PRs that were too recent (after until date)")
+
+            if isinstance(batch, list):
+                all_prs.extend(batch)
+                self.logger.info(f"📄 Page {page_index + 1}: processed {len(batch)} PRs (total so far: {len(all_prs)})")
+
+                # Show progress every 10 pages for large datasets
+                if total_count and total_count > 100 and (page_index + 1) % 10 == 0:
+                    progress_pct = (len(all_prs) / total_count) * 100
+                    self.logger.info(f"📈 Progress: {len(all_prs)}/{total_count} PRs ({progress_pct:.1f}%)")
+
+            # Stop if since cutoff was reached
+            if since_cutoff_reached:
+                break
+
+            page_info = pr_connection.get("pageInfo", {}) if isinstance(pr_connection, dict) else {}
+            has_next_page = page_info.get("hasNextPage", False)
+            self.logger.info(f"📄 Pagination: hasNextPage={has_next_page}, cursor={page_info.get('endCursor', 'None')}")
+            
+            if not has_next_page:
+                self.logger.info("📄 No more pages available")
+                break
+            variables["cursor"] = page_info.get("endCursor")
+            page_index += 1
+
+        self.logger.info(
+            f"✅ GraphQL with reviews completed: fetched {len(all_prs)} PRs for {owner}/{repo} in {page_index + 1} API calls"
+        )
+
+        return all_prs
+
     # ----------------------- GraphQL PR Fetch (Fast Path) -----------------------
     def fetch_pull_requests_graphql(
         self,
         owner: str,
         repo: str,
         since_iso: Optional[str],
-        page_size: int = 50,
+        page_size: int = 100,
     ) -> List[Dict[str, Any]]:
         """Fetch PRs via GraphQL (updatedAt DESC) with early cutoff.
 
@@ -1002,7 +1237,7 @@ class GitHubApiClient:
                         import json as _json
 
                         snippet = _json.dumps(raw)[:600]
-                        self.logger.debug(f"GraphQL empty first page raw snippet: {snippet}")
+                        self.logger.info(f"GraphQL empty first page raw snippet: {snippet}")
                     except Exception:
                         pass
                 break
@@ -1248,6 +1483,114 @@ class GitHubApiClient:
                 "synchronize_after_first_review": synchronize_after_first_review,
                 "re_review_pushes": re_review_pushes,
             }
+
+    def _map_graphql_pr_with_approvers(self, owner: str, repo: str, node: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Map a GraphQL PR node to REST-like schema with enhanced approver data.
+
+        This method extends the basic mapping to include:
+        - approvers: List[str] - unique reviewer logins who have APPROVED reviews
+        - approvers_count: int - number of unique approvers
+        - latest_approvals: List[Dict] - latest APPROVED review per reviewer
+        - review_decision: Optional[str] - GitHub's review decision
+        - approvals_valid_now: Optional[int] - heuristic for valid approvals
+        - approvals_after_last_push: Optional[int] - approvals after last commit
+        """
+        # Start with basic mapping
+        pr_dict = self._map_graphql_pr(owner, repo, node)
+
+        # Extract review data
+        reviews_nodes = node.get("reviews", {}).get("nodes", [])
+        latest_reviews_nodes = node.get("latestOpinionatedReviews", {}).get("nodes", [])
+
+        # Extract approvers - unique reviewers who have at least one APPROVED review
+        approvers_set = set()
+        for review in reviews_nodes:
+            if review.get("state") == "APPROVED":
+                author = review.get("author", {})
+                if author and author.get("login"):
+                    approvers_set.add(author["login"].lower())
+
+        approvers = sorted(list(approvers_set))
+        approvers_count = len(approvers)
+
+        # Build latest_approvals from latestOpinionatedReviews first, fallback to reviews
+        latest_approvals = []
+        if latest_reviews_nodes:
+            # Use latestOpinionatedReviews (preferred)
+            for review in latest_reviews_nodes:
+                if review.get("state") == "APPROVED":
+                    author = review.get("author", {})
+                    if author and author.get("login"):
+                        latest_approvals.append({"login": author["login"], "submitted_at": review.get("submittedAt")})
+        else:
+            # Fallback: find latest APPROVED review per author from all reviews
+            reviewer_latest: Dict[str, Dict[str, Any]] = {}
+            for review in reviews_nodes:
+                if review.get("state") == "APPROVED":
+                    author = review.get("author", {})
+                    if author and author.get("login"):
+                        login = author["login"]
+                        submitted_at = review.get("submittedAt")
+                        if submitted_at:
+                            submitted_dt = self._parse_timestamp(submitted_at)
+                            if submitted_dt:
+                                if login not in reviewer_latest or submitted_dt > reviewer_latest[login]["timestamp"]:
+                                    reviewer_latest[login] = {
+                                        "login": login,
+                                        "submitted_at": submitted_at,
+                                        "timestamp": submitted_dt,
+                                    }
+
+            # Convert to list (remove internal timestamp)
+            latest_approvals = [
+                {"login": data["login"], "submitted_at": data["submitted_at"]} for data in reviewer_latest.values()
+            ]
+
+        # Get review decision from GraphQL
+        review_decision = node.get("reviewDecision")
+
+        # Calculate heuristic metrics
+        updated_at = node.get("updatedAt")
+        merged_at = node.get("mergedAt")
+        updated_dt = self._parse_timestamp(updated_at) if updated_at else None
+        merged_dt = self._parse_timestamp(merged_at) if merged_at else None
+
+        # approvals_valid_now: count approvals considered valid at query time
+        approvals_valid_now = None
+        if latest_approvals and (updated_dt or merged_dt):
+            reference_time = merged_dt or updated_dt
+            if reference_time:
+                valid_count = 0
+                for approval in latest_approvals:
+                    approval_dt = self._parse_timestamp(approval["submitted_at"])
+                    if approval_dt and approval_dt <= reference_time:
+                        valid_count += 1
+                approvals_valid_now = valid_count
+
+        # approvals_after_last_push: approvals submitted after last commit (use updatedAt as proxy)
+        approvals_after_last_push = None
+        if latest_approvals and updated_dt:
+            after_push_count = 0
+            for approval in latest_approvals:
+                approval_dt = self._parse_timestamp(approval["submitted_at"])
+                if approval_dt and approval_dt > updated_dt:
+                    after_push_count += 1
+            approvals_after_last_push = after_push_count
+
+        # Add new fields to PR dict
+        pr_dict.update(
+            {
+                "approvers": approvers,
+                "approvers_count": approvers_count,
+                "latest_approvals": latest_approvals,
+                "review_decision": review_decision,
+                "approvals_valid_now": approvals_valid_now,
+                "approvals_after_last_push": approvals_after_last_push,
+            }
+        )
+
+        return pr_dict
 
     def apply_heuristic_review_rounds(self, prs: List[Dict[str, Any]]) -> None:
         """Apply a lightweight heuristic for review rounds on already mapped GraphQL PRs.

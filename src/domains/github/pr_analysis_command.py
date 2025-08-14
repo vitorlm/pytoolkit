@@ -30,20 +30,36 @@ class PrAnalysisCommand(BaseCommand):
                 Analyze GitHub Pull Requests from all contributors with lead time metrics.
                 Can filter to external-only or internal-only contributors.
 
+                NEW: Enhanced approver analysis via GraphQL
+                - approvers: List of unique reviewers who approved the PR
+                - approvers_count: Number of unique approvers
+                - latest_approvals: Latest approval per reviewer with timestamps
+                - review_decision: GitHub's review decision (APPROVED/CHANGES_REQUESTED/REVIEW_REQUIRED)
+                - approvals_valid_now: Heuristic count of approvals still considered valid
+                - approvals_after_last_push: Approvals submitted after the last commit
+
                 Examples:
-                # Analyze all PRs (internal + external) with review rounds
-                python src/main.py github pr-analysis --org syngenta-digital --repos repo1 repo2 --include-review-rounds
+                # Analyze all PRs (internal + external) with enhanced approver data
+                python src/main.py github pr-analysis --org syngenta-digital --repos repo1 repo2 --include-approvers
                 
-                # Analyze external-only PRs with custom teams and date range
+                # Analyze external-only PRs with custom teams and enhanced approval metrics
                 python src/main.py github pr-analysis \\
                     --org syngenta-digital --all-repos --external-only \\
                     --codeowners-teams @syngenta-digital/team1 @syngenta-digital/team2 \\
-                    --since 2024-01-01T00:00:00Z --until 2024-12-31T23:59:59Z
+                    --since 2024-01-01T00:00:00Z --until 2024-12-31T23:59:59Z \\
+                    --include-approvers --approvals-heuristics
                 
-                # Analyze internal-only PRs with verbose logging
+                # Analyze internal-only PRs with basic metrics (no approver details)
                 python src/main.py github pr-analysis \\
                     --org syngenta-digital --repos my-repo --internal-only \\
-                    --format csv --verbose --output ./custom-output
+                    --format csv --verbose --output ./custom-output \\
+                    --no-approvers
+                
+                # High-performance analysis with custom GraphQL page size
+                python src/main.py github pr-analysis \\
+                    --org syngenta-digital --all-repos \\
+                    --use-graphql --graphql-page-size 100 \\
+                    --include-approvers
 
                 Setup:
                 1. Add your GitHub token to .env file:
@@ -165,8 +181,8 @@ class PrAnalysisCommand(BaseCommand):
         parser.add_argument(
             "--graphql-page-size",
             type=int,
-            default=50,
-            help="GraphQL page size (50-100 recommended, default: 50)",
+            default=100,
+            help="GraphQL page size (50-100 recommended, default: 100)",
         )
         parser.add_argument(
             "--review-rounds-mode",
@@ -178,6 +194,32 @@ class PrAnalysisCommand(BaseCommand):
             "--no-graphql-fallback-rest",
             action="store_true",
             help="Disable automatic REST fallback if GraphQL returns zero PRs",
+        )
+
+        # New approver-specific flags
+        parser.add_argument(
+            "--include-approvers",
+            action="store_true",
+            default=True,
+            help="Include detailed approver data (approvers, latest_approvals, review_decision) via enhanced GraphQL (default: enabled)",
+        )
+        parser.add_argument(
+            "--no-approvers",
+            dest="include_approvers",
+            action="store_false",
+            help="Disable approver data collection to use basic GraphQL query (faster but less detailed)",
+        )
+        parser.add_argument(
+            "--approvals-heuristics",
+            action="store_true",
+            default=True,
+            help="Calculate approval heuristics (approvals_valid_now, approvals_after_last_push) (default: enabled)",
+        )
+        parser.add_argument(
+            "--no-approvals-heuristics",
+            dest="approvals_heuristics",
+            action="store_false",
+            help="Disable approval heuristics calculation",
         )
 
         # Enrichment options

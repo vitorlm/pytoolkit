@@ -46,6 +46,14 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         - approvals_count: Number of approvals
         - requested_reviewers_count: Number of requested reviewers
 
+        NEW: Enhanced approver fields (if generated with --include-approvers):
+        - approvers: List of unique reviewer logins who approved
+        - approvers_count: Number of unique approvers
+        - latest_approvals: Latest approval per reviewer with timestamps
+        - review_decision: GitHub's review decision
+        - approvals_valid_now: Valid approvals at time of analysis
+        - approvals_after_last_push: Approvals after last commit
+
         Analyses performed:
         - Monthly trends for PR counts and lead times (work-days only)
         - Correlation between PR size and lead time
@@ -114,20 +122,42 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         )
 
         parser.add_argument(
-            "--start-date",
-            help="Filter PRs created on or after this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+            "--start-date", help="Filter PRs created on or after this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
         )
 
         parser.add_argument(
-            "--end-date", 
-            help="Filter PRs created on or before this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). If start-date is provided and end-date is not, current date is used"
+            "--end-date",
+            help="Filter PRs created on or before this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS). If start-date is provided and end-date is not, current date is used",
         )
 
         parser.add_argument(
-            "--team-size",
+            "--team-size", type=int, default=6, help="Number of engineers on the team who can review PRs (default: 6)"
+        )
+
+        # New flags for enhanced approver analysis compatibility
+        parser.add_argument(
+            "--include-approvers",
+            action="store_true",
+            default=True,
+            help="Include enhanced approver fields in analysis if present in data (default: enabled)",
+        )
+        parser.add_argument(
+            "--no-approvers",
+            dest="include_approvers",
+            action="store_false",
+            help="Ignore enhanced approver fields even if present in data",
+        )
+        parser.add_argument(
+            "--graphql-page-size",
             type=int,
-            default=6,
-            help="Number of engineers on the team who can review PRs (default: 6)"
+            default=100,
+            help="GraphQL page size for data generation reference (default: 100)",
+        )
+        parser.add_argument(
+            "--approvals-heuristics",
+            action="store_true",
+            default=True,
+            help="Use approval heuristics in analysis if available in data (default: enabled)",
         )
 
     @staticmethod
