@@ -283,6 +283,13 @@ class PrAnalysisService:
                 "review_rounds": pr.get("review_rounds"),
                 "synchronize_after_first_review": pr.get("synchronize_after_first_review"),
                 "re_review_pushes": pr.get("re_review_pushes"),
+                # Approver fields (added by GraphQL with reviews)
+                "approvers": pr.get("approvers"),
+                "approvers_count": pr.get("approvers_count"),
+                "latest_approvals": pr.get("latest_approvals"),
+                "review_decision": pr.get("review_decision"),
+                "approvals_valid_now": pr.get("approvals_valid_now"),
+                "approvals_after_last_push": pr.get("approvals_after_last_push"),
             }
 
             return pr_data
