@@ -185,9 +185,12 @@ class PrWorkloadAnalysisService:
 
             # Step 5: Analyze CODEOWNERS pressure metrics
             pressure_metrics = self._analyze_codeowners_pressure(df, args)
+            
+            # Step 5.5: NEW - Analyze specific team members workload
+            team_analysis = self._analyze_team_members_workload(df)
 
             # Step 6: Generate insights and recommendations
-            insights = self._generate_insights(df, monthly_trends, correlations, pressure_metrics)
+            insights = self._generate_insights(df, monthly_trends, correlations, pressure_metrics, team_analysis)
 
             # Add pressure formula to correlations for reporting
             correlations["pressure_formula"] = pressure_metrics.get("pressure_formula", {})
@@ -197,7 +200,7 @@ class PrWorkloadAnalysisService:
 
             # Step 8: Save results
             output_files = self._save_results(
-                df, monthly_trends, correlations, pressure_metrics, insights, output_dir, args.detailed_analysis
+                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir, args.detailed_analysis
             )
 
             # Step 9: Generate charts if requested
@@ -207,13 +210,13 @@ class PrWorkloadAnalysisService:
 
             # Step 10: Generate markdown report
             report_file = self._generate_markdown_report(
-                df, monthly_trends, correlations, pressure_metrics, insights, output_dir, args.generate_charts
+                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir, args.generate_charts
             )
             output_files.append(report_file)
 
             # Step 11: Generate HTML dashboard
             dashboard_file = self._generate_html_dashboard(
-                df, monthly_trends, correlations, pressure_metrics, insights, output_dir
+                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir
             )
             output_files.append(dashboard_file)
 
@@ -226,6 +229,7 @@ class PrWorkloadAnalysisService:
                 "monthly_trends": monthly_trends,
                 "correlations": correlations,
                 "pressure_metrics": pressure_metrics,
+                "team_analysis": team_analysis,
                 "key_insights": insights["key_points"],
                 "recommendations": insights["recommendations"],
                 "output_files": output_files,
@@ -790,12 +794,119 @@ class PrWorkloadAnalysisService:
         else:
             return "LOW"
 
+    def _analyze_team_members_workload(self, df: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Analyze workload for specific team members from the configured teams.
+        
+        Args:
+            df: DataFrame with PR data
+            
+        Returns:
+            Dictionary with team member analysis
+        """
+        self.logger.info("Analyzing team members workload")
+        
+        # Define the specific teams we want to analyze
+        target_teams = [
+            "@syngenta-digital/cropwise-core-services-catalog",
+            "@syngenta-digital/cropwise-core-services-identity", 
+            "@syngenta-digital/cropwise-core-services-da-backbone"
+        ]
+        
+        team_analysis = {
+            "target_teams": target_teams,
+            "pr_counts_by_author": {},
+            "team_member_stats": {},
+            "external_contributor_stats": {},
+            "approver_analysis": {},
+            "summary_metrics": {}
+        }
+        
+        # Analyze PRs by author for team members
+        team_member_prs = df[df["is_team_member"] == True].copy()
+        external_prs = df[df["is_team_member"] == False].copy()
+        
+        # Count PRs by team member authors
+        if not team_member_prs.empty:
+            pr_counts = team_member_prs["author"].value_counts().to_dict()
+            team_analysis["pr_counts_by_author"] = pr_counts
+            
+            # Calculate stats for each team member
+            for author, count in pr_counts.items():
+                author_prs = team_member_prs[team_member_prs["author"] == author]
+                
+                team_analysis["team_member_stats"][author] = {
+                    "total_prs": count,
+                    "avg_lead_time_days": author_prs["lead_time_days"].mean() if len(author_prs) > 0 else 0,
+                    "avg_additions": author_prs["additions"].mean() if "additions" in author_prs.columns and len(author_prs) > 0 else 0,
+                    "avg_deletions": author_prs["deletions"].mean() if "deletions" in author_prs.columns and len(author_prs) > 0 else 0,
+                    "avg_changed_files": author_prs["changed_files"].mean() if "changed_files" in author_prs.columns and len(author_prs) > 0 else 0,
+                    "avg_commits": author_prs["commits"].mean() if "commits" in author_prs.columns and len(author_prs) > 0 else 0,
+                    "avg_reviews": author_prs["reviews_count"].mean() if "reviews_count" in author_prs.columns and len(author_prs) > 0 else 0
+                }
+        
+        # Analyze external contributors
+        if not external_prs.empty:
+            ext_pr_counts = external_prs["author"].value_counts().to_dict()
+            
+            for author, count in list(ext_pr_counts.items())[:10]:  # Top 10 external contributors
+                author_prs = external_prs[external_prs["author"] == author]
+                
+                team_analysis["external_contributor_stats"][author] = {
+                    "total_prs": count,
+                    "avg_lead_time_days": author_prs["lead_time_days"].mean() if len(author_prs) > 0 else 0,
+                    "avg_additions": author_prs["additions"].mean() if "additions" in author_prs.columns and len(author_prs) > 0 else 0,
+                    "avg_changed_files": author_prs["changed_files"].mean() if "changed_files" in author_prs.columns and len(author_prs) > 0 else 0
+                }
+        
+        # Analyze approvers if data is available
+        if "approvers" in df.columns:
+            all_approvers = []
+            for _, row in df.iterrows():
+                if pd.notna(row["approvers"]) and isinstance(row["approvers"], (list, str)):
+                    if isinstance(row["approvers"], str):
+                        # Handle string representation of list
+                        try:
+                            import ast
+                            approvers = ast.literal_eval(row["approvers"])
+                        except:
+                            approvers = [row["approvers"]]
+                    else:
+                        approvers = row["approvers"]
+                    
+                    all_approvers.extend(approvers)
+            
+            if all_approvers:
+                from collections import Counter
+                approver_counts = Counter(all_approvers)
+                team_analysis["approver_analysis"] = {
+                    "top_approvers": dict(approver_counts.most_common(10)),
+                    "total_unique_approvers": len(set(all_approvers)),
+                    "total_approvals": len(all_approvers)
+                }
+        
+        # Calculate summary metrics
+        team_analysis["summary_metrics"] = {
+            "total_team_member_prs": len(team_member_prs),
+            "total_external_prs": len(external_prs),
+            "unique_team_members": len(team_analysis["pr_counts_by_author"]),
+            "unique_external_contributors": len(external_prs["author"].unique()) if not external_prs.empty else 0,
+            "avg_team_member_lead_time": team_member_prs["lead_time_days"].mean() if not team_member_prs.empty else 0,
+            "avg_external_lead_time": external_prs["lead_time_days"].mean() if not external_prs.empty else 0,
+            "external_to_team_pr_ratio": len(external_prs) / len(team_member_prs) if len(team_member_prs) > 0 else 0
+        }
+        
+        self.logger.info(f"Team analysis completed. Found {team_analysis['summary_metrics']['unique_team_members']} team members and {team_analysis['summary_metrics']['unique_external_contributors']} external contributors")
+        
+        return team_analysis
+
     def _generate_insights(
         self,
         df: pd.DataFrame,
         monthly_trends: Dict[str, Any],
         correlations: Dict[str, Any],
         pressure_metrics: Dict[str, Any],
+        team_analysis: Dict[str, Any],
     ) -> Dict[str, List[str]]:
         """Generate insights and recommendations from the analysis."""
         self.logger.info("Generating insights and recommendations")
