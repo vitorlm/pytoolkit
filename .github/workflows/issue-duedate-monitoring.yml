@@ -28,7 +28,7 @@ jobs:
 
     strategy:
       matrix:
-        squad: ["Catalog", "Recommendations", "Data Platform", "Core Services"]
+        squad: ["Catalog"]
 
     steps:
       - name: Checkout repository
@@ -76,7 +76,8 @@ jobs:
           ISSUE_MONITOR_CHECK_INTERVAL_MINUTES=60
           EOF
 
-      - name: Run Issue Due Date Monitoring
+      - name: Run Scheduled Monitoring (Production)
+        if: github.event_name == 'schedule'
         run: |
           python -m main syngenta jira issue-duedate-monitor \
             --squad "${{ matrix.squad }}" \
@@ -85,8 +86,8 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/src
 
-      - name: Run Manual Squad Monitoring (if specified)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.squad != ''
+      - name: Run Manual Squad Monitoring (Custom)
+        if: github.event_name == 'workflow_dispatch'
         run: |
           python -m main syngenta jira issue-duedate-monitor \
             --squad "${{ github.event.inputs.squad }}" \
