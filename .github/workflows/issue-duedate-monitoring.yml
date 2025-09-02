@@ -1,0 +1,106 @@
+name: Issue Due Date Monitoring
+
+on:
+  schedule:
+    # Run Monday to Friday at 10:00 AM BRT (1:00 PM UTC)
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      squad:
+        description: "Squad name to monitor"
+        required: true
+        default: "Catalog"
+        type: string
+      issue_types:
+        description: "Comma-separated list of issue types (e.g., 'Story,Task,Bug')"
+        required: false
+        default: "Bug,Support,Story,Task,Technical Debt,Improvement,Defect"
+        type: string
+      dry_run:
+        description: "Run without sending notifications"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  issue-duedate-monitoring:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        squad: ["Catalog", "Recommendations", "Data Platform", "Core Services"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f pyproject.toml ]; then pip install -e .; fi
+
+      - name: Create required directories
+        run: |
+          mkdir -p logs
+          mkdir -p cache
+
+      - name: Create environment file
+        run: |
+          cat > .env << EOF
+          # JIRA Configuration
+          JIRA_URL=${{ secrets.JIRA_URL }}
+          JIRA_USER_EMAIL=${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN=${{ secrets.JIRA_API_TOKEN }}
+
+          # Slack Configuration
+          SLACK_WEBHOOK_URL=${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID=${{ secrets.SLACK_CHANNEL_ID }}
+
+          # Issue Monitoring Configuration
+          ISSUE_MONITOR_PROJECT_KEY=CWS
+          ISSUE_MONITOR_CHECK_INTERVAL_MINUTES=60
+          EOF
+
+      - name: Run Issue Due Date Monitoring
+        run: |
+          python -m main syngenta jira issue-duedate-monitor \
+            --squad "${{ matrix.squad }}" \
+            --project-key "CWS" \
+            --slack-webhook="${{ secrets.SLACK_WEBHOOK_URL }}"
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+
+      - name: Run Manual Squad Monitoring (if specified)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.squad != ''
+        run: |
+          python -m main syngenta jira issue-duedate-monitor \
+            --squad "${{ github.event.inputs.squad }}" \
+            --project-key "CWS" \
+            --slack-webhook="${{ secrets.SLACK_WEBHOOK_URL }}" \
+            ${{ github.event.inputs.issue_types != '' && format('--issue-types "{0}"', github.event.inputs.issue_types) || '' }} \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-duedate-monitoring-logs-${{ matrix.squad }}
+          path: logs/
+          retention-days: 7
