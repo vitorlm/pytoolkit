@@ -95,8 +95,32 @@ get_user_selection() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Find all config files
-CONFIG_FILES=($(ls config_reports*.env 2>/dev/null || true))
+# Find all config files and organize them in a specific order
+TEMP_FILES=($(ls config_reports*.env 2>/dev/null || true))
+CONFIG_FILES=()
+
+# First add team config (config_reports.env) if it exists
+for file in "${TEMP_FILES[@]}"; do
+    if [[ "$file" == "config_reports.env" ]]; then
+        CONFIG_FILES+=("$file")
+        break
+    fi
+done
+
+# Then add tribe config (config_reports_tribe.env) if it exists
+for file in "${TEMP_FILES[@]}"; do
+    if [[ "$file" == "config_reports_tribe.env" ]]; then
+        CONFIG_FILES+=("$file")
+        break
+    fi
+done
+
+# Add any other config files that might exist
+for file in "${TEMP_FILES[@]}"; do
+    if [[ "$file" != "config_reports.env" && "$file" != "config_reports_tribe.env" ]]; then
+        CONFIG_FILES+=("$file")
+    fi
+done
 
 if [ ${#CONFIG_FILES[@]} -eq 0 ]; then
     echo "❌ No configuration files found in $SCRIPT_DIR"
@@ -129,7 +153,7 @@ else
     else
         # Interactive mode
         show_config_menu "${CONFIG_FILES[@]}"
-        get_user_selection "${CONFIG_FILES[@]}"
+        get_user_selection "${CONFIG_FILES[@]}" || true  # Prevent set -e from exiting
         SELECTION_INDEX=$?
         SELECTED_CONFIG="${CONFIG_FILES[$SELECTION_INDEX]}"
         echo ""
@@ -203,9 +227,162 @@ if [ "$TRIBE_MODE" = false ] && [ -z "$SONARQUBE_PROJECT_KEYS" ]; then
     exit 1
 fi
 
-# Set up output directory
+# Header
+echo ""
+echo "============================================================"
+if [ "$TRIBE_MODE" = true ]; then
+    echo "           📊 TRIBE-WIDE WEEKLY METRICS REPORT TOOL"
+else
+    echo "           📊 TEAM WEEKLY METRICS REPORT TOOL"
+fi
+echo "============================================================"
+echo "📅 Run date:        $(date)"
+echo "🏷️  Project:         $PROJECT_KEY"
+echo "⚙️  Config file:     scripts/$SELECTED_CONFIG"
+if [ "$TRIBE_MODE" = true ]; then
+    echo "👥 Scope:           Entire tribe (no team filtering)"
+else
+    echo "👥 Team:            $TEAM"
+fi
+echo ""
+
+
+
+# --- Dynamic date range calculation ---
+# Nova lógica: semanas segunda-feira → domingo
+# Regras:
+# 1. Se TODAY for domingo: usar a semana que está terminando (incluindo o próprio domingo)
+# 2. Se TODAY for segunda-sábado: usar a semana anterior completa
+# 3. Período customizado: usar start/end se informados
+# 4. Fuso horário: America/Sao_Paulo
+
+# Função para validar data no formato YYYY-MM-DD
+validate_date() {
+    local date_str="$1"
+    if [[ ! "$date_str" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        return 1
+    fi
+    # Testar se a data é válida usando date
+    date -jf "%Y-%m-%d" "$date_str" >/dev/null 2>&1
+    return $?
+}
+
+# Função para calcular o dia da semana (1=segunda, 7=domingo)
+get_weekday() {
+    local date_str="$1"
+    date -jf "%Y-%m-%d" "$date_str" +%u
+}
+
+# Verificar se período customizado foi especificado
+if [[ -n "$CUSTOM_START_DATE" && -n "$CUSTOM_END_DATE" ]]; then
+    # Validar datas customizadas
+    if ! validate_date "$CUSTOM_START_DATE"; then
+        echo "❌ Error: Invalid CUSTOM_START_DATE format: $CUSTOM_START_DATE (expected: YYYY-MM-DD)"
+        exit 1
+    fi
+    if ! validate_date "$CUSTOM_END_DATE"; then
+        echo "❌ Error: Invalid CUSTOM_END_DATE format: $CUSTOM_END_DATE (expected: YYYY-MM-DD)"
+        exit 1
+    fi
+    
+    # Validar que start <= end
+    start_timestamp=$(date -jf "%Y-%m-%d" "$CUSTOM_START_DATE" +%s)
+    end_timestamp=$(date -jf "%Y-%m-%d" "$CUSTOM_END_DATE" +%s)
+    if [ "$start_timestamp" -gt "$end_timestamp" ]; then
+        echo "❌ Error: CUSTOM_START_DATE ($CUSTOM_START_DATE) must be <= CUSTOM_END_DATE ($CUSTOM_END_DATE)"
+        exit 1
+    fi
+    
+    CUSTOM_PERIOD_START="$CUSTOM_START_DATE"
+    CUSTOM_PERIOD_END="$CUSTOM_END_DATE"
+    
+    echo "📅 Using custom period: $CUSTOM_PERIOD_START to $CUSTOM_PERIOD_END"
+    
+    # Para compatibilidade com o resto do script, definir também as variáveis de semana
+    LAST_WEEK_START="$CUSTOM_PERIOD_START"
+    LAST_WEEK_END="$CUSTOM_PERIOD_END"
+    JIRA_LAST_WEEK="$LAST_WEEK_START to $LAST_WEEK_END"
+    
+    # Calcular semana anterior para análises comparativas
+    custom_duration_days=$(( (end_timestamp - start_timestamp) / 86400 + 1 ))
+    WEEK_BEFORE_START=$(date -jf "%Y-%m-%d" -v-${custom_duration_days}d "$CUSTOM_PERIOD_START" +%Y-%m-%d)
+    WEEK_BEFORE_END=$(date -jf "%Y-%m-%d" -v-1d "$CUSTOM_PERIOD_START" +%Y-%m-%d)
+    JIRA_WEEK_BEFORE="$WEEK_BEFORE_START to $WEEK_BEFORE_END"
+    
+    # Período combinado
+    TWO_WEEKS_START="$WEEK_BEFORE_START"
+    TWO_WEEKS_END="$CUSTOM_PERIOD_END"
+    JIRA_TWO_WEEKS="$TWO_WEEKS_START to $TWO_WEEKS_END"
+    
+elif [[ -n "$CUSTOM_START_DATE" || -n "$CUSTOM_END_DATE" ]]; then
+    echo "❌ Error: When using custom period, both CUSTOM_START_DATE and CUSTOM_END_DATE must be specified"
+    exit 1
+else
+    # Lógica de semana padrão
+    
+    # Determinar TODAY (com fuso America/Sao_Paulo se não especificado)
+    if [[ -n "$CUSTOM_REPORT_DATE" ]]; then
+        echo "📅 Using custom date from config: $CUSTOM_REPORT_DATE"
+        TODAY="$CUSTOM_REPORT_DATE"
+        if ! validate_date "$TODAY"; then
+            echo "❌ Error: Invalid CUSTOM_REPORT_DATE format: $TODAY (expected: YYYY-MM-DD)"
+            exit 1
+        fi
+    else
+        # Usar data atual no fuso America/Sao_Paulo
+        TODAY=$(TZ="America/Sao_Paulo" date +%Y-%m-%d)
+    fi
+    
+    # Calcular dia da semana (1=segunda, 7=domingo)
+    weekday=$(get_weekday "$TODAY")
+    
+    if [ "$weekday" -eq 7 ]; then
+        # TODAY é domingo: usar a semana que está terminando (incluindo hoje)
+        # Encontrar a segunda-feira desta semana
+        LAST_WEEK_START=$(date -jf "%Y-%m-%d" -v-6d "$TODAY" +%Y-%m-%d)
+        LAST_WEEK_END="$TODAY"
+        echo "📅 TODAY is Sunday ($TODAY) - using current week ending today"
+    else
+        # TODAY é segunda-sábado: usar a semana anterior completa
+        # Encontrar o domingo da semana anterior
+        days_since_monday=$((weekday - 1))
+        last_sunday=$(date -jf "%Y-%m-%d" -v-${days_since_monday}d -v-1d "$TODAY" +%Y-%m-%d)
+        LAST_WEEK_END="$last_sunday"
+        LAST_WEEK_START=$(date -jf "%Y-%m-%d" -v-6d "$last_sunday" +%Y-%m-%d)
+        echo "📅 TODAY is $(date -jf "%Y-%m-%d" "$TODAY" +%A) ($TODAY) - using previous complete week"
+    fi
+    
+    # Calcular semana anterior à semana selecionada
+    WEEK_BEFORE_END=$(date -jf "%Y-%m-%d" -v-1d "$LAST_WEEK_START" +%Y-%m-%d)
+    WEEK_BEFORE_START=$(date -jf "%Y-%m-%d" -v-6d "$WEEK_BEFORE_END" +%Y-%m-%d)
+    
+    # Calcular período combinado de 2 semanas
+    TWO_WEEKS_START="$WEEK_BEFORE_START"
+    TWO_WEEKS_END="$LAST_WEEK_END"
+    
+    JIRA_LAST_WEEK="$LAST_WEEK_START to $LAST_WEEK_END"
+    JIRA_WEEK_BEFORE="$WEEK_BEFORE_START to $WEEK_BEFORE_END"
+    JIRA_TWO_WEEKS="$TWO_WEEKS_START to $TWO_WEEKS_END"
+fi
+
+# Print ranges
+if [[ -n "$CUSTOM_PERIOD_START" && -n "$CUSTOM_PERIOD_END" ]]; then
+    echo "📆 Using custom reporting period:"
+    printf "   • %-18s %s\n" "Custom period:" "$JIRA_LAST_WEEK"
+    printf "   • %-18s %s\n" "Previous period:" "$JIRA_WEEK_BEFORE"
+    printf "   • %-18s %s\n" "Combined periods:" "$JIRA_TWO_WEEKS"
+else
+    echo "📆 Weekly reporting periods (Monday→Sunday):"
+    printf "   • %-18s %s\n" "Selected week:" "$JIRA_LAST_WEEK"
+    printf "   • %-18s %s\n" "Previous week:" "$JIRA_WEEK_BEFORE"
+    printf "   • %-18s %s\n" "Combined 2 weeks:" "$JIRA_TWO_WEEKS"
+fi
+echo ""
+
+# Set up output directory using the reference date (not current date)
 if [ "$USE_DATE_SUFFIX" = "true" ]; then
-    DATE_SUFFIX=$(date +"%Y%m%d")
+    # Use the reference date (configured or current) instead of current date
+    DATE_SUFFIX=$(date -jf "%Y-%m-%d" "$TODAY" +"%Y%m%d")
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/${REPORT_SCOPE}_weekly_reports_${DATE_SUFFIX}"
 else
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/${REPORT_SCOPE}_weekly_reports"
@@ -224,46 +401,7 @@ mkdir -p "$OUTPUT_DIR/sonarqube"
 mkdir -p "$OUTPUT_DIR/linearb"
 mkdir -p "$OUTPUT_DIR/consolidated"
 
-# Header
-echo ""
-echo "============================================================"
-if [ "$TRIBE_MODE" = true ]; then
-    echo "           📊 TRIBE-WIDE WEEKLY METRICS REPORT TOOL"
-else
-    echo "           📊 TEAM WEEKLY METRICS REPORT TOOL"
-fi
-echo "============================================================"
-echo "📅 Run date:        $(date)"
-echo "🏷️  Project:         $PROJECT_KEY"
-echo "⚙️  Config file:     scripts/$SELECTED_CONFIG"
-if [ "$TRIBE_MODE" = true ]; then
-    echo "👥 Scope:           Entire tribe (no team filtering)"
-else
-    echo "👥 Team:            $TEAM"
-fi
-echo "📁 Output folder:   $OUTPUT_DIR"
-echo ""
-
-
-
-# --- Dynamic date range calculation ---
-TODAY=$(date +%Y-%m-%d)
-WEEKDAY_NUM=$(date -jf "%Y-%m-%d" "$TODAY" +%u)
-THIS_MONDAY=$(date -jf "%Y-%m-%d" -v-"$((WEEKDAY_NUM - 1))"d "$TODAY" +%Y-%m-%d)
-LAST_MONDAY=$(date -jf "%Y-%m-%d" -v-1w "$THIS_MONDAY" +%Y-%m-%d)
-LAST_SUNDAY=$(date -jf "%Y-%m-%d" -v+6d "$LAST_MONDAY" +%Y-%m-%d)
-WEEK_BEFORE_MONDAY=$(date -jf "%Y-%m-%d" -v-2w "$THIS_MONDAY" +%Y-%m-%d)
-WEEK_BEFORE_SUNDAY=$(date -jf "%Y-%m-%d" -v+6d "$WEEK_BEFORE_MONDAY" +%Y-%m-%d)
-
-JIRA_LAST_WEEK="$LAST_MONDAY to $LAST_SUNDAY"
-JIRA_WEEK_BEFORE="$WEEK_BEFORE_MONDAY to $WEEK_BEFORE_SUNDAY"
-JIRA_TWO_WEEKS="$WEEK_BEFORE_MONDAY to $LAST_SUNDAY"
-
-# Print ranges
-echo "📆 Reporting periods:"
-printf "   • %-18s %s\n" "Last week:" "$JIRA_LAST_WEEK"
-printf "   • %-18s %s\n" "Week before:" "$JIRA_WEEK_BEFORE"
-printf "   • %-18s %s\n" "Combined 2 weeks:" "$JIRA_TWO_WEEKS"
+echo "📁 Output folder: $OUTPUT_DIR"
 echo ""
 
 # Step counter for progress tracking

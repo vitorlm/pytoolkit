@@ -108,38 +108,36 @@ Examples:
 
             for category in categories_to_show:
                 if category not in metrics:
-                    logger.warning(f"Category '{category}' not found")
+                    print(f"Category '{category}' not found")
                     continue
 
                 # Format category name
                 category_name = category.replace("_", " ").title()
-                logger.info(f"\n{category_name}:")
-                logger.info("-" * len(category_name + ":"))
+                print(f"\n{category_name}:")
+                print("-" * len(category_name + ":"))
 
                 for i, metric in enumerate(metrics[category], 1):
                     if args.show_descriptions and metric in descriptions:
-                        logger.info(f"{i:2d}. {metric}")
-                        logger.info(f"     {descriptions[metric]}")
+                        print(f"{i:2d}. {metric}")
+                        print(f"     {descriptions[metric]}")
                     else:
-                        logger.info(f"{i:2d}. {metric}")
+                        print(f"{i:2d}. {metric}")
 
             # Show usage information
-            logger.info("\n" + "=" * 60)
-            logger.info("Usage Information:")
-            logger.info(
-                "- These metrics can be used with the performance-metrics command"
-            )
-            logger.info("- Time-based metrics support aggregations: p75, avg, p50")
-            logger.info("- Count-based metrics use default aggregation")
-            logger.info("- Use --aggregation parameter to specify aggregation type")
+            print("\n" + "=" * 60)
+            print("Usage Information:")
+            print("- These metrics can be used with the performance-metrics command")
+            print("- Time-based metrics support aggregations: p75, avg, p50")
+            print("- Count-based metrics use default aggregation")
+            print("- Use --aggregation parameter to specify aggregation type")
 
-            logger.info("\nExample:")
-            logger.info("python src/main.py linearb performance-metrics \\")
-            logger.info("  --time-range last-week \\")
-            logger.info("  --aggregation p75 \\")
-            logger.info("  --filter-type team")
+            print("\nExample:")
+            print("python src/main.py linearb performance-metrics \\")
+            print("  --time-range last-week \\")
+            print("  --aggregation p75 \\")
+            print("  --filter-type team")
 
-            logger.info("Available metrics listing completed successfully")
+            print("Available metrics listing completed successfully")
 
         except Exception as e:
             logger.error(f"Available metrics command failed: {e}")

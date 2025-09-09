@@ -101,13 +101,9 @@ class LinearBService:
             ]
 
             requested_metrics = getattr(args, "metrics", default_metrics)
-            if isinstance(requested_metrics, list) and all(
-                isinstance(m, str) for m in requested_metrics
-            ):
+            if isinstance(requested_metrics, list) and all(isinstance(m, str) for m in requested_metrics):
                 # Convert string list to metric objects
-                requested_metrics = [
-                    {"name": metric, "agg": aggregation} for metric in requested_metrics
-                ]
+                requested_metrics = [{"name": metric, "agg": aggregation} for metric in requested_metrics]
 
             # Parse team IDs if provided
             team_ids = None
@@ -293,9 +289,7 @@ class LinearBService:
                 order_dir=getattr(args, "order_dir", "asc"),
             )
 
-            self.logger.info(
-                f"Export completed. Report URL: {export_result.get('report_url', 'N/A')}"
-            )
+            self.logger.info(f"Export completed. Report URL: {export_result.get('report_url', 'N/A')}")
 
             # If we have a report URL, download the file automatically
             report_url = export_result.get("report_url")
@@ -383,9 +377,7 @@ class LinearBService:
             self.logger.error(f"Failed to download and save report: {e}", exc_info=True)
             raise
 
-    def save_metrics_to_file(
-        self, metrics_data: Dict[str, Any], output_file: Optional[str] = None
-    ) -> str:
+    def save_metrics_to_file(self, metrics_data: Dict[str, Any], output_file: Optional[str] = None) -> str:
         """
         Save metrics data to a JSON file.
 
@@ -487,10 +479,7 @@ class LinearBService:
             # Process each time period
             for time_period in metrics_data.get("metrics", []):
                 period_info = {
-                    "period": (
-                        f"{time_period.get('after', 'Unknown')} to "
-                        f"{time_period.get('before', 'Unknown')}"
-                    ),
+                    "period": (f"{time_period.get('after', 'Unknown')} to {time_period.get('before', 'Unknown')}"),
                     "teams_count": len(time_period.get("metrics", [])),
                     "metrics_available": [],
                 }
@@ -526,12 +515,12 @@ class LinearBService:
         aggregation = getattr(args, "aggregation", "default")
 
         metrics = [
-            {"name": LinearBMetrics.PR_MERGED_WITHOUT_REVIEW, "agg": aggregation},
+            {"name": LinearBMetrics.PR_MERGED_WITHOUT_REVIEW, "agg": "default"},
             {"name": LinearBMetrics.PR_REVIEW_DEPTH, "agg": aggregation},
             {"name": LinearBMetrics.PR_MATURITY, "agg": aggregation},
             {"name": LinearBMetrics.DEPLOY_TIME, "agg": aggregation},
             {"name": LinearBMetrics.PR_SIZE, "agg": aggregation},
-            {"name": LinearBMetrics.DEPLOY_FREQUENCY, "agg": aggregation},
+            {"name": LinearBMetrics.DEPLOY_FREQUENCY, "agg": "default"},
             {"name": LinearBMetrics.CYCLE_TIME, "agg": aggregation},
             {"name": LinearBMetrics.PICKUP_TIME, "agg": aggregation},
             {"name": LinearBMetrics.REVIEW_TIME, "agg": aggregation},
@@ -627,7 +616,10 @@ class LinearBService:
             for time_period in metrics_data:
                 period_start = time_period.get("after", "")
                 period_end = time_period.get("before", "")
-
+                # Compare start and end dates, skip if they're the same
+                if period_start == period_end:
+                    self.logger.info(f"Skipping time period with identical start/end dates: {period_start}")
+                    continue
                 # Each time period contains metrics for teams/contributors
                 for team_metrics in time_period.get("metrics", []):
                     team_id = team_metrics.get("id", "")
