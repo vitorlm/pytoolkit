@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional
 from domains.syngenta.team_assessment.processors.criteria_processor import CriteriaProcessor
 from domains.syngenta.team_assessment.services.member_analyzer import MemberAnalyzer
@@ -38,15 +39,19 @@ class AssessmentGenerator:
     ):
         self.competency_matrix_file = competency_matrix_file
         self.feedback_folder = feedback_folder
-        self.planning_folder = planning_folder
-        self.health_check_folder = health_check_folder
+        if planning_folder:
+            self.planning_folder = planning_folder
+        if health_check_folder:
+            self.health_check_folder = health_check_folder
         self.output_path = output_path
 
         self.members = {}
         self.criteria_processor = CriteriaProcessor()
-        self.task_processor = MembersTaskProcessor()
+        if planning_folder:
+            self.task_processor = MembersTaskProcessor()
         self.feedback_processor = FeedbackProcessor()
-        self.health_check_processor = HealthCheckProcessor()
+        if health_check_folder:
+            self.health_check_processor = HealthCheckProcessor()
         self.config = Config()
         # self.feedback_specialist = FeedbackSpecialist(
         #     host=self.config.ollama_host,
@@ -54,7 +59,7 @@ class AssessmentGenerator:
         #     **self.config.get_ollama_config(),
         # )
         self.feedback_analyzer = FeedbackAnalyzer()
-        self.ignored_member_list = JSONManager.read_json(ignored_member_list, default=[])
+        self.ignored_member_list = JSONManager.read_json(ignored_member_list, default=[]) if ignored_member_list else []
 
     def run(self):
         """
@@ -63,8 +68,10 @@ class AssessmentGenerator:
         self._logger.info("Starting assessment generation process.")
         self._validate_input_folders()
         competency_matrix = self._load_competency_matrix()
-        self._process_tasks()
-        self._process_health_checks()
+        if hasattr(self, "planning_folder"):
+            self._process_tasks()
+        if hasattr(self, "health_check_folder"):
+            self._process_health_checks()
         feedback = self._process_feedback()
         self._update_members_with_feedback(feedback)
         team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
@@ -88,15 +95,22 @@ class AssessmentGenerator:
         Validates the existence of the input folders.
         """
         self._logger.debug("Validating input folders.")
-        for folder in [self.feedback_folder, self.planning_folder, self.health_check_folder]:
-            FileManager.validate_folder(folder)
+        # Always validate feedback folder as it's required
+        FileManager.validate_folder(self.feedback_folder)
+
+        # Validate optional folders only if they are provided
+        if hasattr(self, "planning_folder") and self.planning_folder:
+            FileManager.validate_folder(self.planning_folder)
+
+        if hasattr(self, "health_check_folder") and self.health_check_folder:
+            FileManager.validate_folder(self.health_check_folder)
 
     def _load_competency_matrix(self):
         """
         Loads the default competency matrix from the specified file.
         """
         self._logger.info(f"Loading competency matrix from: {self.competency_matrix_file}")
-        return self.criteria_processor.process_file(self.competency_matrix_file)
+        return self.criteria_processor.process_file(Path(self.competency_matrix_file))
 
     def _process_tasks(self):
         """
@@ -134,9 +148,7 @@ class AssessmentGenerator:
             return
 
         if member_name not in self.members:
-            self.members[member_name] = Member(
-                name=member_name, tasks=list(tasks), health_check=None, feedback=None
-            )
+            self.members[member_name] = Member(name=member_name, tasks=list(tasks), health_check=None, feedback=None)
         else:
             self.members[member_name].tasks = list(tasks)
 
@@ -149,9 +161,7 @@ class AssessmentGenerator:
             return
 
         if member_name not in self.members:
-            self.members[member_name] = Member(
-                name=member_name, health_check=health_check, tasks=[], feedback={}
-            )
+            self.members[member_name] = Member(name=member_name, health_check=health_check, tasks=[], feedback={})
         else:
             self.members[member_name].health_check = health_check
 
@@ -269,9 +279,7 @@ class AssessmentGenerator:
         for ignored_member in self.ignored_member_list:
             ignored_parts = ignored_member.split(" ", 1)
             ignored_first_name = StringUtils.remove_accents(ignored_parts[0])
-            ignored_last_name = (
-                StringUtils.remove_accents(ignored_parts[1]) if len(ignored_parts) > 1 else ""
-            )
+            ignored_last_name = StringUtils.remove_accents(ignored_parts[1]) if len(ignored_parts) > 1 else ""
 
             if first_name == ignored_first_name:
                 if not last_name or last_name == ignored_last_name:

@@ -55,6 +55,18 @@ class FileManager:
             return file.readlines()
 
     @staticmethod
+    def write_file(file_path: str, content: str) -> None:
+        """
+        Writes content to a file.
+
+        Args:
+            file_path (str): Path to the file.
+            content (str): The content to write to the file.
+        """
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write(content)
+
+    @staticmethod
     def delete_file(file_path: str) -> None:
         """
         Deletes a file.

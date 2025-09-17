@@ -1,0 +1,102 @@
+{
+  "project_key": "DEFAULT",
+  "project_name": "Default Project",
+  "workflow_name": "Standard JIRA Workflow",
+  "version": "1.0",
+  "created_date": "2024-01-01",
+  "description": "Default workflow configuration for standard JIRA projects",
+  "status_mapping": {
+    "backlog": [
+      "To Do",
+      "Backlog"
+    ],
+    "wip": [
+      "In Progress",
+      "In Review",
+      "In Testing"
+    ],
+    "done": [
+      "Done",
+      "Closed"
+    ],
+    "archived": [
+      "Archived"
+    ]
+  },
+  "semantic_statuses": {
+    "development_start": "In Progress",
+    "code_review": "In Review",
+    "testing": "In Testing",
+    "completed": "Done",
+    "archived": "Archived"
+  },
+  "flow_metrics": {
+    "cycle_time": {
+      "start": "In Progress",
+      "end": "Done",
+      "description": "Time from start to completion"
+    },
+    "lead_time": {
+      "start": "To Do",
+      "end": "Done",
+      "description": "Total time from creation to completion"
+    },
+    "review_time": {
+      "start": "In Review",
+      "end": ["In Testing", "Done"],
+      "description": "Time spent in review"
+    }
+  },
+  "quality_gates": {
+    "review_gate": {
+      "status": "In Review",
+      "description": "Issues that went through review process"
+    },
+    "testing_gate": {
+      "status": "In Testing",
+      "description": "Issues that went through testing process"
+    }
+  },
+  "custom_fields": {
+    "squad_field": "customfield_10002",
+    "epic_link_field": "customfield_10014",
+    "story_points_field": "customfield_10016"
+  },
+  "transitions": [
+    {
+      "from": "To Do",
+      "to": "In Progress",
+      "name": "Start Progress"
+    },
+    {
+      "from": "In Progress",
+      "to": "In Review",
+      "name": "Send to Review"
+    },
+    {
+      "from": "In Progress",
+      "to": "Done",
+      "name": "Complete"
+    },
+    {
+      "from": "In Review",
+      "to": "In Progress",
+      "name": "Back to Progress"
+    },
+    {
+      "from": "In Review",
+      "to": "In Testing",
+      "name": "Send to Testing"
+    },
+    {
+      "from": "In Review",
+      "to": "Done",
+      "name": "Approve"
+    },
+    {
+      "from": "In Testing",
+      "to": "Done",
+      "name": "Testing Complete"
+    }
+  ]
+}

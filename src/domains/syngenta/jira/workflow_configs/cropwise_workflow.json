@@ -1,0 +1,172 @@
+{
+  "project_key": "CWS",
+  "project_name": "Cropwise Engineering",
+  "workflow_name": "Cropwise Engineering Tasks Workflow 2024 - v1",
+  "version": "1.0",
+  "created_date": "2024-01-01",
+  "description": "Workflow configuration for Cropwise Engineering project with detailed status mapping and flow metrics",
+  "status_mapping": {
+    "backlog": [
+      "01 New",
+      "02 Review",
+      "06 Dev Backlog"
+    ],
+    "wip": [
+      "06A Test Script",
+      "07 Started",
+      "07a Code Review",      
+      "08 Testing"
+    ],
+    "waiting": [
+      "07b To Test",
+      "09B Ready to Deploy"
+    ],
+    "done": [
+      "Done",
+      "10 Done"
+    ],
+    "archived": [
+      "11 Archived"
+    ]
+  },
+  "semantic_statuses": {
+    "development_start": "07 Started",
+    "code_review": "07a Code Review",
+    "test_preparation": "07b To Test",
+    "testing": "08 Testing",
+    "deployment_ready": "09B Ready to Deploy",
+    "completed": "10 Done",
+    "archived": "11 Archived"
+  },
+  "flow_metrics": {
+    "cycle_time": {
+      "start": "07 Started",
+      "end": "10 Done",
+      "description": "Time from development start to completion"
+    },
+    "lead_time": {
+      "start": "01 New",
+      "end": "10 Done",
+      "description": "Total time from creation to completion"
+    },
+    "code_review_time": {
+      "start": "07a Code Review",
+      "end": ["07b To Test", "08 Testing", "10 Done"],
+      "description": "Time spent in code review"
+    },
+    "testing_time": {
+      "start": "08 Testing",
+      "end": ["09B Ready to Deploy", "10 Done"],
+      "description": "Time spent in testing phase"
+    },
+    "deployment_time": {
+      "start": "09B Ready to Deploy",
+      "end": "10 Done",
+      "description": "Time from deployment ready to done"
+    }
+  },
+  "quality_gates": {
+    "code_review_gate": {
+      "status": "07a Code Review",
+      "description": "Issues that went through code review process"
+    },
+    "testing_gate": {
+      "status": "08 Testing",
+      "description": "Issues that went through testing process"
+    },
+    "deployment_gate": {
+      "status": "09B Ready to Deploy",
+      "description": "Issues that reached deployment readiness"
+    }
+  },
+  "custom_fields": {
+    "squad_field": "customfield_10265",
+    "planned_start_date_field": "customfield_10357",
+    "planned_end_date_field": "customfield_10487",
+    "start_date_field": "customfield_10015",
+    "end_date_field": "customfield_10233",
+    "linear_id_team_field": "customfield_12046"
+  },
+  "transitions": [
+    {
+      "from": "01 New",
+      "to": "02 Review",
+      "name": "Review"
+    },
+    {
+      "from": "02 Review",
+      "to": "06 Dev Backlog",
+      "name": "Jump to Team Backlog"
+    },
+    {
+      "from": "02 Review",
+      "to": "07 Started",
+      "name": "Directly Started"
+    },
+    {
+      "from": "06 Dev Backlog",
+      "to": "06A Test Script",
+      "name": "Test Script"
+    },
+    {
+      "from": "06 Dev Backlog",
+      "to": "02 Review",
+      "name": "Back to Review"
+    },
+    {
+      "from": "06A Test Script",
+      "to": "07 Started",
+      "name": "Started"
+    },
+    {
+      "from": "07 Started",
+      "to": "07a Code Review",
+      "name": "Review code"
+    },
+    {
+      "from": "07 Started",
+      "to": "10 Done",
+      "name": "Directly Close"
+    },
+    {
+      "from": "07a Code Review",
+      "to": "07b To Test",
+      "name": "Ready for test"
+    },
+    {
+      "from": "07a Code Review",
+      "to": "10 Done",
+      "name": "Directly Close"
+    },
+    {
+      "from": "07a Code Review",
+      "to": "08 Testing",
+      "name": "Test Started"
+    },
+    {
+      "from": "07b To Test",
+      "to": "08 Testing",
+      "name": "Test started"
+    },
+    {
+      "from": "08 Testing",
+      "to": "09B Ready to Deploy",
+      "name": "Send Directly to Deploy"
+    },
+    {
+      "from": "08 Testing",
+      "to": "10 Done",
+      "name": "Send to Done Directly"
+    },
+    {
+      "from": "09B Ready to Deploy",
+      "to": "10 Done",
+      "name": "Done"
+    },
+    {
+      "from": "11 Archived",
+      "to": "02 Review",
+      "name": "Reopen"
+    }
+  ]
+}

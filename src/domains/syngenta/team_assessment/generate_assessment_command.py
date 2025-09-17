@@ -48,13 +48,15 @@ class GenerateAssessmentCommand(BaseCommand):
         parser.add_argument(
             "--planningFolder",
             type=str,
-            required=True,
+            required=False,
+            default=None,
             help="Path to the directory containing planning Excel files.",
         )
         parser.add_argument(
             "--healthCheckFolder",
             type=str,
-            required=True,
+            required=False,
+            default=None,
             help="Path to the directory containing health check Excel files.",
         )
         parser.add_argument(

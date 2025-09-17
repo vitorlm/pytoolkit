@@ -1,0 +1,18 @@
+{
+  "description": "Project to workflow configuration mappings",
+  "default_workflow": "default_workflow.json",
+  "project_mappings": {
+    "CWS": "cropwise_workflow.json",
+    "PROJ": "default_workflow.json"
+  },
+  "custom_field_overrides": {
+    "CWS": {
+      "squad_field": "customfield_10265",
+      "planned_start_date_field": "customfield_10357",
+      "planned_end_date_field": "customfield_10487",
+      "start_date_field": "customfield_10015",
+      "end_date_field": "customfield_10233",
+      "linear_id_team_field": "customfield_12046"
+    }
+  }
+}

@@ -72,9 +72,7 @@ class IssueAdherenceCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Analyze issue adherence by checking completion status against due dates."
-        )
+        return "Analyze issue adherence by checking completion status against due dates."
 
     @staticmethod
     def get_help() -> str:
@@ -116,14 +114,11 @@ class IssueAdherenceCommand(BaseCommand):
             help="Filter by team name using Squad[Dropdown] field (optional).",
         )
         parser.add_argument(
-            "--status-categories",
+            "--status",
             type=str,
             required=False,
-            default="Done,In Progress,To Do",
-            help=(
-                "Comma-separated list of status categories to include "
-                "(default: 'Done,In Progress,To Do')."
-            ),
+            default="10 Done",
+            help=("Comma-separated list of status to include (default: '10 Done')."),
         )
         parser.add_argument(
             "--output-file",
@@ -140,6 +135,13 @@ class IssueAdherenceCommand(BaseCommand):
             "--verbose",
             action="store_true",
             help="Enable verbose output with detailed issue information.",
+        )
+        parser.add_argument(
+            "--output-format",
+            type=str,
+            choices=["json", "md", "console"],
+            default="console",
+            help="Output format: json (JSON file), md (Markdown file), console (display only)",
         )
 
     @staticmethod
@@ -159,8 +161,8 @@ class IssueAdherenceCommand(BaseCommand):
             # Parse issue types
             issue_types = [t.strip() for t in args.issue_types.split(",")]
 
-            # Parse status categories
-            status_categories = [s.strip() for s in args.status_categories.split(",")]
+            # Parse status
+            status = [s.strip() for s in args.status.split(",")]
 
             # Initialize service
             service = IssueAdherenceService()
@@ -171,7 +173,7 @@ class IssueAdherenceCommand(BaseCommand):
                 time_period=args.time_period,
                 issue_types=issue_types,
                 team=args.team,
-                status_categories=status_categories,
+                status=status,
                 include_no_due_date=args.include_no_due_date,
                 verbose=args.verbose,
                 output_file=args.output_file,
@@ -180,51 +182,18 @@ class IssueAdherenceCommand(BaseCommand):
             if result:
                 logger.info("Issue adherence analysis completed successfully")
 
-                # Print summary
-                print("\n" + "=" * 50)
-                print("ISSUE ADHERENCE ANALYSIS SUMMARY")
-                print("=" * 50)
-                print(f"Project: {args.project_key}")
-                print(f"Time Period: {args.time_period}")
-                print(f"Issue Types: {', '.join(issue_types)}")
-                if args.team:
-                    print(f"Team: {args.team}")
+                # Handle different output formats
+                if args.output_format == "console":
+                    # For now, use the basic summary (will be enhanced)
+                    IssueAdherenceCommand._print_basic_summary(result, args)
+                elif args.output_format in ["json", "md"]:
+                    output_path = result.get("output_file")
+                    if output_path:
+                        print("✅ Issue adherence analysis completed successfully!")
+                        print(f"📄 Report saved to: {output_path}")
+                    else:
+                        print("⚠️  Analysis completed but no output file was generated.")
 
-                # Print metrics
-                metrics = result.get("metrics", {})
-                print(f"\nTotal Issues Analyzed: {metrics.get('total_issues', 0)}")
-                print(
-                    f"Issues with Due Dates: {metrics.get('issues_with_due_dates', 0)}"
-                )
-
-                early_count = metrics.get("early", 0)
-                early_pct = metrics.get("early_percentage", 0)
-                print(f"Early Completion: {early_count} ({early_pct:.1f}%)")
-
-                on_time_count = metrics.get("on_time", 0)
-                on_time_pct = metrics.get("on_time_percentage", 0)
-                print(f"On-time Completion: {on_time_count} ({on_time_pct:.1f}%)")
-
-                late_count = metrics.get("late", 0)
-                late_pct = metrics.get("late_percentage", 0)
-                print(f"Late Completion: {late_count} ({late_pct:.1f}%)")
-
-                overdue_count = metrics.get("overdue", 0)
-                overdue_pct = metrics.get("overdue_percentage", 0)
-                print(f"Overdue: {overdue_count} ({overdue_pct:.1f}%)")
-
-                if args.include_no_due_date:
-                    no_due_count = metrics.get("no_due_date", 0)
-                    no_due_pct = metrics.get("no_due_date_percentage", 0)
-                    print(f"No Due Date: {no_due_count} ({no_due_pct:.1f}%)")
-
-                adherence_rate = metrics.get("adherence_rate", 0)
-                print(f"\nOverall Adherence Rate: {adherence_rate:.1f}%")
-
-                if args.output_file:
-                    print(f"\nDetailed report saved to: {args.output_file}")
-
-                print("=" * 50)
             else:
                 logger.error("Issue adherence analysis failed")
                 exit(1)
@@ -232,21 +201,153 @@ class IssueAdherenceCommand(BaseCommand):
         except Exception as e:
             # Check if this is a JQL/issue type error and provide helpful guidance
             error_str = str(e)
-            if ("400" in error_str and ("does not exist for the field 'type'" in error_str)):
+            if "400" in error_str and ("does not exist for the field 'type'" in error_str):
                 logger.error(f"Failed to execute issue adherence analysis: {e}")
-                print(f"\n{'='*50}")
+                print(f"\n{'=' * 50}")
                 print("ERROR: Invalid Issue Type Detected")
-                print("="*50)
+                print("=" * 50)
                 print(f"Error: {e}")
-                print(f"\nThe command failed because one or more issue types are not valid for project {args.project_key}.")
+                print(
+                    f"\nThe command failed because one or more issue types are not valid for project {args.project_key}."
+                )
                 print(f"You provided: {args.issue_types}")
                 print("\nTo fix this issue:")
                 print("1. Use the list-custom-fields command to see available issue types:")
                 print(f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}")
                 print("2. Or try with common issue types:")
                 print("   --issue-types 'Bug,Story,Task,Epic'")
-                print("="*50)
+                print("=" * 50)
             else:
                 logger.error(f"Failed to execute issue adherence analysis: {e}")
                 print(f"Error: Failed to execute issue adherence analysis: {e}")
             exit(1)
+
+    @staticmethod
+    def _print_basic_summary(result: dict, args: Namespace):
+        """Print enhanced adherence report to console with rich formatting."""
+        issue_types = [t.strip() for t in args.issue_types.split(",")]
+        metrics = result.get("metrics", {})
+
+        # Helper functions for formatting
+        def get_risk_emoji(adherence_rate: float) -> str:
+            if adherence_rate >= 80:
+                return "🟢"  # Low risk
+            elif adherence_rate >= 60:
+                return "🟡"  # Medium risk
+            else:
+                return "🔴"  # High risk
+
+        def get_risk_assessment(adherence_rate: float) -> str:
+            if adherence_rate >= 80:
+                return "Low Risk - Excellent adherence"
+            elif adherence_rate >= 60:
+                return "Medium Risk - Some concerns"
+            else:
+                return "High Risk - Action required"
+
+        # Extract key metrics
+        adherence_rate = metrics.get("adherence_rate", 0)
+        total_issues = metrics.get("total_issues", 0)
+        issues_with_due_dates = metrics.get("issues_with_due_dates", 0)
+
+        risk_emoji = get_risk_emoji(adherence_rate)
+        risk_assessment = get_risk_assessment(adherence_rate)
+
+        # Header
+        print("\n" + "🎯" + "=" * 77)
+        print(f"   {risk_emoji} JIRA ISSUE ADHERENCE ANALYSIS REPORT")
+        print("=" * 79)
+
+        # Project Information
+        print(f"📊 PROJECT: {args.project_key} | 📅 PERIOD: {args.time_period}")
+        if args.team:
+            print(f"👥 TEAM: {args.team}")
+        print(f"🏷️  ISSUE TYPES: {', '.join(issue_types)}")
+        print("-" * 79)
+
+        # Executive Summary
+        print("📈 EXECUTIVE SUMMARY")
+        print(f"   Overall Adherence Rate: {adherence_rate:.1f}%")
+        print(f"   Risk Assessment: {risk_assessment}")
+        print(f"   Total Issues Analyzed: {total_issues}")
+        print(f"   Issues with Due Dates: {issues_with_due_dates}")
+        print()
+
+        # Adherence Breakdown
+        print("📋 ADHERENCE BREAKDOWN")
+
+        status_data = [
+            ("early", "Early Completion", "🟢"),
+            ("on_time", "On-time Completion", "✅"),
+            ("late", "Late Completion", "🟡"),
+            ("overdue", "Overdue", "🔴"),
+            ("in_progress", "In Progress", "🔵"),
+        ]
+
+        if args.include_no_due_date:
+            status_data.append(("no_due_date", "No Due Date", "⚪"))
+
+        # Print status breakdown in a formatted way
+        for status_key, status_label, emoji in status_data:
+            count = metrics.get(status_key, 0)
+            percentage = metrics.get(f"{status_key}_percentage", 0)
+
+            if count > 0 or status_key in ["early", "on_time", "late", "overdue"]:
+                print(f"   {emoji} {status_label:<20} {count:>3} issues ({percentage:>5.1f}%)")
+
+        print()
+
+        # Performance Analysis
+        print("🎯 PERFORMANCE ANALYSIS")
+
+        early_count = metrics.get("early", 0)
+        on_time_count = metrics.get("on_time", 0)
+        late_count = metrics.get("late", 0)
+        overdue_count = metrics.get("overdue", 0)
+
+        total_completed = early_count + on_time_count + late_count
+        successful_completion = early_count + on_time_count
+
+        if total_completed > 0:
+            success_rate = (successful_completion / total_completed) * 100
+            print(f"   ✅ Completion Success Rate: {success_rate:.1f}%")
+            print(f"      Successfully completed on or before due date: {successful_completion}/{total_completed}")
+
+        if overdue_count > 0:
+            print(f"   ⚠️  Active Risks: {overdue_count} overdue issues require immediate attention")
+
+        if late_count > 0:
+            print(f"   📋 Improvement Area: {late_count} issues completed late")
+
+        print()
+
+        # Recommendations
+        print("💡 RECOMMENDATIONS")
+        if adherence_rate < 60:
+            print("   🚨 IMMEDIATE ACTIONS REQUIRED:")
+            print("      • Review project planning and estimation processes")
+            print("      • Implement more frequent milestone check-ins")
+            print("      • Consider workload balancing across team members")
+        elif adherence_rate < 80:
+            print("   ⚠️  IMPROVEMENT OPPORTUNITIES:")
+            print("      • Enhance due date visibility and tracking")
+            print("      • Implement early warning systems for at-risk issues")
+            print("      • Review resource allocation and capacity planning")
+        else:
+            print("   ✅ MAINTAIN EXCELLENCE:")
+            print("      • Continue current practices and monitoring")
+            print("      • Share best practices with other teams")
+            print("      • Focus on continuous improvement")
+
+        print()
+
+        # Data Quality Notes
+        print("📋 DATA QUALITY NOTES")
+        print("   • Analysis based on issues resolved within the specified time period")
+        print("   • Only issues with due dates are included in adherence calculations")
+        print("   • Adherence rate = (Early + On-time) / Total completed issues")
+
+        if args.output_file:
+            print(f"\n📄 Detailed report saved to: {args.output_file}")
+
+        print("=" * 79)

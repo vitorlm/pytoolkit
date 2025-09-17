@@ -117,8 +117,7 @@ class JiraAssistant:
                         return components
                     else:
                         self._logger.warning(
-                            f"Cached 'components' for project '{project_key}' is not a list. "
-                            "Returning empty list."
+                            f"Cached 'components' for project '{project_key}' is not a list. Returning empty list."
                         )
                         return []
                 else:
@@ -132,9 +131,7 @@ class JiraAssistant:
             response = self.client.get(f"project/{project_key}/components")
 
             if not response:
-                raise JiraComponentFetchError(
-                    "No response received for project components.", project_key=project_key
-                )
+                raise JiraComponentFetchError("No response received for project components.", project_key=project_key)
 
             # Ensure response is a list for cache and return
             if isinstance(response, list):
@@ -147,8 +144,7 @@ class JiraAssistant:
                     return components
                 else:
                     self._logger.warning(
-                        f"Response 'components' for project '{project_key}' is not a list. "
-                        "Returning empty list."
+                        f"Response 'components' for project '{project_key}' is not a list. Returning empty list."
                     )
                     self._save_to_cache(cache_key, {"components": []})
                     return []
@@ -206,9 +202,7 @@ class JiraAssistant:
             response = self.client.post("component", payload)
 
             if not response:
-                raise JiraComponentCreationError(
-                    "Failed to create component.", project_key=project_key, name=name
-                )
+                raise JiraComponentCreationError("Failed to create component.", project_key=project_key, name=name)
 
             self._logger.info(f"Component created with ID: {response.get('id')}")
             return response
@@ -296,9 +290,7 @@ class JiraAssistant:
         for component_id in component_ids:
             try:
                 success = self.delete_component(component_id)
-                results.append(
-                    {"component_id": component_id, "status": "success" if success else "failed"}
-                )
+                results.append({"component_id": component_id, "status": "success" if success else "failed"})
             except Exception as e:
                 self._logger.error(f"Failed to delete component '{component_id}': {e}")
                 results.append(
@@ -392,9 +384,7 @@ class JiraAssistant:
             self._logger.info(f"Creating issue in project '{project_key}' with payload: {payload}")
             response = self.client.post("issue", payload)
             if not response:
-                raise JiraIssueCreationError(
-                    "Failed to create issue.", project_key=project_key, payload=payload
-                )
+                raise JiraIssueCreationError("Failed to create issue.", project_key=project_key, payload=payload)
 
             self._logger.info(f"Issue created with key: {response.get('key')}")
             return response
@@ -418,20 +408,15 @@ class JiraAssistant:
             Optional[Dict]: Metadata of the specified issue type.
         """
         try:
-            cache_key = self._generate_cache_key(
-                "metadata", project_key=project_key, issue_type_id=issue_type_id
-            )
+            cache_key = self._generate_cache_key("metadata", project_key=project_key, issue_type_id=issue_type_id)
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
                 self._logger.info(
-                    f"Loaded metadata from cache for issue type '{issue_type_id}' "
-                    "in project '{project_key}'."
+                    f"Loaded metadata from cache for issue type '{issue_type_id}' in project '{{project_key}}'."
                 )
                 return cached_data
 
-            self._logger.info(
-                f"Fetching metadata for issue type '{issue_type_id}' in project '{project_key}'"
-            )
+            self._logger.info(f"Fetching metadata for issue type '{issue_type_id}' in project '{project_key}'")
             response = self.client.get(f"issue/createmeta/{project_key}/issuetypes/{issue_type_id}")
 
             if not response:
@@ -490,8 +475,7 @@ class JiraAssistant:
             )
 
             self._logger.info(
-                f"Fetching completed epics for team '{team_name}' within the "
-                "last {time_period_days} days."
+                f"Fetching completed epics for team '{team_name}' within the last {{time_period_days}} days."
             )
             epics = self.fetch_issues(jql_query)
 
@@ -501,8 +485,7 @@ class JiraAssistant:
             return epics
         except Exception as e:
             raise JiraQueryError(
-                f"Failed to fetch completed epics for team '{team_name}' within "
-                "the last {time_period_days} days.",
+                f"Failed to fetch completed epics for team '{team_name}' within the last {{time_period_days}} days.",
                 error=str(e),
             ) from e
 
@@ -541,9 +524,7 @@ class JiraAssistant:
             if fix_version:
                 jql_query += f" AND fixVersion = '{fix_version}'"
 
-            self._logger.info(
-                f"Fetching open {issue_type}s for team '{team_name}', fix version '{fix_version}'."
-            )
+            self._logger.info(f"Fetching open {issue_type}s for team '{team_name}', fix version '{fix_version}'.")
             open_issues = self.fetch_issues(jql_query)
 
             if open_issues:
@@ -578,53 +559,57 @@ class JiraAssistant:
         """
         try:
             issues = []
-            start_at = 0
+            next_page_token = None
             expand = ["changelog"] if expand_changelog else []
 
             while True:
                 cache_key = self._generate_cache_key(
-                    "issues",
+                    "issues_enhanced",
                     jql=jql_query,
                     fields=fields,
-                    start_at=start_at,
+                    next_page_token=next_page_token,
                     max_results=max_results,
                     expand=",".join(expand),
                 )
                 cached_data = self._load_from_cache(cache_key)
                 if cached_data:
                     self._logger.info(
-                        f"Loaded issues from cache for JQL: {jql_query} (start_at={start_at})"
+                        f"Loaded issues from cache for JQL: {jql_query} (next_page_token={next_page_token})"
                     )
                     if isinstance(cached_data, dict):
                         current_issues = cached_data.get("issues", [])
                         issues.extend(current_issues)
-                        
-                        # Stop if we've fetched all available issues from cache
-                        total_available = cached_data.get("total", 0)
-                        if len(issues) >= total_available or len(current_issues) == 0:
+
+                        # Check if there's a next page token for more results
+                        next_page_token = cached_data.get("nextPageToken")
+                        if not next_page_token or len(current_issues) == 0:
                             break
-                            
+
                         # Also stop if we received fewer issues than requested (indicates last page)
                         if len(current_issues) < max_results:
                             break
-                            
+
                     elif isinstance(cached_data, list):
                         issues.extend(cached_data)
                         break
-                    start_at += max_results
                     continue
 
-                self._logger.info(f"Fetching issues with JQL: {jql_query} (start_at={start_at})")
-                response = self.client.get(
-                    "search",
-                    params={
-                        "jql": jql_query,
-                        "fields": fields,
-                        "startAt": start_at,
-                        "maxResults": max_results,
-                        "expand": ",".join(expand),
-                    },
-                )
+                self._logger.info(f"Fetching issues with JQL: {jql_query} (next_page_token={next_page_token})")
+
+                # Prepare request payload for enhanced search API
+                payload = {
+                    "jql": jql_query,
+                    "fields": fields.split(",") if fields != "*" else ["*"],
+                    "maxResults": max_results,
+                }
+
+                if expand:
+                    payload["expand"] = ",".join(expand)
+
+                if next_page_token:
+                    payload["nextPageToken"] = next_page_token
+
+                response = self.client.post("search/jql", payload)
 
                 if not response:
                     raise JiraQueryError("No response received from Jira API.", jql=jql_query)
@@ -633,20 +618,19 @@ class JiraAssistant:
                 if isinstance(response, dict):
                     current_issues = response.get("issues", [])
                     issues.extend(current_issues)
-                    
-                    # Stop if we've fetched all available issues
-                    total_available = response.get("total", 0)
-                    if len(issues) >= total_available or len(current_issues) == 0:
+
+                    # Get next page token for pagination
+                    next_page_token = response.get("nextPageToken")
+                    if not next_page_token or len(current_issues) == 0:
                         break
-                        
+
                     # Also stop if we received fewer issues than requested (indicates last page)
                     if len(current_issues) < max_results:
                         break
-                        
+
                 elif isinstance(response, list):
                     issues.extend(response)
                     break
-                start_at += max_results
 
             return issues
         except JiraQueryError as e:
@@ -685,9 +669,7 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraMetadataFetchError(
-                f"Error fetching project metadata for {project_key}", 
-                project_key=project_key, 
-                error=str(e)
+                f"Error fetching project metadata for {project_key}", project_key=project_key, error=str(e)
             ) from e
 
     def fetch_project_issue_types(self, project_key: str) -> List[Dict]:
@@ -703,12 +685,10 @@ class JiraAssistant:
         try:
             project_metadata = self.fetch_project_metadata(project_key)
             issue_types = project_metadata.get("issueTypes", [])
-            
+
             self._logger.info(f"Found {len(issue_types)} issue types for project {project_key}")
             return issue_types
         except Exception as e:
             raise JiraMetadataFetchError(
-                f"Error fetching issue types for project {project_key}", 
-                project_key=project_key, 
-                error=str(e)
+                f"Error fetching issue types for project {project_key}", project_key=project_key, error=str(e)
             ) from e

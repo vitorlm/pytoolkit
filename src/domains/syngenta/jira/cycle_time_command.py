@@ -58,6 +58,7 @@ CYCLE TIME METRICS:
 
 from argparse import ArgumentParser, Namespace
 
+from domains.syngenta.jira.cycle_time_formatter import CycleTimeFormatter
 from domains.syngenta.jira.cycle_time_service import CycleTimeService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
@@ -121,16 +122,6 @@ class CycleTimeCommand(BaseCommand):
             help="Filter by priority (e.g., 'Critical', 'High', 'Medium', 'Low'). Comma-separated for multiple priorities.",
         )
         parser.add_argument(
-            "--status-categories",
-            type=str,
-            required=False,
-            default="Done",
-            help=(
-                "Comma-separated list of status categories to include "
-                "(default: 'Done')."
-            ),
-        )
-        parser.add_argument(
             "--output-file",
             type=str,
             required=False,
@@ -141,6 +132,13 @@ class CycleTimeCommand(BaseCommand):
             action="store_true",
             help="Enable verbose output with detailed issue information.",
         )
+        parser.add_argument(
+            "--output-format",
+            type=str,
+            choices=["json", "md", "console"],
+            default="console",
+            help="Output format: json (JSON file), md (Markdown file), console (display only)",
+        )
 
     @staticmethod
     def main(args: Namespace):
@@ -150,34 +148,22 @@ class CycleTimeCommand(BaseCommand):
         Args:
             args (Namespace): Command-line arguments.
         """
-        # Ensure environment variables are loaded
         ensure_env_loaded()
-
         logger = LogManager.get_instance().get_logger("CycleTimeCommand")
 
         try:
-            # Parse issue types
+            # Parse inputs
             issue_types = [t.strip() for t in args.issue_types.split(",")]
+            priorities = [p.strip() for p in args.priority.split(",")] if args.priority else None
 
-            # Parse status categories
-            status_categories = [s.strip() for s in args.status_categories.split(",")]
-
-            # Parse priorities
-            priorities = None
-            if args.priority:
-                priorities = [p.strip() for p in args.priority.split(",")]
-
-            # Initialize service
+            # Execute analysis through service
             service = CycleTimeService()
-
-            # Run cycle time analysis
             result = service.analyze_cycle_time(
                 project_key=args.project_key,
                 time_period=args.time_period,
                 issue_types=issue_types,
                 team=args.team,
                 priorities=priorities,
-                status_categories=status_categories,
                 verbose=args.verbose,
                 output_file=args.output_file,
             )
@@ -185,86 +171,47 @@ class CycleTimeCommand(BaseCommand):
             if result:
                 logger.info("Cycle time analysis completed successfully")
 
-                # Print summary
-                print("\n" + "=" * 50)
-                print("CYCLE TIME ANALYSIS SUMMARY")
-                print("=" * 50)
-                print(f"Project: {args.project_key}")
-                print(f"Time Period: {args.time_period}")
-                print(f"Issue Types: {', '.join(issue_types)}")
-                if args.team:
-                    print(f"Team: {args.team}")
-                if priorities:
-                    print(f"Priority Filter: {', '.join(priorities)}")
+                # Handle output format
+                if args.output_format == "json":
+                    import json
+                    import os
 
-                # Print metrics
-                metrics = result.get("metrics", {})
-                print(f"\nTotal Issues Analyzed: {metrics.get('total_issues', 0)}")
-                print(
-                    f"Issues with Cycle Time: {metrics.get('issues_with_cycle_time', 0)}"
-                )
+                    time_period_clean = args.time_period.replace(" ", "_").replace(",", "")
+                    output_file = f"output/cycle_time_{args.project_key}_{time_period_clean}.json"
+                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+                    print(f"✅ JSON report saved to: {output_file}")
 
-                avg_cycle_time = metrics.get("average_cycle_time_hours", 0)
-                avg_days = avg_cycle_time / 24
-                print(
-                    f"Average Cycle Time: {avg_cycle_time:.1f} hours ({avg_days:.1f} days)"
-                )
+                elif args.output_format == "md":
+                    import os
 
-                median_cycle_time = metrics.get("median_cycle_time_hours", 0)
-                median_days = median_cycle_time / 24
-                print(
-                    f"Median Cycle Time: {median_cycle_time:.1f} hours ({median_days:.1f} days)"
-                )
+                    # Note: _format_as_markdown method needs to be added to service
+                    if hasattr(service, "_format_as_markdown"):
+                        markdown_content = service._format_as_markdown(result)
+                        time_period_clean = args.time_period.replace(" ", "_").replace(",", "")
+                        output_file = f"output/cycle_time_{args.project_key}_{time_period_clean}.md"
+                        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            f.write(markdown_content)
+                        print(f"📄 Markdown report saved to: {output_file}")
+                    else:
+                        logger.warning("Markdown format not yet implemented")
 
-                min_cycle_time = metrics.get("min_cycle_time_hours", 0)
-                min_days = min_cycle_time / 24
-                print(
-                    f"Fastest Resolution: {min_cycle_time:.1f} hours ({min_days:.1f} days)"
-                )
+                else:
+                    # Enhanced console display using formatter
+                    formatter = CycleTimeFormatter()
+                    formatter.display_enhanced_console(result)
 
-                max_cycle_time = metrics.get("max_cycle_time_hours", 0)
-                max_days = max_cycle_time / 24
-                print(
-                    f"Slowest Resolution: {max_cycle_time:.1f} hours ({max_days:.1f} days)"
-                )
-
-                # Print distribution
-                distribution = metrics.get("time_distribution", {})
-                if distribution:
-                    print("\nTime Distribution:")
-                    for time_range, count in distribution.items():
-                        total_issues = metrics.get("issues_with_cycle_time", 1)
-                        percentage = (count / total_issues) * 100
-                        print(f"  {time_range}: {count} issues ({percentage:.1f}%)")
-
-                # Print priority breakdown
-                priority_metrics = metrics.get("priority_breakdown", {})
-                if priority_metrics:
-                    print("\nCycle Time by Priority:")
-                    for priority, p_metrics in priority_metrics.items():
-                        avg_hours = p_metrics.get("average_cycle_time_hours", 0)
-                        avg_days = avg_hours / 24
-                        count = p_metrics.get("count", 0)
-                        print(
-                            f"  {priority}: {count} issues, avg {avg_hours:.1f}h ({avg_days:.1f}d)"
-                        )
-
-                if args.output_file:
-                    print(f"\nDetailed report saved to: {args.output_file}")
-
-                print("=" * 50)
             else:
                 logger.error("Cycle time analysis failed")
                 exit(1)
 
         except Exception as e:
-            # Check if this is a JQL/issue type error and provide helpful guidance
             error_str = str(e)
-            if "400" in error_str and (
-                "does not exist for the field 'type'" in error_str
-            ):
-                logger.error(f"Failed to execute cycle time analysis: {e}")
-                print(f"\n{'='*50}")
+            if "400" in error_str and ("does not exist for the field 'type'" in error_str):
+                logger.error(f"Invalid issue type for project {args.project_key}: {e}")
+                print(f"\n{'=' * 50}")
                 print("ERROR: Invalid Issue Type Detected")
                 print("=" * 50)
                 print(f"Error: {e}")
@@ -273,16 +220,11 @@ class CycleTimeCommand(BaseCommand):
                 )
                 print(f"You provided: {args.issue_types}")
                 print("\nTo fix this issue:")
-                print(
-                    "1. Use the list-custom-fields command to see available issue types:"
-                )
-                print(
-                    f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}"
-                )
+                print("1. Use the list-custom-fields command to see available issue types:")
+                print(f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}")
                 print("2. Or try with common issue types:")
                 print("   --issue-types 'Bug,Story,Task,Epic'")
                 print("=" * 50)
             else:
                 logger.error(f"Failed to execute cycle time analysis: {e}")
-                print(f"Error: Failed to execute cycle time analysis: {e}")
             exit(1)

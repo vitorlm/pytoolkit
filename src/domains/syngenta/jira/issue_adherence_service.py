@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
@@ -30,9 +31,7 @@ class IssueAdherenceResult:
     assignee: Optional[str]
     team: Optional[str]
     adherence_status: str  # 'early', 'on_time', 'late', 'overdue', 'no_due_date'
-    days_difference: Optional[
-        int
-    ]  # positive = late, negative = early, None = no due date or not resolved
+    days_difference: Optional[int]  # positive = late, negative = early, None = no due date or not resolved
 
 
 class TimePeriodParser:
@@ -101,9 +100,7 @@ class TimePeriodParser:
             return start_date, end_date
         except ValueError as e:
             if "time data" in str(e):
-                raise ValueError(
-                    f"Invalid date format in range '{time_period}'. Use YYYY-MM-DD format."
-                )
+                raise ValueError(f"Invalid date format in range '{time_period}'. Use YYYY-MM-DD format.")
             raise
 
     @staticmethod
@@ -126,16 +123,47 @@ class IssueAdherenceService:
         self.logger = LogManager.get_instance().get_logger("IssueAdherenceService")
         self.time_parser = TimePeriodParser()
 
+    def _get_adherence_status_emoji(self, status: str) -> str:
+        """Get emoji for adherence status."""
+        emoji_map = {
+            "early": "🟢",
+            "on_time": "✅",
+            "late": "🟡",
+            "overdue": "🔴",
+            "no_due_date": "⚪",
+            "in_progress": "🔵",
+        }
+        return emoji_map.get(status, "❓")
+
+    def _get_risk_level_emoji(self, adherence_rate: float) -> str:
+        """Get emoji for risk level based on adherence rate."""
+        if adherence_rate >= 80:
+            return "🟢"  # Low risk
+        elif adherence_rate >= 60:
+            return "🟡"  # Medium risk
+        else:
+            return "🔴"  # High risk
+
+    def _get_risk_assessment(self, adherence_rate: float) -> str:
+        """Get risk assessment text based on adherence rate."""
+        if adherence_rate >= 80:
+            return "Low Risk - Excellent adherence to due dates"
+        elif adherence_rate >= 60:
+            return "Medium Risk - Moderate adherence issues"
+        else:
+            return "High Risk - Significant adherence concerns"
+
     def analyze_issue_adherence(
         self,
         project_key: str,
         time_period: str,
         issue_types: List[str],
         team: Optional[str] = None,
-        status_categories: Optional[List[str]] = None,
+        status: Optional[List[str]] = None,
         include_no_due_date: bool = False,
         verbose: bool = False,
         output_file: Optional[str] = None,
+        output_format: str = "console",
     ) -> Dict:
         """
         Analyze issue adherence for issues that were resolved within a specified time period.
@@ -145,10 +173,11 @@ class IssueAdherenceService:
             time_period (str): Time period to analyze
             issue_types (List[str]): List of issue types to include
             team (Optional[str]): Team name to filter by
-            status_categories (List[str]): Status categories to include
+            status (List[str]): Status to include
             include_no_due_date (bool): Include issues without due dates
             verbose (bool): Enable verbose output
             output_file (Optional[str]): Output file path
+            output_format (str): Output format: "console", "json", or "md"
 
         Returns:
             Dict: Analysis results with metrics and issue details
@@ -160,9 +189,7 @@ class IssueAdherenceService:
             start_date, end_date = self.time_parser.parse_time_period(time_period)
 
             # Build JQL query
-            jql_query = self._build_jql_query(
-                project_key, start_date, end_date, issue_types, team, status_categories
-            )
+            jql_query = self._build_jql_query(project_key, start_date, end_date, issue_types, team, status)
 
             self.logger.info(f"Executing JQL query: {jql_query}")
 
@@ -171,9 +198,7 @@ class IssueAdherenceService:
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields=(
-                    "key,summary,issuetype,status,duedate,"
-                    "resolutiondate,assignee,customfield_10851,"
-                    "customfield_10265"
+                    "key,summary,issuetype,status,duedate,resolutiondate,assignee,customfield_10851,customfield_10265"
                 ),
                 max_results=100,  # Use 100 to work with JIRA limitation on custom fields
                 expand_changelog=False,
@@ -215,7 +240,7 @@ class IssueAdherenceService:
                     "end_date": end_date.isoformat(),
                     "issue_types": issue_types,
                     "team": team,
-                    "status_categories": status_categories,
+                    "status": status,
                     "include_no_due_date": include_no_due_date,
                     "analysis_date": datetime.now().isoformat(),
                 },
@@ -223,15 +248,18 @@ class IssueAdherenceService:
                 "issues": [self._result_to_dict(result) for result in adherence_results],
             }
 
-            # Save to file if specified
+            # Save to file if specified or generate default output
+            output_path = None
             if output_file:
-                self._save_results(results, output_file)
-            else:
+                output_path = self._save_results_with_format(results, output_file, output_format)
+            elif output_format in ["json", "md"]:
                 # Generate default output file in organized structure
-                output_path = OutputManager.get_output_path(
-                    "issue-adherence", f"adherence_{project_key}"
-                )
-                self._save_results(results, output_path)
+                base_path = OutputManager.get_output_path("issue-adherence", f"adherence_{project_key}")
+                output_path = self._save_results_with_format(results, base_path, output_format)
+
+            # Add output file path to results for command feedback
+            if output_path:
+                results["output_file"] = output_path
 
             # Print verbose output if requested
             if verbose:
@@ -242,27 +270,29 @@ class IssueAdherenceService:
         except Exception as e:
             # Check if this is a JQL error and provide helpful suggestions
             error_str = str(e)
-            if ("400" in error_str and ("does not exist for the field 'type'" in error_str or "invalid issue type" in error_str.lower())):
+            if "400" in error_str and (
+                "does not exist for the field 'type'" in error_str or "invalid issue type" in error_str.lower()
+            ):
                 self.logger.error("JQL Query Error (400): Invalid issue type detected.")
                 self.logger.error(f"Original query: {jql_query}")
-                
+
                 # Try to fetch available issue types for the project
                 try:
                     available_types = self.jira_assistant.fetch_project_issue_types(project_key)
-                    type_names = [t.get('name') for t in available_types]
+                    type_names = [t.get("name") for t in available_types]
                     self.logger.error(f"Available issue types for project {project_key}: {type_names}")
-                    
+
                     # Check which provided types are not available
                     invalid_types = [t for t in issue_types if t not in type_names]
                     if invalid_types:
                         self.logger.error(f"Invalid issue types provided: {invalid_types}")
                         self.logger.error("Suggested command with valid types:")
                         valid_types = [t for t in issue_types if t in type_names]
-                        suggested_types = ','.join(valid_types) if valid_types else ','.join(type_names[:5])
+                        suggested_types = ",".join(valid_types) if valid_types else ",".join(type_names[:5])
                         self.logger.error(f"--issue-types '{suggested_types}'")
                 except Exception as metadata_error:
                     self.logger.warning(f"Could not fetch project metadata: {metadata_error}")
-                
+
             self.logger.error(f"Error in issue adherence analysis: {e}")
             raise
 
@@ -273,7 +303,7 @@ class IssueAdherenceService:
         end_date: datetime,
         issue_types: List[str],
         team: Optional[str],
-        status_categories: Optional[List[str]],
+        status: Optional[List[str]],
     ) -> str:
         """Build JQL query for fetching issues."""
 
@@ -294,10 +324,10 @@ class IssueAdherenceService:
         if team:
             jql_parts.append(f"'Squad[Dropdown]' = '{team}'")
 
-        # Status categories
-        if status_categories:
-            categories_str = "', '".join(status_categories)
-            jql_parts.append(f"statusCategory in ('{categories_str}')")
+        # Status
+        if status:
+            status_str = "', '".join(status)
+            jql_parts.append(f"status in ('{status_str}')")
 
         return " AND ".join(jql_parts)
 
@@ -315,16 +345,10 @@ class IssueAdherenceService:
         due_date = fields.get("duedate")
         resolution_date = fields.get("resolutiondate")
         assignee = fields.get("assignee", {}).get("displayName") if fields.get("assignee") else None
-        team = (
-            fields.get("customfield_10265", {}).get("value")
-            if fields.get("customfield_10265")
-            else None
-        )
+        team = fields.get("customfield_10265", {}).get("value") if fields.get("customfield_10265") else None
 
         # Determine adherence status
-        adherence_status, days_difference = self._determine_adherence_status(
-            due_date, resolution_date, status_category
-        )
+        adherence_status, days_difference = self._determine_adherence_status(due_date, resolution_date, status_category)
 
         return IssueAdherenceResult(
             issue_key=issue_key,
@@ -388,9 +412,7 @@ class IssueAdherenceService:
             # Handle different timezone formats from JIRA
             if date_string.endswith("Z"):
                 # UTC format: 2025-07-18T18:43:31.570Z
-                return datetime.fromisoformat(date_string.replace("Z", "+00:00")).replace(
-                    tzinfo=None
-                )
+                return datetime.fromisoformat(date_string.replace("Z", "+00:00")).replace(tzinfo=None)
             elif "+" in date_string or date_string.count("-") > 2:
                 # Timezone offset format: 2025-07-18T18:43:31.570-0300 or +0000
                 # Need to add colon to make it ISO compatible: -0300 -> -03:00
@@ -500,14 +522,81 @@ class IssueAdherenceService:
             "days_difference": result.days_difference,
         }
 
+    def _save_results_with_format(self, results: Dict, base_path: str, output_format: str) -> str:
+        """
+        Save results in the specified format.
+
+        Args:
+            results (Dict): Analysis results
+            base_path (str): Base file path (without extension)
+            output_format (str): Format to save in ("json" or "md")
+
+        Returns:
+            str: Path to saved file
+        """
+        try:
+            if output_format == "md":
+                # Generate markdown content
+                markdown_content = self._format_as_markdown(results)
+
+                # Use OutputManager to save markdown
+                output_path = OutputManager.save_markdown_report(
+                    content=markdown_content,
+                    sub_dir="issue-adherence",
+                    file_basename=f"adherence_{results.get('analysis_metadata', {}).get('project_key', 'unknown')}",
+                )
+
+                self.logger.info(f"Markdown report saved to {output_path}")
+                return output_path
+
+            else:  # Default to JSON
+                # Use OutputManager to save JSON
+                output_path = OutputManager.save_json_report(
+                    data=results,
+                    sub_dir="issue-adherence",
+                    file_basename=f"adherence_{results.get('analysis_metadata', {}).get('project_key', 'unknown')}",
+                )
+
+                self.logger.info(f"JSON report saved to {output_path}")
+                return output_path
+
+        except Exception as e:
+            self.logger.error(f"Failed to save results in {output_format} format: {e}")
+            raise
+
     def _save_results(self, results: Dict, output_file: str):
         """Save results to JSON file."""
         try:
+            # Ensure the directory exists before writing the file
+            # Extract directory path from file path
+            output_dir = self._extract_directory_path(output_file)
+            if output_dir and not FileManager.is_folder(output_dir):
+                FileManager.create_folder(output_dir)
+                self.logger.info(f"Created output directory: {output_dir}")
+
             JSONManager.write_json(results, output_file)
             self.logger.info(f"Results saved to {output_file}")
         except Exception as e:
             self.logger.error(f"Failed to save results to {output_file}: {e}")
             raise
+
+    def _extract_directory_path(self, file_path: str) -> Optional[str]:
+        """
+        Extract directory path from file path in a cross-platform way.
+
+        Args:
+            file_path (str): Full file path
+
+        Returns:
+            Optional[str]: Directory path or None if no directory component
+        """
+        # Find the last path separator (works for both / and \)
+        last_sep_pos = max(file_path.rfind("/"), file_path.rfind("\\"))
+
+        if last_sep_pos > 0:  # > 0 to ensure we don't return empty string for paths like "file.json"
+            return file_path[:last_sep_pos]
+
+        return None
 
     def _print_verbose_results(self, results: List[IssueAdherenceResult], _metrics: Dict):
         """Print verbose results to console."""
@@ -546,3 +635,237 @@ class IssueAdherenceService:
                 print()
 
         print("=" * 80)
+
+    def _format_as_markdown(self, results: Dict) -> str:
+        """
+        Format adherence analysis results as markdown optimized for AI consumption.
+
+        Args:
+            results (Dict): Analysis results containing metadata, metrics, and issues
+
+        Returns:
+            str: Markdown formatted report
+        """
+        metadata = results.get("analysis_metadata", {})
+        metrics = results.get("metrics", {})
+        issues = results.get("issues", [])
+
+        # Extract metadata
+        project_key = metadata.get("project_key", "Unknown")
+        time_period = metadata.get("time_period", "Unknown")
+        start_date = metadata.get("start_date", "")
+        end_date = metadata.get("end_date", "")
+        issue_types = metadata.get("issue_types", [])
+        team = metadata.get("team")
+        analysis_date = metadata.get("analysis_date", "")
+
+        # Calculate risk assessment
+        adherence_rate = metrics.get("adherence_rate", 0)
+        risk_emoji = self._get_risk_level_emoji(adherence_rate)
+        risk_assessment = self._get_risk_assessment(adherence_rate)
+
+        md_content = []
+
+        # Header
+        md_content.append(f"# {risk_emoji} JIRA Issue Adherence Analysis Report")
+        md_content.append("")
+        md_content.append(f"**Project:** {project_key}")
+        md_content.append(f"**Analysis Period:** {time_period}")
+        if start_date and end_date:
+            md_content.append(f"**Date Range:** {start_date[:10]} to {end_date[:10]}")
+        md_content.append(f"**Issue Types:** {', '.join(issue_types)}")
+        if team:
+            md_content.append(f"**Team Filter:** {team}")
+        md_content.append(f"**Generated:** {analysis_date[:19] if analysis_date else 'Unknown'}")
+        md_content.append("")
+
+        # Executive Summary
+        md_content.append("## 📊 Executive Summary")
+        md_content.append("")
+        md_content.append(f"**Overall Adherence Rate:** {adherence_rate:.1f}%")
+        md_content.append(f"**Risk Assessment:** {risk_assessment}")
+        md_content.append("")
+        md_content.append(f"- **Total Issues Analyzed:** {metrics.get('total_issues', 0)}")
+        md_content.append(f"- **Issues with Due Dates:** {metrics.get('issues_with_due_dates', 0)}")
+        md_content.append(
+            f"- **Completed Issues:** {metrics.get('early', 0) + metrics.get('on_time', 0) + metrics.get('late', 0)}"
+        )
+        md_content.append("")
+
+        # Key Metrics
+        md_content.append("## 📈 Adherence Metrics Breakdown")
+        md_content.append("")
+        md_content.append("| Status | Count | Percentage | Emoji |")
+        md_content.append("|--------|-------|------------|-------|")
+
+        status_metrics = [
+            ("early", "Early Completion"),
+            ("on_time", "On-time Completion"),
+            ("late", "Late Completion"),
+            ("overdue", "Overdue"),
+            ("no_due_date", "No Due Date"),
+            ("in_progress", "In Progress"),
+        ]
+
+        for status_key, status_label in status_metrics:
+            count = metrics.get(status_key, 0)
+            percentage = metrics.get(f"{status_key}_percentage", 0)
+            emoji = self._get_adherence_status_emoji(status_key)
+            md_content.append(f"| {status_label} | {count} | {percentage:.1f}% | {emoji} |")
+
+        md_content.append("")
+
+        # Performance Analysis
+        md_content.append("## 🎯 Performance Analysis")
+        md_content.append("")
+
+        early_count = metrics.get("early", 0)
+        on_time_count = metrics.get("on_time", 0)
+        late_count = metrics.get("late", 0)
+        overdue_count = metrics.get("overdue", 0)
+
+        total_completed = early_count + on_time_count + late_count
+        successful_completion = early_count + on_time_count
+
+        if total_completed > 0:
+            success_rate = (successful_completion / total_completed) * 100
+            md_content.append(f"### ✅ Completion Success Rate: {success_rate:.1f}%")
+            md_content.append(
+                f"- **Successfully completed on or before due date:** {successful_completion}/{total_completed} issues"
+            )
+            md_content.append("")
+
+        if overdue_count > 0:
+            md_content.append("### ⚠️ Active Risks")
+            md_content.append(f"- **{overdue_count} overdue issues** require immediate attention")
+            md_content.append("")
+
+        if late_count > 0:
+            md_content.append("### 📋 Improvement Opportunities")
+            md_content.append(f"- **{late_count} issues completed late** - Review estimation and planning processes")
+            md_content.append("")
+
+        # Detailed Issue Analysis
+        if issues:
+            md_content.append("## 📝 Detailed Issue Analysis")
+            md_content.append("")
+
+            # Group issues by status
+            status_groups: Dict[str, List[Dict]] = {}
+            for issue in issues:
+                status = issue.get("adherence_status", "unknown")
+                if status not in status_groups:
+                    status_groups[status] = []
+                status_groups[status].append(issue)
+
+            # Order statuses by priority (problems first)
+            status_order = ["overdue", "late", "on_time", "early", "in_progress", "no_due_date"]
+
+            for status in status_order:
+                if status not in status_groups:
+                    continue
+
+                status_issues = status_groups[status]
+                emoji = self._get_adherence_status_emoji(status)
+                status_label = status.replace("_", " ").title()
+
+                md_content.append(f"### {emoji} {status_label} Issues ({len(status_issues)})")
+                md_content.append("")
+
+                if len(status_issues) <= 10:  # Show all if 10 or fewer
+                    md_content.append("| Issue Key | Summary | Type | Assignee | Days Difference |")
+                    md_content.append("|-----------|---------|------|-----------|-----------------|")
+
+                    for issue in status_issues:
+                        issue_key = issue.get("issue_key", "N/A")
+                        summary = issue.get("summary", "N/A")[:50] + (
+                            "..." if len(issue.get("summary", "")) > 50 else ""
+                        )
+                        issue_type = issue.get("issue_type", "N/A")
+                        assignee = issue.get("assignee", "Unassigned")
+                        days_diff = issue.get("days_difference")
+
+                        if days_diff is not None:
+                            if status == "early":
+                                days_text = f"{abs(days_diff)} days early"
+                            elif status == "late":
+                                days_text = f"{days_diff} days late"
+                            elif status == "overdue":
+                                days_text = f"{days_diff} days overdue"
+                            elif status == "on_time":
+                                days_text = "On time"
+                            else:
+                                days_text = "N/A"
+                        else:
+                            days_text = "N/A"
+
+                        md_content.append(f"| {issue_key} | {summary} | {issue_type} | {assignee} | {days_text} |")
+                else:
+                    # Show summary for large lists
+                    md_content.append(f"**{len(status_issues)} issues** in this category. Top 5 by impact:")
+                    md_content.append("")
+                    md_content.append("| Issue Key | Summary | Type | Days Difference |")
+                    md_content.append("|-----------|---------|------|-----------------|")
+
+                    # Sort by days difference for priority (most overdue/late first)
+                    sorted_issues = sorted(
+                        status_issues,
+                        key=lambda x: x.get("days_difference", 0) if x.get("days_difference") is not None else 0,
+                        reverse=True,
+                    )
+
+                    for issue in sorted_issues[:5]:
+                        issue_key = issue.get("issue_key", "N/A")
+                        summary = issue.get("summary", "N/A")[:40] + (
+                            "..." if len(issue.get("summary", "")) > 40 else ""
+                        )
+                        issue_type = issue.get("issue_type", "N/A")
+                        days_diff = issue.get("days_difference")
+
+                        if days_diff is not None:
+                            if status == "early":
+                                days_text = f"{abs(days_diff)} early"
+                            elif status in ["late", "overdue"]:
+                                days_text = f"{days_diff} {status}"
+                            else:
+                                days_text = "On time"
+                        else:
+                            days_text = "N/A"
+
+                        md_content.append(f"| {issue_key} | {summary} | {issue_type} | {days_text} |")
+
+                md_content.append("")
+
+        # Recommendations
+        md_content.append("## 💡 Recommendations")
+        md_content.append("")
+
+        if adherence_rate < 60:
+            md_content.append("### 🚨 Immediate Actions Required")
+            md_content.append("- Review project planning and estimation processes")
+            md_content.append("- Implement more frequent milestone check-ins")
+            md_content.append("- Consider workload balancing across team members")
+            md_content.append("")
+        elif adherence_rate < 80:
+            md_content.append("### ⚠️ Improvement Opportunities")
+            md_content.append("- Enhance due date visibility and tracking")
+            md_content.append("- Implement early warning systems for at-risk issues")
+            md_content.append("- Review resource allocation and capacity planning")
+            md_content.append("")
+        else:
+            md_content.append("### ✅ Maintain Excellence")
+            md_content.append("- Continue current practices and monitoring")
+            md_content.append("- Share best practices with other teams")
+            md_content.append("- Focus on continuous improvement")
+            md_content.append("")
+
+        # Data Quality Notes
+        md_content.append("## 📋 Data Quality Notes")
+        md_content.append("")
+        md_content.append("- Analysis based on issues resolved within the specified time period")
+        md_content.append("- Only issues with due dates are included in adherence calculations")
+        md_content.append("- Adherence rate = (Early + On-time completions) / Total completed issues")
+        md_content.append("- Timestamps are based on JIRA resolution dates and due dates")
+        md_content.append("")
+
+        return "\n".join(md_content)

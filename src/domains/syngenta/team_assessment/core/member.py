@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import Optional
 from pydantic import BaseModel, Field
 from .statistics import IndividualStatistics
 from .health_check import MemberHealthCheck
@@ -13,17 +13,17 @@ class Member(BaseModel):
     Attributes:
         name (str): First name of the team member.
         last_name (Optional[str]): Last name of the team member.
-        feedback (Optional[Dict[str, Dict[str, List[Indicator]]]]): Feedback data.
+        feedback (Optional[dict[str, dict[str, list[Indicator]]]]): Feedback data.
         feedback_stats (Optional[IndividualStatistics]): Feedback statistics.
-        tasks (Optional[List[Task]]): List of tasks assigned to the member.
+        tasks (Optional[list[Task]]): list of tasks assigned to the member.
         health_check (Optional[MemberHealthCheck]): Health check data for the member.
     """
 
     name: str
     last_name: Optional[str] = None
-    feedback: Optional[Dict[str, Dict[str, List[Indicator]]]] = Field(default_factory=dict)
+    feedback: Optional[dict[str, dict[str, list[Indicator]]]] = Field(default_factory=lambda: {})
     feedback_stats: Optional[IndividualStatistics] = None  # Added this field
-    tasks: Optional[List[Issue]] = Field(default_factory=list)
+    tasks: Optional[list[Issue]] = Field(default_factory=lambda: [])
     health_check: Optional[MemberHealthCheck] = None
 
     @classmethod
@@ -31,9 +31,9 @@ class Member(BaseModel):
         cls,
         name: str,
         last_name: Optional[str] = None,
-        feedback: Optional[Dict[str, Dict[str, List[Indicator]]]] = None,
+        feedback: Optional[dict[str, dict[str, list[Indicator]]]] = None,
         feedback_stats: Optional[IndividualStatistics] = None,
-        tasks: Optional[List[Issue]] = None,
+        tasks: Optional[list[Issue]] = None,
         health_check: Optional[MemberHealthCheck] = None,
     ) -> "Member":
         """
@@ -42,9 +42,9 @@ class Member(BaseModel):
         Args:
             name (str): First name of the team member.
             last_name (Optional[str]): Last name of the team member.
-            feedback (Optional[Dict[str, Dict[str, List[Indicator]]]]): Feedback data.
+            feedback (Optional[dict[str, dict[str, list[Indicator]]]]): Feedback data.
             feedback_stats (Optional[IndividualStatistics]): Feedback statistics.
-            tasks (Optional[List[Task]]): List of tasks assigned to the member.
+            tasks (Optional[list[Task]]): list of tasks assigned to the member.
             health_check (Optional[MemberHealthCheck]): Health check data.
 
         Returns:

@@ -1,44 +1,84 @@
 import os
-from typing import Optional
+from datetime import datetime
+from typing import Dict, Optional
+
+from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
 
 
 class OutputManager:
-    """Utility class for managing output file paths in the project."""
-
-    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+    _output_dir = "output"
 
     @staticmethod
-    def get_output_path(
-        command_name: str, filename: Optional[str] = None, extension: str = ".json"
-    ) -> str:
+    def get_output_path(sub_dir: str, file_name: str, extension: str = "json") -> str:
         """
-        Generate a standardized output path for a command.
+        Constructs a standardized file path within the output directory,
+        ensuring the subdirectory exists.
 
         Args:
-            command_name (str): Name of the command (used as sub-folder name)
-            filename (str, optional): Specific filename. If None, generates a timestamped name
-            extension (str): File extension (default: .json)
+            sub_dir (str): The subdirectory within the main output folder (e.g., 'net-flow').
+            file_name (str): The base name of the file, without timestamp or extension.
+            extension (str): The file extension (default: 'json').
 
         Returns:
-            str: Full path to the output file
+            str: The full, standardized path to the output file.
         """
-        # Create command-specific subdirectory
-        command_output_dir = os.path.join(OutputManager.OUTPUT_DIR, command_name)
-        FileManager.create_folder(command_output_dir)
+        # Create a timestamped and formatted file name
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        full_file_name = f"{file_name}_{timestamp}.{extension}"
 
-        # Generate filename if not provided
-        if filename is None:
-            filename = FileManager.generate_file_name(
-                module=command_name, suffix="output", extension=extension
-            )
-        elif not filename.endswith(extension):
-            filename = f"{filename}{extension}"
+        # Create the full path
+        target_dir = os.path.join(OutputManager._output_dir, sub_dir)
+        os.makedirs(target_dir, exist_ok=True)
 
-        return os.path.join(command_output_dir, filename)
+        return os.path.join(target_dir, full_file_name)
 
     @staticmethod
-    def ensure_output_dir():
-        """Ensure the main output directory exists."""
-        FileManager.create_folder(OutputManager.OUTPUT_DIR)
+    def save_json_report(data: Dict, sub_dir: str, file_basename: str, output_path: Optional[str] = None) -> str:
+        """
+        Saves a dictionary as a JSON report.
+
+        Args:
+            data (Dict): The dictionary data to save.
+            sub_dir (str): The subdirectory for the report (e.g., 'net-flow').
+            file_basename (str): The base name for the file.
+            output_path (Optional[str]): Optional custom full path to save the file.
+
+        Returns:
+            str: The path where the file was saved.
+        """
+        if output_path:
+            path = output_path
+        else:
+            path = OutputManager.get_output_path(sub_dir, file_basename, "json")
+
+        # Ensure directory exists for the given path
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+        JSONManager.write_json(data, path)
+        return path
+
+    @staticmethod
+    def save_markdown_report(content: str, sub_dir: str, file_basename: str, output_path: Optional[str] = None) -> str:
+        """
+        Saves a string as a Markdown report.
+
+        Args:
+            content (str): The Markdown content to save.
+            sub_dir (str): The subdirectory for the report (e.g., 'net-flow').
+            file_basename (str): The base name for the file.
+            output_path (Optional[str]): Optional custom full path to save the file.
+
+        Returns:
+            str: The path where the file was saved.
+        """
+        if output_path:
+            path = output_path
+        else:
+            path = OutputManager.get_output_path(sub_dir, file_basename, "md")
+
+        # Ensure directory exists for the given path
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+        FileManager.write_file(path, content)
+        return path

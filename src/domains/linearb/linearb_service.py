@@ -14,7 +14,7 @@ from .linearb_api_client import (
     LinearBAggregation,
     LinearBApiClient,
     LinearBGroupBy,
-    LinearBMetrics,
+    LinearBMetrics,  # Backward compatibility alias
     LinearBRollup,
     LinearBTimeRangeHelper,
 )
@@ -40,92 +40,53 @@ class LinearBService:
 
     def get_performance_metrics(self, args: Namespace) -> Dict[str, Any]:
         """
-        Get performance metrics from LinearB based on the provided arguments.
+        Get performance metrics from LinearB with simplified interface.
 
         Args:
-            args: Command arguments containing the following:
-                - time_range: Time period to analyze (last-week, last-2-weeks, etc.)
-                - team_ids: List of team IDs (optional)
-                - aggregation: Aggregation type (p75, p50, avg)
-                - granularity: Data granularity (1d, 1w, 1mo, custom)
-                - filter_type: Filter type (organization, contributor, team, repository,
-                  label, custom_metric)
-                - save_results: Boolean to save results to file
+            args: Command arguments containing time_range, filter_type, team_ids, etc.
 
         Returns:
-            Performance metrics data
+            Dictionary containing metrics data and metadata
         """
         try:
-            # Parse time ranges
-            time_ranges = self.time_helper.parse_time_period(args.time_range)
+            # Parse team IDs if provided
+            team_ids = self.api_client.parse_team_ids(getattr(args, "team_ids", None))
 
-            # Map granularity to rollup (now using API-correct values)
-            granularity_map = {
-                "custom": LinearBRollup.CUSTOM,
-                "1d": LinearBRollup.DAILY,
-                "1w": LinearBRollup.WEEKLY,
-                "1mo": LinearBRollup.MONTHLY,
-            }
-            roll_up = granularity_map.get(args.granularity, LinearBRollup.CUSTOM)
+            # Get other parameters with defaults
+            aggregation = getattr(args, "aggregation", LinearBAggregation.DEFAULT)
+            granularity = getattr(args, "granularity", "custom")
+            filter_type = getattr(args, "filter_type", "team")
 
-            # Map filter type to group_by (now using API-correct values)
+            # Map filter type to group_by
             filter_type_map = {
                 "organization": LinearBGroupBy.ORGANIZATION,
                 "contributor": LinearBGroupBy.CONTRIBUTOR,
                 "team": LinearBGroupBy.TEAM,
                 "repository": LinearBGroupBy.REPOSITORY,
                 "label": LinearBGroupBy.LABEL,
-                "custom_metric": LinearBGroupBy.CUSTOM_METRIC,
             }
-            group_by = filter_type_map.get(args.filter_type, LinearBGroupBy.TEAM)
+            group_by = filter_type_map.get(filter_type, LinearBGroupBy.TEAM)
 
-            # Get aggregation with default
-            aggregation = getattr(args, "aggregation", LinearBAggregation.DEFAULT)
+            # Map granularity to roll_up
+            granularity_map = {
+                "1d": LinearBRollup.DAILY,
+                "1w": LinearBRollup.WEEKLY,
+                "1mo": LinearBRollup.MONTHLY,
+                "custom": LinearBRollup.CUSTOM,
+            }
+            roll_up = granularity_map.get(granularity, LinearBRollup.CUSTOM)
 
-            # Default metrics if not specified
-            default_metrics = [
-                {"name": LinearBMetrics.CYCLE_TIME, "agg": aggregation},
-                {"name": LinearBMetrics.TIME_TO_PR, "agg": aggregation},
-                {"name": LinearBMetrics.TIME_TO_REVIEW, "agg": aggregation},
-                {"name": LinearBMetrics.TIME_TO_MERGE, "agg": aggregation},
-                {"name": LinearBMetrics.PR_MERGED, "agg": LinearBAggregation.DEFAULT},
-                {"name": LinearBMetrics.PR_NEW, "agg": LinearBAggregation.DEFAULT},
-                {
-                    "name": LinearBMetrics.COMMIT_TOTAL_COUNT,
-                    "agg": LinearBAggregation.DEFAULT,
-                },
-                {
-                    "name": LinearBMetrics.RELEASES_COUNT,
-                    "agg": LinearBAggregation.DEFAULT,
-                },
-            ]
-
-            requested_metrics = getattr(args, "metrics", default_metrics)
-            if isinstance(requested_metrics, list) and all(isinstance(m, str) for m in requested_metrics):
-                # Convert string list to metric objects
-                requested_metrics = [{"name": metric, "agg": aggregation} for metric in requested_metrics]
-
-            # Parse team IDs if provided
-            team_ids = None
-            if hasattr(args, "team_ids") and args.team_ids:
-                if isinstance(args.team_ids, str):
-                    team_ids = [int(tid) for tid in args.team_ids.split(",")]
-                elif isinstance(args.team_ids, list):
-                    team_ids = [int(tid) for tid in args.team_ids]
-                else:
-                    team_ids = [int(args.team_ids)]
-
-            self.logger.info(f"Fetching metrics for time range: {args.time_range}")
+            self.logger.info(f"Fetching performance metrics for time range: {args.time_range}")
             self.logger.info(f"Group by: {group_by}, Roll up: {roll_up}")
             if team_ids:
                 self.logger.info(f"Team IDs filter: {team_ids}")
 
-            # Get metrics from LinearB
-            metrics_data = self.api_client.get_metrics(
-                requested_metrics=requested_metrics,
-                time_ranges=time_ranges,
-                group_by=group_by,
+            # Use the enhanced API client convenience method
+            metrics_data = self.api_client.get_performance_metrics(
+                time_period=args.time_range,
                 team_ids=team_ids,
+                aggregation=aggregation,
+                group_by=group_by,
                 roll_up=roll_up,
             )
 
@@ -135,15 +96,14 @@ class LinearBService:
                 "metrics": metrics_data,
                 "parameters": {
                     "time_range": args.time_range,
-                    "granularity": getattr(args, "granularity", "auto"),
-                    "filter_type": getattr(args, "filter_type", "team"),
+                    "granularity": granularity,
+                    "filter_type": filter_type,
                     "team_ids": team_ids,
                     "group_by": group_by,
                     "roll_up": roll_up,
                     "aggregation": aggregation,
                 },
-                "time_ranges": time_ranges,
-                "requested_metrics": requested_metrics,
+                "time_ranges": self.api_client.time_helper.parse_time_period(args.time_range),
             }
 
         except Exception as e:
