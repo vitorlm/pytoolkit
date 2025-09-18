@@ -34,6 +34,12 @@ class CycleTimeFormatter:
         self._print_sle_compliance(results)
         self._print_time_distribution(metrics)
         self._print_priority_breakdown(metrics)
+
+        # Print trending analysis if available
+        trending_analysis = results.get("trending_analysis")
+        if trending_analysis:
+            self._print_trending_analysis(trending_analysis)
+
         self._print_performance_analysis(metrics)
         self._print_sample_issues(results)
         self._print_footer()
@@ -362,7 +368,121 @@ class CycleTimeFormatter:
         print("\n" + "=" * 80)
         print("💡 Use --output-format md for detailed markdown report")
         print("💡 Use --output-format json for machine-readable data")
+        print("💡 Use --enable-trending for trend analysis and alerts")
         print("=" * 80)
+
+    def _print_trending_analysis(self, trending_analysis: dict) -> None:
+        """Print trending analysis section."""
+        print("\n📈 TRENDING ANALYSIS")
+        print("=" * 80)
+
+        trend_metrics = trending_analysis.get("trend_metrics", [])
+        alerts = trending_analysis.get("alerts", [])
+        baseline_period = trending_analysis.get("baseline_period", {})
+
+        # Print baseline period info
+        if baseline_period:
+            baseline_start = baseline_period.get("start", "")[:10]  # YYYY-MM-DD
+            baseline_end = baseline_period.get("end", "")[:10]
+            print(f"📊 Baseline Period: {baseline_start} to {baseline_end}")
+            print("-" * 40)
+
+        # Print trend metrics
+        if trend_metrics:
+            print("\n🔄 TREND METRICS:")
+            print("-" * 40)
+
+            for trend in trend_metrics:
+                metric_name = trend.metric_name
+                current_value = trend.current_value
+                baseline_value = trend.baseline_value
+                change_percent = trend.change_percent
+                trend_direction = trend.trend_direction
+                significance = trend.significance
+
+                # Get appropriate emojis
+                direction_emoji = self._get_trend_direction_emoji(trend_direction, metric_name)
+                significance_emoji = "📊" if significance else "📋"
+
+                # Format values based on metric type
+                if "Time" in metric_name:
+                    current_str = f"{current_value:.1f}h"
+                    baseline_str = f"{baseline_value:.1f}h"
+                elif "Rate" in metric_name or "Compliance" in metric_name:
+                    current_str = f"{current_value:.1f}%"
+                    baseline_str = f"{baseline_value:.1f}%"
+                else:
+                    current_str = f"{current_value:.0f}"
+                    baseline_str = f"{baseline_value:.0f}"
+
+                change_str = f"{change_percent:+.1f}%" if change_percent != 0 else "0.0%"
+
+                print(f"  {direction_emoji} {metric_name}:")
+                print(
+                    f"    Current: {current_str} | Baseline: {baseline_str} | Change: {change_str} {significance_emoji}"
+                )
+
+        # Print alerts
+        if alerts:
+            self._print_trend_alerts(alerts)
+        else:
+            print("\n✅ No alerts detected - all metrics within normal ranges")
+
+    def _print_trend_alerts(self, alerts: List) -> None:
+        """Print trend alerts section."""
+        print(f"\n🚨 TREND ALERTS ({len(alerts)} total)")
+        print("-" * 40)
+
+        # Group alerts by severity
+        critical_alerts = [a for a in alerts if a.severity == "CRITICAL"]
+        warning_alerts = [a for a in alerts if a.severity == "WARNING"]
+        info_alerts = [a for a in alerts if a.severity == "INFO"]
+
+        # Print critical alerts first
+        if critical_alerts:
+            print("\n🔴 CRITICAL ALERTS:")
+            for alert in critical_alerts:
+                self._print_single_alert(alert)
+
+        # Print warning alerts
+        if warning_alerts:
+            print("\n🟡 WARNING ALERTS:")
+            for alert in warning_alerts:
+                self._print_single_alert(alert)
+
+        # Print info alerts
+        if info_alerts:
+            print("\n🔵 INFO ALERTS:")
+            for alert in info_alerts:
+                self._print_single_alert(alert)
+
+    def _print_single_alert(self, alert) -> None:
+        """Print a single alert."""
+        message = alert.message
+        recommendation = alert.recommendation
+        current_value = alert.current_value
+        threshold = alert.threshold
+
+        print(f"  • {message}")
+        print(f"    📊 Current: {current_value:.1f} | Threshold: {threshold:.1f}")
+        print(f"    💡 {recommendation}")
+        print()
+
+    @staticmethod
+    def _get_trend_direction_emoji(direction: str, metric_name: str) -> str:
+        """Get emoji for trend direction based on metric type."""
+        if direction == "STABLE":
+            return "➡️"
+
+        # For metrics where lower is better (cycle time, anomaly rate)
+        lower_is_better = any(keyword in metric_name.lower() for keyword in ["time", "anomaly"])
+
+        if direction == "IMPROVING":
+            return "📈" if not lower_is_better else "📉"
+        elif direction == "DEGRADING":
+            return "📉" if not lower_is_better else "📈"
+        else:
+            return "❓"
 
     @staticmethod
     def _get_priority_prefix(priority: str) -> str:

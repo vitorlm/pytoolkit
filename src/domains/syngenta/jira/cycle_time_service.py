@@ -187,10 +187,10 @@ class CycleTimeService:
             zero_cycle_time_anomalies = []
 
             for issue in issues:
-                result = self._analyze_issue_cycle_time(issue)
+                result = self._analyze_issue_cycle_time(issue, project_key)
 
                 # Exclude issues that went through Archived status (11)
-                if self._issue_went_through_archived(issue):
+                if self._issue_went_through_archived(issue, project_key):
                     archived_issues_excluded += 1
                     continue
 
@@ -331,8 +331,18 @@ class CycleTimeService:
 
         return " AND ".join(jql_parts)
 
-    def _analyze_issue_cycle_time(self, issue: Dict) -> CycleTimeResult:
+    def _analyze_issue_cycle_time(self, issue: Dict, project_key: str) -> CycleTimeResult:
         """Analyze cycle time for a single issue."""
+
+        # Ensure cache is initialized for this project
+        if self._cached_project_key != project_key:
+            self._cached_project_key = project_key
+            self._cached_workflow_config = self.workflow_config.get_workflow_config(project_key)
+            self._cached_wip_statuses = set(self._cached_workflow_config.get("status_mapping", {}).get("wip", []))
+            self._cached_done_statuses = set(self._cached_workflow_config.get("status_mapping", {}).get("done", []))
+            self._cached_archived_statuses = set(
+                self._cached_workflow_config.get("status_mapping", {}).get("archived", [])
+            )
 
         fields = issue.get("fields", {})
         changelog = issue.get("changelog", {})
@@ -508,8 +518,19 @@ class CycleTimeService:
 
         return started_date, done_date, cycle_time_hours, lead_time_hours, has_batch_pattern
 
-    def _issue_went_through_archived(self, issue: Dict) -> bool:
+    def _issue_went_through_archived(self, issue: Dict, project_key: str) -> bool:
         """Check if an issue went through Archived status using cached config."""
+
+        # Ensure cache is initialized for this project
+        if self._cached_project_key != project_key:
+            self._cached_project_key = project_key
+            self._cached_workflow_config = self.workflow_config.get_workflow_config(project_key)
+            self._cached_wip_statuses = set(self._cached_workflow_config.get("status_mapping", {}).get("wip", []))
+            self._cached_done_statuses = set(self._cached_workflow_config.get("status_mapping", {}).get("done", []))
+            self._cached_archived_statuses = set(
+                self._cached_workflow_config.get("status_mapping", {}).get("archived", [])
+            )
+
         changelog = issue.get("changelog", {})
         histories = changelog.get("histories", [])
 
@@ -864,7 +885,7 @@ class CycleTimeService:
         md_content.append(f"**Performance Assessment:** {performance_assessment}")
         md_content.append("")
         md_content.append(f"- **Total Issues Analyzed:** {metrics.get('total_issues', 0)}")
-        md_content.append(f"- **Issues with Valid Cycle Time:** {metrics.get('issues_with_cycle_time', 0)}")
+        md_content.append(f"- **Issues with Valid Cycle Time:** {metrics.get('issues_with_valid_cycle_time', 0)}")
 
         median_cycle_time = metrics.get("median_cycle_time_hours", 0)
         median_days = median_cycle_time / 24
@@ -886,7 +907,9 @@ class CycleTimeService:
             md_content.append("| Time Range | Count | Percentage | Performance |")
             md_content.append("|-------------|-------|------------|-------------|")
 
-            total_with_cycle_time = metrics.get("issues_with_cycle_time", 1)
+            total_with_cycle_time = metrics.get("issues_with_valid_cycle_time", 1)
+            if total_with_cycle_time == 0:
+                total_with_cycle_time = 1  # Avoid division by zero
 
             for time_range, count in time_distribution.items():
                 if count > 0:
@@ -1073,6 +1096,95 @@ class CycleTimeService:
         md_content.append("- Only issues with both Start and Done timestamps are included in calculations")
         md_content.append("- Times are calculated in hours and converted to days for readability")
         md_content.append("")
+
+        # Trending Analysis Section
+        trending_analysis = results.get("trending_analysis")
+        if trending_analysis:
+            md_content.append("## 📈 Trending Analysis")
+            md_content.append("")
+
+            # Baseline Period
+            baseline_period = trending_analysis.get("baseline_period", {})
+            if baseline_period:
+                baseline_start = baseline_period.get("start", "")[:10]  # YYYY-MM-DD
+                baseline_end = baseline_period.get("end", "")[:10]
+                md_content.append(f"**Baseline Period:** {baseline_start} to {baseline_end}")
+                md_content.append("")
+
+            # Trend Metrics
+            trend_metrics = trending_analysis.get("trend_metrics", [])
+            if trend_metrics:
+                md_content.append("### 🔄 Trend Metrics")
+                md_content.append("")
+                md_content.append("| Metric | Current | Baseline | Change | Direction | Significance |")
+                md_content.append("|--------|---------|----------|--------|-----------|--------------|")
+
+                for trend in trend_metrics:
+                    metric_name = trend.get("metric_name", "")
+                    current_value = trend.get("current_value", 0)
+                    baseline_value = trend.get("baseline_value", 0)
+                    change_percent = trend.get("change_percent", 0)
+                    trend_direction = trend.get("trend_direction", "")
+                    significance = trend.get("significance", False)
+
+                    # Format values based on metric type
+                    if "Time" in metric_name:
+                        current_str = f"{current_value:.1f}h"
+                        baseline_str = f"{baseline_value:.1f}h"
+                    elif "Rate" in metric_name or "Compliance" in metric_name:
+                        current_str = f"{current_value:.1f}%"
+                        baseline_str = f"{baseline_value:.1f}%"
+                    else:
+                        current_str = f"{current_value:.0f}"
+                        baseline_str = f"{baseline_value:.0f}"
+
+                    change_str = f"{change_percent:+.1f}%" if change_percent != 0 else "0.0%"
+                    direction_emoji = (
+                        "📈" if trend_direction == "IMPROVING" else "📉" if trend_direction == "DEGRADING" else "➡️"
+                    )
+                    significance_emoji = "✅" if significance else "➖"
+
+                    md_content.append(
+                        f"| {metric_name} | {current_str} | {baseline_str} | {change_str} | {direction_emoji} {trend_direction} | {significance_emoji} |"
+                    )
+
+                md_content.append("")
+
+            # Alerts
+            alerts = trending_analysis.get("alerts", [])
+            if alerts:
+                md_content.append("### 🚨 Trend Alerts")
+                md_content.append("")
+
+                # Group alerts by severity
+                critical_alerts = [a for a in alerts if a.get("severity") == "CRITICAL"]
+                warning_alerts = [a for a in alerts if a.get("severity") == "WARNING"]
+                info_alerts = [a for a in alerts if a.get("severity") == "INFO"]
+
+                if critical_alerts:
+                    md_content.append("#### 🔴 Critical Alerts")
+                    for alert in critical_alerts:
+                        md_content.append(f"- **{alert.get('metric', '')}**: {alert.get('message', '')}")
+                        md_content.append(f"  - *Recommendation*: {alert.get('recommendation', '')}")
+                    md_content.append("")
+
+                if warning_alerts:
+                    md_content.append("#### 🟡 Warning Alerts")
+                    for alert in warning_alerts:
+                        md_content.append(f"- **{alert.get('metric', '')}**: {alert.get('message', '')}")
+                        md_content.append(f"  - *Recommendation*: {alert.get('recommendation', '')}")
+                    md_content.append("")
+
+                if info_alerts:
+                    md_content.append("#### ℹ️ Info Alerts")
+                    for alert in info_alerts:
+                        md_content.append(f"- **{alert.get('metric', '')}**: {alert.get('message', '')}")
+                        md_content.append(f"  - *Recommendation*: {alert.get('recommendation', '')}")
+                    md_content.append("")
+            else:
+                md_content.append("### ✅ No Alerts")
+                md_content.append("All metrics are within normal ranges - no trending concerns detected.")
+                md_content.append("")
 
         return "\n".join(md_content)
 

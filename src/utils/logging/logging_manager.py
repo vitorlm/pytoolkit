@@ -135,14 +135,14 @@ class CustomLogHandler(logging.Handler):
         super().__init__()
         self.formatter = formatter
 
-    def setFormatter(self, formatter: logging.Formatter):
+    def setFormatter(self, fmt: Optional[logging.Formatter]):
         """
         Sets the formatter for the handler.
 
         Args:
-            formatter (logging.Formatter): The formatter to set.
+            fmt (Optional[logging.Formatter]): The formatter to set.
         """
-        self.formatter = formatter
+        self.formatter = fmt
 
     def emit(self, record: logging.LogRecord):
         """
@@ -186,9 +186,7 @@ class LogManager:
             use_filter (bool): Whether to use level-based filtering. Defaults to False.
         """
         if LogManager._instance is None:
-            LogManager._instance = LogManager(
-                log_dir, log_file, log_retention_hours, default_level, use_filter
-            )
+            LogManager._instance = LogManager(log_dir, log_file, log_retention_hours, default_level, use_filter)
 
     @staticmethod
     def get_instance():
@@ -196,9 +194,7 @@ class LogManager:
         Returns the singleton instance of LogManager.
         """
         if LogManager._instance is None:
-            raise RuntimeError(
-                "LogManager is not initialized. Call `LogManager.initialize()` first."
-            )
+            raise RuntimeError("LogManager is not initialized. Call `LogManager.initialize()` first.")
         return LogManager._instance
 
     def __new__(cls, *args, **kwargs):
@@ -264,7 +260,7 @@ class LogManager:
         logger.propagate = False
 
         # Set the logger level
-        logger.setLevel(self.default_level)
+        logger.setLevel(self.default_level.value)
 
         # Check if the logger already has handlers to avoid duplication
         if logger.hasHandlers():
@@ -372,16 +368,14 @@ class LogManager:
             if handler_id:
                 log_manager.custom_handlers[handler_id] = handler
 
-            logger.setLevel(log_manager.default_level)
+            logger.setLevel(log_manager.default_level.value)
             logger.addHandler(handler)
 
             if disable_propagation:
                 logger.propagate = False
 
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to add custom handler to logger '{logger_name}': {e}"
-            ) from e
+            raise RuntimeError(f"Failed to add custom handler to logger '{logger_name}': {e}") from e
 
     def list_log_files(self, extension: str = ".log") -> List[str]:
         """

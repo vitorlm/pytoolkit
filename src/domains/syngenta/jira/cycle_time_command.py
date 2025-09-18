@@ -60,6 +60,7 @@ from argparse import ArgumentParser, Namespace
 
 from domains.syngenta.jira.cycle_time_formatter import CycleTimeFormatter
 from domains.syngenta.jira.cycle_time_service import CycleTimeService
+from domains.syngenta.jira.cycle_time_trend_service import CycleTimeTrendService, TrendConfig
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -139,6 +140,17 @@ class CycleTimeCommand(BaseCommand):
             default="console",
             help="Output format: json (JSON file), md (Markdown file), console (display only)",
         )
+        parser.add_argument(
+            "--enable-trending",
+            action="store_true",
+            help="Enable trending analysis comparing current period against historical baseline.",
+        )
+        parser.add_argument(
+            "--baseline-multiplier",
+            type=int,
+            default=4,
+            help="Multiplier for baseline period calculation (default: 4x current period).",
+        )
 
     @staticmethod
     def main(args: Namespace):
@@ -171,27 +183,166 @@ class CycleTimeCommand(BaseCommand):
             if result:
                 logger.info("Cycle time analysis completed successfully")
 
+                # Execute trending analysis if enabled
+                trending_results = None
+                if args.enable_trending:
+                    logger.info("Starting trending analysis...")
+                    try:
+                        # Create trend service with custom configuration
+                        trend_config = TrendConfig({"baseline_multiplier": args.baseline_multiplier})
+                        trend_service = CycleTimeTrendService(trend_config)
+
+                        # Convert current results to trend data format
+                        current_trend_data = trend_service.convert_cycle_time_data_to_trend_data(result)
+
+                        # Calculate baseline period
+                        metadata = result.get("analysis_metadata", {})
+                        start_date = metadata.get("start_date", "")
+                        end_date = metadata.get("end_date", "")
+
+                        baseline_start, baseline_end = trend_service.calculate_baseline_period(start_date, end_date)
+
+                        # Analyze historical data for baseline
+                        baseline_result = service.analyze_cycle_time(
+                            project_key=args.project_key,
+                            time_period=f"{baseline_start.strftime('%Y-%m-%d')} to {baseline_end.strftime('%Y-%m-%d')}",
+                            issue_types=issue_types,
+                            team=args.team,
+                            priorities=priorities,
+                            verbose=False,  # Don't show verbose for baseline
+                            output_file=None,  # Don't save baseline separately
+                        )
+
+                        if baseline_result:
+                            baseline_trend_data = trend_service.convert_cycle_time_data_to_trend_data(baseline_result)
+
+                            # Calculate trend metrics
+                            trend_metrics = trend_service.calculate_trend_metrics(
+                                current_trend_data, [baseline_trend_data]
+                            )
+
+                            # Detect patterns and generate alerts
+                            alerts = trend_service.detect_patterns_and_alerts(trend_metrics, current_trend_data)
+
+                            trending_results = {
+                                "trend_metrics": trend_metrics,
+                                "alerts": alerts,
+                                "baseline_period": {
+                                    "start": baseline_start.isoformat(),
+                                    "end": baseline_end.isoformat(),
+                                    "data": baseline_trend_data,
+                                },
+                            }
+
+                            logger.info(f"Trending analysis completed with {len(alerts)} alerts")
+                        else:
+                            logger.warning("Could not analyze baseline data for trending")
+
+                    except Exception as e:
+                        logger.error(f"Trending analysis failed: {e}")
+                        logger.error(f"Exception type: {type(e).__name__}")
+                        logger.error(f"Exception details: {str(e)}")
+                        import traceback
+
+                        logger.error(f"Traceback: {traceback.format_exc()}")
+                        # Continue with regular analysis even if trending fails
+
+                # Add trending results to main result if available
+                if trending_results:
+                    result["trending_analysis"] = trending_results
+
+                # For JSON serialization, create a helper function
+                def serialize_trending_results(trending_data):
+                    """Convert trending results to JSON-serializable format."""
+                    trend_metrics_dict = [
+                        {
+                            "metric_name": tm.metric_name,
+                            "current_value": tm.current_value,
+                            "baseline_value": tm.baseline_value,
+                            "change_percent": tm.change_percent,
+                            "trend_direction": tm.trend_direction,
+                            "significance": tm.significance,
+                            "confidence_level": tm.confidence_level,
+                            "trend_slope": tm.trend_slope,
+                            "volatility": tm.volatility,
+                        }
+                        for tm in trending_data["trend_metrics"]
+                    ]
+
+                    alerts_dict = [
+                        {
+                            "severity": alert.severity,
+                            "metric": alert.metric,
+                            "message": alert.message,
+                            "current_value": alert.current_value,
+                            "threshold": alert.threshold,
+                            "recommendation": alert.recommendation,
+                            "priority": getattr(alert, "priority", 0),
+                        }
+                        for alert in trending_data["alerts"]
+                    ]
+
+                    baseline_data_dict = {
+                        "avg_cycle_time": trending_data["baseline_period"]["data"].avg_cycle_time,
+                        "median_cycle_time": trending_data["baseline_period"]["data"].median_cycle_time,
+                        "sle_compliance": trending_data["baseline_period"]["data"].sle_compliance,
+                        "throughput": trending_data["baseline_period"]["data"].throughput,
+                        "anomaly_rate": trending_data["baseline_period"]["data"].anomaly_rate,
+                        "period_start": trending_data["baseline_period"]["data"].period_start.isoformat(),
+                        "period_end": trending_data["baseline_period"]["data"].period_end.isoformat(),
+                        "total_issues": trending_data["baseline_period"]["data"].total_issues,
+                        "issues_with_valid_cycle_time": trending_data["baseline_period"][
+                            "data"
+                        ].issues_with_valid_cycle_time,
+                        "avg_lead_time": trending_data["baseline_period"]["data"].avg_lead_time,
+                        "median_lead_time": trending_data["baseline_period"]["data"].median_lead_time,
+                    }
+
+                    return {
+                        "trend_metrics": trend_metrics_dict,
+                        "alerts": alerts_dict,
+                        "baseline_period": {
+                            "start": trending_data["baseline_period"]["start"],
+                            "end": trending_data["baseline_period"]["end"],
+                            "data": baseline_data_dict,
+                        },
+                    }
+
                 # Handle output format
                 if args.output_format == "json":
                     import json
                     import os
+                    from datetime import datetime
 
-                    time_period_clean = args.time_period.replace(" ", "_").replace(",", "")
-                    output_file = f"output/cycle_time_{args.project_key}_{time_period_clean}.json"
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.json"
                     os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+                    # Create serializable version for JSON
+                    result_for_json = result.copy()
+                    if trending_results:
+                        result_for_json["trending_analysis"] = serialize_trending_results(trending_results)
+
                     with open(output_file, "w", encoding="utf-8") as f:
-                        json.dump(result, f, indent=2, ensure_ascii=False, default=str)
+                        json.dump(result_for_json, f, indent=2, ensure_ascii=False, default=str)
                     print(f"✅ JSON report saved to: {output_file}")
 
                 elif args.output_format == "md":
                     import os
+                    from datetime import datetime
 
-                    # Note: _format_as_markdown method needs to be added to service
+                    # Use timestamp for consistent file naming
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.md"
+                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
                     if hasattr(service, "_format_as_markdown"):
-                        markdown_content = service._format_as_markdown(result)
-                        time_period_clean = args.time_period.replace(" ", "_").replace(",", "")
-                        output_file = f"output/cycle_time_{args.project_key}_{time_period_clean}.md"
-                        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                        # Create serializable version for MD
+                        result_for_md = result.copy()
+                        if trending_results:
+                            result_for_md["trending_analysis"] = serialize_trending_results(trending_results)
+
+                        markdown_content = service._format_as_markdown(result_for_md)
                         with open(output_file, "w", encoding="utf-8") as f:
                             f.write(markdown_content)
                         print(f"📄 Markdown report saved to: {output_file}")
@@ -202,6 +353,25 @@ class CycleTimeCommand(BaseCommand):
                     # Enhanced console display using formatter
                     formatter = CycleTimeFormatter()
                     formatter.display_enhanced_console(result)
+
+                # Save updated result with trending data when trending is enabled
+                if args.enable_trending and trending_results:
+                    import json
+                    import os
+                    from datetime import datetime
+
+                    # Generate timestamp for trending-enabled files
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.json"
+                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+
+                    # Create serializable version for JSON
+                    result_for_json = result.copy()
+                    result_for_json["trending_analysis"] = serialize_trending_results(trending_results)
+
+                    with open(output_file, "w", encoding="utf-8") as f:
+                        json.dump(result_for_json, f, indent=2, ensure_ascii=False, default=str)
+                    logger.info(f"Enhanced analysis with trending saved to: {output_file}")
 
             else:
                 logger.error("Cycle time analysis failed")
