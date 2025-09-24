@@ -13,41 +13,37 @@ FUNCTIONALITY:
 
 USAGE EXAMPLES:
 
-1. Analyze last week's issues:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "last-week"
+1. Analyze last 7 days (anchored on a date):
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 7
 
-2. Analyze last 2 weeks with specific issue types:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "last-2-weeks" --issue-types "Story,Task"
+2. Analyze last 14 days with specific issue types:
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 14 --issue-types "Story,Task"
 
-3. Analyze specific number of days:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "30-days"
+3. Analyze last 30 days:
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 30
 
-4. Analyze specific date range:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "2025-06-09 to 2025-06-22"
+4. Analyze specific date range (use explicit anchor + window):
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-06-22" --window-days 14
 
-5. Analyze single specific date:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "2025-06-15"
+5. Analyze a single day:
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-06-15" --window-days 1
 
 6. Analyze with team filter:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "last-week" --team "Catalog"
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 7 --team "Catalog"
 
 7. Export results to file:
-   python src/main.py syngenta jira cycle-time --project-key "CWS"
-   --time-period "last-week" --output-file "cycle_time_report.json"
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 7 --output-format md
 
-TIME PERIOD OPTIONS:
-- last-week: Issues from the last 7 days
-- last-2-weeks: Issues from the last 14 days
-- last-month: Issues from the last 30 days
-- N-days: Issues from the last N days (e.g., "15-days")
-- YYYY-MM-DD to YYYY-MM-DD: Specific date range (e.g., "2025-06-09 to 2025-06-22")
-- YYYY-MM-DD: Single specific date (e.g., "2025-06-15")
+TIME WINDOW (ANCHOR + WINDOW-DAYS):
+- Use `--end-date YYYY-MM-DD` to anchor the analysis
+- Use `--window-days N` to define the lookback window (e.g., 7, 14, 30)
 
 CYCLE TIME METRICS:
 - Average cycle time: Average time from Started to Done
@@ -93,28 +89,43 @@ class CycleTimeCommand(BaseCommand):
             required=True,
             help="The JIRA project key to analyze (e.g., 'CWS', 'PROJ').",
         )
+        # New time window options (following Net Flow pattern)
         parser.add_argument(
-            "--time-period",
+            "--end-date",
             type=str,
-            required=True,
+            required=False,
             help=(
-                "Time period to analyze. Options: 'last-week', 'last-2-weeks', "
-                "'last-month', 'N-days' (e.g., '30-days'), date ranges "
-                "(e.g., '2025-06-09 to 2025-06-22'), or single dates (e.g., '2025-06-15')."
+                "Anchor date in YYYY-MM-DD. If provided with --window-days, "
+                "overrides --time-period. Defaults to today when not set."
             ),
         )
+        parser.add_argument(
+            "--window-days",
+            type=int,
+            required=False,
+            default=7,
+            help="Window size in days counting backwards from end-date (default: 7).",
+        )
+        # Removed deprecated --time-period in favor of --end-date + --window-days
         parser.add_argument(
             "--issue-types",
             type=str,
             required=False,
-            default="Bug",
-            help="Comma-separated list of issue types to analyze (default: 'Bug').",
+            default="Story,Task,Bug,Epic",
+            help=(
+                "Comma-separated list of issue types to analyze (default: 'Story,Task,Bug,Epic')."
+            ),
         )
         parser.add_argument(
             "--team",
             type=str,
             required=False,
             help="Filter by team name using Squad[Dropdown] field (optional).",
+        )
+        parser.add_argument(
+            "--include-subtasks",
+            action="store_true",
+            help="Include subtasks in the analysis (default: excluded).",
         )
         parser.add_argument(
             "--priority",
@@ -136,14 +147,14 @@ class CycleTimeCommand(BaseCommand):
         parser.add_argument(
             "--output-format",
             type=str,
-            choices=["json", "md", "console"],
+            choices=["json", "md"],
             default="console",
             help="Output format: json (JSON file), md (Markdown file), console (display only)",
         )
         parser.add_argument(
-            "--enable-trending",
+            "--extended",
             action="store_true",
-            help="Enable trending analysis comparing current period against historical baseline.",
+            help="Enable extended analysis (baseline/trending, alerts).",
         )
         parser.add_argument(
             "--baseline-multiplier",
@@ -167,16 +178,37 @@ class CycleTimeCommand(BaseCommand):
             # Parse inputs
             issue_types = [t.strip() for t in args.issue_types.split(",")]
             priorities = [p.strip() for p in args.priority.split(",")] if args.priority else None
+            include_subtasks = bool(getattr(args, "include_subtasks", False))
+
+            # Determine time window (prefer --end-date + --window-days)
+            from datetime import date, datetime, timedelta
+            computed_time_period = None
+
+            if args.end_date:
+                try:
+                    anchor = datetime.fromisoformat(args.end_date).date()
+                except ValueError:
+                    raise ValueError("Invalid --end-date. Use YYYY-MM-DD format.")
+            else:
+                anchor = date.today()
+
+            if args.end_date or args.window_days:
+                # Compute start/end from anchor/window
+                window_days = int(getattr(args, "window_days", 7))
+                start = anchor - timedelta(days=max(window_days - 1, 0))
+                end = anchor
+                computed_time_period = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
 
             # Execute analysis through service
             service = CycleTimeService()
             result = service.analyze_cycle_time(
                 project_key=args.project_key,
-                time_period=args.time_period,
+                time_period=(computed_time_period or f"{(date.today()-timedelta(days=6)).strftime('%Y-%m-%d')} to {date.today().strftime('%Y-%m-%d')}") ,
                 issue_types=issue_types,
                 team=args.team,
                 priorities=priorities,
                 verbose=args.verbose,
+                include_subtasks=include_subtasks,
                 output_file=args.output_file,
             )
 
@@ -184,8 +216,11 @@ class CycleTimeCommand(BaseCommand):
                 logger.info("Cycle time analysis completed successfully")
 
                 # Execute trending analysis if enabled
+                # Determine extended mode (Net Flow pattern)
+                extended = bool(getattr(args, "extended", False))
+
                 trending_results = None
-                if args.enable_trending:
+                if extended:
                     logger.info("Starting trending analysis...")
                     try:
                         # Create trend service with custom configuration
@@ -245,6 +280,12 @@ class CycleTimeCommand(BaseCommand):
                         import traceback
 
                         logger.error(f"Traceback: {traceback.format_exc()}")
+
+                        # Show user-friendly error message
+                        print("\n⚠️  TRENDING ANALYSIS ERROR")
+                        print(f"Error: {e}")
+                        print("Continuing with regular cycle time analysis...")
+
                         # Continue with regular analysis even if trending fails
 
                 # Add trending results to main result if available
@@ -265,6 +306,8 @@ class CycleTimeCommand(BaseCommand):
                             "confidence_level": tm.confidence_level,
                             "trend_slope": tm.trend_slope,
                             "volatility": tm.volatility,
+                            "normalized_baseline": getattr(tm, "normalized_baseline", tm.baseline_value),
+                            "is_normalized": getattr(tm, "is_normalized", False),
                         }
                         for tm in trending_data["trend_metrics"]
                     ]
@@ -308,34 +351,38 @@ class CycleTimeCommand(BaseCommand):
                         },
                     }
 
-                # Handle output format
+                # Always print a concise Executive Summary to console
+                try:
+                    CycleTimeCommand._print_executive_summary(result)
+                except Exception as _summary_err:
+                    logger.warning(f"Failed to print executive summary: {_summary_err}")
+
+                # Handle output format (standardized via OutputManager)
+                from utils.output_manager import OutputManager
+                from datetime import datetime as _dt
+                # Save into per-day folder (cycle-time_YYYYMMDD)
+                sub_dir = f"cycle-time_{_dt.now().strftime('%Y%m%d')}"
+                file_basename = f"cycle_time_{args.project_key}"
+
                 if args.output_format == "json":
-                    import json
-                    import os
-                    from datetime import datetime
-
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.json"
-                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
                     # Create serializable version for JSON
                     result_for_json = result.copy()
                     if trending_results:
                         result_for_json["trending_analysis"] = serialize_trending_results(trending_results)
-
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        json.dump(result_for_json, f, indent=2, ensure_ascii=False, default=str)
-                    print(f"✅ JSON report saved to: {output_file}")
+                    # Precompute path so we can show it right under the summary
+                    output_path = OutputManager.get_output_path(sub_dir, file_basename, "json")
+                    print(f"\nOutput file:\n- {output_path}")
+                    OutputManager.save_json_report(
+                        result_for_json,
+                        sub_dir,
+                        file_basename,
+                        output_path=output_path,
+                    )
+                    # expose path in result for downstream consumers
+                    result["output_file"] = output_path
+                    print("✅ Detailed report saved in JSON format")
 
                 elif args.output_format == "md":
-                    import os
-                    from datetime import datetime
-
-                    # Use timestamp for consistent file naming
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.md"
-                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
                     if hasattr(service, "_format_as_markdown"):
                         # Create serializable version for MD
                         result_for_md = result.copy()
@@ -343,35 +390,45 @@ class CycleTimeCommand(BaseCommand):
                             result_for_md["trending_analysis"] = serialize_trending_results(trending_results)
 
                         markdown_content = service._format_as_markdown(result_for_md)
-                        with open(output_file, "w", encoding="utf-8") as f:
-                            f.write(markdown_content)
-                        print(f"📄 Markdown report saved to: {output_file}")
+                        # Precompute path so we can show it right under the summary
+                        output_path = OutputManager.get_output_path(sub_dir, file_basename, "md")
+                        print(f"\nOutput file:\n- {output_path}")
+                        OutputManager.save_markdown_report(
+                            markdown_content,
+                            sub_dir,
+                            file_basename,
+                            output_path=output_path,
+                        )
+                        # expose path in result for downstream consumers
+                        result["output_file"] = output_path
+                        print("📄 Detailed report saved in MD format")
                     else:
                         logger.warning("Markdown format not yet implemented")
 
                 else:
                     # Enhanced console display using formatter
-                    formatter = CycleTimeFormatter()
-                    formatter.display_enhanced_console(result)
+                    try:
+                        formatter = CycleTimeFormatter()
+                        formatter.display_enhanced_console(result)
+                    except Exception as formatter_error:
+                        logger.error(f"Error in formatter display: {formatter_error}")
+                        logger.error(f"Formatter error type: {type(formatter_error).__name__}")
+                        import traceback
+                        logger.error(f"Formatter traceback: {traceback.format_exc()}")
 
-                # Save updated result with trending data when trending is enabled
-                if args.enable_trending and trending_results:
-                    import json
-                    import os
-                    from datetime import datetime
+                        # Fallback: show basic info without fancy formatting
+                        print("\n❌ FORMATTING ERROR OCCURRED")
+                        print(f"Error: {formatter_error}")
+                        print("\nBasic Analysis Results:")
+                        print(f"Project: {result.get('analysis_metadata', {}).get('project_key', 'Unknown')}")
+                        print(f"Total Issues: {result.get('metrics', {}).get('total_issues', 0)}")
+                        print(f"Average Cycle Time: {result.get('metrics', {}).get('average_cycle_time_hours', 0):.1f}h")
 
-                    # Generate timestamp for trending-enabled files
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    output_file = f"output/cycle-time/cycle_time_{args.project_key}_{timestamp}.json"
-                    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                        if trending_results:
+                            print("\nTrending data is available but could not be displayed due to formatting error.")
+                            print("Check logs for details or use --output-format json for raw data.")
 
-                    # Create serializable version for JSON
-                    result_for_json = result.copy()
-                    result_for_json["trending_analysis"] = serialize_trending_results(trending_results)
-
-                    with open(output_file, "w", encoding="utf-8") as f:
-                        json.dump(result_for_json, f, indent=2, ensure_ascii=False, default=str)
-                    logger.info(f"Enhanced analysis with trending saved to: {output_file}")
+                # (Removed duplicate OutputManager saving block to avoid double-formatting)
 
             else:
                 logger.error("Cycle time analysis failed")
@@ -379,10 +436,15 @@ class CycleTimeCommand(BaseCommand):
 
         except Exception as e:
             error_str = str(e)
+            logger.error(f"COMMAND FAILED: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+
             if "400" in error_str and ("does not exist for the field 'type'" in error_str):
                 logger.error(f"Invalid issue type for project {args.project_key}: {e}")
                 print(f"\n{'=' * 50}")
-                print("ERROR: Invalid Issue Type Detected")
+                print("❌ ERROR: Invalid Issue Type Detected")
                 print("=" * 50)
                 print(f"Error: {e}")
                 print(
@@ -396,5 +458,60 @@ class CycleTimeCommand(BaseCommand):
                 print("   --issue-types 'Bug,Story,Task,Epic'")
                 print("=" * 50)
             else:
+                print(f"\n{'=' * 50}")
+                print("❌ UNEXPECTED ERROR OCCURRED")
+                print("=" * 50)
+                print(f"Error: {e}")
+                print(f"Error Type: {type(e).__name__}")
+                print("\nThis appears to be an unexpected error. Please check the logs for more details:")
+                print("Check: logs/ directory for detailed error information")
+                print("\nIf the problem persists, try:")
+                print("1. Run with --verbose for more details")
+                print("2. Use --output-format json to see raw data")
+                print("3. Check if all parameters are correct")
+                print("=" * 50)
                 logger.error(f"Failed to execute cycle time analysis: {e}")
             exit(1)
+
+    @staticmethod
+    def _print_executive_summary(result: dict) -> None:
+        """Print a brief Executive Summary to console regardless of output mode."""
+        metadata = result.get("analysis_metadata", {})
+        metrics = result.get("metrics", {})
+
+        project = metadata.get("project_key", "-")
+        start = metadata.get("start_date", "")
+        end = metadata.get("end_date", "")
+        period = metadata.get("time_period", "")
+
+        try:
+            start_disp = start[:10]
+            end_disp = end[:10]
+            if "T" in start:
+                start_disp = start[:10]
+            if "T" in end:
+                end_disp = end[:10]
+        except Exception:
+            start_disp = start
+            end_disp = end
+
+        header = f"⏱️ CYCLE TIME - {project} ({start_disp} to {end_disp})"
+        print("\n" + "=" * len(header))
+        print(header)
+        if end_disp:
+            print(f"(Anchored on: {end_disp})")
+        print("=" * len(header))
+
+        median_ct = metrics.get("median_cycle_time_hours", 0.0)
+        avg_ct = metrics.get("average_cycle_time_hours", 0.0)
+        total_issues = metrics.get("total_issues", 0)
+        valid_ct = metrics.get("issues_with_valid_cycle_time", 0)
+        anomalies = metrics.get("zero_cycle_time_anomalies", 0)
+
+        print("\nEXECUTIVE SUMMARY:")
+        print(f"- Median Cycle Time: {median_ct:.1f}h")
+        print(f"- Average Cycle Time: {avg_ct:.1f}h")
+        print(f"- Issues (valid/total): {valid_ct}/{total_issues}")
+        if anomalies:
+            print(f"- Zero-cycle anomalies: {anomalies}")
+        print("=" * len(header))

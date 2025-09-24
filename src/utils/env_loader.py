@@ -77,6 +77,7 @@ def find_env_file() -> Optional[str]:
         # Domain-specific locations
         project_root / "src" / "domains" / "syngenta" / "jira" / ".env",
         project_root / "src" / "domains" / "linearb" / ".env",
+        project_root / "src" / "domains" / "syngenta" / "datadog" / ".env",
         # Current working directory
         Path.cwd() / ".env",
         # User home directory
@@ -214,3 +215,19 @@ def ensure_github_env_loaded() -> None:
 
     if missing_vars:
         print(f"Warning: Required GitHub environment variables missing: {missing_vars}")
+
+
+def ensure_datadog_env_loaded() -> None:
+    """
+    Ensure Datadog-specific environment variables are loaded.
+    """
+    # Load general env and domain-specific env
+    load_env_file()
+    load_domain_env("domains/syngenta/datadog")
+
+    # Check if the required variables are available
+    required_vars = ["DD_API_KEY", "DD_APP_KEY"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+
+    if missing_vars:
+        print(f"Warning: Required Datadog environment variables missing: {missing_vars}")

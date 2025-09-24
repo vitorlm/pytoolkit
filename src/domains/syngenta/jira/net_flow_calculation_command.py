@@ -105,6 +105,51 @@ class NetFlowCalculationCommand(BaseCommand):
             help="Enable verbose output with detailed issue information for the current week.",
         )
 
+        # Statistical Analysis Flags
+        parser.add_argument(
+            "--extended",
+            action="store_true",
+            help="Enable extended statistical analysis (includes CI, EWMA, volatility, segments, and alerts).",
+        )
+        parser.add_argument(
+            "--enable-ci",
+            action="store_true",
+            help="Enable bootstrap confidence intervals for Net Flow.",
+        )
+        parser.add_argument(
+            "--enable-ewma",
+            action="store_true",
+            help="Enable EWMA trend analysis for Flow Ratio.",
+        )
+        parser.add_argument(
+            "--enable-cusum",
+            action="store_true",
+            help="Enable CUSUM shift detection (requires --enable-ewma).",
+        )
+        parser.add_argument(
+            "--cv-window",
+            type=int,
+            default=8,
+            help="Rolling window size for coefficient of variation calculation (default: 8 weeks).",
+        )
+        parser.add_argument(
+            "--alpha",
+            type=float,
+            default=0.2,
+            help="EWMA smoothing parameter (default: 0.2).",
+        )
+        parser.add_argument(
+            "--active-devs",
+            type=int,
+            help="Number of active developers for normalized metrics.",
+        )
+        parser.add_argument(
+            "--testing-threshold-days",
+            type=float,
+            default=7.0,
+            help="Threshold for testing bottleneck alert (default: 7.0 days).",
+        )
+
     @staticmethod
     def main(args: Namespace):
         """
@@ -117,6 +162,12 @@ class NetFlowCalculationCommand(BaseCommand):
             issue_types = [t.strip() for t in args.issue_types.split(",")]
             service = NetFlowCalculationService()
 
+            # Determine statistical analysis settings
+            extended = getattr(args, 'extended', False)
+            enable_ci = getattr(args, 'enable_ci', False)
+            enable_ewma = getattr(args, 'enable_ewma', False)
+            enable_cusum = getattr(args, 'enable_cusum', False)
+
             # Generate the scorecard
             scorecard = service.generate_net_flow_scorecard(
                 project_key=args.project_key,
@@ -126,6 +177,15 @@ class NetFlowCalculationCommand(BaseCommand):
                 include_subtasks=args.include_subtasks,
                 output_format=args.output_format,
                 verbose=args.verbose,
+                # Statistical parameters
+                enable_statistical_analysis=extended,
+                enable_ci=enable_ci or extended,
+                enable_ewma=enable_ewma or extended,
+                enable_cusum=enable_cusum,
+                cv_window=getattr(args, 'cv_window', 8),
+                alpha=getattr(args, 'alpha', 0.2),
+                active_devs=getattr(args, 'active_devs', None),
+                testing_threshold_days=getattr(args, 'testing_threshold_days', 7.0),
             )
 
             if scorecard:
@@ -141,11 +201,11 @@ class NetFlowCalculationCommand(BaseCommand):
             logger.error(f"Failed to generate scorecard: {e}", exc_info=True)
             error_str = str(e)
             if "400" in error_str and "Invalid request payload" in error_str:
-                print("\n❌ Erro na API do Jira (400 - Bad Request):")
-                print("   A requisição para a API do Jira foi malformada. Verifique a JQL e os campos solicitados.")
-                print(f"\n   Detalhes do Erro: {error_str}")
+                print("\n❌ Jira API Error (400 - Bad Request):")
+                print("   The request to the Jira API was malformed. Check the JQL and requested fields.")
+                print(f"\n   Error Details: {error_str}")
             else:
-                print(f"\n❌ Ocorreu um erro inesperado: {e}")
+                print(f"\n❌ An unexpected error occurred: {e}")
             exit(1)
 
     @staticmethod
@@ -161,22 +221,69 @@ class NetFlowCalculationCommand(BaseCommand):
         anchor_date = metadata.get("anchor_date")
 
         header = (
-            f"🌊 NET FLOW Health - Semana {week_number} ({start_date.strftime('%b %d')}-{end_date.strftime('%b %d')})"
+            f"🌊 NET FLOW Health - Week {week_number} ({start_date.strftime('%b %d')}-{end_date.strftime('%b %d')})"
         )
         print("\n" + "=" * len(header))
         print(header)
-        print(f"(Análise ancorada em: {anchor_date})")
+        print(f"(Anchored on: {anchor_date})")
         print("=" * len(header))
 
         # NET FLOW ANALYSIS
-        print("\nNET FLOW ANALYSIS:")
+        print("\nEXECUTIVE SUMMARY:")
         net_flow = current_week.get("net_flow", 0)
         flow_ratio = current_week.get("flow_ratio", 0)
         status_icon, status_text = NetFlowCalculationCommand._get_net_flow_status(net_flow)
+
+        # Basic metrics
         print(f"- Net Flow:     {net_flow:+} {status_icon} ({status_text})")
-        print(f"- Flow Ratio:   {flow_ratio:.0f}% ⚠️ (target: >85%)")
+
+        # Statistical signal if available
+        if "statistical_signal" in scorecard:
+            signal = scorecard["statistical_signal"]
+            ci_low = signal["net_flow_ci_low"]
+            ci_high = signal["net_flow_ci_high"]
+            signal_label = signal["signal_label"]
+            print(f"- 95% CI:       [{ci_low:.1f}, {ci_high:.1f}] → {signal_label}")
+
+        print(f"- Flow Ratio:   {flow_ratio:.0f}% (target: >85%)")
+
+        # EWMA if available
+        if "trend_analysis" in scorecard:
+            trend_analysis_data = scorecard["trend_analysis"]
+            ewma_ratio = trend_analysis_data["ewma_flow_ratio"]
+            direction = trend_analysis_data["trend_direction"]
+            print(f"- EWMA Ratio:   {ewma_ratio:.0f}% {direction}")
+
         print(f"- Arrival:      {current_week.get('arrival_rate', 0)} issues")
         print(f"- Throughput:   {current_week.get('throughput', 0)} issues")
+
+        # Show output file path (when available)
+        output_file = scorecard.get("output_file")
+        if output_file:
+            print("\nOutput file:")
+            print(f"- {output_file}")
+
+        # Volatility metrics if available
+        if "volatility_metrics" in scorecard:
+            vol_metrics = scorecard["volatility_metrics"]
+            print(f"- Arrival CV:   {vol_metrics['arrivals_cv']:.0f}% (target: <30%)")
+            print(f"- Stability:    {vol_metrics['stability_index']:.0f}%")
+
+        # Flow debt if available
+        if "flow_debt" in scorecard:
+            print(f"- Flow Debt:    {scorecard['flow_debt']} (QTD)")
+
+        # Status determination
+        if "alerts" in scorecard:
+            triggered_alerts = [a for a in scorecard["alerts"] if a["triggered"]]
+            if triggered_alerts:
+                print(f"- Status:       🚨 AT RISK ({len(triggered_alerts)} alerts)")
+            else:
+                print("- Status:       ✅ BALANCED")
+        else:
+            flow_status = current_week.get("flow_status", "UNKNOWN")
+            status_icon = NetFlowCalculationCommand._get_status_icon(flow_status)
+            print(f"- Status:       {status_icon} {flow_status}")
 
         # FLOW PATTERNS
         print("\nFLOW PATTERNS:")
@@ -184,26 +291,41 @@ class NetFlowCalculationCommand(BaseCommand):
         print(f"- Arrival Volatility: {arrival_volatility:.0f}%")
 
         # ROLLING 4 WEEKS TREND
-        if trend:
+        if trend and len(trend) > 0:
             print("\nROLLING 4 WEEKS TREND:")
             trend_indicator = ""
             if len(trend) > 1:
-                previous_net_flow = trend[-2]["net_flow"]
-                if net_flow < previous_net_flow:
-                    trend_indicator = "✅ (improving)"
-                elif net_flow > previous_net_flow:
-                    trend_indicator = "🚨 (worsening)"
-                else:
-                    trend_indicator = "(stable)"
+                try:
+                    previous_net_flow = trend[-2]["net_flow"]
+                    if net_flow < previous_net_flow:
+                        trend_indicator = "✅ (improving)"
+                    elif net_flow > previous_net_flow:
+                        trend_indicator = "🚨 (worsening)"
+                    else:
+                        trend_indicator = "(stable)"
+                except (IndexError, KeyError):
+                    trend_indicator = ""
 
             for i, week_data in enumerate(trend):
-                week_num = week_data["week_number"]
-                nf = week_data["net_flow"]
-                icon, _ = NetFlowCalculationCommand._get_net_flow_status(nf)
-                is_last_week = i == len(trend) - 1
-                indicator = trend_indicator if is_last_week else ""
-                print(f"- Sem {week_num}: Net Flow {nf:+} {icon} {indicator}")
-                print(f"  (Arrival: {week_data['arrival_rate']}, Throughput: {week_data['throughput']})")
+                try:
+                    # Ensure week_data is a dict
+                    if isinstance(week_data, str):
+                        print(f"  Warning: week_data is string: {week_data}")
+                        continue
+
+                    week_num = week_data.get("week_number", "N/A")
+                    nf = week_data.get("net_flow", 0)
+                    arrival_rate = week_data.get("arrival_rate", 0)
+                    throughput_rate = week_data.get("throughput", 0)
+
+                    icon, _ = NetFlowCalculationCommand._get_net_flow_status(nf)
+                    is_last_week = i == len(trend) - 1
+                    indicator = trend_indicator if is_last_week else ""
+                    print(f"- Week {week_num}: Net Flow {nf:+} {icon} {indicator}")
+                    print(f"  (Arrival: {arrival_rate}, Throughput: {throughput_rate})")
+                except Exception as e:
+                    print(f"  Error displaying week {i}: {e}")
+                    continue
 
         # FLOW EFFICIENCY
         flow_efficiency = current_week.get("flow_efficiency", 0)
@@ -214,10 +336,28 @@ class NetFlowCalculationCommand(BaseCommand):
         print("\nCONSTRAINT ANALYSIS:")
         print(f"- Primary Bottleneck: {bottleneck}")
 
-        # Overall Status
-        flow_status = current_week.get("flow_status", "UNKNOWN")
-        status_icon = NetFlowCalculationCommand._get_status_icon(flow_status)
-        print(f"\nSTATUS: {status_icon} {flow_status}")
+        # Segments by Issue Type
+        if "segments" in scorecard and scorecard["segments"]:
+            print("\nDIAGNOSTICS - BY ISSUE TYPE:")
+            for segment in scorecard["segments"]:
+                net_flow = segment["net_flow"]
+                flow_icon, _ = NetFlowCalculationCommand._get_net_flow_status(net_flow)
+                print(f"- {segment['segment_name']}: {net_flow:+} {flow_icon} ({segment['arrivals']} in, {segment['throughput']} out)")
+
+        # Health Alerts
+        if "alerts" in scorecard and scorecard["alerts"]:
+            triggered_alerts = [a for a in scorecard["alerts"] if a["triggered"]]
+            if triggered_alerts:
+                print(f"\n🚨 HEALTH ALERTS ({len(triggered_alerts)} triggered):")
+                for alert in triggered_alerts:
+                    print(f"- {alert['title']}: {alert['rationale']}")
+                    print(f"  → {alert['remediation']}")
+
+        # Overall Status (fallback for non-statistical mode)
+        if "alerts" not in scorecard:
+            flow_status = current_week.get("flow_status", "UNKNOWN")
+            status_icon = NetFlowCalculationCommand._get_status_icon(flow_status)
+            print(f"\nSTATUS: {status_icon} {flow_status}")
 
         # Verbose details
         if args.verbose:
@@ -245,13 +385,13 @@ class NetFlowCalculationCommand(BaseCommand):
     def _get_net_flow_status(net_flow: int) -> tuple[str, str]:
         """Get icon and text for the net flow value."""
         if net_flow > 5:
-            return "🚨", "Backlog crescendo criticamente"
+            return "🚨", "Backlog growing critically"
         if net_flow > 0:
-            return "⚠️", "Backlog crescendo"
+            return "⚠️", "Backlog growing"
         if net_flow == 0:
-            return "✅", "Balanceado"
+            return "✅", "Balanced"
         if net_flow < 0:
-            return "✅", "Backlog diminuindo"
+            return "✅", "Backlog shrinking"
         return "", ""
 
     @staticmethod

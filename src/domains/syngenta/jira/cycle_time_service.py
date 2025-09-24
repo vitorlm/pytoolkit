@@ -4,6 +4,8 @@ JIRA Cycle Time Service
 This service provides functionality to analyze cycle time by calculating the time taken
 for tickets to move from Started status (07) to Done status (10), excluding Archived
 tickets (11).
+
+Enhanced with robust statistical analysis and outlier detection capabilities.
 """
 
 import statistics
@@ -13,6 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from domains.syngenta.jira.workflow_config_service import WorkflowConfigService
+from domains.syngenta.jira.cycle_time_trend_service import OutlierDetector
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
@@ -123,6 +126,7 @@ class CycleTimeService:
         team: Optional[str] = None,
         priorities: Optional[List[str]] = None,
         verbose: bool = False,
+        include_subtasks: bool = False,
         output_file: Optional[str] = None,
     ) -> Dict:
         """
@@ -164,6 +168,7 @@ class CycleTimeService:
                 issue_types,
                 team,
                 priorities,
+                include_subtasks,
             )
 
             self.logger.info(f"Executing JQL query: {jql_query}")
@@ -231,7 +236,8 @@ class CycleTimeService:
                     "issue_types": issue_types,
                     "team": team,
                     "priorities": priorities,
-                    "analysis_date": datetime.now().isoformat(),
+                "analysis_date": datetime.now().isoformat(),
+                    "include_subtasks": include_subtasks,
                 },
                 "metrics": metrics,
                 "issues": [self._result_to_dict(result) for result in cycle_time_results],
@@ -242,9 +248,12 @@ class CycleTimeService:
             if output_file:
                 self._save_results(results, output_file)
             else:
-                # Generate default output file in organized structure
-                output_path = OutputManager.get_output_path("cycle-time", f"cycle_time_{project_key}")
+                # Generate default output file in organized structure (per-day folder)
+                from datetime import datetime as _dt
+                sub_dir = f"cycle-time_{_dt.now().strftime('%Y%m%d')}"
+                output_path = OutputManager.get_output_path(sub_dir, f"cycle_time_{project_key}")
                 self._save_results(results, output_path)
+                results["output_file"] = output_path
 
             # Print verbose output if requested
             if verbose:
@@ -296,6 +305,7 @@ class CycleTimeService:
         issue_types: List[str],
         team: Optional[str],
         priorities: Optional[List[str]],
+        include_subtasks: bool,
     ) -> str:
         """Build JQL query for fetching issues."""
 
@@ -306,6 +316,10 @@ class CycleTimeService:
         if issue_types:
             types_str = "', '".join(issue_types)
             jql_parts.append(f"type in ('{types_str}')")
+
+        # Exclude subtasks unless explicitly included
+        if not include_subtasks:
+            jql_parts.append("issuetype not in subTaskIssueTypes()")
 
         # Time period - using resolution date to capture issues resolved in the period
         start_date_str = start_date.strftime("%Y-%m-%d")
@@ -646,6 +660,9 @@ class CycleTimeService:
         min_cycle_time = min(cycle_times)
         max_cycle_time = max(cycle_times)
 
+        # Calculate robust statistics with outlier detection
+        robust_cycle_stats = OutlierDetector.calculate_robust_stats(cycle_times, "IQR")
+
         # Extract lead times from valid results
         lead_times = [result.lead_time_hours for result in results if result.lead_time_hours is not None]
 
@@ -654,6 +671,9 @@ class CycleTimeService:
         median_lead_time = statistics.median(lead_times) if lead_times else 0.0
         min_lead_time = min(lead_times) if lead_times else 0.0
         max_lead_time = max(lead_times) if lead_times else 0.0
+
+        # Calculate robust lead time statistics
+        robust_lead_stats = OutlierDetector.calculate_robust_stats(lead_times, "IQR") if lead_times else None
 
         # Calculate time distribution
         time_distribution = self._calculate_time_distribution(cycle_times)
@@ -677,6 +697,50 @@ class CycleTimeService:
             "time_distribution": time_distribution,
             "priority_breakdown": priority_breakdown,
             "anomaly_analysis": self._analyze_anomalies(anomalies),
+            # ROBUST STATISTICS FOR CYCLE TIME
+            "robust_cycle_stats": {
+                "robust_mean": robust_cycle_stats.mean,
+                "robust_median": robust_cycle_stats.median,
+                "trimmed_mean_20pct": robust_cycle_stats.trimmed_mean,
+                "percentile_75": robust_cycle_stats.p75,
+                "percentile_90": robust_cycle_stats.p90,
+                "percentile_95": robust_cycle_stats.p95,
+                "iqr": robust_cycle_stats.iqr,
+                "median_absolute_deviation": robust_cycle_stats.mad,
+                "outliers_detected": robust_cycle_stats.outlier_info.outlier_count
+                if robust_cycle_stats.outlier_info
+                else 0,
+                "outlier_percentage": robust_cycle_stats.outlier_info.outlier_percentage
+                if robust_cycle_stats.outlier_info
+                else 0.0,
+                "outlier_values": robust_cycle_stats.outlier_info.outliers if robust_cycle_stats.outlier_info else [],
+                "outlier_detection_method": robust_cycle_stats.outlier_info.method
+                if robust_cycle_stats.outlier_info
+                else "NONE",
+            },
+            # ROBUST STATISTICS FOR LEAD TIME
+            "robust_lead_stats": {
+                "robust_mean": robust_lead_stats.mean if robust_lead_stats else 0.0,
+                "robust_median": robust_lead_stats.median if robust_lead_stats else 0.0,
+                "trimmed_mean_20pct": robust_lead_stats.trimmed_mean if robust_lead_stats else 0.0,
+                "percentile_75": robust_lead_stats.p75 if robust_lead_stats else 0.0,
+                "percentile_90": robust_lead_stats.p90 if robust_lead_stats else 0.0,
+                "percentile_95": robust_lead_stats.p95 if robust_lead_stats else 0.0,
+                "iqr": robust_lead_stats.iqr if robust_lead_stats else 0.0,
+                "median_absolute_deviation": robust_lead_stats.mad if robust_lead_stats else 0.0,
+                "outliers_detected": robust_lead_stats.outlier_info.outlier_count
+                if robust_lead_stats and robust_lead_stats.outlier_info
+                else 0,
+                "outlier_percentage": robust_lead_stats.outlier_info.outlier_percentage
+                if robust_lead_stats and robust_lead_stats.outlier_info
+                else 0.0,
+                "outlier_values": robust_lead_stats.outlier_info.outliers
+                if robust_lead_stats and robust_lead_stats.outlier_info
+                else [],
+                "outlier_detection_method": robust_lead_stats.outlier_info.method
+                if robust_lead_stats and robust_lead_stats.outlier_info
+                else "NONE",
+            },
         }
 
     def _calculate_time_distribution(self, cycle_times: List[float]) -> Dict[str, int]:
@@ -862,13 +926,13 @@ class CycleTimeService:
 
         md_content = []
 
-        # Header
-        md_content.append(f"# {performance_emoji} JIRA Cycle Time Analysis Report")
+        # Header (align with Net Flow style)
+        md_content.append(f"# {performance_emoji} JIRA Cycle Time Health Report")
         md_content.append("")
         md_content.append(f"**Project:** {project_key}")
         md_content.append(f"**Analysis Period:** {time_period}")
         if start_date and end_date:
-            md_content.append(f"**Date Range:** {start_date[:10]} to {end_date[:10]}")
+            md_content.append(f"**Date Range:** {start_date if 'T' in start_date else start_date[:10]} to {end_date if 'T' in end_date else end_date[:10]}")
         md_content.append(f"**Issue Types:** {', '.join(issue_types)}")
         if team:
             md_content.append(f"**Team Filter:** {team}")
@@ -878,14 +942,19 @@ class CycleTimeService:
         md_content.append("")
 
         # Executive Summary
-        md_content.append("## ⏱️ Executive Summary")
+        md_content.append("## 📊 Executive Summary")
         md_content.append("")
         avg_days = avg_cycle_time / 24
-        md_content.append(f"**Average Cycle Time:** {avg_cycle_time:.1f} hours ({avg_days:.1f} days)")
-        md_content.append(f"**Performance Assessment:** {performance_assessment}")
+        md_content.append(f"**Median Cycle Time:** {metrics.get('median_cycle_time_hours', 0):.1f}h")
+        md_content.append(f"**Status:** {performance_assessment}")
+        md_content.append(f"**Average Cycle Time:** {avg_cycle_time:.1f}h")
         md_content.append("")
-        md_content.append(f"- **Total Issues Analyzed:** {metrics.get('total_issues', 0)}")
-        md_content.append(f"- **Issues with Valid Cycle Time:** {metrics.get('issues_with_valid_cycle_time', 0)}")
+        md_content.append(f"- **Total Issues:** {metrics.get('total_issues', 0)}")
+        md_content.append(f"- **With Valid Cycle Time:** {metrics.get('issues_with_valid_cycle_time', 0)}")
+        md_content.append("")
+        md_content.append(
+            "> Concepts\n> - Cycle Time: time spent in WIP statuses (Started → Done).\n> - Lead Time: total time from first transition to Done (includes waiting)."
+        )
 
         median_cycle_time = metrics.get("median_cycle_time_hours", 0)
         median_days = median_cycle_time / 24
@@ -899,10 +968,10 @@ class CycleTimeService:
         md_content.append(f"- **Slowest Resolution:** {max_cycle_time:.1f} hours ({max_days:.1f} days)")
         md_content.append("")
 
-        # Cycle Time Distribution
+        # Robust statistics & distribution (concise)
         time_distribution = metrics.get("time_distribution", {})
         if time_distribution:
-            md_content.append("## 📊 Cycle Time Distribution")
+            md_content.append("## 📈 Cycle Time Distribution")
             md_content.append("")
             md_content.append("| Time Range | Count | Percentage | Performance |")
             md_content.append("|-------------|-------|------------|-------------|")
@@ -934,8 +1003,8 @@ class CycleTimeService:
         if priority_breakdown:
             md_content.append("## 🎯 Priority-Based Analysis")
             md_content.append("")
-            md_content.append("| Priority | Count | Avg Cycle Time | Median | Min | Max | Emoji |")
-            md_content.append("|----------|-------|----------------|---------|-----|-----|-------|")
+            md_content.append("| Priority | Count | Avg Cycle Time | Median | Min | Max | Performance |")
+            md_content.append("|----------|-------|----------------|---------|-----|-----|------------|")
 
             # Sort priorities by average cycle time (fastest first)
             sorted_priorities = sorted(
@@ -955,15 +1024,24 @@ class CycleTimeService:
 
                 priority_emoji = self._get_priority_emoji(priority)
                 perf_emoji = self._get_performance_emoji(avg_hours)
+                # Add concise performance label alongside emoji
+                if avg_hours < 24:
+                    perf_label = "Excellent"
+                elif avg_hours < 72:
+                    perf_label = "Good"
+                elif avg_hours < 168:
+                    perf_label = "Moderate"
+                else:
+                    perf_label = "Critical"
 
                 md_content.append(
-                    f"| {priority} {priority_emoji} | {count} | {avg_hours:.1f}h ({avg_days:.1f}d) | {median_hours:.1f}h ({median_days:.1f}d) | {min_hours:.1f}h | {max_hours:.1f}h | {perf_emoji} |"
+                    f"| {priority} {priority_emoji} | {count} | {avg_hours:.1f}h ({avg_days:.1f}d) | {median_hours:.1f}h ({median_days:.1f}d) | {min_hours:.1f}h | {max_hours:.1f}h | {perf_emoji} {perf_label} |"
                 )
 
             md_content.append("")
 
         # Performance Analysis
-        md_content.append("## 📈 Performance Analysis")
+        md_content.append("## 🎯 Performance Analysis")
         md_content.append("")
 
         if avg_cycle_time < 24:
@@ -987,72 +1065,77 @@ class CycleTimeService:
             md_content.append("- Immediate attention needed to improve efficiency")
             md_content.append("")
 
-        # Detailed Issue Analysis
-        if issues:
+        # Detailed Issue Analysis - list ALL issues in the period (valid + anomalies)
+        all_issues = []
+        issues_list = results.get("issues", [])
+        anomalies_list = results.get("anomalies", [])
+        if issues_list or anomalies_list:
             md_content.append("## 📝 Detailed Issue Analysis")
             md_content.append("")
 
-            # Filter and sort issues by cycle time
-            valid_issues = [issue for issue in issues if issue.get("has_valid_cycle_time", False)]
-            sorted_issues = sorted(valid_issues, key=lambda x: x.get("cycle_time_hours", 0))
+        # Methodology Notes (outliers/robust stats)
+        robust_cycle_stats = metrics.get("robust_cycle_stats", {})
+        robust_lead_stats = metrics.get("robust_lead_stats", {})
+        if robust_cycle_stats or robust_lead_stats:
+            md_content.append("## 🔍 Methodology Notes")
+            md_content.append("")
+            md_content.append("- Outliers (IQR): values beyond 1.5×IQR from the 25th–75th percentiles are flagged and summarized.")
+            md_content.append("- Robust metrics: Trimmed Mean reduces the effect of extremes; MAD measures robust variability.")
+            md_content.append("")
 
-            if len(sorted_issues) <= 20:  # Show all if 20 or fewer
-                md_content.append("### All Issues with Cycle Time Data")
-                md_content.append("")
-                md_content.append("| Issue Key | Summary | Type | Priority | Cycle Time | Performance | Assignee |")
-                md_content.append("|-----------|---------|------|----------|------------|-------------|----------|")
+            # Merge and sort by cycle time (placing anomalies at bottom if they lack cycle time)
+            def sort_key(item):
+                ct = item.get("cycle_time_hours")
+                return (1, 0) if ct is None else (0, ct)
 
-                for issue in sorted_issues:
-                    issue_key = issue.get("issue_key", "N/A")
-                    summary = issue.get("summary", "N/A")[:40] + ("..." if len(issue.get("summary", "")) > 40 else "")
-                    issue_type = issue.get("issue_type", "N/A")
-                    priority = issue.get("priority", "No Priority")
-                    cycle_time_hours = issue.get("cycle_time_hours", 0)
-                    cycle_time_days = issue.get("cycle_time_days", 0)
-                    assignee = issue.get("assignee", "Unassigned")
+            all_issues = issues_list + anomalies_list
+            all_issues_sorted = sorted(all_issues, key=sort_key)
 
-                    priority_emoji = self._get_priority_emoji(priority)
-                    perf_emoji = self._get_cycle_time_emoji(cycle_time_hours)
+            # Table header inspired by adherence/net flow styles
+            md_content.append(
+                "| Issue Key | Summary | Type | Priority | Assignee | Team | Started | Done | Cycle Time | Lead Time | Perf | Flags |"
+            )
+            md_content.append(
+                "|-----------|---------|------|----------|----------|------|---------|------|-----------|----------|------|-------|"
+            )
 
-                    md_content.append(
-                        f"| {issue_key} | {summary} | {issue_type} | {priority} {priority_emoji} | {cycle_time_hours:.1f}h ({cycle_time_days:.1f}d) | {perf_emoji} | {assignee} |"
-                    )
-            else:
-                # Show top performers and concerning issues
-                md_content.append("### Top Performers (Fastest 10)")
-                md_content.append("")
-                md_content.append("| Issue Key | Summary | Type | Cycle Time | Assignee |")
-                md_content.append("|-----------|---------|------|------------|----------|")
+            for issue in all_issues_sorted:
+                issue_key = issue.get("issue_key", "N/A")
+                summary_raw = issue.get("summary", "N/A")
+                summary = summary_raw[:60] + ("..." if len(summary_raw) > 60 else "")
+                issue_type = issue.get("issue_type", "N/A")
+                priority = issue.get("priority", "No Priority")
+                assignee = issue.get("assignee", "Unassigned")
+                team = issue.get("team", "-")
+                started = issue.get("started_date") or "-"
+                done = issue.get("done_date") or "-"
+                cycle_time_hours = issue.get("cycle_time_hours")
+                lead_time_hours = issue.get("lead_time_hours")
 
-                for issue in sorted_issues[:10]:
-                    issue_key = issue.get("issue_key", "N/A")
-                    summary = issue.get("summary", "N/A")[:40] + ("..." if len(issue.get("summary", "")) > 40 else "")
-                    issue_type = issue.get("issue_type", "N/A")
-                    cycle_time_hours = issue.get("cycle_time_hours", 0)
-                    cycle_time_days = issue.get("cycle_time_days", 0)
-                    assignee = issue.get("assignee", "Unassigned")
+                # Pretty formats
+                def fmt_hours(val):
+                    return f"{val:.1f}h ({val/24:.1f}d)" if isinstance(val, (int, float)) and val is not None else "-"
 
-                    md_content.append(
-                        f"| {issue_key} | {summary} | {issue_type} | {cycle_time_hours:.1f}h ({cycle_time_days:.1f}d) | {assignee} |"
-                    )
+                cycle_str = fmt_hours(cycle_time_hours)
+                lead_str = fmt_hours(lead_time_hours)
 
-                md_content.append("")
-                md_content.append("### Issues Needing Attention (Slowest 10)")
-                md_content.append("")
-                md_content.append("| Issue Key | Summary | Type | Cycle Time | Assignee |")
-                md_content.append("|-----------|---------|------|------------|----------|")
+                # Performance and flags
+                perf_emoji = self._get_cycle_time_emoji(cycle_time_hours) if cycle_time_hours is not None else "➖"
+                flags = []
+                if issue.get("has_batch_update_pattern"):
+                    flags.append("Batch Update")
+                if not issue.get("has_valid_cycle_time", True):
+                    flags.append("No Valid Cycle")
+                flags_str = ", ".join(flags) if flags else "-"
 
-                for issue in sorted_issues[-10:]:
-                    issue_key = issue.get("issue_key", "N/A")
-                    summary = issue.get("summary", "N/A")[:40] + ("..." if len(issue.get("summary", "")) > 40 else "")
-                    issue_type = issue.get("issue_type", "N/A")
-                    cycle_time_hours = issue.get("cycle_time_hours", 0)
-                    cycle_time_days = issue.get("cycle_time_days", 0)
-                    assignee = issue.get("assignee", "Unassigned")
+                priority_emoji = self._get_priority_emoji(priority)
+                prio_str = f"{priority} {priority_emoji}" if priority else "No Priority"
 
-                    md_content.append(
-                        f"| {issue_key} | {summary} | {issue_type} | {cycle_time_hours:.1f}h ({cycle_time_days:.1f}d) | {assignee} |"
-                    )
+                md_content.append(
+                    f"| {issue_key} | {summary} | {issue_type} | {prio_str} | {assignee} | {team} | "
+                    f"{(started[:10] if isinstance(started, str) else started)} | {(done[:10] if isinstance(done, str) else done)} | "
+                    f"{cycle_str} | {lead_str} | {perf_emoji} | {flags_str} |"
+                )
 
             md_content.append("")
 
@@ -1185,6 +1268,26 @@ class CycleTimeService:
                 md_content.append("### ✅ No Alerts")
                 md_content.append("All metrics are within normal ranges - no trending concerns detected.")
                 md_content.append("")
+
+        # Data Quality & Methodology (align with Net Flow footer)
+        md_content.append("")
+        md_content.append("## 📋 Data Quality & Methodology")
+        md_content.append("")
+        md_content.append("### Data Scope")
+        md_content.append(f"- **Analysis Period:** {time_period}")
+        if start_date and end_date:
+            md_content.append(f"- **Date Range:** {start_date[:19] if 'T' in start_date else start_date[:10]} to {end_date[:19] if 'T' in end_date else end_date[:10]}")
+        if team:
+            md_content.append(f"- **Team Filter:** {team}")
+        if priorities:
+            md_content.append(f"- **Priority Filter:** {', '.join(priorities)}")
+
+        md_content.append("")
+        md_content.append("---")
+        md_content.append("")
+        md_content.append(
+            f"*Report generated on {analysis_date[:19] if analysis_date else 'Unknown'} using PyToolkit JIRA Cycle Time Analysis Service*"
+        )
 
         return "\n".join(md_content)
 

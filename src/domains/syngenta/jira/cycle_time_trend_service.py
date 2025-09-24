@@ -5,13 +5,16 @@ This service provides trending analysis capabilities for cycle time metrics, inc
 1. Automatic baseline period calculation using the "4x rule"
 2. Temporal trend analysis with statistical significance testing
 3. Pattern detection and early warning alerts
+4. Robust statistical methods with outlier detection and handling
 
 FEATURES:
 - Baseline calculation: 4x current period duration for historical comparison
 - Trend metrics: percentage change, direction, momentum, volatility
 - Statistical analysis: linear regression, significance testing
+- Outlier detection: IQR-based outlier identification and robust statistics
 - Alert system: configurable thresholds with severity levels (INFO, WARNING, CRITICAL)
 - Pattern detection: identifies degrading trends and process improvements
+- Robust metrics: percentiles (P75, P90, P95) for outlier-resistant analysis
 
 INTEGRATION:
 This service integrates with CycleTimeService to provide enhanced analytics
@@ -66,6 +69,8 @@ class TrendResult:
     confidence_level: float
     trend_slope: float = 0.0
     volatility: float = 0.0
+    normalized_baseline: float = 0.0  # Baseline normalized for period comparison
+    is_normalized: bool = False  # Whether this metric was normalized
 
 
 @dataclass
@@ -81,27 +86,241 @@ class Alert:
     priority: int = 0  # Lower number = higher priority
 
 
+@dataclass
+class OutlierData:
+    """Data structure for outlier analysis results."""
+
+    outliers: List[float]
+    outlier_indices: List[int]
+    cleaned_data: List[float]
+    method: str  # 'IQR', 'Z-SCORE', 'MODIFIED_Z'
+    threshold_lower: float
+    threshold_upper: float
+    outlier_count: int
+    outlier_percentage: float
+
+
+@dataclass
+class RobustStats:
+    """Data structure for robust statistical metrics."""
+
+    mean: float
+    median: float
+    trimmed_mean: float  # 20% trimmed mean
+    p75: float  # 75th percentile
+    p90: float  # 90th percentile
+    p95: float  # 95th percentile
+    iqr: float  # Interquartile range
+    mad: float  # Median Absolute Deviation
+    outlier_info: Optional[OutlierData] = None
+
+
+class OutlierDetector:
+    """Statistical outlier detection and robust metrics calculator."""
+
+    @staticmethod
+    def detect_outliers_iqr(data: List[float], k: float = 1.5) -> OutlierData:
+        """
+        Detect outliers using Interquartile Range (IQR) method.
+
+        Args:
+            data: List of numeric values
+            k: IQR multiplier (1.5 = standard, 3.0 = extreme outliers)
+
+        Returns:
+            OutlierData: Complete outlier analysis results
+        """
+        if len(data) < 4:  # Need at least 4 points for meaningful IQR
+            return OutlierData([], [], data, "IQR", 0, 0, 0, 0.0)
+
+        data_sorted = sorted(data)
+        q1 = statistics.quantiles(data_sorted, n=4)[0]  # 25th percentile
+        q3 = statistics.quantiles(data_sorted, n=4)[2]  # 75th percentile
+        iqr = q3 - q1
+
+        lower_bound = q1 - k * iqr
+        upper_bound = q3 + k * iqr
+
+        outliers = []
+        outlier_indices = []
+        cleaned_data = []
+
+        for i, value in enumerate(data):
+            if value < lower_bound or value > upper_bound:
+                outliers.append(value)
+                outlier_indices.append(i)
+            else:
+                cleaned_data.append(value)
+
+        return OutlierData(
+            outliers=outliers,
+            outlier_indices=outlier_indices,
+            cleaned_data=cleaned_data,
+            method="IQR",
+            threshold_lower=lower_bound,
+            threshold_upper=upper_bound,
+            outlier_count=len(outliers),
+            outlier_percentage=(len(outliers) / len(data)) * 100 if data else 0.0,
+        )
+
+    @staticmethod
+    def detect_outliers_modified_z(data: List[float], threshold: float = 3.5) -> OutlierData:
+        """
+        Detect outliers using Modified Z-Score method (more robust than standard Z-score).
+
+        Args:
+            data: List of numeric values
+            threshold: Modified Z-score threshold (3.5 is recommended)
+
+        Returns:
+            OutlierData: Complete outlier analysis results
+        """
+        if len(data) < 3:
+            return OutlierData([], [], data, "MODIFIED_Z", 0, 0, 0, 0.0)
+
+        median = statistics.median(data)
+        mad = statistics.median([abs(x - median) for x in data])  # Median Absolute Deviation
+
+        if mad == 0:  # All values are the same
+            return OutlierData([], [], data, "MODIFIED_Z", 0, 0, 0, 0.0)
+
+        outliers = []
+        outlier_indices = []
+        cleaned_data = []
+
+        for i, value in enumerate(data):
+            modified_z_score = 0.6745 * (value - median) / mad
+            if abs(modified_z_score) > threshold:
+                outliers.append(value)
+                outlier_indices.append(i)
+            else:
+                cleaned_data.append(value)
+
+        return OutlierData(
+            outliers=outliers,
+            outlier_indices=outlier_indices,
+            cleaned_data=cleaned_data,
+            method="MODIFIED_Z",
+            threshold_lower=median - (threshold * mad / 0.6745),
+            threshold_upper=median + (threshold * mad / 0.6745),
+            outlier_count=len(outliers),
+            outlier_percentage=(len(outliers) / len(data)) * 100 if data else 0.0,
+        )
+
+    @staticmethod
+    def calculate_robust_stats(data: List[float], outlier_method: str = "IQR") -> RobustStats:
+        """
+        Calculate comprehensive robust statistics with outlier detection.
+
+        Args:
+            data: List of numeric values
+            outlier_method: 'IQR' or 'MODIFIED_Z'
+
+        Returns:
+            RobustStats: Complete robust statistical analysis
+        """
+        if not data:
+            return RobustStats(0, 0, 0, 0, 0, 0, 0, 0)
+
+        data_clean = [x for x in data if x is not None and x >= 0]  # Remove null and negative values
+
+        if len(data_clean) < 2:
+            single_value = data_clean[0] if data_clean else 0
+            return RobustStats(single_value, single_value, single_value, single_value, single_value, single_value, 0, 0)
+
+        # Detect outliers
+        if outlier_method == "MODIFIED_Z":
+            outlier_info = OutlierDetector.detect_outliers_modified_z(data_clean)
+        else:
+            outlier_info = OutlierDetector.detect_outliers_iqr(data_clean)
+
+        # Use cleaned data (without outliers) for robust statistics
+        robust_data = outlier_info.cleaned_data if outlier_info.cleaned_data else data_clean
+
+        # Calculate core statistics
+        mean_val = statistics.mean(robust_data)
+        median_val = statistics.median(robust_data)
+
+        # Trimmed mean (remove 20% extreme values)
+        if len(robust_data) >= 5:
+            trim_count = max(1, len(robust_data) // 10)  # 10% from each side
+            sorted_data = sorted(robust_data)
+            trimmed_data = sorted_data[trim_count:-trim_count]
+            trimmed_mean = statistics.mean(trimmed_data) if trimmed_data else mean_val
+        else:
+            trimmed_mean = mean_val
+
+        # Percentiles
+        if len(robust_data) >= 4:
+            percentiles = statistics.quantiles(robust_data, n=20)  # 5% increments
+            p75 = percentiles[14]  # 75th percentile
+            p90 = percentiles[17]  # 90th percentile
+            p95 = percentiles[18]  # 95th percentile
+
+            # IQR calculation
+            q1 = percentiles[4]  # 25th percentile
+            q3 = percentiles[14]  # 75th percentile
+            iqr = q3 - q1
+        else:
+            p75 = p90 = p95 = median_val
+            iqr = 0
+
+        # Median Absolute Deviation
+        mad = statistics.median([abs(x - median_val) for x in robust_data])
+
+        return RobustStats(
+            mean=mean_val,
+            median=median_val,
+            trimmed_mean=trimmed_mean,
+            p75=p75,
+            p90=p90,
+            p95=p95,
+            iqr=iqr,
+            mad=mad,
+            outlier_info=outlier_info,
+        )
+
+
 class TrendConfig:
     """Configuration settings for trend analysis."""
 
     DEFAULT_CONFIG = {
         "baseline_multiplier": 4,  # 4x current period for baseline
+        # PERCENTAGE-BASED THRESHOLDS: Compare % change between current and baseline
         "trend_thresholds": {
-            "stable_range": (-5, 5),  # ±5% is stable
-            "warning_threshold": 15,  # >15% change is warning
-            "critical_threshold": 30,  # >30% change is critical
+            "stable_range": (-5, 5),  # ±5% change is stable
+            "warning_threshold": 15,  # >15% change triggers WARNING
+            "critical_threshold": 30,  # >30% change triggers CRITICAL
         },
         "min_data_points": 1,  # Changed from 3 to 1 for single baseline comparison
         "statistical_confidence": 0.95,
         "batch_window_minutes": 5,
+        # ROBUST STATISTICS CONFIGURATION
+        "outlier_detection": {
+            "method": "IQR",  # 'IQR' or 'MODIFIED_Z'
+            "iqr_multiplier": 1.5,  # Standard: 1.5, Conservative: 3.0
+            "modified_z_threshold": 3.5,  # Modified Z-score threshold
+            "enable_outlier_filtering": True,  # Remove outliers for main metrics
+            "min_data_points": 4,  # Minimum points needed for outlier detection
+        },
+        "robust_metrics": {
+            "primary_statistic": "median",  # Use median as primary instead of mean
+            "use_trimmed_mean": True,  # Enable 20% trimmed mean
+            "enable_percentiles": True,  # Calculate P75, P90, P95
+            "outlier_threshold_percent": 20,  # Flag if >20% of data are outliers
+        },
+        # ABSOLUTE VALUE THRESHOLDS: Compare absolute values, not % change
         "sle_thresholds": {
-            "critical": 70,  # < 70% compliance is critical
-            "warning": 80,  # < 80% compliance is warning
+            "critical": 70,  # < 70% compliance (absolute) is critical
+            "warning": 80,  # < 80% compliance (absolute) is warning
         },
         "anomaly_thresholds": {
-            "critical": 25,  # > 25% anomalies is critical
-            "warning": 15,  # > 15% anomalies is warning
+            "critical": 25,  # > 25% anomaly rate (absolute) is critical
+            "warning": 15,  # > 15% anomaly rate (absolute) is warning
         },
+        # COUNT-BASED THRESHOLDS: Number of metrics degrading
+        "degrading_metrics_threshold": 3,  # >= 3 degrading metrics triggers alert
+        # LEGACY: May not be used consistently
         "throughput_decline": {
             "critical": 30,  # > 30% decline is critical
             "warning": 15,  # > 15% decline is warning
@@ -244,7 +463,20 @@ class CycleTimeTrendService:
                     f"Insufficient historical data: {len(historical_data)} periods, minimum {min_data_points} required"
                 )
 
+            # Calculate current period duration in days for normalization
+            current_period_days = (current_data.period_end - current_data.period_start).days
+            if current_period_days <= 0:
+                current_period_days = 1  # Fallback for same-day periods
+
+            # Calculate baseline multiplier and baseline period duration
+            baseline_multiplier_raw = self.config.get("baseline_multiplier", 4)
+            baseline_multiplier = float(baseline_multiplier_raw) if baseline_multiplier_raw is not None else 4.0
+            baseline_period_days = current_period_days * baseline_multiplier
+
             self.logger.info(f"Analyzing trends for {len(historical_data)} historical periods vs current period")
+            self.logger.info(
+                f"Current period: {current_period_days} days, Baseline period: {baseline_period_days} days (normalization factor: {baseline_multiplier})"
+            )
 
             # Define metrics to analyze
             metrics_to_analyze = [
@@ -262,7 +494,13 @@ class CycleTimeTrendService:
             for metric_attr, metric_name, unit, lower_is_better in metrics_to_analyze:
                 try:
                     trend_result = self._analyze_single_metric(
-                        current_data, historical_data, metric_attr, metric_name, unit, lower_is_better
+                        current_data,
+                        historical_data,
+                        metric_attr,
+                        metric_name,
+                        unit,
+                        lower_is_better,
+                        baseline_multiplier,
                     )
                     trend_results.append(trend_result)
                 except Exception as e:
@@ -410,6 +648,7 @@ class CycleTimeTrendService:
         metric_name: str,
         unit: str,
         lower_is_better: bool,
+        baseline_multiplier: float = 4.0,
     ) -> TrendResult:
         """Analyze trend for a single metric."""
         # Extract current and historical values
@@ -424,11 +663,56 @@ class CycleTimeTrendService:
         # Calculate baseline (average of historical values)
         baseline_value = statistics.mean(valid_historical)
 
-        # Calculate percentage change
-        if baseline_value > 0:
-            change_percent = ((current_value - baseline_value) / baseline_value) * 100
+        # Normalize baseline for metrics that are affected by period duration
+        # Metrics like throughput, total_issues, issues_with_valid_cycle_time should be normalized
+        # Rates, percentages, and time-based averages don't need normalization
+        normalized_baseline = baseline_value
+
+        # Check if this metric needs period normalization
+        # Only COUNT-based metrics need normalization, NOT averages/medians/rates
+        metrics_needing_normalization = ["throughput", "total_issues", "issues_with_valid_cycle_time"]
+
+        # NEVER normalize these metrics (they are already averages/medians/rates):
+        # - avg_cycle_time, median_cycle_time (time averages)
+        # - avg_lead_time, median_lead_time (time averages)
+        # - sle_compliance, anomaly_rate (percentages)
+
+        # Verify this metric should actually be normalized
+        if metric_attr in [
+            "avg_cycle_time",
+            "median_cycle_time",
+            "avg_lead_time",
+            "median_lead_time",
+            "sle_compliance",
+            "anomaly_rate",
+        ]:
+            # These are already normalized metrics - don't normalize further
+            pass
+
+        if metric_attr in metrics_needing_normalization:
+            normalized_baseline = baseline_value / baseline_multiplier
+            self.logger.debug(
+                f"Normalized {metric_name}: baseline {baseline_value:.1f} -> {normalized_baseline:.1f} (÷{baseline_multiplier})"
+            )
+
+        # Calculate percentage change using normalized baseline
+        if normalized_baseline > 0:
+            change_percent = ((current_value - normalized_baseline) / normalized_baseline) * 100
         else:
             change_percent = 0.0
+
+        # Validate for extreme values that might indicate data quality issues
+        if abs(change_percent) > 1000 and metric_attr in [
+            "avg_cycle_time",
+            "median_cycle_time",
+            "avg_lead_time",
+            "median_lead_time",
+        ]:
+            self.logger.warning(
+                f"Extreme change detected in {metric_name}: {change_percent:.1f}% "
+                f"(current: {current_value:.1f}, baseline: {baseline_value:.1f}). "
+                f"This may indicate data quality issues or outliers affecting the calculation."
+            )
 
         # Determine trend direction
         trend_direction = self._determine_trend_direction(change_percent, lower_is_better)
@@ -484,6 +768,9 @@ class CycleTimeTrendService:
                 self.logger.warning(f"Slope calculation failed for {metric_name}: {e}")
                 slope = 0.0
 
+        # Check if metric was normalized
+        is_normalized = metric_attr in metrics_needing_normalization
+
         return TrendResult(
             metric_name=metric_name,
             current_value=current_value,
@@ -494,6 +781,8 @@ class CycleTimeTrendService:
             confidence_level=confidence_level,
             trend_slope=slope,
             volatility=volatility,
+            normalized_baseline=normalized_baseline,
+            is_normalized=is_normalized,
         )
 
     def _determine_trend_direction(self, change_percent: float, lower_is_better: bool) -> str:
@@ -570,14 +859,17 @@ class CycleTimeTrendService:
 
         # Check for degrading performance across multiple metrics
         degrading_metrics = [t for t in trend_data if t.trend_direction == "DEGRADING"]
-        if len(degrading_metrics) >= 3:
+        degrading_threshold = self.config.get("degrading_metrics_threshold", 3)
+        if not isinstance(degrading_threshold, int):
+            degrading_threshold = 3
+        if len(degrading_metrics) >= degrading_threshold:
             alerts.append(
                 Alert(
                     severity="CRITICAL",
                     metric="Multiple Metrics",
                     message=f"{len(degrading_metrics)} metrics showing degradation",
                     current_value=len(degrading_metrics),
-                    threshold=3,
+                    threshold=degrading_threshold,
                     recommendation="Immediate process review required. Multiple performance indicators declining.",
                     priority=0,  # Highest priority
                 )
@@ -730,6 +1022,9 @@ class CycleTimeTrendService:
         """
         Calculate SLE compliance rate from cycle time analysis results.
 
+        SLE compliance is calculated only for Bug and Support issue types,
+        as these are the types where SLE/SLA targets apply.
+
         This is a simplified calculation. In production, you might want to:
         - Use actual SLE targets from configuration
         - Consider different SLE targets per priority
@@ -740,10 +1035,20 @@ class CycleTimeTrendService:
             if not issues:
                 return 0.0
 
-            compliant_issues = 0
-            total_issues = len(issues)
+            # Filter issues to only Bug and Support types for SLE compliance
+            sle_applicable_issues = [
+                issue for issue in issues if issue.get("issue_type", "").lower() in ["bug", "support"]
+            ]
 
-            for issue in issues:
+            if not sle_applicable_issues:
+                self.logger.info("No Bug or Support issues found for SLE compliance calculation")
+                self.logger.info(f"Available issue types: {[issue.get('issue_type') for issue in issues[:5]]}")
+                return 0.0
+
+            compliant_issues = 0
+            total_sle_issues = len(sle_applicable_issues)
+
+            for issue in sle_applicable_issues:
                 cycle_time_hours = issue.get("cycle_time_hours", 0)
                 priority = issue.get("priority", "")
 
@@ -758,7 +1063,10 @@ class CycleTimeTrendService:
                 if cycle_time_hours <= sle_target:
                     compliant_issues += 1
 
-            compliance_rate = (compliant_issues / total_issues) * 100
+            compliance_rate = (compliant_issues / total_sle_issues) * 100
+            self.logger.info(
+                f"SLE compliance calculated: {compliant_issues}/{total_sle_issues} Bug/Support issues compliant ({compliance_rate:.1f}%)"
+            )
             return compliance_rate
 
         except Exception as e:

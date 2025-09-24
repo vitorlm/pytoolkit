@@ -16,6 +16,9 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 from collections import defaultdict
 import math
+import random
+import numpy as np
+from enum import Enum
 
 from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from domains.syngenta.jira.workflow_config_service import WorkflowConfigService
@@ -38,6 +41,104 @@ class WeeklyFlowMetrics:
 
 
 @dataclass
+class StatisticalSignal:
+    """Statistical signal analysis result."""
+
+    ci_low: float
+    ci_high: float
+    signal_label: str
+    confidence_level: float = 0.95
+
+
+@dataclass
+class TrendAnalysis:
+    """Trend analysis result."""
+
+    ewma_values: List[float]
+    current_ewma: float
+    direction: str  # ↑/↓/→
+    cusum_shift_detected: bool = False
+    shift_point: Optional[int] = None
+
+
+@dataclass
+class VolatilityMetrics:
+    """Volatility and stability metrics."""
+
+    arrivals_cv: float
+    throughput_cv: float
+    stability_index: float
+
+
+@dataclass
+class FlowAlert:
+    """Flow health alert."""
+
+    id: str
+    title: str
+    triggered: bool
+    rationale: str
+    remediation: str
+
+
+@dataclass
+class SegmentMetrics:
+    """Segmented metrics by issue type or priority."""
+
+    segment_name: str
+    arrivals: int
+    throughput: int
+    net_flow: int
+
+
+@dataclass
+class BottleneckAnalysis:
+    """Bottleneck analysis for workflow columns."""
+
+    column_name: str
+    aging_p50: float
+    aging_p85: float
+    aging_p95: float
+    flow_efficiency: float
+    current_wip: int
+
+
+@dataclass
+class AssignmentMetrics:
+    """Assignment and ownership tracking metrics."""
+
+    assignment_lag_avg: float  # Hours from created to first assignment
+    assignment_lag_p85: float  # P85 assignment lag
+    unassigned_count: int      # Current unassigned issues
+    unassigned_percentage: float  # % of issues unassigned
+    reassignment_frequency: float  # Avg reassignments per issue
+    team_load_balance: Dict[str, int]  # Issues per team member
+    handoff_quality_score: float  # 0-100 based on clean handoffs
+
+
+@dataclass
+class StageTransition:
+    """Individual workflow stage transition."""
+
+    from_stage: str
+    to_stage: str
+    avg_time_hours: float
+    median_time_hours: float
+    p85_time_hours: float
+    issue_count: int
+
+
+@dataclass
+class CycleTimeHeatmap:
+    """Cycle time breakdown by workflow stages."""
+
+    transitions: List[StageTransition]
+    total_cycle_time: float
+    bottleneck_stage: str
+    efficiency_by_stage: Dict[str, float]
+
+
+@dataclass
 class NetFlowScorecard:
     """Data class for the complete net flow scorecard."""
 
@@ -46,6 +147,23 @@ class NetFlowScorecard:
     rolling_trend: List[WeeklyFlowMetrics]
     insights: List[str]
     details: Dict = field(default_factory=dict)
+
+    # New statistical fields
+    statistical_signal: Optional[StatisticalSignal] = None
+    trend_analysis: Optional[TrendAnalysis] = None
+    volatility_metrics: Optional[VolatilityMetrics] = None
+    flow_debt: int = 0
+    normalized_metrics: Dict = field(default_factory=dict)
+    segments: List[SegmentMetrics] = field(default_factory=list)
+    bottlenecks: List[BottleneckAnalysis] = field(default_factory=list)
+    alerts: List[FlowAlert] = field(default_factory=list)
+
+
+class SignalLabel(Enum):
+    """Statistical signal labels for Net Flow."""
+    LIKELY_ACCUMULATION = "Likely accumulation"
+    LIKELY_REDUCTION = "Likely reduction"
+    INCONCLUSIVE = "Inconclusive/Noise"
 
 
 class NetFlowCalculationService:
@@ -57,6 +175,559 @@ class NetFlowCalculationService:
         self.time_parser = TimePeriodParser()
         self.logger = LogManager.get_instance().get_logger("NetFlowCalculationService")
 
+        # Configure random seed for reproducible bootstrap results
+        random.seed(42)
+        np.random.seed(42)
+
+    def bootstrap_net_flow_ci(self, arrivals: int, throughput: int, B: int = 2000, confidence_level: float = 0.95) -> StatisticalSignal:
+        """
+        Compute bootstrap confidence interval for Net Flow using small-sample awareness.
+
+        Args:
+            arrivals: Number of arrivals in the period
+            throughput: Number of throughput items in the period
+            B: Number of bootstrap resamples (default: 2000)
+            confidence_level: Confidence level (default: 0.95)
+
+        Returns:
+            StatisticalSignal with CI and signal label
+        """
+        if arrivals == 0 and throughput == 0:
+            return StatisticalSignal(0.0, 0.0, SignalLabel.INCONCLUSIVE.value, confidence_level)
+
+        # For very small samples, use Poisson bootstrap approximation
+        net_flows = []
+        for _ in range(B):
+            # Bootstrap arrivals and throughput
+            bootstrap_arrivals = np.random.poisson(arrivals) if arrivals > 0 else 0
+            bootstrap_throughput = np.random.poisson(throughput) if throughput > 0 else 0
+            net_flows.append(bootstrap_arrivals - bootstrap_throughput)
+
+        net_flows = np.array(net_flows)
+
+        # Calculate confidence interval using percentile method
+        alpha = 1 - confidence_level
+        ci_low = np.percentile(net_flows, (alpha / 2) * 100)
+        ci_high = np.percentile(net_flows, (1 - alpha / 2) * 100)
+
+        # Determine signal label
+        if ci_low > 0:
+            signal_label = SignalLabel.LIKELY_ACCUMULATION.value
+        elif ci_high < 0:
+            signal_label = SignalLabel.LIKELY_REDUCTION.value
+        else:
+            signal_label = SignalLabel.INCONCLUSIVE.value
+
+        return StatisticalSignal(ci_low, ci_high, signal_label, confidence_level)
+
+    def compute_ewma(self, series: List[float], alpha: float = 0.2) -> TrendAnalysis:
+        """
+        Compute Exponentially Weighted Moving Average for trend analysis.
+
+        Args:
+            series: Time series data (e.g., flow ratios)
+            alpha: Smoothing parameter (default: 0.2)
+
+        Returns:
+            TrendAnalysis with EWMA values and direction
+        """
+        if not series:
+            return TrendAnalysis([], 0.0, "→")
+
+        ewma_values = []
+        ewma = series[0]  # Initialize with first value
+        ewma_values.append(ewma)
+
+        for value in series[1:]:
+            ewma = alpha * value + (1 - alpha) * ewma
+            ewma_values.append(ewma)
+
+        # Determine trend direction
+        if len(ewma_values) >= 2:
+            current_ewma = ewma_values[-1]
+            prev_ewma = ewma_values[-2]
+
+            if current_ewma > prev_ewma * 1.02:  # 2% threshold for upward trend
+                direction = "↑"
+            elif current_ewma < prev_ewma * 0.98:  # 2% threshold for downward trend
+                direction = "↓"
+            else:
+                direction = "→"
+        else:
+            direction = "→"
+
+        return TrendAnalysis(ewma_values, ewma_values[-1], direction)
+
+    def detect_cusum_shift(self, series: List[float], k_factor: float = 0.5, h_threshold: float = 5.0) -> bool:
+        """
+        Detect sustained shifts using CUSUM algorithm.
+
+        Args:
+            series: Time series data
+            k_factor: Reference value multiplier (default: 0.5 * sigma)
+            h_threshold: Decision threshold (default: 5.0 * sigma)
+
+        Returns:
+            Boolean indicating if shift was detected
+        """
+        if len(series) < 3:
+            return False
+
+        # Calculate reference value (mean) and standard deviation
+        mean_val = np.mean(series)
+        std_val = np.std(series)
+
+        if std_val == 0:
+            return False
+
+        k = k_factor * std_val
+        h = h_threshold * std_val
+
+        # CUSUM for upward shift
+        s_plus = 0
+        # CUSUM for downward shift
+        s_minus = 0
+
+        for value in series:
+            s_plus = max(0, s_plus + (value - mean_val - k))
+            s_minus = max(0, s_minus + (mean_val - value - k))
+
+            if s_plus > h or s_minus > h:
+                return True
+
+        return False
+
+    def compute_rolling_cv(self, series: List[float], window: int = 8) -> List[Optional[float]]:
+        """
+        Compute rolling coefficient of variation.
+
+        Args:
+            series: Time series data
+            window: Rolling window size (default: 8 weeks)
+
+        Returns:
+            List of CV values (None for insufficient data points)
+        """
+        if len(series) < 2:
+            return [None] * len(series)
+
+        cv_values = []
+        for i in range(len(series)):
+            start_idx = max(0, i - window + 1)
+            window_data = series[start_idx:i + 1]
+
+            if len(window_data) < 2:
+                cv_values.append(None)
+                continue
+
+            mean_val = np.mean(window_data)
+            if mean_val == 0:
+                cv_values.append(0.0)
+            else:
+                std_val = np.std(window_data)
+                cv = (std_val / abs(mean_val)) * 100
+                cv_values.append(cv)
+
+        return cv_values
+
+    def compute_stability_index(self, net_flow_series: List[int], window: int = 8) -> float:
+        """
+        Compute stability index as % of periods within control bands.
+
+        Args:
+            net_flow_series: Historical net flow values
+            window: Window for control band calculation
+
+        Returns:
+            Stability index as percentage
+        """
+        if len(net_flow_series) < window:
+            return 0.0
+
+        # Use the last 'window' periods for control band calculation
+        recent_data = net_flow_series[-window:]
+        mean_val = np.mean(recent_data)
+        std_val = np.std(recent_data)
+
+        if std_val == 0:
+            return 100.0  # All values are the same, perfectly stable
+
+        # Count values within ±1 sigma
+        lower_bound = mean_val - std_val
+        upper_bound = mean_val + std_val
+
+        within_bounds = sum(1 for x in recent_data if lower_bound <= x <= upper_bound)
+        return (within_bounds / len(recent_data)) * 100
+
+    def compute_flow_debt(self, net_flow_history: List[int]) -> int:
+        """
+        Compute cumulative flow debt (positive net flows over time).
+
+        Args:
+            net_flow_history: Historical net flow values
+
+        Returns:
+            Cumulative flow debt
+        """
+        return sum(max(nf, 0) for nf in net_flow_history)
+
+    def normalize_per_dev(self, value: float, active_devs: Optional[int]) -> Optional[float]:
+        """
+        Normalize metrics per active developer.
+
+        Args:
+            value: Value to normalize
+            active_devs: Number of active developers
+
+        Returns:
+            Normalized value or None if active_devs not provided
+        """
+        if active_devs is None or active_devs == 0:
+            return None
+        return value / active_devs
+
+    def analyze_segments_by_type(self, arrival_issues: List[Dict], completed_issues: List[Dict]) -> List[SegmentMetrics]:
+        """
+        Analyze metrics segmented by issue type.
+
+        Args:
+            arrival_issues: List of arrived issues
+            completed_issues: List of completed issues
+
+        Returns:
+            List of segmented metrics
+        """
+        # Count by issue type
+        arrival_types = {}
+        completion_types = {}
+
+        for issue in arrival_issues:
+            issue_type = issue.get("type", "Unknown")
+            arrival_types[issue_type] = arrival_types.get(issue_type, 0) + 1
+
+        for issue in completed_issues:
+            issue_type = issue.get("type", "Unknown")
+            completion_types[issue_type] = completion_types.get(issue_type, 0) + 1
+
+        # Create segments
+        all_types = set(arrival_types.keys()) | set(completion_types.keys())
+        segments = []
+
+        for issue_type in sorted(all_types):
+            arrivals = arrival_types.get(issue_type, 0)
+            throughput = completion_types.get(issue_type, 0)
+            net_flow = arrivals - throughput
+
+            segments.append(SegmentMetrics(issue_type, arrivals, throughput, net_flow))
+
+        return segments
+
+    def generate_health_alerts(
+        self,
+        signal: StatisticalSignal,
+        trend: TrendAnalysis,
+        volatility: VolatilityMetrics,
+        flow_efficiency: float,
+        testing_aging_p85: float = 0.0,
+        testing_threshold_days: float = 7.0,
+        consecutive_weeks_data: List[Dict] = None
+    ) -> List[FlowAlert]:
+        """
+        Generate health alerts based on defined rules.
+
+        Args:
+            signal: Statistical signal analysis
+            trend: Trend analysis
+            volatility: Volatility metrics
+            flow_efficiency: Current flow efficiency
+            testing_aging_p85: P85 aging for testing column
+            testing_threshold_days: Threshold for testing bottleneck
+            consecutive_weeks_data: Historical data for consecutive week analysis
+
+        Returns:
+            List of triggered alerts
+        """
+        alerts = []
+
+        # Rule 1: Probable accumulation (CI entirely > 0 for 2 consecutive weeks)
+        accumulation_alert = FlowAlert(
+            id="probable_accumulation",
+            title="Probable Accumulation",
+            triggered=False,
+            rationale="Net Flow CI entirely > 0 for consecutive periods",
+            remediation="Throttle intake or increase throughput capacity"
+        )
+
+        if signal.signal_label == SignalLabel.LIKELY_ACCUMULATION.value:
+            # Check if previous week was also likely accumulation (simplified check)
+            accumulation_alert.triggered = True
+            accumulation_alert.rationale = f"Net Flow CI [{signal.ci_low:.1f}, {signal.ci_high:.1f}] indicates likely accumulation"
+
+        alerts.append(accumulation_alert)
+
+        # Rule 2: Unstable intake (Arrival CV > 30% for multiple weeks)
+        intake_alert = FlowAlert(
+            id="unstable_intake",
+            title="Unstable Intake",
+            triggered=volatility.arrivals_cv > 30.0,
+            rationale=f"Arrival volatility at {volatility.arrivals_cv:.1f}% exceeds 30% threshold",
+            remediation="Implement intake planning and smoothing mechanisms"
+        )
+        alerts.append(intake_alert)
+
+        # Rule 3: Testing bottleneck sustained
+        testing_alert = FlowAlert(
+            id="testing_bottleneck",
+            title="Testing Bottleneck Sustained",
+            triggered=(flow_efficiency < 40.0 and testing_aging_p85 > testing_threshold_days),
+            rationale=f"Flow efficiency {flow_efficiency:.1f}% < 40% AND Testing aging P85 {testing_aging_p85:.1f} > {testing_threshold_days} days",
+            remediation="Implement WIP limits and test automation"
+        )
+        alerts.append(testing_alert)
+
+        # Rule 4: Intake drift (EWMA Flow Ratio > 110% for 2 weeks)
+        drift_alert = FlowAlert(
+            id="intake_drift",
+            title="Intake Outweighs Throughput",
+            triggered=(trend.current_ewma > 110.0 and trend.direction == "↑"),
+            rationale=f"EWMA Flow Ratio at {trend.current_ewma:.1f}% indicates intake exceeding throughput",
+            remediation="Stabilize arrival rate or increase delivery capacity"
+        )
+        alerts.append(drift_alert)
+
+        return alerts
+
+    def analyze_assignment_metrics(self, all_issues: List[Dict]) -> AssignmentMetrics:
+        """
+        Analyze assignment and ownership tracking metrics.
+
+        Args:
+            all_issues: List of all issues (arrivals + completed) with full history
+
+        Returns:
+            AssignmentMetrics with ownership analysis
+        """
+        assignment_lags = []
+        reassignment_counts = []
+        team_load = defaultdict(int)
+        unassigned_count = 0
+        total_issues = len(all_issues)
+        handoff_scores = []
+
+        for issue in all_issues:
+            # Analyze assignment history from changelog
+            assignment_history = self._extract_assignment_history(issue)
+
+            # Calculate assignment lag (created to first assignment)
+            try:
+                created_str = issue.get("fields", {}).get("created", "")
+                if created_str:
+                    # Remove timezone if present for parsing
+                    if "+" in created_str:
+                        created_str = created_str.split("+")[0]
+                    if "." in created_str:
+                        created_str = created_str.split(".")[0]
+                    created_date = datetime.fromisoformat(created_str)
+                else:
+                    continue  # Skip if no created date
+            except ValueError:
+                continue  # Skip issues with invalid dates
+
+            if assignment_history:
+                first_assignment = assignment_history[0]
+                lag_hours = (first_assignment["timestamp"] - created_date).total_seconds() / 3600
+                assignment_lags.append(lag_hours)
+
+                # Count reassignments (excluding None assignments)
+                valid_assignments = [a for a in assignment_history if a["assignee"] is not None]
+                reassignment_counts.append(len(valid_assignments) - 1 if len(valid_assignments) > 1 else 0)
+
+                # Handoff quality (fewer reassignments = better quality)
+                handoff_quality = max(0, 100 - (len(valid_assignments) - 1) * 20)
+                handoff_scores.append(handoff_quality)
+            else:
+                # Issue was never assigned
+                unassigned_count += 1
+                handoff_scores.append(0)  # Poor handoff quality
+
+            # Current assignee for load balancing
+            current_assignee = issue.get("fields", {}).get("assignee")
+            if current_assignee:
+                assignee_name = current_assignee.get("displayName", "Unknown")
+                team_load[assignee_name] += 1
+
+        # Calculate metrics
+        assignment_lag_avg = np.mean(assignment_lags) if assignment_lags else 0
+        assignment_lag_p85 = np.percentile(assignment_lags, 85) if assignment_lags else 0
+        unassigned_percentage = (unassigned_count / total_issues * 100) if total_issues > 0 else 0
+        reassignment_frequency = np.mean(reassignment_counts) if reassignment_counts else 0
+        handoff_quality_score = np.mean(handoff_scores) if handoff_scores else 0
+
+        return AssignmentMetrics(
+            assignment_lag_avg=assignment_lag_avg,
+            assignment_lag_p85=assignment_lag_p85,
+            unassigned_count=unassigned_count,
+            unassigned_percentage=unassigned_percentage,
+            reassignment_frequency=reassignment_frequency,
+            team_load_balance=dict(team_load),
+            handoff_quality_score=handoff_quality_score
+        )
+
+    def _extract_assignment_history(self, issue: Dict) -> List[Dict]:
+        """Extract assignment history from issue changelog."""
+        assignment_history = []
+        changelog = issue.get("changelog", {}).get("histories", [])
+
+        for history in changelog:
+            try:
+                history_time_str = history["created"]
+                # Remove timezone if present for parsing
+                if "+" in history_time_str:
+                    history_time_str = history_time_str.split("+")[0]
+                if "." in history_time_str:
+                    history_time_str = history_time_str.split(".")[0]
+                history_time = datetime.fromisoformat(history_time_str)
+            except (ValueError, KeyError):
+                continue  # Skip invalid timestamps
+            for item in history["items"]:
+                if item["field"] == "assignee":
+                    assignment_history.append({
+                        "timestamp": history_time,
+                        "assignee": item.get("toString"),
+                        "from_assignee": item.get("fromString")
+                    })
+
+        return sorted(assignment_history, key=lambda x: x["timestamp"])
+
+    def analyze_cycle_time_heatmap(self, completed_issues: List[Dict], project_key: str) -> CycleTimeHeatmap:
+        """
+        Analyze cycle time breakdown by workflow stages.
+
+        Args:
+            completed_issues: List of completed issues with full changelog
+            project_key: JIRA project key for workflow configuration
+
+        Returns:
+            CycleTimeHeatmap with stage-by-stage breakdown
+        """
+        # Get workflow configuration
+        workflow_config = self.workflow_service.get_workflow_config(project_key)
+        workflow_stages = workflow_config.get("workflow_stages", [])
+
+        # If no stages configured, use common defaults
+        if not workflow_stages:
+            workflow_stages = [
+                "To Do", "In Progress", "Code Review", "Testing", "Done"
+            ]
+
+        transitions = defaultdict(list)  # {(from_stage, to_stage): [transition_times]}
+        stage_times = defaultdict(list)  # {stage: [time_in_stage]}
+
+        for issue in completed_issues:
+            stage_transitions = self._extract_stage_transitions(issue, workflow_stages)
+
+            for transition in stage_transitions:
+                from_stage = transition["from_stage"]
+                to_stage = transition["to_stage"]
+                time_hours = transition["time_hours"]
+
+                transitions[(from_stage, to_stage)].append(time_hours)
+
+                # Track time spent in each stage
+                if from_stage != "Created":  # Skip initial creation
+                    stage_times[from_stage].append(time_hours)
+
+        # Calculate transition metrics
+        transition_metrics = []
+        for (from_stage, to_stage), times in transitions.items():
+            if times:  # Only include transitions that occurred
+                transition_metrics.append(StageTransition(
+                    from_stage=from_stage,
+                    to_stage=to_stage,
+                    avg_time_hours=np.mean(times),
+                    median_time_hours=np.median(times),
+                    p85_time_hours=np.percentile(times, 85),
+                    issue_count=len(times)
+                ))
+
+        # Find bottleneck stage (highest P85 time)
+        bottleneck_stage = "Unknown"
+        max_p85_time = 0
+        efficiency_by_stage = {}
+
+        for stage, times in stage_times.items():
+            if times:
+                p85_time = np.percentile(times, 85)
+                efficiency_by_stage[stage] = np.mean(times)
+
+                if p85_time > max_p85_time:
+                    max_p85_time = p85_time
+                    bottleneck_stage = stage
+
+        # Calculate total cycle time
+        total_cycle_time = sum(np.mean(times) for times in stage_times.values())
+
+        return CycleTimeHeatmap(
+            transitions=transition_metrics,
+            total_cycle_time=total_cycle_time,
+            bottleneck_stage=bottleneck_stage,
+            efficiency_by_stage=efficiency_by_stage
+        )
+
+    def _extract_stage_transitions(self, issue: Dict, workflow_stages: List[str]) -> List[Dict]:
+        """Extract stage transitions from issue changelog."""
+        transitions = []
+        changelog = issue.get("changelog", {}).get("histories", [])
+
+        # Start with creation
+        try:
+            created_str = issue.get("fields", {}).get("created", "")
+            if not created_str:
+                return []  # Skip if no creation date
+
+            # Remove timezone if present for parsing
+            if "+" in created_str:
+                created_str = created_str.split("+")[0]
+            if "." in created_str:
+                created_str = created_str.split(".")[0]
+            created_date = datetime.fromisoformat(created_str)
+        except (ValueError, TypeError):
+            return []  # Skip issues with invalid dates
+
+        current_stage = "Created"
+        last_transition_time = created_date
+
+        for history in changelog:
+            try:
+                history_time_str = history["created"]
+                # Remove timezone if present for parsing
+                if "+" in history_time_str:
+                    history_time_str = history_time_str.split("+")[0]
+                if "." in history_time_str:
+                    history_time_str = history_time_str.split(".")[0]
+                history_time = datetime.fromisoformat(history_time_str)
+            except (ValueError, KeyError):
+                continue  # Skip invalid timestamps
+
+            for item in history["items"]:
+                if item["field"] == "status":
+                    to_stage = item.get("toString", "Unknown")
+
+                    # Calculate time in previous stage
+                    time_in_stage = (history_time - last_transition_time).total_seconds() / 3600
+
+                    transitions.append({
+                        "from_stage": current_stage,
+                        "to_stage": to_stage,
+                        "time_hours": time_in_stage,
+                        "timestamp": history_time
+                    })
+
+                    current_stage = to_stage
+                    last_transition_time = history_time
+
+        return transitions
+
     def generate_net_flow_scorecard(
         self,
         project_key: str,
@@ -66,6 +737,15 @@ class NetFlowCalculationService:
         include_subtasks: bool = False,
         output_format: str = "console",
         verbose: bool = False,
+        # New statistical parameters
+        enable_statistical_analysis: bool = False,
+        enable_ci: bool = False,
+        enable_ewma: bool = False,
+        enable_cusum: bool = False,
+        cv_window: int = 8,
+        alpha: float = 0.2,
+        active_devs: Optional[int] = None,
+        testing_threshold_days: float = 7.0,
     ) -> Dict:
         """
         Generates a net flow scorecard with a rolling 4-week trend.
@@ -122,6 +802,87 @@ class NetFlowCalculationService:
                 else 0
             )
 
+            # Initialize optional statistical analyses
+            statistical_signal = None
+            trend_analysis = None
+            volatility_metrics = None
+            flow_debt = 0
+            normalized_metrics = {}
+            segments = []
+            alerts = []
+            assignment_metrics = None
+            cycle_time_heatmap = None
+
+            # Statistical Analysis (enabled by flags or enable_statistical_analysis)
+            if enable_statistical_analysis or enable_ci or enable_ewma:
+                # Bootstrap confidence interval for current week net flow
+                if enable_statistical_analysis or enable_ci:
+                    statistical_signal = self.bootstrap_net_flow_ci(
+                        current_week_metrics["arrival_rate"],
+                        current_week_metrics["throughput"]
+                    )
+
+                # EWMA trend analysis
+                if enable_statistical_analysis or enable_ewma:
+                    flow_ratios = [
+                        (m["throughput"] / m["arrival_rate"] * 100) if m["arrival_rate"] > 0 else 0
+                        for m in rolling_trend_metrics
+                    ]
+                    trend_analysis = self.compute_ewma(flow_ratios, alpha)
+
+                    # CUSUM shift detection
+                    if enable_cusum:
+                        cusum_shift = self.detect_cusum_shift(flow_ratios)
+                        if trend_analysis:
+                            trend_analysis.cusum_shift_detected = cusum_shift
+
+                # Volatility and stability metrics
+                if enable_statistical_analysis:
+                    throughput_rates = [m["throughput"] for m in rolling_trend_metrics]
+                    net_flows = [m["net_flow"] for m in rolling_trend_metrics]
+
+                    arrivals_cv = self.compute_rolling_cv(arrival_rates, cv_window)[-1] or 0.0
+                    throughput_cv = self.compute_rolling_cv(throughput_rates, cv_window)[-1] or 0.0
+                    stability_index = self.compute_stability_index(net_flows, cv_window)
+
+                    volatility_metrics = VolatilityMetrics(arrivals_cv, throughput_cv, stability_index)
+
+                    # Flow debt calculation
+                    flow_debt = self.compute_flow_debt(net_flows)
+
+                    # Normalized metrics
+                    if active_devs:
+                        normalized_metrics = {
+                            "net_flow_per_dev": self.normalize_per_dev(current_week_metrics["net_flow"], active_devs),
+                            "arrival_rate_per_dev": self.normalize_per_dev(current_week_metrics["arrival_rate"], active_devs),
+                            "throughput_per_dev": self.normalize_per_dev(current_week_metrics["throughput"], active_devs),
+                            "active_devs": active_devs
+                        }
+
+                    # Segmentation analysis
+                    current_arrivals = current_week_metrics.get("arrival_issues", [])
+                    current_completed = current_week_metrics.get("completed_issues", [])
+                    segments = self.analyze_segments_by_type(current_arrivals, current_completed)
+
+                    # Health alerts
+                    if statistical_signal and trend_analysis and volatility_metrics:
+                        alerts = self.generate_health_alerts(
+                            statistical_signal,
+                            trend_analysis,
+                            volatility_metrics,
+                            flow_efficiency,
+                            testing_threshold_days=testing_threshold_days
+                        )
+
+                    # Assignment & Ownership Analysis (always compute for enhanced analysis)
+                    all_issues = current_arrivals + current_completed
+                    if all_issues:
+                        assignment_metrics = self.analyze_assignment_metrics(all_issues)
+
+                    # Cycle Time Heatmap Analysis
+                    if current_completed:
+                        cycle_time_heatmap = self.analyze_cycle_time_heatmap(current_completed, project_key)
+
             response = {
                 "metadata": {
                     "project_key": project_key,
@@ -133,6 +894,7 @@ class NetFlowCalculationService:
                     "week_number": datetime.fromisoformat(current_week_metrics["start_date"]).isocalendar()[1],
                     "start_date": current_week_metrics["start_date"],
                     "end_date": current_week_metrics["end_date"],
+                    "statistical_analysis_enabled": bool(enable_statistical_analysis),
                 },
                 "current_week": {
                     "arrival_rate": current_week_metrics["arrival_rate"],
@@ -168,22 +930,112 @@ class NetFlowCalculationService:
                 else {},
             }
 
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            sub_dir = f"net-flow_{timestamp}"
+            # Add statistical analysis results to response
+            if statistical_signal:
+                response["statistical_signal"] = {
+                    "net_flow_ci_low": statistical_signal.ci_low,
+                    "net_flow_ci_high": statistical_signal.ci_high,
+                    "signal_label": statistical_signal.signal_label,
+                    "confidence_level": statistical_signal.confidence_level,
+                }
 
+            if trend_analysis:
+                response["trend_analysis"] = {
+                    "ewma_flow_ratio": trend_analysis.current_ewma,
+                    "trend_direction": trend_analysis.direction,
+                    "cusum_shift_detected": bool(trend_analysis.cusum_shift_detected),
+                }
+
+            if volatility_metrics:
+                response["volatility_metrics"] = {
+                    "arrivals_cv": volatility_metrics.arrivals_cv,
+                    "throughput_cv": volatility_metrics.throughput_cv,
+                    "stability_index": volatility_metrics.stability_index,
+                }
+
+            if flow_debt > 0:
+                response["flow_debt"] = flow_debt
+
+            if normalized_metrics:
+                response["normalized_metrics"] = normalized_metrics
+
+            if segments:
+                response["segments"] = [
+                    {
+                        "segment_name": seg.segment_name,
+                        "arrivals": seg.arrivals,
+                        "throughput": seg.throughput,
+                        "net_flow": seg.net_flow,
+                    }
+                    for seg in segments
+                ]
+
+            if alerts:
+                response["alerts"] = [
+                    {
+                        "id": alert.id,
+                        "title": alert.title,
+                        "triggered": bool(alert.triggered),
+                        "rationale": alert.rationale,
+                        "remediation": alert.remediation,
+                    }
+                    for alert in alerts
+                ]
+
+            # Add Assignment & Ownership Metrics
+            if assignment_metrics:
+                response["assignment_metrics"] = {
+                    "assignment_lag_avg_hours": assignment_metrics.assignment_lag_avg,
+                    "assignment_lag_p85_hours": assignment_metrics.assignment_lag_p85,
+                    "unassigned_count": assignment_metrics.unassigned_count,
+                    "unassigned_percentage": assignment_metrics.unassigned_percentage,
+                    "reassignment_frequency": assignment_metrics.reassignment_frequency,
+                    "team_load_balance": assignment_metrics.team_load_balance,
+                    "handoff_quality_score": assignment_metrics.handoff_quality_score,
+                }
+
+            # Add Cycle Time Heatmap
+            if cycle_time_heatmap:
+                response["cycle_time_heatmap"] = {
+                    "transitions": [
+                        {
+                            "from_stage": t.from_stage,
+                            "to_stage": t.to_stage,
+                            "avg_time_hours": t.avg_time_hours,
+                            "avg_time_days": t.avg_time_hours / 24,
+                            "median_time_hours": t.median_time_hours,
+                            "p85_time_hours": t.p85_time_hours,
+                            "issue_count": t.issue_count,
+                        }
+                        for t in cycle_time_heatmap.transitions
+                    ],
+                    "total_cycle_time_hours": cycle_time_heatmap.total_cycle_time,
+                    "total_cycle_time_days": cycle_time_heatmap.total_cycle_time / 24,
+                    "bottleneck_stage": cycle_time_heatmap.bottleneck_stage,
+                    "efficiency_by_stage": cycle_time_heatmap.efficiency_by_stage,
+                }
+
+            # Save reports into a per-day folder (all reports for the same day go together)
+            date_str = datetime.now().strftime("%Y%m%d")
+            sub_dir = f"net-flow_{date_str}"
+
+            saved_path = None
             if output_format == "json":
-                OutputManager.save_json_report(
+                saved_path = OutputManager.save_json_report(
                     response,
                     sub_dir,
                     f"net_flow_scorecard_{project_key}",
                 )
             elif output_format == "md":
                 markdown_content = self._format_as_markdown(response)
-                OutputManager.save_markdown_report(
+                saved_path = OutputManager.save_markdown_report(
                     markdown_content,
                     sub_dir,
                     f"net_flow_scorecard_{project_key}",
                 )
+
+            if saved_path:
+                response["output_file"] = saved_path
 
             self.logger.info("Net Flow Scorecard generation completed successfully.")
             return response
@@ -371,6 +1223,8 @@ class NetFlowCalculationService:
             "type": fields.get("issuetype", {}).get("name"),
             "status": fields.get("status", {}).get("name"),
             "assignee": fields.get("assignee", {}).get("displayName") if fields.get("assignee") else None,
+            "created": fields.get("created"),
+            "resolved": fields.get("resolved"),
         }
 
     def _determine_flow_status(self, net_flow: int, arrival_rate: int, throughput: int) -> str:
@@ -426,203 +1280,447 @@ class NetFlowCalculationService:
 
     def _format_as_markdown(self, scorecard: Dict) -> str:
         """
-        Formats the net flow scorecard as structured markdown optimized for AI agent consumption.
+        Formats the net flow scorecard as structured markdown following PyToolkit patterns.
 
         Args:
             scorecard (Dict): The complete scorecard data structure
 
         Returns:
-            str: Markdown formatted content optimized for AI parsing
+            str: Markdown formatted content following PyToolkit style
         """
         metadata = scorecard.get("metadata", {})
         current_week = scorecard.get("current_week", {})
         trend = scorecard.get("rolling_4_weeks_trend", [])
-        insights = scorecard.get("insights", [])
         details = scorecard.get("details", {})
 
-        # Header section
+        # Extract fields
         project_key = metadata.get("project_key", "N/A")
         week_number = metadata.get("week_number", "N/A")
         start_date = metadata.get("start_date", "")
         end_date = metadata.get("end_date", "")
-        anchor_date = metadata.get("anchor_date", "")
         team = metadata.get("team", "All Teams")
+        analysis_date = metadata.get("analysis_date", "")
+        statistical_enabled = metadata.get("statistical_analysis_enabled", False)
 
-        markdown_content = f"""# JIRA Net Flow Analysis Report
+        # Determine status
+        net_flow = current_week.get("net_flow", 0)
+        if net_flow > 5:
+            status_emoji = "🔴"
+            status_text = "Critical Risk - Severe backlog accumulation"
+        elif net_flow > 0:
+            status_emoji = "🟡"
+            status_text = "At Risk - Backlog growing"
+        elif net_flow == 0:
+            status_emoji = "🟢"
+            status_text = "Balanced - Optimal flow"
+        else:
+            status_emoji = "🟢"
+            status_text = "Healthy - Backlog reducing"
 
-## Executive Summary
-- **Project**: {project_key}
-- **Analysis Period**: Week {week_number} ({start_date} to {end_date})
-- **Anchor Date**: {anchor_date}
-- **Team Scope**: {team}
-- **Analysis Date**: {metadata.get("analysis_date", "")}
+        markdown_content = f"""# {status_emoji} JIRA Net Flow Health Report
 
-## Current Week Metrics
+**Project:** {project_key}
+**Analysis Period:** Week {week_number}
+**Date Range:** {start_date} to {end_date}
+**Team Filter:** {team}
+**Generated:** {analysis_date}
 
-### Flow Overview
-| Metric | Value | Status |
-|--------|-------|--------|
-| **Net Flow** | {current_week.get("net_flow", 0):+d} | {self._get_flow_status_emoji(current_week.get("net_flow", 0))} |
-| **Arrival Rate** | {current_week.get("arrival_rate", 0)} issues | 📥 |
-| **Throughput** | {current_week.get("throughput", 0)} issues | ✅ |
-| **Flow Ratio** | {current_week.get("flow_ratio", 0):.1f}% | {self._get_ratio_status_emoji(current_week.get("flow_ratio", 0))} |
+## 📊 Executive Summary
 
-### Advanced Metrics
+**Net Flow:** {net_flow:+d} issues
+**Status:** {status_text}
+**Flow Ratio:** {current_week.get("flow_ratio", 0):.1f}%
+
+- **Total Arrivals:** {current_week.get("arrival_rate", 0)}
+- **Total Throughput:** {current_week.get("throughput", 0)}
+- **Flow Efficiency:** {current_week.get("flow_efficiency", 0):.1f}%
+
+> Concepts
+> - Net Flow = Arrivals − Throughput. Positive means backlog likely grows; negative means it shrinks.
+> - Flow Ratio = Throughput / Arrivals. Higher is generally healthier (>= ~85%).
+
+"""
+
+        # Statistical Signal Section
+        if "statistical_signal" in scorecard:
+            signal = scorecard["statistical_signal"]
+            markdown_content += f"""## 📐 Statistical Signal Analysis
+
+- Bootstrap 95% CI: [{signal["net_flow_ci_low"]:.1f}, {signal["net_flow_ci_high"]:.1f}]
+- Signal Assessment: **{signal["signal_label"]}**
+- Confidence Level: {signal["confidence_level"]*100:.0f}%
+
+> What does this mean?
+> - Bootstrap CI: we resample arrivals/throughput (Poisson) many times to estimate a confidence interval for Net Flow.
+> - If the entire CI is above 0 → likely accumulation. Entirely below 0 → likely reduction. Overlaps 0 → inconclusive/noise.
+
+"""
+
+        # Trend Analysis Section
+        if "trend_analysis" in scorecard:
+            trend_data = scorecard["trend_analysis"]
+            markdown_content += f"""## 📈 Trend Analysis
+
+- EWMA Flow Ratio: {trend_data["ewma_flow_ratio"]:.1f}% {trend_data["trend_direction"]}
+- Trend Direction: {trend_data["trend_direction"]}
+- CUSUM Shift Detected: {"Yes" if trend_data.get("cusum_shift_detected", False) else "No"}
+
+> What does this mean?
+> - EWMA (Exponentially Weighted Moving Average) highlights recent changes in Flow Ratio while smoothing noise.
+> - CUSUM detects sustained shifts (step-changes) rather than single outliers.
+
+"""
+
+        # Volatility Metrics
+        if "volatility_metrics" in scorecard:
+            vol_metrics = scorecard["volatility_metrics"]
+            markdown_content += f"""## 📊 Volatility & Stability Metrics
+
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| **Flow Efficiency** | {current_week.get("flow_efficiency", 0):.1f}% | >40% | {self._get_efficiency_status_emoji(current_week.get("flow_efficiency", 0))} |
-| **Arrival Volatility** | {current_week.get("arrival_volatility", 0):.1f}% | <30% | {self._get_volatility_status_emoji(current_week.get("arrival_volatility", 0))} |
-| **Primary Bottleneck** | {current_week.get("primary_bottleneck", "N/A")} | - | ⚠️ |
-| **Overall Flow Status** | {current_week.get("flow_status", "UNKNOWN")} | HEALTHY_FLOW | {self._get_overall_status_emoji(current_week.get("flow_status", ""))} |
+| Arrival Volatility (CV) | {vol_metrics['arrivals_cv']:.1f}% | <30% | {'✅' if vol_metrics['arrivals_cv'] < 30 else '🔴'} |
+| Throughput Volatility (CV) | {vol_metrics['throughput_cv']:.1f}% | <30% | {'✅' if vol_metrics['throughput_cv'] < 30 else '🔴'} |
+| Stability Index | {vol_metrics['stability_index']:.1f}% | >70% | {'✅' if vol_metrics['stability_index'] > 70 else '🔴'} |
 
-## Rolling 4-Week Trend Analysis
+> Notes
+> - Coefficient of Variation (CV) = std/mean; lower CV → more predictable flow.
+> - Stability Index estimates the share of weeks operating within expected variance (higher is better).
 
-### Trend Data
 """
 
-        # Add trend table
-        if trend:
-            markdown_content += "| Week | Net Flow | Arrival | Throughput | Trend |\n"
-            markdown_content += "|------|----------|---------|------------|-------|\n"
+        # Flow Debt
+        if "flow_debt" in scorecard:
+            markdown_content += f"""## 💳 Flow Debt Analysis
 
-            for i, week_data in enumerate(trend):
-                week_num = week_data["week_number"]
-                net_flow = week_data["net_flow"]
-                arrival = week_data["arrival_rate"]
-                throughput = week_data["throughput"]
+**Quarter-to-Date Flow Debt:** {scorecard['flow_debt']} issues
 
-                # Calculate trend indicator
-                trend_indicator = ""
-                if i > 0:
-                    prev_net_flow = trend[i - 1]["net_flow"]
-                    if net_flow < prev_net_flow:
-                        trend_indicator = "📈 Improving"
-                    elif net_flow > prev_net_flow:
-                        trend_indicator = "📉 Worsening"
-                    else:
-                        trend_indicator = "➡️ Stable"
+Flow debt represents the cumulative positive net flow over time, indicating backlog pressure buildup.
 
-                is_current = i == len(trend) - 1
-                week_indicator = "**" if is_current else ""
-
-                markdown_content += f"| {week_indicator}Week {week_num}{week_indicator} | {net_flow:+d} | {arrival} | {throughput} | {trend_indicator} |\n"
-
-        # Insights section
-        markdown_content += """
-
-## AI-Actionable Insights
-
-### Key Findings
 """
 
-        for i, insight in enumerate(insights, 1):
-            markdown_content += f"{i}. {insight}\n"
+        # Rolling Trend Table
+        markdown_content += """## 📈 Rolling 4-Week Trend
 
-        # Detailed analysis for verbose mode
+| Week | Net Flow | Arrivals | Throughput | Status |
+|------|----------|----------|------------|--------|
+"""
+
+        for i, week_data in enumerate(trend):
+            week_num = week_data["week_number"]
+            net_flow_week = week_data["net_flow"]
+            arrival = week_data["arrival_rate"]
+            throughput = week_data["throughput"]
+
+            # Status emoji for the week
+            week_status = "🔴" if net_flow_week > 5 else "🟡" if net_flow_week > 0 else "✅"
+
+            is_current = i == len(trend) - 1
+            week_marker = "**" if is_current else ""
+
+            markdown_content += f"| {week_marker}Week {week_num}{week_marker} | {net_flow_week:+d} | {arrival} | {throughput} | {week_status} |\n"
+
+        # Segmentation Analysis
+        if "segments" in scorecard and scorecard["segments"]:
+            markdown_content += """
+
+## 👥 Segmentation Analysis
+
+### By Issue Type
+
+| Issue Type | Net Flow | Arrivals | Throughput | Status |
+|------------|----------|----------|------------|--------|
+"""
+
+            for segment in scorecard["segments"]:
+                seg_net_flow = segment["net_flow"]
+                seg_status = "🔴" if seg_net_flow > 2 else "🟡" if seg_net_flow > 0 else "✅"
+                markdown_content += f"| {segment['segment_name']} | {seg_net_flow:+d} | {segment['arrivals']} | {segment['throughput']} | {seg_status} |\n"
+
+        # Health Alerts
+        if "alerts" in scorecard and scorecard["alerts"]:
+            triggered_alerts = [a for a in scorecard["alerts"] if a["triggered"]]
+            if triggered_alerts:
+                markdown_content += f"""
+
+## 🚨 Health Alerts ({len(triggered_alerts)} triggered)
+"""
+
+                for alert in triggered_alerts:
+                    markdown_content += f"""
+### {alert['title']}
+
+**Rationale:** {alert['rationale']}
+**Remediation:** {alert['remediation']}
+
+"""
+
+        # Assignment & Ownership Analysis
+        if "assignment_metrics" in scorecard:
+            assignment_data = scorecard["assignment_metrics"]
+            markdown_content += f"""
+
+## 👥 Assignment & Ownership Analysis
+
+### Assignment Performance
+| Metric | Value | Target | Status |
+|--------|-------|--------|--------|
+| Assignment Lag (Avg) | {assignment_data['assignment_lag_avg_hours']:.1f}h ({assignment_data['assignment_lag_avg_hours']/24:.1f}d) | <24h | {'✅' if assignment_data['assignment_lag_avg_hours'] < 24 else '🔴'} |
+| Assignment Lag (P85) | {assignment_data['assignment_lag_p85_hours']:.1f}h ({assignment_data['assignment_lag_p85_hours']/24:.1f}d) | <48h | {'✅' if assignment_data['assignment_lag_p85_hours'] < 48 else '🔴'} |
+| Unassigned Issues | {assignment_data['unassigned_count']} ({assignment_data['unassigned_percentage']:.1f}%) | <10% | {'✅' if assignment_data['unassigned_percentage'] < 10 else '🔴'} |
+| Reassignment Frequency | {assignment_data['reassignment_frequency']:.1f} per issue | <0.5 | {'✅' if assignment_data['reassignment_frequency'] < 0.5 else '🔴'} |
+| Handoff Quality Score | {assignment_data['handoff_quality_score']:.1f}% | >80% | {'✅' if assignment_data['handoff_quality_score'] > 80 else '🔴'} |
+
+### Team Load Distribution
+"""
+
+            if assignment_data['team_load_balance']:
+                markdown_content += "| Team Member | Active Issues | Load Status |\n"
+                markdown_content += "|--------------|---------------|-------------|\n"
+
+                total_issues = sum(assignment_data['team_load_balance'].values())
+                avg_load = total_issues / len(assignment_data['team_load_balance'])
+
+                for member, load in sorted(assignment_data['team_load_balance'].items()):
+                    load_status = "⚖️ Balanced"
+                    if load > avg_load * 1.5:
+                        load_status = "🔴 Overloaded"
+                    elif load < avg_load * 0.5:
+                        load_status = "🟡 Underutilized"
+
+                    markdown_content += f"| {member} | {load} | {load_status} |\n"
+
+        # Cycle Time Heatmap
+        if "cycle_time_heatmap" in scorecard:
+            heatmap_data = scorecard["cycle_time_heatmap"]
+            markdown_content += f"""
+
+## ⏱️ Cycle Time Heatmap
+
+**Total Cycle Time:** {heatmap_data['total_cycle_time_days']:.1f} days
+**Primary Bottleneck:** {heatmap_data['bottleneck_stage']}
+
+### Stage Transition Analysis
+"""
+
+            if heatmap_data['transitions']:
+                markdown_content += "| Transition | Avg Time | P85 Time | Issues | Status |\n"
+                markdown_content += "|------------|----------|----------|--------|--------|\n"
+
+                # Sort transitions by average time (descending)
+                transitions = sorted(heatmap_data['transitions'], key=lambda x: x['avg_time_hours'], reverse=True)
+
+                for transition in transitions[:10]:  # Show top 10 slowest transitions
+                    avg_days = transition['avg_time_days']
+                    p85_hours = transition['p85_time_hours']
+
+                    # Status based on time thresholds
+                    status = "✅ Fast"
+                    if avg_days > 3:
+                        status = "🔴 Slow"
+                    elif avg_days > 1:
+                        status = "🟡 Moderate"
+
+                    markdown_content += f"| {transition['from_stage']} → {transition['to_stage']} | {avg_days:.1f}d | {p85_hours:.1f}h | {transition['issue_count']} | {status} |\n"
+
+            # ASCII-style heatmap visualization
+            if heatmap_data['transitions']:
+                markdown_content += f"""
+
+### Workflow Stage Breakdown
+```
+Week {week_number} Cycle Time Breakdown:
+"""
+
+                # Create a simple text-based visualization
+                for transition in heatmap_data['transitions'][:6]:  # Top 6 transitions
+                    from_stage = transition['from_stage'][:15]  # Truncate long names
+                    to_stage = transition['to_stage'][:15]
+                    avg_days = transition['avg_time_days']
+
+                    # Create a simple bar using characters
+                    bar_length = min(int(avg_days * 2), 20)  # Scale down for display
+                    bar = "█" * bar_length
+
+                    bottleneck_indicator = " ⚠️ BOTTLENECK" if transition['to_stage'] == heatmap_data['bottleneck_stage'] else ""
+
+                    markdown_content += f"├── {from_stage} → {to_stage}: {avg_days:.1f} days avg {bar}{bottleneck_indicator}\n"
+
+                markdown_content += "```\n"
+
+        # Performance Analysis
+        markdown_content += f"""## 🎯 Performance Analysis
+
+**Flow Efficiency:** {current_week.get("flow_efficiency", 0):.1f}%
+**Primary Bottleneck:** {current_week.get("primary_bottleneck", "N/A")}
+**Arrival Volatility:** {current_week.get("arrival_volatility", 0):.1f}%
+
+### Flow Status Assessment
+
+"""
+
+        # Add status-specific recommendations
+        if net_flow > 5:
+            markdown_content += """- 🚨 **Critical:** Severe backlog accumulation detected
+- **Action Required:** Immediate flow throttling and bottleneck resolution
+- **Timeline:** Address within 1 week to prevent delivery crisis
+"""
+        elif net_flow > 0:
+            markdown_content += """- ⚠️ **At Risk:** Backlog growing moderately
+- **Action Required:** Monitor closely and optimize throughput
+- **Timeline:** Address within 2 weeks to maintain healthy flow
+"""
+        else:
+            markdown_content += """- ✅ **Healthy:** Flow is balanced or improving
+- **Action Required:** Maintain current practices
+- **Timeline:** Continue monitoring for trend changes
+"""
+
+        # Always add Detailed Issue Analysis section
+        # Get arrival and completed issues from the scorecard
+        arrival_issues = []
+        completed_issues = []
+
+        # Try to get from details first (verbose mode)
         if details:
             arrival_issues = details.get("arrival_issues", [])
             completed_issues = details.get("completed_issues", [])
 
-            markdown_content += f"""
+        # If not in details, check current_week
+        if not arrival_issues and "current_week" in scorecard:
+            arrival_issues = current_week.get("arrival_issues", [])
+        if not completed_issues and "current_week" in scorecard:
+            completed_issues = current_week.get("completed_issues", [])
 
-## Detailed Issue Analysis
+        markdown_content += """
 
-### Arrival Issues ({len(arrival_issues)} total)
+## 📝 Detailed Issue Analysis
 """
-            if arrival_issues:
-                markdown_content += "| Key | Type | Summary | Assignee |\n"
-                markdown_content += "|-----|------|---------|----------|\n"
 
-                for issue in arrival_issues[:10]:  # Limit to first 10 for readability
-                    key = issue.get("key", "N/A")
-                    issue_type = issue.get("type", "N/A")
-                    summary = issue.get("summary", "")[:60] + ("..." if len(issue.get("summary", "")) > 60 else "")
-                    assignee = issue.get("assignee") or "Unassigned"
-                    markdown_content += f"| {key} | {issue_type} | {summary} | {assignee} |\n"
-
-                if len(arrival_issues) > 10:
-                    markdown_content += f"\n*... and {len(arrival_issues) - 10} more issues*\n"
-
+        if arrival_issues:
             markdown_content += f"""
+### 📥 Arrival Issues ({len(arrival_issues)} total)
 
-### Completed Issues ({len(completed_issues)} total)
+*Issues created during the analysis period (contributing to arrival rate)*
+
+| Issue Key | Type | Summary | Created Date | Assignee |
+|-----------|------|---------|--------------|----------|
 """
-            if completed_issues:
-                markdown_content += "| Key | Type | Summary | Assignee |\n"
-                markdown_content += "|-----|------|---------|----------|\n"
 
-                for issue in completed_issues[:10]:  # Limit to first 10 for readability
-                    key = issue.get("key", "N/A")
-                    issue_type = issue.get("type", "N/A")
-                    summary = issue.get("summary", "")[:60] + ("..." if len(issue.get("summary", "")) > 60 else "")
-                    assignee = issue.get("assignee") or "Unassigned"
-                    markdown_content += f"| {key} | {issue_type} | {summary} | {assignee} |\n"
+            for issue in arrival_issues[:20]:  # Show more issues
+                key = issue.get("key", "N/A")
+                issue_type = issue.get("type", "N/A")
+                summary = issue.get("summary", "")[:60] + ("..." if len(issue.get("summary", "")) > 60 else "")
+                assignee = issue.get("assignee") or "Unassigned"
 
-                if len(completed_issues) > 10:
-                    markdown_content += f"\n*... and {len(completed_issues) - 10} more issues*\n"
+                # Extract created date from the issue data
+                created_date = "N/A"
+                if issue.get("created"):
+                    created_date_str = issue.get("created", "")
+                    # Handle different date formats (ISO with timezone)
+                    if "T" in created_date_str:
+                        created_date = created_date_str.split("T")[0]  # Get just YYYY-MM-DD part
+                    else:
+                        created_date = created_date_str[:10]
+
+                markdown_content += f"| {key} | {issue_type} | {summary} | {created_date} | {assignee} |\n"
+
+            if len(arrival_issues) > 20:
+                markdown_content += f"\n*... and {len(arrival_issues) - 20} more arrival issues*\n"
+        else:
+            markdown_content += "\n*No arrival issues found in the current analysis period.*\n"
+
+        if completed_issues:
+            markdown_content += f"""
+### ✅ Completed Issues ({len(completed_issues)} total)
+
+*Issues resolved during the analysis period (contributing to throughput)*
+
+| Issue Key | Type | Summary | Resolved Date | Assignee |
+|-----------|------|---------|---------------|----------|
+"""
+
+            for issue in completed_issues[:20]:
+                key = issue.get("key", "N/A")
+                issue_type = issue.get("type", "N/A")
+                summary = issue.get("summary", "")[:60] + ("..." if len(issue.get("summary", "")) > 60 else "")
+                assignee = issue.get("assignee") or "Unassigned"
+
+                # Extract resolved date from the issue data
+                resolved_date = "N/A"
+                if issue.get("resolved"):
+                    resolved_date_str = issue.get("resolved", "")
+                    # Handle different date formats (ISO with timezone)
+                    if "T" in resolved_date_str:
+                        resolved_date = resolved_date_str.split("T")[0]  # Get just YYYY-MM-DD part
+                    else:
+                        resolved_date = resolved_date_str[:10]
+
+                markdown_content += f"| {key} | {issue_type} | {summary} | {resolved_date} | {assignee} |\n"
+
+            if len(completed_issues) > 20:
+                markdown_content += f"\n*... and {len(completed_issues) - 20} more completed issues*\n"
+        else:
+            markdown_content += "\n*No completed issues found in the current analysis period.*\n"
 
         # Recommendations section
-        markdown_content += f"""
+        markdown_content += """
 
-## AI Agent Recommendations
+## 💡 Recommendations
 
-### Flow Health Assessment
-- **Current Status**: {current_week.get("flow_status", "UNKNOWN")}
-- **Net Flow**: {current_week.get("net_flow", 0):+d} ({"Backlog Growing" if current_week.get("net_flow", 0) > 0 else "Backlog Shrinking" if current_week.get("net_flow", 0) < 0 else "Balanced"})
-- **Flow Efficiency**: {current_week.get("flow_efficiency", 0):.1f}% ({"Above Target" if current_week.get("flow_efficiency", 0) > 40 else "Below Target"})
-
-### Next Actions
+### 🚨 Immediate Actions Required
 """
 
-        # Generate contextual recommendations
-        net_flow = current_week.get("net_flow", 0)
+        # Generate contextual recommendations based on current state
+        if net_flow > 3:
+            markdown_content += """- Implement intake throttling to prevent further backlog growth
+- Investigate and resolve primary delivery bottlenecks
+- Consider temporary capacity increase or scope reduction
+"""
+        elif net_flow > 0:
+            markdown_content += """- Monitor backlog growth trend closely
+- Focus team on completing existing work before new intake
+- Review and optimize delivery process efficiency
+"""
+        else:
+            markdown_content += """- Maintain current flow patterns and practices
+- Ensure adequate work pipeline for sustained delivery
+- Monitor for any emerging bottlenecks or trends
+"""
+
+        markdown_content += """
+### 🎯 Specific Action Items
+"""
+
         flow_ratio = current_week.get("flow_ratio", 0)
         flow_efficiency = current_week.get("flow_efficiency", 0)
 
-        if net_flow > 5:
-            markdown_content += "1. **CRITICAL**: Implement flow throttling - backlog growing critically\n"
-            markdown_content += "2. **URGENT**: Investigate delivery bottlenecks\n"
-            markdown_content += "3. **ACTION**: Consider increasing team capacity or reducing incoming work\n"
-        elif net_flow > 0:
-            markdown_content += "1. **MONITOR**: Watch backlog growth trend closely\n"
-            markdown_content += "2. **OPTIMIZE**: Focus on completing existing work before taking new items\n"
-        elif net_flow < 0:
-            markdown_content += "1. **POSITIVE**: Backlog is shrinking - sustainable pace\n"
-            markdown_content += "2. **MONITOR**: Ensure adequate work pipeline for next period\n"
-        else:
-            markdown_content += "1. **BALANCED**: Maintain current flow patterns\n"
-
         if flow_ratio < 85:
-            markdown_content += f"4. **EFFICIENCY**: Flow ratio at {flow_ratio:.0f}% - target >85%\n"
+            markdown_content += f"- **Flow Efficiency:** Ratio at {flow_ratio:.0f}% - target >85%\n"
 
         if flow_efficiency < 40:
-            markdown_content += f"5. **PROCESS**: Flow efficiency at {flow_efficiency:.0f}% - investigate wait times\n"
+            markdown_content += f"- **Process Optimization:** Flow efficiency at {flow_efficiency:.0f}% - investigate wait times\n"
 
+        # Data Quality & Methodology
         markdown_content += f"""
 
-## Data Structure (JSON)
+## 📋 Data Quality & Methodology
 
-```json
-{{
-    "metadata": {{
-        "project_key": "{project_key}",
-        "week_number": {week_number},
-        "anchor_date": "{anchor_date}",
-        "team": "{team}"
-    }},
-    "current_week": {{
-        "net_flow": {current_week.get("net_flow", 0)},
-        "arrival_rate": {current_week.get("arrival_rate", 0)},
-        "throughput": {current_week.get("throughput", 0)},
-        "flow_ratio": {current_week.get("flow_ratio", 0):.1f},
-        "flow_efficiency": {current_week.get("flow_efficiency", 0):.1f},
-        "flow_status": "{current_week.get("flow_status", "UNKNOWN")}"
-    }}
-}}
-```
+### Data Scope
+- **Analysis Period:** Week {week_number}
+- **Date Range:** {start_date} to {end_date}
+- **Team Filter:** {team}
+- **Statistical Analysis:** {"Enabled" if statistical_enabled else "Disabled"}
+
+### Methodology
+- **Net Flow:** Arrivals - Throughput for the analysis period
+- **Flow Ratio:** (Throughput / Arrivals) × 100%
+- **Bootstrap CI:** 95% confidence interval using Poisson resampling (B=2000)
+- **EWMA:** Exponentially Weighted Moving Average for trend detection
+- **Flow Efficiency:** Active time / Total cycle time across workflow states
 
 ---
-*Generated by PyToolkit JIRA Net Flow Analysis Service*
+
+*Report generated on {analysis_date} using PyToolkit JIRA Net Flow Analysis Service*
 """
 
         return markdown_content

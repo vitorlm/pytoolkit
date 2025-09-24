@@ -19,7 +19,7 @@ All commands are accessed via: `python src/main.py syngenta jira [command] [opti
 
 #### 2. **cycle-time** - Cycle Time Analysis
 - **Purpose**: Analyze cycle time from Started to Done status
-- **Usage**: `python src/main.py syngenta jira cycle-time --project-key CWS --time-period last-week`
+- **Usage**: `python src/main.py syngenta jira cycle-time --project-key CWS --end-date 2025-09-21 --window-days 7`
 - **Features**:
   - Calculate time from Started (07) to Done (10) status
   - Filter by issue types, team, priority
@@ -29,7 +29,7 @@ All commands are accessed via: `python src/main.py syngenta jira [command] [opti
 
 #### 3. **issue-adherence** - Due Date Adherence Analysis
 - **Purpose**: Analyze issue completion against due dates
-- **Usage**: `python src/main.py syngenta jira issue-adherence --project-key CWS --time-period last-week`
+- **Usage**: `python src/main.py syngenta jira issue-adherence --project-key CWS --end-date 2025-09-21 --window-days 7`
 - **Features**:
   - On-time vs late completion tracking
   - Adherence rate calculations
@@ -140,14 +140,14 @@ All commands are accessed via: `python src/main.py syngenta jira [command] [opti
 # 1. Get overview of current open work
 python src/main.py syngenta jira open-issues --project-key CWS --issue-types "Bug,Story,Task"
 
-# 2. Analyze team performance over time
-python src/main.py syngenta jira cycle-time --project-key CWS --time-period last-month --team Catalog
+# 2. Analyze team performance over time (last 30 days)
+python src/main.py syngenta jira cycle-time --project-key CWS --end-date 2025-09-21 --window-days 30 --team Catalog
 
 # 3. Check SLA compliance and set recommendations  
 python src/main.py syngenta jira calculate-resolution-time --project-key CWS --time-period last-month --generate-charts
 
-# 4. Monitor due date adherence
-python src/main.py syngenta jira issue-adherence --project-key CWS --time-period last-2-weeks --team Catalog
+# 4. Monitor due date adherence (last 2 weeks)
+python src/main.py syngenta jira issue-adherence --project-key CWS --end-date 2025-09-21 --window-days 14 --team Catalog
 
 # 5. Analyze issue creation trends
 python src/main.py syngenta jira issues-creation-analysis --time-period last-2-months --aggregation weekly
