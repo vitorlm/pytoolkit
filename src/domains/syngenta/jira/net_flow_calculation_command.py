@@ -82,9 +82,14 @@ class NetFlowCalculationCommand(BaseCommand):
         )
         parser.add_argument(
             "--team",
-            type=str,
+            "--teams",
+            dest="teams",
+            action="append",
             required=False,
-            help="Filter by team name using Squad[Dropdown] field (optional).",
+            help=(
+                "Filter by one or more teams using Squad[Dropdown] field. "
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+            ),
         )
         parser.add_argument(
             "--include-subtasks",
@@ -168,12 +173,16 @@ class NetFlowCalculationCommand(BaseCommand):
             enable_ewma = getattr(args, 'enable_ewma', False)
             enable_cusum = getattr(args, 'enable_cusum', False)
 
+            # Parse teams (supports repeated flags and comma-separated lists)
+            raw_teams = getattr(args, "teams", []) or []
+            teams = [t.strip() for entry in raw_teams for t in str(entry).split(",") if t.strip()] or None
+
             # Generate the scorecard
             scorecard = service.generate_net_flow_scorecard(
                 project_key=args.project_key,
                 end_date=args.end_date,
                 issue_types=issue_types,
-                team=args.team,
+                teams=teams,
                 include_subtasks=args.include_subtasks,
                 output_format=args.output_format,
                 verbose=args.verbose,

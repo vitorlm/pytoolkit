@@ -42,7 +42,7 @@ class IssueVelocityService:
         project_key: str,
         time_period: str,
         issue_types: List[str] = ["Bug"],
-        team: Optional[str] = None,
+        teams: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         aggregation: str = "monthly",
         include_summary: bool = False,
@@ -57,7 +57,7 @@ class IssueVelocityService:
             project_key: JIRA project key
             time_period: Time period for analysis
             issue_types: List of issue types to analyze
-            team: Team/squad filter
+            teams: Team/squad filter (one or more names)
             labels: List of labels to filter
             aggregation: monthly or quarterly
             include_summary: Include detailed summary statistics
@@ -81,7 +81,7 @@ class IssueVelocityService:
                 "start_date": start_date,
                 "end_date": end_date,
                 "issue_types": issue_types,
-                "team": team,
+                "teams": teams,
                 "labels": labels,
             }
 
@@ -121,13 +121,25 @@ class IssueVelocityService:
                 summary_stats = self._calculate_summary_statistics(velocity_data, aggregation)
 
             # Build result
+            # Prepare team label for display
+            team_label = None
+            if teams:
+                seen = set()
+                ordered = []
+                for t in teams:
+                    if t and t not in seen:
+                        seen.add(t)
+                        ordered.append(t)
+                team_label = ", ".join(ordered) if ordered else None
+
             result = {
                 "analysis_metadata": {
                     "project_key": project_key,
                     "time_period": time_period,
                     "period_display": f"{start_date} to {end_date}",
                     "issue_types": issue_types,
-                    "team": team,
+                    "team": team_label,
+                    "teams": teams,
                     "labels": labels,
                     "aggregation": aggregation,
                     "generated_at": datetime.now().isoformat(),
@@ -242,8 +254,21 @@ class IssueVelocityService:
             jql_parts.append(f"type IN ('{types_str}')")
 
         # Team filter
-        if filters.get("team"):
-            jql_parts.append(f"'Squad[Dropdown]' = '{filters['team']}'")
+        teams = filters.get("teams")
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if len(cleaned) == 1:
+                jql_parts.append(f"'Squad[Dropdown]' = '{cleaned[0]}'")
+            elif len(cleaned) > 1:
+                vals = "', '".join(cleaned)
+                jql_parts.append(f"'Squad[Dropdown]' in ('{vals}')")
 
         # Labels filter
         if filters.get("labels"):
@@ -272,8 +297,21 @@ class IssueVelocityService:
             jql_parts.append(f"type IN ('{types_str}')")
 
         # Team filter
-        if filters.get("team"):
-            jql_parts.append(f"'Squad[Dropdown]' = '{filters['team']}'")
+        teams = filters.get("teams")
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if len(cleaned) == 1:
+                jql_parts.append(f"'Squad[Dropdown]' = '{cleaned[0]}'")
+            elif len(cleaned) > 1:
+                vals = "', '".join(cleaned)
+                jql_parts.append(f"'Squad[Dropdown]' in ('{vals}')")
 
         # Labels filter
         if filters.get("labels"):

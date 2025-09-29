@@ -1,0 +1,425 @@
+{
+  "metadata": {
+    "iso_week": "2025-W40",
+    "generated_at": "2025-09-29T14:04:18.998803+00:00",
+    "snapshot_count": 16
+  },
+  "monitors": [
+    {
+      "monitor_id": "22232691",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] ropwise-catalog-products-api spike error alert",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 95.83,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 25,
+      "events_count": 68,
+      "flapping_cycles": 4,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 21,
+      "business_hours_events_pct": 68.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 11.84,
+      "health_score": null
+    },
+    {
+      "monitor_id": "89504013",
+      "monitor_name": "Service Strix (Assignee): The DLQ {{queuename.name}} has messages to be checked out",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 57.83,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 1,
+      "events_count": 1,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 1,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 0.0,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21780640",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - CP Products API - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 70.5,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 9,
+      "events_count": 18,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 9,
+      "business_hours_events_pct": 44.44444444444444,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 21.56,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21859797",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - Uptime - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 90.67,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 26,
+      "events_count": 52,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 26,
+      "business_hours_events_pct": 50.0,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 7.02,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21780632",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - Agro Operations API - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 60.67,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 2,
+      "events_count": 4,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 2,
+      "business_hours_events_pct": 50.0,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 15.0,
+      "health_score": null
+    },
+    {
+      "monitor_id": "18123425",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] api-node-cropwise-notes lambda duration alerts",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 57.83,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 1,
+      "events_count": 2,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 1,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 69.0,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21780633",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - Custom Attributes API - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 60.67,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 2,
+      "events_count": 4,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 2,
+      "business_hours_events_pct": 50.0,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 15.0,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21780635",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - CP Crops and Seeds API - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 61.5,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 3,
+      "events_count": 6,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 3,
+      "business_hours_events_pct": 66.66666666666666,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 14.83,
+      "health_score": null
+    },
+    {
+      "monitor_id": "22256859",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] cropwise-catalog-crops-api spike error alert",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 85.83,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 13,
+      "events_count": 31,
+      "flapping_cycles": 2,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 11,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 4.69,
+      "health_score": null
+    },
+    {
+      "monitor_id": "22517264",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] cropwise-catalog-products-api pods number above max safe",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 97.17,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 29,
+      "events_count": 72,
+      "flapping_cycles": 3,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 26,
+      "business_hours_events_pct": 44.827586206896555,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 15.38,
+      "health_score": null
+    },
+    {
+      "monitor_id": "22517266",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] cropwise-catalog-products-api pod readiness",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 100.0,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 52,
+      "events_count": 147,
+      "flapping_cycles": 13,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 39,
+      "business_hours_events_pct": 63.46153846153846,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 4.02,
+      "health_score": null
+    },
+    {
+      "monitor_id": "18052425",
+      "monitor_name": "[Synthetics] Core Services - Custom Attributes",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 61.5,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 3,
+      "events_count": 6,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 3,
+      "business_hours_events_pct": 33.33333333333333,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 9.67,
+      "health_score": null
+    },
+    {
+      "monitor_id": "21780641",
+      "monitor_name": "[Synthetics] [TF] - CORE SERVICES - Notes API - Prod",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 60.67,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 2,
+      "events_count": 4,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 2,
+      "business_hours_events_pct": 50.0,
+      "teams": [
+        "cropwise-base-core-services"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 14.75,
+      "health_score": null
+    },
+    {
+      "monitor_id": "22513564",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] cropwise-catalog-crops-api pod readiness",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 64.17,
+      "self_heal_rate": 0.8,
+      "actionable_rate": 0.8,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 5,
+      "events_count": 13,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 5,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 4.4,
+      "health_score": null
+    },
+    {
+      "monitor_id": "18123423",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] api-node-cropwise-notes lambda cold start alerts",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 2.83,
+      "self_heal_rate": 0.0,
+      "actionable_rate": 0.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 1,
+      "events_count": 1,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 1,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 0.0,
+      "health_score": null
+    },
+    {
+      "monitor_id": "18123422",
+      "monitor_name": "[CORE SERVICES CATALOG] [TF] api-node-cropwise-notes lambda latency rate alerts",
+      "iso_week": "2025-W40",
+      "year": 2025,
+      "week": 40,
+      "noise_score": 61.5,
+      "self_heal_rate": 1.0,
+      "actionable_rate": 1.0,
+      "mttr_seconds": null,
+      "mtbf_seconds": null,
+      "cycles_count": 3,
+      "events_count": 6,
+      "flapping_cycles": 0,
+      "benign_transient_cycles": 0,
+      "actionable_cycles": 3,
+      "business_hours_events_pct": 100.0,
+      "teams": [
+        "cropwise-core-services-catalog"
+      ],
+      "environments": [
+        "prod"
+      ],
+      "avg_cycle_duration_minutes": 60.67,
+      "health_score": null
+    }
+  ]
+}

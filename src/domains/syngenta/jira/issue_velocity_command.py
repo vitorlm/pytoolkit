@@ -21,6 +21,10 @@ USAGE EXAMPLES:
    python src/main.py syngenta jira issue-velocity --project-key "CWS"
    --time-period "last-year" --team "Catalog"
 
+2b. Multiple teams (tribe):
+   python src/main.py syngenta jira issue-velocity --project-key "CWS"
+   --time-period "last-year" --teams "Catalog,Platform"
+
 3. Multiple issue types analysis:
    python src/main.py syngenta jira issue-velocity --project-key "CWS"
    --time-period "last-6-months" --issue-types "Bug,Story,Task"
@@ -105,9 +109,14 @@ class IssueVelocityCommand(BaseCommand):
         )
         parser.add_argument(
             "--team",
-            type=str,
+            "--teams",
+            dest="teams",
+            action="append",
             required=False,
-            help="Filter by team name using Squad[Dropdown] field (optional).",
+            help=(
+                "Filter by one or more teams using Squad[Dropdown] field. "
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+            ),
         )
         parser.add_argument(
             "--labels",
@@ -183,11 +192,15 @@ class IssueVelocityCommand(BaseCommand):
                 logger.info("Cache cleared successfully")
 
             # Run velocity analysis
+            # Parse teams
+            raw_teams = getattr(args, "teams", []) or []
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
+
             result = service.analyze_issue_velocity(
                 project_key=args.project_key,
                 time_period=args.time_period,
                 issue_types=issue_types,
-                team=args.team,
+                teams=teams,
                 labels=labels,
                 aggregation=args.aggregation,
                 include_summary=args.include_summary,
@@ -266,8 +279,9 @@ class IssueVelocityCommand(BaseCommand):
         print(f"Project: {args.project_key}")
         print(f"Period: {result.get('period_display', args.time_period)}")
         print(f"Issue Types: {', '.join(issue_types)}")
-        if args.team:
-            print(f"Team: {args.team}")
+        meta_team = result.get("analysis_metadata", {}).get("team") if isinstance(result, dict) else None
+        if meta_team:
+            print(f"Teams: {meta_team}")
         if args.labels:
             print(f"Labels: {', '.join(args.labels)}")
         print(f"Aggregation: {args.aggregation.title()}")

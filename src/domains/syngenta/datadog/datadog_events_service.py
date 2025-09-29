@@ -11,6 +11,8 @@ from utils.cache_manager.cache_manager import CacheManager
 from utils.logging.logging_manager import LogManager
 
 from domains.syngenta.datadog.events_analyzer import DatadogEventsAnalyzer
+from domains.syngenta.datadog.enhanced_events_analyzer import EnhancedDatadogEventsAnalyzer
+from domains.syngenta.datadog.config import load_config
 
 
 class DatadogEventsServiceError(RuntimeError):
@@ -267,33 +269,41 @@ class DatadogEventsService:
         # Detect deleted monitors by comparing event monitors with existing monitors
         deleted_monitors = self._detect_deleted_monitors(all_events, existing_monitors or [])
 
-        # Initialize analyzer with all events
-        analyzer = DatadogEventsAnalyzer(
+        # Load configuration for enhanced analysis
+        config = load_config()
+
+        # Initialize enhanced analyzer with all events
+        analyzer = EnhancedDatadogEventsAnalyzer(
             events_data=all_events,
             analysis_period_days=analysis_period_days,
-            deleted_monitors=deleted_monitors
+            deleted_monitors=deleted_monitors,
+            config=config
         )
 
-        # Generate comprehensive analysis
-        alert_quality = analyzer.analyze_alert_quality()
-        removal_candidates = analyzer.find_removal_candidates(min_confidence=min_confidence)
-        temporal_metrics = analyzer.calculate_temporal_metrics()
-        behavioral_patterns = analyzer.detect_behavioral_patterns()
-        actionability_scores = analyzer.generate_actionability_scores()
+        # Generate comprehensive enhanced analysis
+        comprehensive_report = analyzer.generate_comprehensive_report()
 
+        # Save weekly snapshots for trend analysis
+        try:
+            analyzer.save_weekly_snapshots()
+        except Exception as e:
+            self.logger.warning(f"Failed to save weekly snapshots: {e}")
+
+        # Extract components for backward compatibility
         result = {
-            "alert_quality": alert_quality,
-            "removal_candidates": removal_candidates,
-            "temporal_metrics": temporal_metrics,
-            "behavioral_patterns": behavioral_patterns,
-            "actionability_scores": actionability_scores,
-            "recommendations": self._generate_recommendations(removal_candidates, alert_quality),
+            "alert_quality": comprehensive_report.get("enhanced_quality", comprehensive_report.get("base_quality", {})),
+            "removal_candidates": comprehensive_report.get("base_quality", {}).get("per_monitor", {}),
+            "temporal_metrics": comprehensive_report.get("temporal_metrics", {}),
+            "behavioral_patterns": comprehensive_report.get("base_quality", {}),
+            "actionability_scores": comprehensive_report.get("base_quality", {}),
+            "recommendations": comprehensive_report.get("recommendations", {}),
+            "enhanced_analysis": comprehensive_report.get("enhanced_quality", {}),
+            "trends": comprehensive_report.get("trends")
         }
 
         # Add detailed monitor statistics if requested
         if include_detailed_stats:
-            detailed_stats = analyzer.generate_detailed_monitor_statistics()
-            result["detailed_monitor_statistics"] = detailed_stats
+            result["detailed_monitor_statistics"] = comprehensive_report.get("detailed_statistics", {})
 
         return result
 

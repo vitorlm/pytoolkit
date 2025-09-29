@@ -46,7 +46,7 @@ class OpenIssuesService:
         self,
         project_key: str,
         issue_types: List[str],
-        team: Optional[str] = None,
+        teams: Optional[List[str]] = None,
         status_categories: Optional[List[str]] = None,
         verbose: bool = False,
         output_file: Optional[str] = None,
@@ -74,7 +74,7 @@ class OpenIssuesService:
 
             # Build JQL query
             jql_query = self._build_jql_query(
-                project_key, issue_types, team, status_categories
+                project_key, issue_types, teams, status_categories
             )
 
             self.logger.info(f"Executing JQL query: {jql_query}")
@@ -105,11 +105,24 @@ class OpenIssuesService:
             metrics = self._calculate_metrics(open_issues)
 
             # Prepare result
+            # Prepare team label for display
+            team_label = None
+            if teams:
+                # Deduplicate preserve order
+                seen = set()
+                ordered = []
+                for t in teams:
+                    if t and t not in seen:
+                        seen.add(t)
+                        ordered.append(t)
+                team_label = ", ".join(ordered) if ordered else None
+
             result = {
                 "project_key": project_key,
                 "issue_types": issue_types,
                 "status_categories": status_categories,
-                "team": team,
+                "team": team_label,
+                "teams": teams,
                 "total_issues": len(open_issues),
                 "status_breakdown": metrics["status_breakdown"],
                 "type_breakdown": metrics["type_breakdown"],
@@ -137,7 +150,7 @@ class OpenIssuesService:
         self,
         project_key: str,
         issue_types: List[str],
-        team: Optional[str],
+        teams: Optional[List[str]],
         status_categories: List[str],
     ) -> str:
         """
@@ -166,8 +179,20 @@ class OpenIssuesService:
             jql_parts.append(f'statusCategory IN ("{status_categories_str}")')
 
         # Add team filter if specified
-        if team:
-            jql_parts.append(f'"Squad[Dropdown]" = "{team}"')
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if len(cleaned) == 1:
+                jql_parts.append(f'"Squad[Dropdown]" = "{cleaned[0]}"')
+            elif len(cleaned) > 1:
+                vals = '", "'.join(cleaned)
+                jql_parts.append(f'"Squad[Dropdown]" in ("{vals}")')
 
         # Order by created date (newest first)
         jql_query = " AND ".join(jql_parts) + " ORDER BY created DESC"

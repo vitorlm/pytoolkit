@@ -160,7 +160,7 @@ class IssueAdherenceService:
         project_key: str,
         time_period: str,
         issue_types: List[str],
-        team: Optional[str] = None,
+        teams: Optional[List[str]] = None,
         status: Optional[List[str]] = None,
         include_no_due_date: bool = False,
         verbose: bool = False,
@@ -180,7 +180,7 @@ class IssueAdherenceService:
             project_key (str): JIRA project key
             time_period (str): Time period to analyze
             issue_types (List[str]): List of issue types to include
-            team (Optional[str]): Team name to filter by
+            teams (Optional[List[str]]): List of team names to filter by
             status (List[str]): Status to include
             include_no_due_date (bool): Include issues without due dates
             verbose (bool): Enable verbose output
@@ -197,7 +197,7 @@ class IssueAdherenceService:
             start_date, end_date = self.time_parser.parse_time_period(time_period)
 
             # Build JQL query
-            jql_query = self._build_jql_query(project_key, start_date, end_date, issue_types, team, status)
+            jql_query = self._build_jql_query(project_key, start_date, end_date, issue_types, teams, status)
 
             self.logger.info(f"Executing JQL query: {jql_query}")
 
@@ -253,6 +253,17 @@ class IssueAdherenceService:
             due_date_coverage = self._calculate_due_date_coverage_analysis(issues, adherence_results)
 
             # Prepare results with schema version for backward compatibility
+            # Prepare team label for display
+            team_label = None
+            if teams:
+                seen = set()
+                ordered = []
+                for t in teams:
+                    if t and t not in seen:
+                        seen.add(t)
+                        ordered.append(t)
+                team_label = ", ".join(ordered) if ordered else None
+
             results = {
                 "schema_version": "2.0",
                 "analysis_metadata": {
@@ -261,7 +272,8 @@ class IssueAdherenceService:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "issue_types": issue_types,
-                    "team": team,
+                    "team": team_label,
+                    "teams": teams,
                     "status": status,
                     "include_no_due_date": include_no_due_date,
                     "analysis_date": datetime.now().isoformat(),
@@ -375,7 +387,7 @@ class IssueAdherenceService:
         start_date: datetime,
         end_date: datetime,
         issue_types: List[str],
-        team: Optional[str],
+        teams: Optional[List[str]],
         status: Optional[List[str]],
     ) -> str:
         """Build JQL query for fetching issues."""
@@ -393,9 +405,21 @@ class IssueAdherenceService:
         end_date_str = end_date.strftime("%Y-%m-%d")
         jql_parts.append(f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'")
 
-        # Team filter
-        if team:
-            jql_parts.append(f"'Squad[Dropdown]' = '{team}'")
+        # Team filter (supports multiple teams)
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if len(cleaned) == 1:
+                jql_parts.append(f"'Squad[Dropdown]' = '{cleaned[0]}'")
+            elif len(cleaned) > 1:
+                vals = "', '".join(cleaned)
+                jql_parts.append(f"'Squad[Dropdown]' in ('{vals}')")
 
         # Status
         if status:

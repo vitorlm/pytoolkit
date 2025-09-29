@@ -166,11 +166,14 @@ class JiraAdapter(BaseAdapter):
         def _fetch_cycle_time(**kwargs) -> dict[str, Any]:
             cycle_service = self.services["cycle_time"]
 
+            # Adapt legacy single-team param to new multi-team API
+            teams_arg = [kwargs["team"]] if kwargs.get("team") else None
+
             return cycle_service.analyze_cycle_time(
                 project_key=kwargs["project_key"],
                 time_period=kwargs["time_period"],
                 issue_types=kwargs["issue_types"],
-                team=kwargs.get("team"),
+                teams=teams_arg,
                 verbose=False,
             )
 
@@ -211,12 +214,14 @@ class JiraAdapter(BaseAdapter):
         def _fetch_velocity(**kwargs) -> dict[str, Any]:
             velocity_service = self.services["velocity"]
 
+            teams_arg = [kwargs["team"]] if kwargs.get("team") else None
+
             return velocity_service.analyze_issue_velocity(
                 project_key=kwargs["project_key"],
                 time_period=kwargs["time_period"],
                 issue_types=kwargs["issue_types"],
                 aggregation=kwargs["aggregation"],
-                team=kwargs.get("team"),
+                teams=teams_arg,
                 include_summary=True,
                 verbose=False,
             )
@@ -258,11 +263,13 @@ class JiraAdapter(BaseAdapter):
             adherence_service = self.services["adherence"]
 
             # Call with correct parameters based on the actual method signature
+            teams_arg = [kwargs["team"]] if kwargs.get("team") else None
+
             return adherence_service.analyze_issue_adherence(
                 project_key=kwargs["project_key"],
                 time_period=kwargs["time_period"],
                 issue_types=kwargs["issue_types"],
-                team=kwargs.get("team"),
+                teams=teams_arg,
                 verbose=False,
             )
 
@@ -349,10 +356,12 @@ class JiraAdapter(BaseAdapter):
         def _fetch_open_issues(**kwargs) -> dict[str, Any]:
             open_issues_service = self.services["open_issues"]
 
+            teams_arg = [kwargs["team"]] if kwargs.get("team") else None
+
             return open_issues_service.fetch_open_issues(
                 project_key=kwargs["project_key"],
                 issue_types=kwargs["issue_types"],
-                team=kwargs.get("team"),
+                teams=teams_arg,
                 status_categories=kwargs["status_categories"],
                 verbose=False,
                 output_file=None,

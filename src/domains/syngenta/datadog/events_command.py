@@ -14,6 +14,7 @@ from domains.syngenta.datadog.datadog_events_service import (
     DatadogEventsService,
     DatadogEventsServiceError,
 )
+from domains.syngenta.datadog.enhanced_report_renderer import EnhancedReportRenderer
 
 
 class EventsCommand(BaseCommand):
@@ -717,6 +718,71 @@ class EventsCommand(BaseCommand):
                     lines.append(f"- **Total Monitors Analyzed**: {overall.get('total_monitors', 0)}")
                     lines.append(f"- **Actionable Alerts**: {overall.get('actionable_alerts_percentage', 0):.1%}")
                     lines.append("  - *Percentage of alerts that typically require human action*")
+
+                    # Add enhanced classification metrics if available
+                    enhanced_analysis = advanced_analysis.get("enhanced_analysis", {})
+                    if isinstance(enhanced_analysis, dict):
+                        classification_summary = enhanced_analysis.get("classification_summary", {})
+                        if isinstance(classification_summary, dict) and classification_summary.get("total_cycles", 0) > 0:
+                            total_cycles = classification_summary.get("total_cycles", 0)
+                            flapping = classification_summary.get("flapping_cycles", 0)
+                            benign = classification_summary.get("benign_transient_cycles", 0)
+                            actionable = classification_summary.get("actionable_cycles", 0)
+                            confidence = classification_summary.get("avg_confidence", 0)
+
+                            lines.append("")
+                            lines.append("**🔬 Alert Behavior Classification:**")
+                            lines.append(f"- **🔄 Flapping Alerts**: {flapping} ({flapping/max(total_cycles,1)*100:.1f}%)")
+                            lines.append("  - *Rapid state oscillations indicating threshold issues*")
+                            lines.append(f"- **⚡ Benign Transients**: {benign} ({benign/max(total_cycles,1)*100:.1f}%)")
+                            lines.append("  - *Short-lived, self-resolving issues requiring no action*")
+                            lines.append(f"- **🎯 Actionable Alerts**: {actionable} ({actionable/max(total_cycles,1)*100:.1f}%)")
+                            lines.append("  - *Legitimate alerts requiring human intervention*")
+                            lines.append(f"- **Classification Confidence**: {confidence:.1%}")
+
+                            if confidence >= 0.8:
+                                lines.append("  - 🟢 *High confidence - classifications are reliable*")
+                            elif confidence >= 0.6:
+                                lines.append("  - 🟡 *Medium confidence - review edge cases*")
+                            else:
+                                lines.append("  - 🔴 *Low confidence - may need threshold tuning*")
+
+                            # Add explanation about Events vs Cycles
+                            total_events = totals.get('events', 0)
+                            lines.append("")
+                            lines.append(f"📊 **Events vs Cycles Breakdown:**")
+                            lines.append(f"- **Total Events**: {total_events} individual Datadog events")
+                            lines.append(f"- **Alert Cycles**: {total_cycles} complete alert→recovery sequences")
+                            if total_events > total_cycles:
+                                events_per_cycle = total_events / max(total_cycles, 1)
+                                lines.append(f"- **Events per Cycle**: {events_per_cycle:.1f} average")
+                                lines.append("- *Note: Multiple events can form one cycle (alert start, recovery, notifications)*")
+
+                            lines.append("")
+                            lines.append("**📖 Classification Methodology:**")
+                            lines.append("")
+                            lines.append("*Our system automatically analyzes alert cycles and classifies them based on behavior patterns:*")
+                            lines.append("")
+                            lines.append("- **🔄 FLAPPING**: Alerts that rapidly oscillate between states")
+                            lines.append("  - Detected when: ≥3 cycles within 60min OR ≥4 state transitions in one cycle")
+                            lines.append("  - Root cause: Usually threshold too sensitive or system instability")
+                            lines.append("  - Fix: Increase debounce window, add hysteresis, or adjust thresholds")
+                            lines.append("  - *Example*: CPU alert toggles OK→ALERT→OK every 2 minutes for 1 hour")
+                            lines.append("")
+                            lines.append("- **⚡ BENIGN_TRANSIENT**: Short-lived issues that resolve automatically")
+                            lines.append("  - Detected when: Duration ≤5min AND simple alert→recovery AND no manual action")
+                            lines.append("  - Root cause: Temporary upstream blips, brief network issues, transient load spikes")
+                            lines.append("  - Fix: Route to dashboard-only, increase alert duration threshold, or add context")
+                            lines.append("  - *Example*: 502 errors spike for 3 minutes during AWS deployment, then auto-recover")
+                            lines.append("")
+                            lines.append("- **🎯 ACTIONABLE**: Legitimate alerts requiring human attention")
+                            lines.append("  - Detected when: Duration ≥10min OR evidence of manual intervention OR complex patterns")
+                            lines.append("  - Root cause: Real system issues, performance problems, or service outages")
+                            lines.append("  - Action: Keep as-is, optimize response procedures, improve runbooks")
+                            lines.append("  - *Example*: Database connection pool exhausted for 45 minutes until DBA increases pool size")
+                            lines.append("")
+                            lines.append("*Classification uses Brazilian business hours (9 AM - 5 PM BRT/BRST) for context and considers alert correlation patterns.*")
+
                     lines.append("")
 
             # Removal Candidates
@@ -786,6 +852,40 @@ class EventsCommand(BaseCommand):
                             lines.append("🟢 **Quick resolution times** suggest either effective response or potentially noisy alerts")
                         elif ttr > 60:
                             lines.append("🟡 **Long resolution times** may indicate complex issues or delayed responses")
+
+                    # Add trend analysis if available
+                    trends = advanced_analysis.get("trends")
+                    if isinstance(trends, dict) and trends.get("summary"):
+                        trend_summary = trends.get("summary", {})
+                        if isinstance(trend_summary, dict):
+                            analysis_week = trend_summary.get("analysis_week")
+                            weeks_available = trend_summary.get("weeks_available", 0)
+
+                            if weeks_available >= 3:  # Only show if we have sufficient data
+                                lines.append("")
+                                lines.append("**📈 Week-over-Week Trends:**")
+
+                                improving = trend_summary.get("monitors_improving", 0)
+                                degrading = trend_summary.get("monitors_degrading", 0)
+                                stable = trend_summary.get("monitors_stable", 0)
+                                total_trend_monitors = improving + degrading + stable
+
+                                if total_trend_monitors > 0:
+                                    lines.append(f"- 🟢 **Improving**: {improving} monitors ({improving/total_trend_monitors*100:.1f}%)")
+                                    lines.append(f"- 🔴 **Degrading**: {degrading} monitors ({degrading/total_trend_monitors*100:.1f}%)")
+                                    lines.append(f"- ⚪ **Stable**: {stable} monitors ({stable/total_trend_monitors*100:.1f}%)")
+                                    lines.append(f"- 📊 **Analysis Period**: Week {analysis_week} ({weeks_available} weeks of data)")
+
+                                # Add significant changes
+                                significant_changes = trend_summary.get("significant_changes", [])
+                                if significant_changes and isinstance(significant_changes, list):
+                                    lines.append("- **Notable Changes This Week:**")
+                                    for change in significant_changes[:3]:  # Top 3
+                                        lines.append(f"  - {change}")
+                            elif weeks_available > 0:
+                                lines.append(f"")
+                                lines.append(f"📊 **Trend Analysis**: Building historical data ({weeks_available} weeks collected, need 3+ for reliable trends)")
+
                     lines.append("")
 
             # Detailed Monitor Statistics Section
@@ -890,6 +990,59 @@ class EventsCommand(BaseCommand):
                                 lines.append(f"  - Alert Cycles per Week: {cycles_week:.1f}")
                                 lines.append(f"  - Suggestion: *{threshold.get('suggestion', '')}*")
                         lines.append("")
+
+                    # Enhanced recommendations from classification
+                    enhanced_recommendations = advanced_analysis.get("recommendations", {})
+                    if isinstance(enhanced_recommendations, dict):
+                        # Flapping mitigation recommendations
+                        threshold_adjustments = enhanced_recommendations.get("threshold_adjustments", [])
+                        if threshold_adjustments and isinstance(threshold_adjustments, list):
+                            lines.append("**🔄 Flapping Alert Mitigation:**")
+                            lines.append("")
+                            lines.append("*Monitors showing rapid state oscillations - implement threshold tuning:*")
+                            lines.append("")
+                            for rec in threshold_adjustments[:3]:  # Top 3
+                                if isinstance(rec, dict):
+                                    monitor_name = rec.get("monitor_name", "Unknown")
+                                    monitor_id = rec.get("monitor_id")
+                                    monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 40, deleted_monitors=deleted_monitors)
+                                    action = rec.get("action", "")
+                                    reason = rec.get("reason", "")
+                                    lines.append(f"- **{monitor_link}**")
+                                    lines.append(f"  - Issue: {reason}")
+                                    lines.append(f"  - Action: {action}")
+                                    details = rec.get("details", {})
+                                    if isinstance(details, dict):
+                                        if "suggested_debounce_seconds" in details:
+                                            lines.append(f"  - Suggested Debounce: {details['suggested_debounce_seconds']:.0f} seconds")
+                                        if details.get("suggested_hysteresis"):
+                                            lines.append("  - Consider Hysteresis: Use separate up/down thresholds")
+                            lines.append("")
+
+                        # Benign transient policy recommendations
+                        benign_policies = enhanced_recommendations.get("benign_transient_policies", [])
+                        if benign_policies and isinstance(benign_policies, list):
+                            lines.append("**⚡ Benign Transient Policy Changes:**")
+                            lines.append("")
+                            lines.append("*Monitors with high rates of self-resolving transients - consider routing changes:*")
+                            lines.append("")
+                            for rec in benign_policies[:3]:  # Top 3
+                                if isinstance(rec, dict):
+                                    monitor_name = rec.get("monitor_name", "Unknown")
+                                    monitor_id = rec.get("monitor_id")
+                                    monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 40, deleted_monitors=deleted_monitors)
+                                    action = rec.get("action", "")
+                                    reason = rec.get("reason", "")
+                                    lines.append(f"- **{monitor_link}**")
+                                    lines.append(f"  - Pattern: {reason}")
+                                    lines.append(f"  - Action: {action}")
+                                    details = rec.get("details", {})
+                                    if isinstance(details, dict):
+                                        if details.get("consider_dashboard_only"):
+                                            lines.append("  - Notification Change: Route to dashboard instead of alerting")
+                                        if "suggested_notification_level" in details:
+                                            lines.append(f"  - Severity Adjustment: Change to '{details['suggested_notification_level']}' level")
+                            lines.append("")
 
                 # Individual Monitor Statistics
                 per_monitor = detailed_stats.get("per_monitor", {})

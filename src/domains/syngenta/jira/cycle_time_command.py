@@ -37,7 +37,11 @@ USAGE EXAMPLES:
    python src/main.py syngenta jira cycle-time --project-key "CWS" \
    --end-date "2025-09-21" --window-days 7 --team "Catalog"
 
-7. Export results to file:
+7. Analyze with multiple teams (tribe):
+   python src/main.py syngenta jira cycle-time --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 7 --teams "Catalog,Platform"
+
+8. Export results to file:
    python src/main.py syngenta jira cycle-time --project-key "CWS" \
    --end-date "2025-09-21" --window-days 7 --output-format md
 
@@ -118,9 +122,14 @@ class CycleTimeCommand(BaseCommand):
         )
         parser.add_argument(
             "--team",
-            type=str,
+            "--teams",
+            dest="teams",
+            action="append",
             required=False,
-            help="Filter by team name using Squad[Dropdown] field (optional).",
+            help=(
+                "Filter by one or more teams using Squad[Dropdown] field. "
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+            ),
         )
         parser.add_argument(
             "--include-subtasks",
@@ -180,6 +189,23 @@ class CycleTimeCommand(BaseCommand):
             priorities = [p.strip() for p in args.priority.split(",")] if args.priority else None
             include_subtasks = bool(getattr(args, "include_subtasks", False))
 
+            # Parse teams: support repeated flags and comma-separated values
+            raw_teams = getattr(args, "teams", None) or []
+            teams = None
+            if raw_teams:
+                expanded = []
+                for entry in raw_teams:
+                    if entry:
+                        expanded.extend([t.strip() for t in entry.split(",") if t.strip()])
+                # Deduplicate preserving order
+                seen = set()
+                ordered_unique = []
+                for t in expanded:
+                    if t not in seen:
+                        seen.add(t)
+                        ordered_unique.append(t)
+                teams = ordered_unique or None
+
             # Determine time window (prefer --end-date + --window-days)
             from datetime import date, datetime, timedelta
             computed_time_period = None
@@ -205,7 +231,7 @@ class CycleTimeCommand(BaseCommand):
                 project_key=args.project_key,
                 time_period=(computed_time_period or f"{(date.today()-timedelta(days=6)).strftime('%Y-%m-%d')} to {date.today().strftime('%Y-%m-%d')}") ,
                 issue_types=issue_types,
-                team=args.team,
+                teams=teams,
                 priorities=priorities,
                 verbose=args.verbose,
                 include_subtasks=include_subtasks,
@@ -242,7 +268,7 @@ class CycleTimeCommand(BaseCommand):
                             project_key=args.project_key,
                             time_period=f"{baseline_start.strftime('%Y-%m-%d')} to {baseline_end.strftime('%Y-%m-%d')}",
                             issue_types=issue_types,
-                            team=args.team,
+                            teams=teams,
                             priorities=priorities,
                             verbose=False,  # Don't show verbose for baseline
                             output_file=None,  # Don't save baseline separately

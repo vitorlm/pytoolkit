@@ -123,7 +123,7 @@ class CycleTimeService:
         project_key: str,
         time_period: str,
         issue_types: List[str],
-        team: Optional[str] = None,
+        teams: Optional[List[str]] = None,
         priorities: Optional[List[str]] = None,
         verbose: bool = False,
         include_subtasks: bool = False,
@@ -166,7 +166,7 @@ class CycleTimeService:
                 start_date,
                 end_date,
                 issue_types,
-                team,
+                teams,
                 priorities,
                 include_subtasks,
             )
@@ -227,6 +227,18 @@ class CycleTimeService:
             metrics = self._calculate_metrics(cycle_time_results, zero_cycle_time_anomalies)
 
             # Prepare results
+            # Prepare human-readable team label for metadata
+            team_label = None
+            if teams:
+                # Deduplicate while preserving order
+                seen = set()
+                ordered = []
+                for t in teams:
+                    if t and t not in seen:
+                        seen.add(t)
+                        ordered.append(t)
+                team_label = ", ".join(ordered) if ordered else None
+
             results = {
                 "analysis_metadata": {
                     "project_key": project_key,
@@ -234,7 +246,8 @@ class CycleTimeService:
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
                     "issue_types": issue_types,
-                    "team": team,
+                    "team": team_label,
+                    "teams": teams,
                     "priorities": priorities,
                 "analysis_date": datetime.now().isoformat(),
                     "include_subtasks": include_subtasks,
@@ -303,7 +316,7 @@ class CycleTimeService:
         start_date: datetime,
         end_date: datetime,
         issue_types: List[str],
-        team: Optional[str],
+        teams: Optional[List[str]],
         priorities: Optional[List[str]],
         include_subtasks: bool,
     ) -> str:
@@ -326,9 +339,22 @@ class CycleTimeService:
         end_date_str = end_date.strftime("%Y-%m-%d")
         jql_parts.append(f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'")
 
-        # Team filter
-        if team:
-            jql_parts.append(f"'Squad[Dropdown]' = '{team}'")
+        # Team filter (supports multiple teams)
+        if teams:
+            # Clean and deduplicate
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if len(cleaned) == 1:
+                jql_parts.append(f"'Squad[Dropdown]' = '{cleaned[0]}'")
+            elif len(cleaned) > 1:
+                values = "', '".join(cleaned)
+                jql_parts.append(f"'Squad[Dropdown]' in ('{values}')")
 
         # Priority filter
         if priorities:

@@ -112,7 +112,8 @@ class AssignmentMetrics:
     unassigned_count: int      # Current unassigned issues
     unassigned_percentage: float  # % of issues unassigned
     reassignment_frequency: float  # Avg reassignments per issue
-    team_load_balance: Dict[str, int]  # Issues per team member
+    team_load_balance: Dict[str, int]  # Assigned issues per team member (all statuses)
+    team_load_wip: Dict[str, int]      # WIP issues per team member (active statuses only)
     handoff_quality_score: float  # 0-100 based on clean handoffs
 
 
@@ -341,11 +342,12 @@ class NetFlowCalculationService:
         Returns:
             Stability index as percentage
         """
-        if len(net_flow_series) < window:
+        if not net_flow_series:
             return 0.0
 
-        # Use the last 'window' periods for control band calculation
-        recent_data = net_flow_series[-window:]
+        # Use an effective window based on available history
+        window_eff = min(window, len(net_flow_series))
+        recent_data = net_flow_series[-window_eff:]
         mean_val = np.mean(recent_data)
         std_val = np.std(recent_data)
 
@@ -497,7 +499,7 @@ class NetFlowCalculationService:
 
         return alerts
 
-    def analyze_assignment_metrics(self, all_issues: List[Dict]) -> AssignmentMetrics:
+    def analyze_assignment_metrics(self, all_issues: List[Dict], project_key: str) -> AssignmentMetrics:
         """
         Analyze assignment and ownership tracking metrics.
 
@@ -509,7 +511,8 @@ class NetFlowCalculationService:
         """
         assignment_lags = []
         reassignment_counts = []
-        team_load = defaultdict(int)
+        team_load_assigned = defaultdict(int)
+        team_load_wip = defaultdict(int)
         unassigned_count = 0
         total_issues = len(all_issues)
         handoff_scores = []
@@ -554,7 +557,14 @@ class NetFlowCalculationService:
             current_assignee = issue.get("fields", {}).get("assignee")
             if current_assignee:
                 assignee_name = current_assignee.get("displayName", "Unknown")
-                team_load[assignee_name] += 1
+                team_load_assigned[assignee_name] += 1
+
+                # Count WIP issues per assignee if current status is active
+                status_name = issue.get("fields", {}).get("status", {}).get("name")
+                if status_name:
+                    active_statuses = self.workflow_service.get_active_statuses(project_key)
+                    if status_name in active_statuses:
+                        team_load_wip[assignee_name] += 1
 
         # Calculate metrics
         assignment_lag_avg = np.mean(assignment_lags) if assignment_lags else 0
@@ -569,7 +579,8 @@ class NetFlowCalculationService:
             unassigned_count=unassigned_count,
             unassigned_percentage=unassigned_percentage,
             reassignment_frequency=reassignment_frequency,
-            team_load_balance=dict(team_load),
+            team_load_balance=dict(team_load_assigned),
+            team_load_wip=dict(team_load_wip),
             handoff_quality_score=handoff_quality_score
         )
 
@@ -599,7 +610,7 @@ class NetFlowCalculationService:
 
         return sorted(assignment_history, key=lambda x: x["timestamp"])
 
-    def analyze_cycle_time_heatmap(self, completed_issues: List[Dict], project_key: str) -> CycleTimeHeatmap:
+    def analyze_cycle_time_heatmap(self, completed_issues: List[Dict], project_key: str, teams: Optional[List[str]] = None) -> CycleTimeHeatmap:
         """
         Analyze cycle time breakdown by workflow stages.
 
@@ -610,9 +621,14 @@ class NetFlowCalculationService:
         Returns:
             CycleTimeHeatmap with stage-by-stage breakdown
         """
-        # Get workflow configuration
+        # Get workflow configuration and cycle window
         workflow_config = self.workflow_service.get_workflow_config(project_key)
         workflow_stages = workflow_config.get("workflow_stages", [])
+        try:
+            cycle_start, cycle_end = self.workflow_service.get_cycle_time_statuses(project_key)
+        except Exception:
+            cycle_start = self.workflow_service.get_semantic_status(project_key, "development_start") or "07 Started"
+            cycle_end = self.workflow_service.get_semantic_status(project_key, "completed") or "10 Done"
 
         # If no stages configured, use common defaults
         if not workflow_stages:
@@ -626,16 +642,29 @@ class NetFlowCalculationService:
         for issue in completed_issues:
             stage_transitions = self._extract_stage_transitions(issue, workflow_stages)
 
-            for transition in stage_transitions:
-                from_stage = transition["from_stage"]
-                to_stage = transition["to_stage"]
-                time_hours = transition["time_hours"]
+            # Filter transitions to cycle window [cycle_start .. cycle_end)
+            active = False
+            for t in stage_transitions:
+                from_stage = t["from_stage"]
+                to_stage = t["to_stage"]
+                time_hours = max(0.0, t["time_hours"])  # guard against negatives
+
+                if not active:
+                    if from_stage == cycle_start:
+                        active = True
+                    elif to_stage == cycle_start:
+                        active = True
+                        # do not include pre-start duration
+                        continue
+                    else:
+                        continue
 
                 transitions[(from_stage, to_stage)].append(time_hours)
-
-                # Track time spent in each stage
-                if from_stage != "Created":  # Skip initial creation
+                if from_stage != "Created":
                     stage_times[from_stage].append(time_hours)
+
+                if to_stage == cycle_end:
+                    break
 
         # Calculate transition metrics
         transition_metrics = []
@@ -667,6 +696,67 @@ class NetFlowCalculationService:
         # Calculate total cycle time
         total_cycle_time = sum(np.mean(times) for times in stage_times.values())
 
+        # Optional: per-team breakdown when multiple teams are filtered
+        # Attempt to segment by squad field when provided
+        per_team = []
+        if teams and len(teams) > 1:
+            squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+            if squad_field:
+                for team in teams:
+                    # Filter issues by team label in custom field
+                    team_issues = []
+                    for issue in completed_issues:
+                        val = issue.get("fields", {}).get(squad_field)
+                        # Handle string or dict value
+                        if isinstance(val, dict):
+                            val = val.get("value") or val.get("name") or val.get("id")
+                        if isinstance(val, str) and val.strip() == team:
+                            team_issues.append(issue)
+
+                    if not team_issues:
+                        continue
+
+                    # Recompute stage times for the team subset (cycle window only)
+                    team_stage_times = defaultdict(list)
+                    team_transitions = []
+                    for issue in team_issues:
+                        all_t = self._extract_stage_transitions(issue, workflow_stages)
+                        active = False
+                        for t in all_t:
+                            from_stage = t["from_stage"]
+                            to_stage = t["to_stage"]
+                            time_hours = max(0.0, t["time_hours"])  # guard against negatives
+                            if not active:
+                                if from_stage == cycle_start:
+                                    active = True
+                                elif to_stage == cycle_start:
+                                    active = True
+                                    continue
+                                else:
+                                    continue
+                            team_transitions.append(t)
+                            if from_stage != "Created":
+                                team_stage_times[from_stage].append(time_hours)
+                            if to_stage == cycle_end:
+                                break
+
+                    team_bottleneck = "Unknown"
+                    team_max_p85 = 0
+                    for stage, times in team_stage_times.items():
+                        if times:
+                            p85_time = np.percentile(times, 85)
+                            if p85_time > team_max_p85:
+                                team_max_p85 = p85_time
+                                team_bottleneck = stage
+
+                    team_total_cycle = sum(np.mean(times) for times in team_stage_times.values())
+                    per_team.append({
+                        "team": team,
+                        "issue_count": len(team_issues),
+                        "total_cycle_time_days": team_total_cycle / 24.0,
+                        "bottleneck_stage": team_bottleneck or "Unknown",
+                    })
+
         return CycleTimeHeatmap(
             transitions=transition_metrics,
             total_cycle_time=total_cycle_time,
@@ -675,9 +765,9 @@ class NetFlowCalculationService:
         )
 
     def _extract_stage_transitions(self, issue: Dict, workflow_stages: List[str]) -> List[Dict]:
-        """Extract stage transitions from issue changelog."""
+        """Extract stage transitions from issue changelog (chronologically, non-negative durations)."""
         transitions = []
-        changelog = issue.get("changelog", {}).get("histories", [])
+        histories = issue.get("changelog", {}).get("histories", [])
 
         # Start with creation
         try:
@@ -685,7 +775,7 @@ class NetFlowCalculationService:
             if not created_str:
                 return []  # Skip if no creation date
 
-            # Remove timezone if present for parsing
+            # Remove timezone/subsecond if present for parsing
             if "+" in created_str:
                 created_str = created_str.split("+")[0]
             if "." in created_str:
@@ -694,33 +784,41 @@ class NetFlowCalculationService:
         except (ValueError, TypeError):
             return []  # Skip issues with invalid dates
 
+        # Parse and sort histories chronologically
+        parsed_histories = []
+        for h in histories:
+            try:
+                ts = h.get("created")
+                if not ts:
+                    continue
+                if "+" in ts:
+                    ts = ts.split("+")[0]
+                if "." in ts:
+                    ts = ts.split(".")[0]
+                dt = datetime.fromisoformat(ts)
+                parsed_histories.append((dt, h))
+            except Exception:
+                continue
+        parsed_histories.sort(key=lambda x: x[0])
+
         current_stage = "Created"
         last_transition_time = created_date
 
-        for history in changelog:
-            try:
-                history_time_str = history["created"]
-                # Remove timezone if present for parsing
-                if "+" in history_time_str:
-                    history_time_str = history_time_str.split("+")[0]
-                if "." in history_time_str:
-                    history_time_str = history_time_str.split(".")[0]
-                history_time = datetime.fromisoformat(history_time_str)
-            except (ValueError, KeyError):
-                continue  # Skip invalid timestamps
-
-            for item in history["items"]:
-                if item["field"] == "status":
+        for history_time, history in parsed_histories:
+            # Only consider status changes
+            for item in history.get("items", []):
+                if item.get("field") == "status":
                     to_stage = item.get("toString", "Unknown")
-
-                    # Calculate time in previous stage
+                    # Calculate time in previous stage (clamp negatives)
                     time_in_stage = (history_time - last_transition_time).total_seconds() / 3600
+                    if time_in_stage < 0:
+                        time_in_stage = 0.0
 
                     transitions.append({
                         "from_stage": current_stage,
                         "to_stage": to_stage,
                         "time_hours": time_in_stage,
-                        "timestamp": history_time
+                        "timestamp": history_time,
                     })
 
                     current_stage = to_stage
@@ -733,7 +831,7 @@ class NetFlowCalculationService:
         project_key: str,
         end_date: str,
         issue_types: Optional[List[str]] = None,
-        team: Optional[str] = None,
+        teams: Optional[List[str]] = None,
         include_subtasks: bool = False,
         output_format: str = "console",
         verbose: bool = False,
@@ -756,29 +854,33 @@ class NetFlowCalculationService:
             done_statuses = self.workflow_service.get_done_statuses(project_key)
             issue_types = issue_types or ["Story", "Task", "Bug", "Epic"]
 
+            # Anchor analysis on the provided end_date and look BACKWARD.
+            # Keep the same anchoring behavior as other commands (no forward shift).
             anchor_dt = datetime.fromisoformat(end_date)
-            days_until_sunday = (6 - anchor_dt.weekday()) % 7
-            primary_end = anchor_dt + timedelta(days=days_until_sunday)
+            primary_end = anchor_dt
             primary_start = primary_end - timedelta(days=6)
 
             rolling_trend_metrics = []
-            all_completed_issues = []
+            all_completed_issues = []  # raw completed for current period
+            all_arrival_issues = []    # raw arrivals for current period
             for i in range(4):
-                start_dt = primary_start - timedelta(weeks=i)
-                end_dt = primary_end - timedelta(weeks=i)
+                start_dt = primary_start - timedelta(days=7 * i)
+                end_dt = primary_end - timedelta(days=7 * i)
 
-                metrics, completed_issues = self._calculate_metrics_for_period(
+                metrics, arrival_issues_raw, completed_issues_raw = self._calculate_metrics_for_period(
                     project_key,
                     start_dt,
                     end_dt,
                     issue_types,
-                    team,
+                    teams,
                     include_subtasks,
                     done_statuses,
+                    expand_for_detailed=(i == 0),
                 )
                 rolling_trend_metrics.append(metrics)
                 if i == 0:
-                    all_completed_issues = completed_issues
+                    all_completed_issues = completed_issues_raw
+                    all_arrival_issues = arrival_issues_raw
 
             rolling_trend_metrics.reverse()
 
@@ -860,9 +962,10 @@ class NetFlowCalculationService:
                         }
 
                     # Segmentation analysis
-                    current_arrivals = current_week_metrics.get("arrival_issues", [])
-                    current_completed = current_week_metrics.get("completed_issues", [])
-                    segments = self.analyze_segments_by_type(current_arrivals, current_completed)
+                    # Build segments based on summaries from current period
+                    current_arrival_summaries = [self._extract_issue_summary(i) for i in all_arrival_issues]
+                    current_completed_summaries = [self._extract_issue_summary(i) for i in all_completed_issues]
+                    segments = self.analyze_segments_by_type(current_arrival_summaries, current_completed_summaries)
 
                     # Health alerts
                     if statistical_signal and trend_analysis and volatility_metrics:
@@ -874,20 +977,32 @@ class NetFlowCalculationService:
                             testing_threshold_days=testing_threshold_days
                         )
 
-                    # Assignment & Ownership Analysis (always compute for enhanced analysis)
-                    all_issues = current_arrivals + current_completed
-                    if all_issues:
-                        assignment_metrics = self.analyze_assignment_metrics(all_issues)
+            # Assignment & Ownership Analysis using RAW issues from current period
+            all_issues_raw = list(all_arrival_issues) + list(all_completed_issues)
+            if all_issues_raw:
+                assignment_metrics = self.analyze_assignment_metrics(all_issues_raw, project_key)
 
                     # Cycle Time Heatmap Analysis
-                    if current_completed:
-                        cycle_time_heatmap = self.analyze_cycle_time_heatmap(current_completed, project_key)
+            if all_completed_issues:
+                cycle_time_heatmap = self.analyze_cycle_time_heatmap(all_completed_issues, project_key, teams=teams)
+
+            # Prepare team label similar to IssueAdherenceService
+            team_label = None
+            if teams:
+                seen = set()
+                ordered = []
+                for t in teams:
+                    if t and t not in seen:
+                        seen.add(t)
+                        ordered.append(t)
+                team_label = ", ".join(ordered) if ordered else None
 
             response = {
                 "metadata": {
                     "project_key": project_key,
                     "anchor_date": end_date,
-                    "team": team,
+                    "team": team_label,
+                    "teams": teams,
                     "issue_types": issue_types,
                     "include_subtasks": include_subtasks,
                     "analysis_date": datetime.now().isoformat(),
@@ -922,12 +1037,11 @@ class NetFlowCalculationService:
                     current_week_metrics["arrival_rate"],
                     current_week_metrics["throughput"],
                 ),
+                # Only include detailed issues list when verbose is requested
                 "details": {
-                    "arrival_issues": current_week_metrics.get("arrival_issues", []),
-                    "completed_issues": current_week_metrics.get("completed_issues", []),
-                }
-                if verbose
-                else {},
+                    "arrival_issues": [self._extract_issue_summary(i) for i in all_arrival_issues],
+                    "completed_issues": [self._extract_issue_summary(i) for i in all_completed_issues],
+                } if verbose else {},
             }
 
             # Add statistical analysis results to response
@@ -991,6 +1105,7 @@ class NetFlowCalculationService:
                     "unassigned_percentage": assignment_metrics.unassigned_percentage,
                     "reassignment_frequency": assignment_metrics.reassignment_frequency,
                     "team_load_balance": assignment_metrics.team_load_balance,
+                    "team_load_wip": assignment_metrics.team_load_wip,
                     "handoff_quality_score": assignment_metrics.handoff_quality_score,
                 }
 
@@ -1014,6 +1129,50 @@ class NetFlowCalculationService:
                     "bottleneck_stage": cycle_time_heatmap.bottleneck_stage,
                     "efficiency_by_stage": cycle_time_heatmap.efficiency_by_stage,
                 }
+
+                # If multiple teams are filtered, include a team-level summary to improve readability
+                if teams and isinstance(teams, list) and len(teams) > 1 and all_completed_issues:
+                    squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+                    wf_stages = self.workflow_service.get_workflow_config(project_key).get("workflow_stages", [])
+                    by_team = []
+                    if squad_field:
+                        for team_name in teams:
+                            subset = []
+                            for iss in all_completed_issues:
+                                val = iss.get("fields", {}).get(squad_field)
+                                if isinstance(val, dict):
+                                    val = val.get("value") or val.get("name") or val.get("id")
+                                if isinstance(val, str) and val.strip() == team_name:
+                                    subset.append(iss)
+                            if not subset:
+                                continue
+
+                            # Compute quick bottleneck and total cycle time for the team
+                            team_stage_times = defaultdict(list)
+                            for iss in subset:
+                                for t in self._extract_stage_transitions(iss, wf_stages):
+                                    if t["from_stage"] != "Created":
+                                        team_stage_times[t["from_stage"]].append(t["time_hours"])
+
+                            team_bottleneck = "Unknown"
+                            max_p85 = 0
+                            for stage, times in team_stage_times.items():
+                                if times:
+                                    p85 = np.percentile(times, 85)
+                                    if p85 > max_p85:
+                                        max_p85 = p85
+                                        team_bottleneck = stage
+
+                            total_cycle = sum(np.mean(times) for times in team_stage_times.values())
+                            by_team.append({
+                                "team": team_name,
+                                "issue_count": len(subset),
+                                "total_cycle_time_days": total_cycle / 24.0,
+                                "bottleneck_stage": team_bottleneck,
+                            })
+
+                    if by_team:
+                        response["cycle_time_heatmap"]["by_team"] = by_team
 
             # Save reports into a per-day folder (all reports for the same day go together)
             date_str = datetime.now().strftime("%Y%m%d")
@@ -1050,16 +1209,20 @@ class NetFlowCalculationService:
         start_date: datetime,
         end_date: datetime,
         issue_types: List[str],
-        team: Optional[str],
+        teams: Optional[List[str]],
         include_subtasks: bool,
         done_statuses: List[str],
-    ) -> tuple[Dict, List]:
-        """Calculates arrival, throughput, and net flow for a single time period."""
+        expand_for_detailed: bool = False,
+    ) -> tuple[Dict, List, List]:
+        """Calculates arrival, throughput, and net flow for a single time period.
+
+        Returns a tuple of (metrics, arrival_issues_raw, completed_issues_raw).
+        """
         arrival_issues = self._fetch_created_issues(
-            project_key, start_date, end_date, issue_types, team, include_subtasks
+            project_key, start_date, end_date, issue_types, teams, include_subtasks, expand_changelog=expand_for_detailed
         )
         completed_issues = self._fetch_completed_issues(
-            project_key, start_date, end_date, issue_types, team, include_subtasks, done_statuses
+            project_key, start_date, end_date, issue_types, teams, include_subtasks, done_statuses, expand_changelog=expand_for_detailed
         )
 
         metrics = {
@@ -1073,7 +1236,7 @@ class NetFlowCalculationService:
         metrics["arrival_issues"] = [self._extract_issue_summary(i) for i in arrival_issues]
         metrics["completed_issues"] = [self._extract_issue_summary(i) for i in completed_issues]
 
-        return metrics, completed_issues
+        return metrics, arrival_issues, completed_issues
 
     def _analyze_flow_efficiency_and_bottlenecks(
         self, completed_issues: List[Dict], project_key: str
@@ -1122,6 +1285,11 @@ class NetFlowCalculationService:
         flow_efficiency = (
             (total_work_time_seconds / total_cycle_time_seconds * 100) if total_cycle_time_seconds > 0 else 0
         )
+        # Clamp to [0, 100] to avoid nonsensical values due to partial changelogs or edge cases
+        if flow_efficiency < 0:
+            flow_efficiency = 0.0
+        if flow_efficiency > 100:
+            flow_efficiency = 100.0
 
         bottleneck = (
             max(status_time_seconds.keys(), key=lambda k: status_time_seconds[k]) if status_time_seconds else "N/A"
@@ -1148,8 +1316,9 @@ class NetFlowCalculationService:
         start_date: datetime,
         end_date: datetime,
         issue_types: list,
-        team: Optional[str],
+        teams: Optional[List[str]],
         include_subtasks: bool,
+        expand_changelog: bool = False,
     ) -> list:
         """Fetch issues created in the specified time period."""
         jql_parts = [f"project = '{project_key}'"]
@@ -1159,19 +1328,40 @@ class NetFlowCalculationService:
         start_date_str = start_date.strftime("%Y-%m-%d")
         end_date_str = end_date.strftime("%Y-%m-%d")
         jql_parts.append(f"created >= '{start_date_str}' AND created <= '{end_date_str}'")
-        if team:
-            squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
-            if squad_field:
-                jql_parts.append(f"'{squad_field}' = '{team}'")
+        # Team filter (supports one or many teams)
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if cleaned:
+                squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+                if squad_field:
+                    if len(cleaned) == 1:
+                        jql_parts.append(f"'{squad_field}' = '{cleaned[0]}'")
+                    else:
+                        vals = "', '".join(cleaned)
+                        jql_parts.append(f"'{squad_field}' in ('{vals}')")
         if not include_subtasks:
             jql_parts.append("type != Sub-task")
         jql_query = " AND ".join(jql_parts)
         self.logger.info(f"Fetching created issues with JQL: {jql_query}")
+        # Ensure we include the configured squad field for team segmentation
+        squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+        base_fields = ["key","summary","issuetype","status","created","assignee","customfield_10265"]
+        if squad_field and squad_field not in base_fields:
+            base_fields.append(squad_field)
+        fields_str = ",".join(base_fields)
+
         issues = self.jira_assistant.fetch_issues(
             jql_query=jql_query,
-            fields="key,summary,issuetype,status,created,assignee,customfield_10265",
+            fields=fields_str,
             max_results=1000,
-            expand_changelog=False,
+            expand_changelog=expand_changelog,
         )
         self.logger.info(f"Found {len(issues)} issues created in period")
         return issues
@@ -1182,9 +1372,10 @@ class NetFlowCalculationService:
         start_date: datetime,
         end_date: datetime,
         issue_types: list,
-        team: Optional[str],
+        teams: Optional[List[str]],
         include_subtasks: bool,
         done_statuses: list,
+        expand_changelog: bool = False,
     ) -> list:
         """Fetch issues completed in the specified time period."""
         jql_parts = [f"project = '{project_key}'"]
@@ -1197,19 +1388,40 @@ class NetFlowCalculationService:
         if done_statuses:
             status_str = "', '".join(done_statuses)
             jql_parts.append(f"status in ('{status_str}')")
-        if team:
-            squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
-            if squad_field:
-                jql_parts.append(f"'{squad_field}' = '{team}'")
+        # Team filter (supports one or many teams)
+        if teams:
+            cleaned = []
+            seen = set()
+            for t in teams:
+                if t:
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        cleaned.append(t)
+            if cleaned:
+                squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+                if squad_field:
+                    if len(cleaned) == 1:
+                        jql_parts.append(f"'{squad_field}' = '{cleaned[0]}'")
+                    else:
+                        vals = "', '".join(cleaned)
+                        jql_parts.append(f"'{squad_field}' in ('{vals}')")
         if not include_subtasks:
             jql_parts.append("type != Sub-task")
         jql_query = " AND ".join(jql_parts)
         self.logger.info(f"Fetching completed issues with JQL: {jql_query}")
+        # Ensure we include the configured squad field for team segmentation
+        squad_field = self.workflow_service.get_custom_field(project_key, "squad_field")
+        base_fields = ["key","summary","issuetype","status","created","resolved","assignee","customfield_10265"]
+        if squad_field and squad_field not in base_fields:
+            base_fields.append(squad_field)
+        fields_str = ",".join(base_fields)
+
         issues = self.jira_assistant.fetch_issues(
             jql_query=jql_query,
-            fields="key,summary,issuetype,status,created,resolved,assignee,customfield_10265",
+            fields=fields_str,
             max_results=1000,
-            expand_changelog=True,
+            expand_changelog=expand_changelog,
         )
         self.logger.info(f"Found {len(issues)} issues completed in period")
         return issues
@@ -1474,20 +1686,23 @@ Flow debt represents the cumulative positive net flow over time, indicating back
 """
 
             if assignment_data['team_load_balance']:
-                markdown_content += "| Team Member | Active Issues | Load Status |\n"
-                markdown_content += "|--------------|---------------|-------------|\n"
+                markdown_content += "| Team Member | Assigned Issues | WIP Issues | Load Status |\n"
+                markdown_content += "|--------------|-----------------|-----------|-------------|\n"
 
-                total_issues = sum(assignment_data['team_load_balance'].values())
-                avg_load = total_issues / len(assignment_data['team_load_balance'])
+                total_assigned = sum(assignment_data['team_load_balance'].values())
+                count_members = max(1, len(assignment_data['team_load_balance']))
+                avg_assigned = total_assigned / count_members
+                team_wip = assignment_data.get('team_load_wip', {}) or {}
 
-                for member, load in sorted(assignment_data['team_load_balance'].items()):
+                for member, assigned in sorted(assignment_data['team_load_balance'].items()):
+                    wip_count = team_wip.get(member, 0)
                     load_status = "⚖️ Balanced"
-                    if load > avg_load * 1.5:
+                    if assigned > avg_assigned * 1.5:
                         load_status = "🔴 Overloaded"
-                    elif load < avg_load * 0.5:
+                    elif assigned < avg_assigned * 0.5:
                         load_status = "🟡 Underutilized"
 
-                    markdown_content += f"| {member} | {load} | {load_status} |\n"
+                    markdown_content += f"| {member} | {assigned} | {wip_count} | {load_status} |\n"
 
         # Cycle Time Heatmap
         if "cycle_time_heatmap" in scorecard:
@@ -1506,8 +1721,12 @@ Flow debt represents the cumulative positive net flow over time, indicating back
                 markdown_content += "| Transition | Avg Time | P85 Time | Issues | Status |\n"
                 markdown_content += "|------------|----------|----------|--------|--------|\n"
 
-                # Sort transitions by average time (descending)
-                transitions = sorted(heatmap_data['transitions'], key=lambda x: x['avg_time_hours'], reverse=True)
+                # Sort transitions by average time (descending) and filter trivial (<0.1d)
+                transitions = sorted(
+                    [t for t in heatmap_data['transitions'] if t.get('avg_time_days', 0) >= 0.1],
+                    key=lambda x: x['avg_time_hours'],
+                    reverse=True,
+                )
 
                 for transition in transitions[:10]:  # Show top 10 slowest transitions
                     avg_days = transition['avg_time_days']
@@ -1522,6 +1741,19 @@ Flow debt represents the cumulative positive net flow over time, indicating back
 
                     markdown_content += f"| {transition['from_stage']} → {transition['to_stage']} | {avg_days:.1f}d | {p85_hours:.1f}h | {transition['issue_count']} | {status} |\n"
 
+            # Team breakdown when multiple teams are in scope
+            if heatmap_data.get('by_team'):
+                markdown_content += """
+
+### By Team (Cycle Summary)
+
+| Team | Issues | Total Cycle | Bottleneck |
+|------|--------|-------------|------------|
+"""
+
+                for row in heatmap_data["by_team"]:
+                    markdown_content += f"| {row['team']} | {row['issue_count']} | {row['total_cycle_time_days']:.1f}d | {row['bottleneck_stage']} |\n"
+
             # ASCII-style heatmap visualization
             if heatmap_data['transitions']:
                 markdown_content += f"""
@@ -1531,8 +1763,10 @@ Flow debt represents the cumulative positive net flow over time, indicating back
 Week {week_number} Cycle Time Breakdown:
 """
 
-                # Create a simple text-based visualization
-                for transition in heatmap_data['transitions'][:6]:  # Top 6 transitions
+                # Create a simple text-based visualization (filter trivial)
+                ascii_transitions = [t for t in heatmap_data['transitions'] if t.get('avg_time_days', 0) >= 0.1]
+                ascii_transitions = sorted(ascii_transitions, key=lambda x: x['avg_time_hours'], reverse=True)[:6]
+                for transition in ascii_transitions:  # Top 6 transitions
                     from_stage = transition['from_stage'][:15]  # Truncate long names
                     to_stage = transition['to_stage'][:15]
                     avg_days = transition['avg_time_days']
@@ -1627,7 +1861,10 @@ Week {week_number} Cycle Time Breakdown:
             if len(arrival_issues) > 20:
                 markdown_content += f"\n*... and {len(arrival_issues) - 20} more arrival issues*\n"
         else:
-            markdown_content += "\n*No arrival issues found in the current analysis period.*\n"
+            if details:
+                markdown_content += "\n*No arrival issues found in the current analysis period.*\n"
+            else:
+                markdown_content += "\n*Enable --verbose to include arrival issue details.*\n"
 
         if completed_issues:
             markdown_content += f"""
@@ -1660,7 +1897,10 @@ Week {week_number} Cycle Time Breakdown:
             if len(completed_issues) > 20:
                 markdown_content += f"\n*... and {len(completed_issues) - 20} more completed issues*\n"
         else:
-            markdown_content += "\n*No completed issues found in the current analysis period.*\n"
+            if details:
+                markdown_content += "\n*No completed issues found in the current analysis period.*\n"
+            else:
+                markdown_content += "\n*Enable --verbose to include completed issue details.*\n"
 
         # Recommendations section
         markdown_content += """

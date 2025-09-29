@@ -28,6 +28,10 @@ USAGE EXAMPLES (Anchor + Window):
    python src/main.py syngenta jira issue-adherence --project-key "CWS" \
    --end-date "2025-09-21" --window-days 7 --team "Catalog"
 
+4b. Analyze with multiple teams (tribe):
+   python src/main.py syngenta jira issue-adherence --project-key "CWS" \
+   --end-date "2025-09-21" --window-days 7 --teams "Catalog,Platform"
+
 ADHERENCE METRICS:
 - On-time: Issues completed on or before due date
 - Late: Issues completed after due date
@@ -96,9 +100,14 @@ class IssueAdherenceCommand(BaseCommand):
         )
         parser.add_argument(
             "--team",
-            type=str,
+            "--teams",
+            dest="teams",
+            action="append",
             required=False,
-            help="Filter by team name using Squad[Dropdown] field (optional).",
+            help=(
+                "Filter by one or more teams using Squad[Dropdown] field. "
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+            ),
         )
         parser.add_argument(
             "--status",
@@ -207,11 +216,15 @@ class IssueAdherenceCommand(BaseCommand):
             service = IssueAdherenceService()
 
             # Run adherence analysis
+            # Parse teams
+            raw_teams = getattr(args, "teams", []) or []
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
+
             result = service.analyze_issue_adherence(
                 project_key=args.project_key,
                 time_period=(computed_time_period or f"{(date.today()-timedelta(days=6)).strftime('%Y-%m-%d')} to {date.today().strftime('%Y-%m-%d')}") ,
                 issue_types=issue_types,
-                team=args.team,
+                teams=teams,
                 status=status,
                 include_no_due_date=args.include_no_due_date,
                 verbose=args.verbose,
@@ -310,9 +323,31 @@ class IssueAdherenceCommand(BaseCommand):
         print("=" * len(header))
 
         # Project Information (concise)
-        if args.team:
-            print(f"Team: {args.team}")
+        # Teams filter (supports --team/--teams; prints flattened unique list)
+        teams_list = None
+        raw_teams = getattr(args, "teams", None)
+        if raw_teams:
+            seen = set()
+            flattened = []
+            for entry in raw_teams:
+                for t in str(entry).split(","):
+                    t = t.strip()
+                    if t and t not in seen:
+                        seen.add(t)
+                        flattened.append(t)
+            teams_list = flattened if flattened else None
+        if teams_list:
+            print(f"Teams: {', '.join(teams_list)}")
         print(f"Issue Types: {', '.join(issue_types)}")
+        # Fallback to metadata if no CLI-provided teams
+        if not teams_list and isinstance(result, dict):
+            meta = result.get("analysis_metadata", {}) or {}
+            meta_team = meta.get("team")
+            meta_teams = meta.get("teams") if isinstance(meta.get("teams"), list) else None
+            if meta_team:
+                print(f"Teams: {meta_team}")
+            elif meta_teams:
+                print(f"Teams: {', '.join(meta_teams)}")
 
         # Executive Summary
         print("📈 EXECUTIVE SUMMARY")

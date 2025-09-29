@@ -20,6 +20,10 @@ USAGE EXAMPLES:
    python src/main.py syngenta jira open-issues --project-key "CWS" 
    --issue-types "Story,Task,Bug" --team "Catalog"
 
+2b. Get all open issues for multiple teams:
+   python src/main.py syngenta jira open-issues --project-key "CWS" 
+   --issue-types "Story,Task,Bug" --teams "Catalog,Platform"
+
 3. Get all open issues with custom status:
    python src/main.py syngenta jira open-issues --project-key "CWS" 
    --issue-types "Bug,Support" --status-categories "To Do,In Progress"
@@ -79,9 +83,14 @@ class OpenIssuesCommand(BaseCommand):
         )
         parser.add_argument(
             "--team",
-            type=str,
+            "--teams",
+            dest="teams",
+            action="append",
             required=False,
-            help="Filter by team name using Squad[Dropdown] field (optional).",
+            help=(
+                "Filter by one or more teams using Squad[Dropdown] field. "
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+            ),
         )
         parser.add_argument(
             "--status-categories",
@@ -128,11 +137,15 @@ class OpenIssuesCommand(BaseCommand):
             # Initialize service
             service = OpenIssuesService()
 
+            # Parse teams (repeatable flag and comma-separated)
+            raw_teams = getattr(args, "teams", []) or []
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
+
             # Fetch open issues
             result = service.fetch_open_issues(
                 project_key=args.project_key,
                 issue_types=issue_types,
-                team=args.team,
+                teams=teams,
                 status_categories=status_categories,
                 verbose=args.verbose,
                 output_file=args.output_file,
@@ -148,8 +161,9 @@ class OpenIssuesCommand(BaseCommand):
                 print(f"Project: {args.project_key}")
                 print(f"Issue Types: {', '.join(issue_types)}")
                 print(f"Status Categories: {', '.join(status_categories)}")
-                if args.team:
-                    print(f"Team: {args.team}")
+                meta_team = result.get("team") or result.get("analysis_metadata", {}).get("team")
+                if meta_team:
+                    print(f"Teams: {meta_team}")
 
                 # Print metrics
                 total_issues = result.get("total_issues", 0)
