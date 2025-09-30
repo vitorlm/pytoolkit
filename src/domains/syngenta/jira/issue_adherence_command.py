@@ -39,12 +39,18 @@ ADHERENCE METRICS:
 - No due date: Issues without due date set
 """
 
+import os
 from argparse import ArgumentParser, Namespace
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from domains.syngenta.jira.issue_adherence_service import IssueAdherenceService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
+from utils.summary_helpers import _extract_metric_value, _has_value, _isoz
 
 
 class IssueAdherenceCommand(BaseCommand):
@@ -138,6 +144,16 @@ class IssueAdherenceCommand(BaseCommand):
             choices=["json", "md", "console"],
             default="console",
             help="Output format: json (JSON file), md (Markdown file), console (display only)",
+        )
+        parser.add_argument(
+            "--summary-output",
+            type=str,
+            choices=["auto", "json", "none"],
+            default="auto",
+            help=(
+                "Control summary metrics persistence: 'auto' stores alongside generated reports, "
+                "'json' forces a summary file even without a report, and 'none' skips it."
+            ),
         )
         parser.add_argument(
             "--weighted-adherence",
@@ -251,6 +267,20 @@ class IssueAdherenceCommand(BaseCommand):
                         print("✅ Detailed report saved")
                     else:
                         print("⚠️  Analysis completed but no output file was generated.")
+
+                try:
+                    summary_mode = getattr(args, "summary_output", "auto")
+                    raw_output_path = result.get("output_file")
+                    summary_path = IssueAdherenceCommand._emit_summary(
+                        result,
+                        summary_mode,
+                        raw_output_path,
+                        args,
+                    )
+                    if summary_path:
+                        print(f"[summary] wrote: {summary_path}")
+                except Exception as summary_error:
+                    logger.warning(f"Failed to write summary metrics: {summary_error}")
 
             else:
                 logger.error("Issue adherence analysis failed")
@@ -679,3 +709,263 @@ class IssueAdherenceCommand(BaseCommand):
             print(f"\n📄 Detailed report saved to: {args.output_file}")
 
         print("=" * 79)
+
+    @staticmethod
+    def _emit_summary(
+        result: Dict[str, Any],
+        summary_mode: str,
+        existing_output_path: Optional[str],
+        args: Namespace,
+    ) -> Optional[str]:
+        if summary_mode == "none":
+            return None
+
+        raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
+        metrics_payload = IssueAdherenceCommand._build_summary_metrics(result, raw_data_path)
+        if not metrics_payload:
+            return None
+
+        sub_dir, base_name = IssueAdherenceCommand._summary_output_defaults(args, result)
+        summary_path: Optional[str] = None
+
+        if existing_output_path:
+            target_path = IssueAdherenceCommand._summary_path_for_existing(existing_output_path)
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+                output_path=target_path,
+            )
+            summary_path = os.path.abspath(summary_path)
+
+        if summary_mode == "auto":
+            return summary_path
+
+        if summary_path and summary_mode == "json":
+            return summary_path
+
+        if summary_mode == "json":
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+            )
+            return os.path.abspath(summary_path)
+
+        return None
+
+    @staticmethod
+    def _build_summary_metrics(result: Dict[str, Any], raw_output_path: Optional[str]) -> List[Dict[str, Any]]:
+        metadata = result.get("analysis_metadata") or {}
+        period_start = _isoz(metadata.get("start_date"))
+        period_end = _isoz(metadata.get("end_date"))
+        if not period_start or not period_end:
+            return []
+
+        period = {"start_date": period_start, "end_date": period_end}
+        base_dimensions = IssueAdherenceCommand._base_dimensions(metadata)
+        summary_metrics: List[Dict[str, Any]] = []
+        command_name = IssueAdherenceCommand.get_name()
+
+        metrics_block = result.get("metrics") or {}
+        IssueAdherenceCommand._append_metric(
+            summary_metrics,
+            "jira.issue_adherence.adherence_rate",
+            metrics_block.get("adherence_rate"),
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        weighted_block = result.get("weighted_metrics") or {}
+        IssueAdherenceCommand._append_metric(
+            summary_metrics,
+            "jira.issue_adherence.weighted_adherence",
+            weighted_block.get("weighted_adherence"),
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        coverage_value = _extract_metric_value(result, ("due_date_coverage", "overall", "coverage_percentage"))
+        IssueAdherenceCommand._append_metric(
+            summary_metrics,
+            "jira.issue_adherence.due_date_coverage_percent",
+            coverage_value,
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        IssueAdherenceCommand._append_metric(
+            summary_metrics,
+            "jira.issue_adherence.on_time_completion_count",
+            metrics_block.get("on_time"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        IssueAdherenceCommand._append_metric(
+            summary_metrics,
+            "jira.issue_adherence.late_completion_count",
+            metrics_block.get("late"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+
+        segmentation = result.get("segmentation_analysis") or {}
+        IssueAdherenceCommand._append_segmentation_metrics(
+            summary_metrics,
+            segmentation.get("by_team"),
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+            dimension_key="team",
+        )
+        IssueAdherenceCommand._append_segmentation_metrics(
+            summary_metrics,
+            segmentation.get("by_issue_type"),
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+            dimension_key="issue_type",
+        )
+
+        return summary_metrics
+
+    @staticmethod
+    def _summary_output_defaults(args: Namespace, result: Dict[str, Any]) -> Tuple[str, str]:
+        metadata = result.get("analysis_metadata") or {}
+        project_key = metadata.get("project_key") or getattr(args, "project_key", "unknown")
+        date_str = datetime.now().strftime("%Y%m%d")
+        sub_dir = f"issue-adherence_{date_str}"
+        base_name = f"issue_adherence_summary_{project_key}"
+        return sub_dir, base_name
+
+    @staticmethod
+    def _summary_path_for_existing(existing_output_path: str) -> str:
+        output_path = Path(existing_output_path)
+        summary_filename = f"{output_path.stem}_summary.json"
+        return str(output_path.with_name(summary_filename))
+
+    @staticmethod
+    def _append_segmentation_metrics(
+        container: List[Dict[str, Any]],
+        segments: Optional[Dict[str, Any]],
+        period: Dict[str, str],
+        base_dimensions: Dict[str, Any],
+        command_name: str,
+        raw_output_path: Optional[str],
+        *,
+        dimension_key: str,
+    ) -> None:
+        if not isinstance(segments, dict):
+            return
+
+        for segment_name, data in segments.items():
+            if not isinstance(data, dict):
+                continue
+            counts = data.get("counts") if isinstance(data.get("counts"), dict) else {}
+            segment_dimensions = {**base_dimensions, dimension_key: segment_name}
+            IssueAdherenceCommand._append_metric(
+                container,
+                "jira.issue_adherence.adherence_rate",
+                data.get("adherence_rate"),
+                "percent",
+                period,
+                segment_dimensions,
+                command_name,
+                raw_output_path,
+            )
+            IssueAdherenceCommand._append_metric(
+                container,
+                "jira.issue_adherence.on_time_completion_count",
+                counts.get("on_time"),
+                "issues",
+                period,
+                segment_dimensions,
+                command_name,
+                raw_output_path,
+            )
+            IssueAdherenceCommand._append_metric(
+                container,
+                "jira.issue_adherence.late_completion_count",
+                counts.get("late"),
+                "issues",
+                period,
+                segment_dimensions,
+                command_name,
+                raw_output_path,
+            )
+
+    @staticmethod
+    def _append_metric(
+        container: List[Dict[str, Any]],
+        metric_name: str,
+        value: Any,
+        unit: str,
+        period: Dict[str, str],
+        dimensions: Dict[str, Any],
+        source_command: str,
+        raw_data_path: Optional[str],
+    ) -> None:
+        if not _has_value(value):
+            return
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return
+
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
+        container.append(
+            {
+                "metric_name": metric_name,
+                "value": numeric_value,
+                "unit": unit,
+                "period": period,
+                "dimensions": cleaned_dimensions,
+                "source_command": source_command,
+                "raw_data_path": raw_data_path,
+            }
+        )
+
+    @staticmethod
+    def _base_dimensions(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        dimensions: Dict[str, Any] = {}
+        project_key = metadata.get("project_key")
+        if project_key:
+            dimensions["project"] = project_key
+
+        team_value = IssueAdherenceCommand._normalize_team_metadata(metadata)
+        if team_value:
+            dimensions["team"] = team_value
+        else:
+            dimensions["team"] = "overall"
+        return dimensions
+
+    @staticmethod
+    def _normalize_team_metadata(metadata: Dict[str, Any]) -> Optional[str]:
+        teams = metadata.get("teams")
+        if isinstance(teams, list):
+            cleaned = [str(team).strip() for team in teams if str(team).strip()]
+            if len(cleaned) == 1:
+                return cleaned[0]
+            if cleaned:
+                return ",".join(cleaned)
+
+        team_label = metadata.get("team")
+        if isinstance(team_label, str) and team_label.strip():
+            return team_label.strip()
+
+        return None

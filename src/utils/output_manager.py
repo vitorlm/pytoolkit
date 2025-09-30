@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
@@ -8,6 +8,11 @@ from utils.file_manager import FileManager
 
 class OutputManager:
     _output_dir = "output"
+
+    @staticmethod
+    def get_output_root() -> str:
+        """Return the base output directory used for generated artifacts."""
+        return OutputManager._output_dir
 
     @staticmethod
     def get_output_path(sub_dir: str, file_name: str, extension: str = "json") -> str:
@@ -81,4 +86,21 @@ class OutputManager:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
 
         FileManager.write_file(path, content)
+        return path
+
+    @staticmethod
+    def save_summary_report(
+        metrics: List[Dict[str, Any]],
+        sub_dir: str,
+        file_basename: str,
+        output_path: Optional[str] = None,
+    ) -> str:
+        """Persist summary metrics using the standard output directory layout."""
+        if output_path:
+            path = output_path
+        else:
+            path = OutputManager.get_output_path(sub_dir, file_basename, "json")
+
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        JSONManager.write_json(metrics, path)
         return path

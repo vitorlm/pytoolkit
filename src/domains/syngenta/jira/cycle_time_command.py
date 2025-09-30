@@ -56,7 +56,11 @@ CYCLE TIME METRICS:
 - Distribution by time ranges (e.g., < 1 day, 1-3 days, etc.)
 """
 
+import os
 from argparse import ArgumentParser, Namespace
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from domains.syngenta.jira.cycle_time_formatter import CycleTimeFormatter
 from domains.syngenta.jira.cycle_time_service import CycleTimeService
@@ -64,6 +68,8 @@ from domains.syngenta.jira.cycle_time_trend_service import CycleTimeTrendService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
+from utils.summary_helpers import _extract_metric_value, _has_value, _isoz
 
 
 class CycleTimeCommand(BaseCommand):
@@ -116,9 +122,7 @@ class CycleTimeCommand(BaseCommand):
             type=str,
             required=False,
             default="Story,Task,Bug,Epic",
-            help=(
-                "Comma-separated list of issue types to analyze (default: 'Story,Task,Bug,Epic')."
-            ),
+            help=("Comma-separated list of issue types to analyze (default: 'Story,Task,Bug,Epic')."),
         )
         parser.add_argument(
             "--team",
@@ -159,6 +163,15 @@ class CycleTimeCommand(BaseCommand):
             choices=["json", "md"],
             default="console",
             help="Output format: json (JSON file), md (Markdown file), console (display only)",
+        )
+        parser.add_argument(
+            "--summary-output",
+            type=str,
+            choices=["auto", "json", "none"],
+            default="auto",
+            help=(
+                "Control summary metrics persistence: 'auto' stores alongside reports, 'json' forces output, 'none' skips."
+            ),
         )
         parser.add_argument(
             "--extended",
@@ -208,6 +221,7 @@ class CycleTimeCommand(BaseCommand):
 
             # Determine time window (prefer --end-date + --window-days)
             from datetime import date, datetime, timedelta
+
             computed_time_period = None
 
             if args.end_date:
@@ -229,7 +243,10 @@ class CycleTimeCommand(BaseCommand):
             service = CycleTimeService()
             result = service.analyze_cycle_time(
                 project_key=args.project_key,
-                time_period=(computed_time_period or f"{(date.today()-timedelta(days=6)).strftime('%Y-%m-%d')} to {date.today().strftime('%Y-%m-%d')}") ,
+                time_period=(
+                    computed_time_period
+                    or f"{(date.today() - timedelta(days=6)).strftime('%Y-%m-%d')} to {date.today().strftime('%Y-%m-%d')}"
+                ),
                 issue_types=issue_types,
                 teams=teams,
                 priorities=priorities,
@@ -384,10 +401,8 @@ class CycleTimeCommand(BaseCommand):
                     logger.warning(f"Failed to print executive summary: {_summary_err}")
 
                 # Handle output format (standardized via OutputManager)
-                from utils.output_manager import OutputManager
-                from datetime import datetime as _dt
                 # Save into per-day folder (cycle-time_YYYYMMDD)
-                sub_dir = f"cycle-time_{_dt.now().strftime('%Y%m%d')}"
+                sub_dir = f"cycle-time_{datetime.now().strftime('%Y%m%d')}"
                 file_basename = f"cycle_time_{args.project_key}"
 
                 if args.output_format == "json":
@@ -440,6 +455,7 @@ class CycleTimeCommand(BaseCommand):
                         logger.error(f"Error in formatter display: {formatter_error}")
                         logger.error(f"Formatter error type: {type(formatter_error).__name__}")
                         import traceback
+
                         logger.error(f"Formatter traceback: {traceback.format_exc()}")
 
                         # Fallback: show basic info without fancy formatting
@@ -448,13 +464,27 @@ class CycleTimeCommand(BaseCommand):
                         print("\nBasic Analysis Results:")
                         print(f"Project: {result.get('analysis_metadata', {}).get('project_key', 'Unknown')}")
                         print(f"Total Issues: {result.get('metrics', {}).get('total_issues', 0)}")
-                        print(f"Average Cycle Time: {result.get('metrics', {}).get('average_cycle_time_hours', 0):.1f}h")
+                        print(
+                            f"Average Cycle Time: {result.get('metrics', {}).get('average_cycle_time_hours', 0):.1f}h"
+                        )
 
                         if trending_results:
                             print("\nTrending data is available but could not be displayed due to formatting error.")
                             print("Check logs for details or use --output-format json for raw data.")
 
-                # (Removed duplicate OutputManager saving block to avoid double-formatting)
+                try:
+                    summary_mode = getattr(args, "summary_output", "auto")
+                    raw_output_path = result.get("output_file")
+                    summary_path = CycleTimeCommand._emit_summary(
+                        result,
+                        summary_mode,
+                        raw_output_path,
+                        args,
+                    )
+                    if summary_path:
+                        print(f"[summary] wrote: {summary_path}")
+                except Exception as summary_error:
+                    logger.warning(f"Failed to write summary metrics: {summary_error}")
 
             else:
                 logger.error("Cycle time analysis failed")
@@ -465,6 +495,7 @@ class CycleTimeCommand(BaseCommand):
             logger.error(f"COMMAND FAILED: {e}")
             logger.error(f"Exception type: {type(e).__name__}")
             import traceback
+
             logger.error(f"Full traceback: {traceback.format_exc()}")
 
             if "400" in error_str and ("does not exist for the field 'type'" in error_str):
@@ -508,7 +539,6 @@ class CycleTimeCommand(BaseCommand):
         project = metadata.get("project_key", "-")
         start = metadata.get("start_date", "")
         end = metadata.get("end_date", "")
-        period = metadata.get("time_period", "")
 
         try:
             start_disp = start[:10]
@@ -541,3 +571,229 @@ class CycleTimeCommand(BaseCommand):
         if anomalies:
             print(f"- Zero-cycle anomalies: {anomalies}")
         print("=" * len(header))
+
+    @staticmethod
+    def _emit_summary(
+        result: Dict[str, Any],
+        summary_mode: str,
+        existing_output_path: Optional[str],
+        args: Namespace,
+    ) -> Optional[str]:
+        """Build and persist standardized summary metrics following summary mode preferences."""
+        if summary_mode == "none":
+            return None
+
+        raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
+        metrics_payload = CycleTimeCommand._build_summary_metrics(result, raw_data_path)
+        if not metrics_payload:
+            return None
+
+        sub_dir, base_name = CycleTimeCommand._summary_output_defaults(args, result)
+        summary_path: Optional[str] = None
+
+        if existing_output_path:
+            target_path = CycleTimeCommand._summary_path_for_existing(existing_output_path)
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+                output_path=target_path,
+            )
+            summary_path = os.path.abspath(summary_path)
+
+        if summary_mode == "auto":
+            return summary_path
+
+        if summary_path and summary_mode == "json":
+            return summary_path
+
+        if summary_mode == "json":
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+            )
+            return os.path.abspath(summary_path)
+
+        return None
+
+    @staticmethod
+    def _build_summary_metrics(result: Dict[str, Any], raw_data_path: Optional[str]) -> List[Dict[str, Any]]:
+        metadata = result.get("analysis_metadata") or {}
+        period_start = _isoz(metadata.get("start_date"))
+        period_end = _isoz(metadata.get("end_date"))
+        if not period_start or not period_end:
+            return []
+
+        period = {"start_date": period_start, "end_date": period_end}
+        base_dimensions = CycleTimeCommand._base_dimensions(metadata)
+        metrics_block = result.get("metrics") or {}
+
+        summary_metrics: List[Dict[str, Any]] = []
+        command_name = CycleTimeCommand.get_name()
+
+        CycleTimeCommand._append_metric(
+            summary_metrics,
+            "jira.cycle_time.average_hours",
+            metrics_block.get("average_cycle_time_hours"),
+            "hours",
+            period,
+            base_dimensions,
+            command_name,
+            raw_data_path,
+        )
+        CycleTimeCommand._append_metric(
+            summary_metrics,
+            "jira.cycle_time.median_hours",
+            metrics_block.get("median_cycle_time_hours"),
+            "hours",
+            period,
+            base_dimensions,
+            command_name,
+            raw_data_path,
+        )
+        CycleTimeCommand._append_metric(
+            summary_metrics,
+            "jira.cycle_time.throughput",
+            metrics_block.get("total_issues"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_data_path,
+        )
+        sle_value = _extract_metric_value(metrics_block, ("sle_adherence", "compliance_rate"))
+        CycleTimeCommand._append_metric(
+            summary_metrics,
+            "jira.cycle_time.sle_compliance_percent",
+            sle_value,
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_data_path,
+        )
+
+        issue_type_segments = result.get("metrics_by_issue_type")
+        if isinstance(issue_type_segments, dict):
+            for issue_type, segment_metrics in issue_type_segments.items():
+                if not isinstance(segment_metrics, dict):
+                    continue
+                segment_dimensions = {**base_dimensions, "issue_type": issue_type}
+                CycleTimeCommand._append_metric(
+                    summary_metrics,
+                    "jira.cycle_time.average_hours",
+                    segment_metrics.get("average_cycle_time_hours"),
+                    "hours",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+                CycleTimeCommand._append_metric(
+                    summary_metrics,
+                    "jira.cycle_time.median_hours",
+                    segment_metrics.get("median_cycle_time_hours"),
+                    "hours",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+                CycleTimeCommand._append_metric(
+                    summary_metrics,
+                    "jira.cycle_time.throughput",
+                    segment_metrics.get("total_issues"),
+                    "issues",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+                segment_sle = _extract_metric_value(segment_metrics, ("sle_adherence", "compliance_rate"))
+                CycleTimeCommand._append_metric(
+                    summary_metrics,
+                    "jira.cycle_time.sle_compliance_percent",
+                    segment_sle,
+                    "percent",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+
+        return summary_metrics
+
+    @staticmethod
+    def _summary_output_defaults(args: Namespace, result: Dict[str, Any]) -> Tuple[str, str]:
+        metadata = result.get("analysis_metadata") or {}
+        project_key = metadata.get("project_key") or getattr(args, "project_key", "unknown")
+        date_str = datetime.now().strftime("%Y%m%d")
+        sub_dir = f"cycle-time_{date_str}"
+        base_name = f"cycle_time_summary_{project_key}"
+        return sub_dir, base_name
+
+    @staticmethod
+    def _summary_path_for_existing(existing_output_path: str) -> str:
+        output_path = Path(existing_output_path)
+        summary_filename = f"{output_path.stem}_summary.json"
+        return str(output_path.with_name(summary_filename))
+
+    @staticmethod
+    def _append_metric(
+        container: List[Dict[str, Any]],
+        metric_name: str,
+        value: Any,
+        unit: str,
+        period: Dict[str, str],
+        dimensions: Dict[str, Any],
+        source_command: str,
+        raw_data_path: Optional[str],
+    ) -> None:
+        if not _has_value(value):
+            return
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return
+
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
+        container.append(
+            {
+                "metric_name": metric_name,
+                "value": numeric_value,
+                "unit": unit,
+                "period": period,
+                "dimensions": cleaned_dimensions,
+                "source_command": source_command,
+                "raw_data_path": raw_data_path,
+            }
+        )
+
+    @staticmethod
+    def _base_dimensions(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        project_key = metadata.get("project_key")
+        dimensions: Dict[str, Any] = {}
+        if project_key:
+            dimensions["project"] = project_key
+
+        team_value = CycleTimeCommand._normalize_team_metadata(metadata)
+        dimensions["team"] = team_value or "overall"
+        return dimensions
+
+    @staticmethod
+    def _normalize_team_metadata(metadata: Dict[str, Any]) -> Optional[str]:
+        teams = metadata.get("teams")
+        if isinstance(teams, list):
+            cleaned = [str(team).strip() for team in teams if str(team).strip()]
+            if len(cleaned) == 1:
+                return cleaned[0]
+            if cleaned:
+                return ",".join(cleaned)
+
+        team_label = metadata.get("team")
+        if isinstance(team_label, str) and team_label.strip():
+            return team_label.strip()
+
+        return None

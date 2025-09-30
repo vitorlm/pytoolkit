@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import os
 from argparse import ArgumentParser, Namespace
-from typing import Dict, List, Any
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded, ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
+from utils.summary_helpers import _has_value, _isoz
 
 from domains.syngenta.datadog.datadog_events_service import (
     DatadogEventsAuthError,
     DatadogEventsService,
     DatadogEventsServiceError,
 )
-from domains.syngenta.datadog.enhanced_report_renderer import EnhancedReportRenderer
 
 
 class EventsCommand(BaseCommand):
@@ -64,6 +66,16 @@ class EventsCommand(BaseCommand):
             choices=["console", "json", "md"],
             default="console",
             help="Output format for detailed results (default: console).",
+        )
+        parser.add_argument(
+            "--summary-output",
+            type=str,
+            choices=["auto", "json", "none"],
+            default="auto",
+            help=(
+                "Control summary persistence: 'auto' keeps it beside generated reports, "
+                "'json' always saves a JSON summary, 'none' disables summary output."
+            ),
         )
         parser.add_argument(
             "--verbose",
@@ -194,7 +206,22 @@ class EventsCommand(BaseCommand):
             if getattr(args, "verbose", False):
                 EventsCommand._print_verbose_snapshot(payload)
 
-            EventsCommand._handle_output(payload, output_format=args.output_format, args=args)
+            output_file_path = EventsCommand._handle_output(payload, output_format=args.output_format, args=args)
+            if output_file_path:
+                payload["output_file"] = output_file_path
+
+            try:
+                summary_mode = getattr(args, "summary_output", "auto")
+                summary_path = EventsCommand._emit_summary(
+                    payload,
+                    summary_mode,
+                    payload.get("output_file"),
+                    teams,
+                )
+                if summary_path:
+                    print(f"[summary] wrote: {summary_path}")
+            except Exception as summary_error:
+                logger.warning(f"Failed to write summary metrics: {summary_error}")
 
         except ValueError as exc:
             logger.error("Invalid arguments: %s", exc)
@@ -612,9 +639,9 @@ class EventsCommand(BaseCommand):
         print("\n" + "=" * 60)
 
     @staticmethod
-    def _handle_output(payload: Dict[str, object], *, output_format: str, args: Namespace) -> None:
+    def _handle_output(payload: Dict[str, object], *, output_format: str, args: Namespace) -> Optional[str]:
         if output_format == "console":
-            return
+            return None
 
         from datetime import datetime as _dt
 
@@ -626,13 +653,255 @@ class EventsCommand(BaseCommand):
             print("\nOutput file:")
             print(f"- {output_path}")
             print("✅ Detailed events payload saved in JSON format")
-            return
+            return output_path
 
         markdown = EventsCommand._to_markdown(payload, args)
         output_path = OutputManager.save_markdown_report(markdown, sub_dir, base_name)
         print("\nOutput file:")
         print(f"- {output_path}")
         print("📄 Markdown report saved")
+        return output_path
+
+    @staticmethod
+    def _emit_summary(
+        payload: Dict[str, object],
+        summary_mode: str,
+        existing_output_path: Optional[str],
+        teams: List[str],
+    ) -> Optional[str]:
+        if summary_mode == "none":
+            return None
+
+        raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
+        metrics_payload = EventsCommand._build_summary_metrics(payload, raw_data_path, teams)
+        if not metrics_payload:
+            return None
+
+        sub_dir, base_name = EventsCommand._summary_output_defaults(payload, teams)
+        summary_path: Optional[str] = None
+
+        if existing_output_path:
+            target_path = EventsCommand._summary_path_for_existing(existing_output_path)
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+                output_path=target_path,
+            )
+            summary_path = os.path.abspath(summary_path)
+
+        if summary_mode == "auto":
+            return summary_path
+
+        if summary_path and summary_mode == "json":
+            return summary_path
+
+        if summary_mode == "json":
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+            )
+            return os.path.abspath(summary_path)
+
+        return None
+
+    @staticmethod
+    def _build_summary_metrics(
+        payload: Dict[str, object], raw_data_path: Optional[str], teams: List[str]
+    ) -> List[Dict[str, Any]]:
+        summary = payload.get("summary") or {}
+        time_period = summary.get("time_period") or {}
+        period_start = _isoz(time_period.get("start"))
+        period_end = _isoz(time_period.get("end"))
+        if not period_start or not period_end:
+            return []
+
+        period = {"start_date": period_start, "end_date": period_end}
+        base_dimensions = EventsCommand._base_dimensions(summary, teams)
+        metrics: List[Dict[str, Any]] = []
+        command_name = EventsCommand.get_name()
+
+        advanced = payload.get("advanced_analysis") if isinstance(payload, dict) else None
+        if isinstance(advanced, dict):
+            alert_quality = advanced.get("alert_quality")
+            overall_quality = alert_quality.get("overall") if isinstance(alert_quality, dict) else {}
+            EventsCommand._append_metric(
+                metrics,
+                "datadog.events.quality.overall_noise_score",
+                overall_quality.get("overall_noise_score"),
+                "score",
+                period,
+                base_dimensions,
+                command_name,
+                raw_data_path,
+            )
+            EventsCommand._append_metric(
+                metrics,
+                "datadog.events.quality.self_healing_rate",
+                EventsCommand._percent_value(overall_quality.get("self_healing_rate")),
+                "percent",
+                period,
+                base_dimensions,
+                command_name,
+                raw_data_path,
+            )
+            EventsCommand._append_metric(
+                metrics,
+                "datadog.events.quality.actionable_alerts_percent",
+                EventsCommand._percent_value(overall_quality.get("actionable_alerts_percentage")),
+                "percent",
+                period,
+                base_dimensions,
+                command_name,
+                raw_data_path,
+            )
+
+            temporal_metrics = advanced.get("temporal_metrics") if isinstance(advanced, dict) else {}
+            if isinstance(temporal_metrics, dict):
+                EventsCommand._append_metric(
+                    metrics,
+                    "datadog.events.temporal.avg_ttr_minutes",
+                    temporal_metrics.get("avg_time_to_resolution_minutes"),
+                    "minutes",
+                    period,
+                    base_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+                EventsCommand._append_metric(
+                    metrics,
+                    "datadog.events.temporal.mtbf_hours",
+                    temporal_metrics.get("mtbf_hours"),
+                    "hours",
+                    period,
+                    base_dimensions,
+                    command_name,
+                    raw_data_path,
+                )
+
+            detailed_stats = advanced.get("detailed_monitor_statistics") if isinstance(advanced, dict) else {}
+            overall_insights = (
+                detailed_stats.get("overall_insights")
+                if isinstance(detailed_stats, dict)
+                else {}
+            )
+            EventsCommand._append_metric(
+                metrics,
+                "datadog.events.health.average_score",
+                overall_insights.get("average_health_score"),
+                "score",
+                period,
+                base_dimensions,
+                command_name,
+                raw_data_path,
+            )
+            EventsCommand._append_metric(
+                metrics,
+                "datadog.events.health.monitors_needing_attention",
+                overall_insights.get("monitors_needing_attention"),
+                "monitors",
+                period,
+                base_dimensions,
+                command_name,
+                raw_data_path,
+            )
+
+        return metrics
+
+    @staticmethod
+    def _summary_output_defaults(payload: Dict[str, object], teams: List[str]) -> Tuple[str, str]:
+        summary = payload.get("summary") or {}
+        env = summary.get("env") if isinstance(summary, dict) else None
+        env_label = env or "all"
+        date_str = datetime.now().strftime("%Y%m%d")
+        sub_dir = f"datadog-events_{date_str}"
+        base_name = f"datadog_events_summary_{env_label}"
+        if teams:
+            base_name += f"_{len(teams)}teams"
+        return sub_dir, base_name
+
+    @staticmethod
+    def _summary_path_for_existing(existing_output_path: str) -> str:
+        output_path = Path(existing_output_path)
+        summary_filename = f"{output_path.stem}_summary.json"
+        return str(output_path.with_name(summary_filename))
+
+    @staticmethod
+    def _append_metric(
+        container: List[Dict[str, Any]],
+        metric_name: str,
+        value: Any,
+        unit: str,
+        period: Dict[str, str],
+        dimensions: Dict[str, Any],
+        source_command: str,
+        raw_data_path: Optional[str],
+    ) -> None:
+        if not _has_value(value):
+            return
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return
+
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
+        container.append(
+            {
+                "metric_name": metric_name,
+                "value": numeric_value,
+                "unit": unit,
+                "period": period,
+                "dimensions": cleaned_dimensions,
+                "source_command": source_command,
+                "raw_data_path": raw_data_path,
+            }
+        )
+
+    @staticmethod
+    def _base_dimensions(summary: Dict[str, Any], teams: List[str]) -> Dict[str, Any]:
+        dimensions: Dict[str, Any] = {}
+        env = summary.get("env") if isinstance(summary, dict) else None
+        if env:
+            dimensions["env"] = env
+
+        team_dimension = EventsCommand._format_team_dimension(summary, teams)
+        dimensions["team"] = team_dimension or "overall"
+        return dimensions
+
+    @staticmethod
+    def _format_team_dimension(summary: Dict[str, Any], teams: List[str]) -> Optional[str]:
+        candidates: List[str] = []
+        requested = summary.get("requested_teams") if isinstance(summary, dict) else None
+        if isinstance(requested, list):
+            candidates.extend(str(team).strip() for team in requested if str(team).strip())
+
+        candidates.extend(str(team).strip() for team in teams if str(team).strip())
+
+        unique: List[str] = []
+        seen = set()
+        for team in candidates:
+            if team not in seen:
+                seen.add(team)
+                unique.append(team)
+
+        if unique:
+            return ",".join(unique)
+        return None
+
+    @staticmethod
+    def _percent_value(value: Any) -> Optional[float]:
+        if not _has_value(value):
+            return None
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return None
+
+        scaled_value = numeric_value * 100 if numeric_value <= 1.0 else numeric_value
+        return round(scaled_value, 2)
 
     @staticmethod
     def _to_markdown(payload: Dict[str, object], args: Namespace) -> str:
@@ -750,7 +1019,7 @@ class EventsCommand(BaseCommand):
                             # Add explanation about Events vs Cycles
                             total_events = totals.get('events', 0)
                             lines.append("")
-                            lines.append(f"📊 **Events vs Cycles Breakdown:**")
+                            lines.append("📊 **Events vs Cycles Breakdown:**")
                             lines.append(f"- **Total Events**: {total_events} individual Datadog events")
                             lines.append(f"- **Alert Cycles**: {total_cycles} complete alert→recovery sequences")
                             if total_events > total_cycles:
@@ -800,10 +1069,6 @@ class EventsCommand(BaseCommand):
                     lines.append("")
                     lines.append("| Monitor | Confidence | Noise Score | Reasons |")
                     lines.append("|---------|------------|-------------|---------|")
-                    # Get Datadog site URL for links in removal candidates table
-                    datadog_site = os.getenv("DD_SITE", "app.datadoghq.com")
-                    datadog_base_url = f"https://app.{datadog_site}"
-
                     for candidate in candidates_list[:5]:
                         if isinstance(candidate, dict):
                             monitor_name = candidate.get("monitor_name") or candidate.get("monitor_id", "Unknown")
@@ -883,7 +1148,7 @@ class EventsCommand(BaseCommand):
                                     for change in significant_changes[:3]:  # Top 3
                                         lines.append(f"  - {change}")
                             elif weeks_available > 0:
-                                lines.append(f"")
+                                lines.append("")
                                 lines.append(f"📊 **Trend Analysis**: Building historical data ({weeks_available} weeks collected, need 3+ for reliable trends)")
 
                     lines.append("")
@@ -1064,10 +1329,6 @@ class EventsCommand(BaseCommand):
                             monitor_items.append((monitor_id, stats, health_score))
 
                     monitor_items.sort(key=lambda x: x[2])  # Sort by health score ascending (worst first)
-
-                    # Get Datadog site URL for monitor links
-                    datadog_site = os.getenv("DD_SITE", "app.datadoghq.com")
-                    datadog_base_url = f"https://app.{datadog_site}"
 
                     for monitor_id, stats, health_score in monitor_items:
                         monitor_name = stats.get("monitor_name") or monitor_id

@@ -28,13 +28,18 @@ SCORECARD INTERPRETATION:
 - Flow Ratio: The ratio of throughput to arrival, indicating efficiency.
 """
 
+import os
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, date
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from domains.syngenta.jira.net_flow_calculation_service import NetFlowCalculationService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
+from utils.summary_helpers import _has_value, _isoz
 
 
 class NetFlowCalculationCommand(BaseCommand):
@@ -103,6 +108,16 @@ class NetFlowCalculationCommand(BaseCommand):
             help="Optional output format: 'json' or 'md' (default: console only).",
             choices=["json", "md"],
             default="console",
+        )
+        parser.add_argument(
+            "--summary-output",
+            type=str,
+            choices=["auto", "json", "none"],
+            default="auto",
+            help=(
+                "Control summary metrics persistence: 'auto' stores it alongside generated reports, "
+                "'json' forces a JSON summary via OutputManager even without a report, and 'none' skips it."
+            ),
         )
         parser.add_argument(
             "--verbose",
@@ -202,6 +217,20 @@ class NetFlowCalculationCommand(BaseCommand):
                 NetFlowCalculationCommand._print_scorecard(scorecard, args)
                 if args.output_format in ["json", "md"]:
                     print(f"\nDetailed scorecard saved in {args.output_format.upper()} format")
+
+                try:
+                    summary_mode = getattr(args, "summary_output", "auto")
+                    raw_output_path = scorecard.get("output_file")
+                    summary_path = NetFlowCalculationCommand._emit_summary(
+                        scorecard,
+                        summary_mode,
+                        raw_output_path,
+                        args,
+                    )
+                    if summary_path:
+                        print(f"[summary] wrote: {summary_path}")
+                except Exception as summary_error:
+                    logger.warning(f"Failed to write summary metrics: {summary_error}")
             else:
                 logger.error("Net Flow Scorecard generation failed")
                 exit(1)
@@ -413,3 +442,248 @@ class NetFlowCalculationCommand(BaseCommand):
             "BALANCED": "⚖️ ",
         }
         return status_icons.get(flow_status, "❓")
+
+    @staticmethod
+    def _emit_summary(
+        scorecard: Dict[str, Any],
+        summary_mode: str,
+        existing_output_path: Optional[str],
+        args: Namespace,
+    ) -> Optional[str]:
+        if summary_mode == "none":
+            return None
+
+        raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
+        metrics_payload = NetFlowCalculationCommand._build_summary_metrics(scorecard, raw_data_path)
+        if not metrics_payload:
+            return None
+
+        sub_dir, base_name = NetFlowCalculationCommand._summary_output_defaults(args, scorecard)
+        summary_path: Optional[str] = None
+
+        if existing_output_path:
+            target_path = NetFlowCalculationCommand._summary_path_for_existing(existing_output_path)
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+                output_path=target_path,
+            )
+            summary_path = os.path.abspath(summary_path)
+
+        if summary_mode == "auto":
+            return summary_path
+
+        if summary_path and summary_mode == "json":
+            return summary_path
+
+        if summary_mode == "json":
+            summary_path = OutputManager.save_summary_report(
+                metrics_payload,
+                sub_dir,
+                base_name,
+            )
+            return os.path.abspath(summary_path)
+
+        return None
+
+    @staticmethod
+    def _build_summary_metrics(scorecard: Dict[str, Any], raw_output_path: Optional[str]) -> List[Dict[str, Any]]:
+        metadata = scorecard.get("metadata") or {}
+        period_start = _isoz(metadata.get("start_date"))
+        period_end = _isoz(metadata.get("end_date"))
+        if not period_start or not period_end:
+            return []
+
+        period = {"start_date": period_start, "end_date": period_end}
+        base_dimensions = NetFlowCalculationCommand._base_dimensions(metadata)
+        summary_metrics: List[Dict[str, Any]] = []
+        command_name = NetFlowCalculationCommand.get_name()
+
+        current_week = scorecard.get("current_week") or {}
+        NetFlowCalculationCommand._append_metric(
+            summary_metrics,
+            "jira.net_flow.net_flow",
+            current_week.get("net_flow"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        NetFlowCalculationCommand._append_metric(
+            summary_metrics,
+            "jira.net_flow.flow_ratio",
+            current_week.get("flow_ratio"),
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        NetFlowCalculationCommand._append_metric(
+            summary_metrics,
+            "jira.net_flow.arrival_rate",
+            current_week.get("arrival_rate"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        NetFlowCalculationCommand._append_metric(
+            summary_metrics,
+            "jira.net_flow.throughput",
+            current_week.get("throughput"),
+            "issues",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+        NetFlowCalculationCommand._append_metric(
+            summary_metrics,
+            "jira.net_flow.flow_efficiency",
+            current_week.get("flow_efficiency"),
+            "percent",
+            period,
+            base_dimensions,
+            command_name,
+            raw_output_path,
+        )
+
+        segments = scorecard.get("segments")
+        if isinstance(segments, list):
+            for segment in segments:
+                if not isinstance(segment, dict):
+                    continue
+                segment_name = segment.get("segment_name")
+                if not segment_name:
+                    continue
+                segment_dimensions = {**base_dimensions, "issue_type": segment_name}
+                NetFlowCalculationCommand._append_metric(
+                    summary_metrics,
+                    "jira.net_flow.net_flow",
+                    segment.get("net_flow"),
+                    "issues",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_output_path,
+                )
+                NetFlowCalculationCommand._append_metric(
+                    summary_metrics,
+                    "jira.net_flow.arrival_rate",
+                    segment.get("arrivals"),
+                    "issues",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_output_path,
+                )
+                NetFlowCalculationCommand._append_metric(
+                    summary_metrics,
+                    "jira.net_flow.throughput",
+                    segment.get("throughput"),
+                    "issues",
+                    period,
+                    segment_dimensions,
+                    command_name,
+                    raw_output_path,
+                )
+                arrivals = segment.get("arrivals")
+                throughput = segment.get("throughput")
+                if _has_value(arrivals) and _has_value(throughput) and arrivals:
+                    try:
+                        flow_ratio = float(throughput) / float(arrivals) * 100
+                    except (TypeError, ValueError, ZeroDivisionError):
+                        flow_ratio = None
+                    NetFlowCalculationCommand._append_metric(
+                        summary_metrics,
+                        "jira.net_flow.flow_ratio",
+                        flow_ratio,
+                        "percent",
+                        period,
+                        segment_dimensions,
+                        command_name,
+                        raw_output_path,
+                    )
+
+        return summary_metrics
+
+    @staticmethod
+    def _summary_output_defaults(args: Namespace, scorecard: Dict[str, Any]) -> Tuple[str, str]:
+        metadata = scorecard.get("metadata") or {}
+        project_key = metadata.get("project_key") or getattr(args, "project_key", "unknown")
+        date_str = datetime.now().strftime("%Y%m%d")
+        sub_dir = f"net-flow_{date_str}"
+        base_name = f"net_flow_summary_{project_key}"
+        return sub_dir, base_name
+
+    @staticmethod
+    def _summary_path_for_existing(existing_output_path: str) -> str:
+        output_path = Path(existing_output_path)
+        summary_filename = f"{output_path.stem}_summary.json"
+        return str(output_path.with_name(summary_filename))
+
+    @staticmethod
+    def _append_metric(
+        container: List[Dict[str, Any]],
+        metric_name: str,
+        value: Any,
+        unit: str,
+        period: Dict[str, str],
+        dimensions: Dict[str, Any],
+        source_command: str,
+        raw_data_path: Optional[str],
+    ) -> None:
+        if not _has_value(value):
+            return
+
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return
+
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
+        container.append(
+            {
+                "metric_name": metric_name,
+                "value": numeric_value,
+                "unit": unit,
+                "period": period,
+                "dimensions": cleaned_dimensions,
+                "source_command": source_command,
+                "raw_data_path": raw_data_path,
+            }
+        )
+
+    @staticmethod
+    def _base_dimensions(metadata: Dict[str, Any]) -> Dict[str, Any]:
+        dimensions: Dict[str, Any] = {}
+        project_key = metadata.get("project_key")
+        if project_key:
+            dimensions["project"] = project_key
+
+        team_value = NetFlowCalculationCommand._normalize_team_metadata(metadata)
+        if team_value:
+            dimensions["team"] = team_value
+        else:
+            dimensions["team"] = "overall"
+        return dimensions
+
+    @staticmethod
+    def _normalize_team_metadata(metadata: Dict[str, Any]) -> Optional[str]:
+        teams = metadata.get("teams")
+        if isinstance(teams, list):
+            cleaned = [str(team).strip() for team in teams if str(team).strip()]
+            if len(cleaned) == 1:
+                return cleaned[0]
+            if cleaned:
+                return ",".join(cleaned)
+
+        team_label = metadata.get("team")
+        if isinstance(team_label, str) and team_label.strip():
+            return team_label.strip()
+
+        return None

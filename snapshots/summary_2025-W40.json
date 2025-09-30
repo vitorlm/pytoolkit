@@ -1,22 +1,22 @@
 {
   "metadata": {
     "iso_week": "2025-W40",
-    "generated_at": "2025-09-29T14:04:18.999316+00:00"
+    "generated_at": "2025-09-29T20:56:34.181592+00:00"
   },
   "summary": {
     "iso_week": "2025-W40",
     "year": 2025,
     "week": 40,
-    "total_monitors": 16,
-    "total_cycles": 177,
-    "total_events": 435,
-    "avg_noise_score": 68.073125,
-    "avg_self_heal_rate": 0.925,
-    "avg_actionable_rate": 0.925,
+    "total_monitors": 40,
+    "total_cycles": 395,
+    "total_events": 1173,
+    "avg_noise_score": 72.3,
+    "avg_self_heal_rate": 1.0,
+    "avg_actionable_rate": 1.0,
     "avg_health_score": null,
-    "total_flapping_cycles": 22,
+    "total_flapping_cycles": 103,
     "total_benign_transient_cycles": 0,
-    "total_actionable_cycles": 155,
+    "total_actionable_cycles": 292,
     "monitors_improved": 0,
     "monitors_degraded": 0,
     "monitors_stable": 0
