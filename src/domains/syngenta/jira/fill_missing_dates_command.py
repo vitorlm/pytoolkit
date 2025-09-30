@@ -18,8 +18,12 @@ class FillMissingDatesCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument("--project", type=str, required=True, help="The JIRA project key.")
-        parser.add_argument("--team_name", type=str, required=True, help="The team name.")
+        parser.add_argument(
+            "--project", type=str, required=True, help="The JIRA project key."
+        )
+        parser.add_argument(
+            "--team_name", type=str, required=True, help="The team name."
+        )
         parser.add_argument(
             "--start-date",
             type=str,
@@ -35,7 +39,6 @@ class FillMissingDatesCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-
         project = args.project
         team_name = args.team_name
         start_date = args.start_date

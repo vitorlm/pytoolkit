@@ -14,7 +14,9 @@ class SLEConfig:
     def __init__(self):
         """Initialize SLE configuration from environment variables."""
         self._sle_targets = {
-            "Critical": self._parse_hours(os.getenv("SLE_P1_HOURS", "48")),  # P1: 2 days
+            "Critical": self._parse_hours(
+                os.getenv("SLE_P1_HOURS", "48")
+            ),  # P1: 2 days
             "High": self._parse_hours(os.getenv("SLE_P2_HOURS", "72")),  # P2: 3 days
             "Medium": self._parse_hours(os.getenv("SLE_P3_HOURS", "168")),  # P3: 7 days
             "Low": self._parse_hours(os.getenv("SLE_P4_HOURS", "168")),  # P4: 7 days
@@ -72,7 +74,9 @@ class SLEConfig:
         """
         return self.get_sle_target(priority) / 24
 
-    def check_sle_compliance(self, priority: Optional[str], actual_hours: float) -> Dict:
+    def check_sle_compliance(
+        self, priority: Optional[str], actual_hours: float
+    ) -> Dict:
         """
         Check if actual time meets SLE target.
 
@@ -105,7 +109,9 @@ class SLEConfig:
             "variance_hours": variance_hours,
             "variance_days": variance_days,
             "percentage_over": percentage_over,
-            "status": "✅ Within SLE" if is_compliant else f"❌ {variance_days:.1f}d over SLE",
+            "status": "✅ Within SLE"
+            if is_compliant
+            else f"❌ {variance_days:.1f}d over SLE",
         }
 
     def get_all_targets(self) -> Dict[str, float]:

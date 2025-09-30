@@ -124,20 +124,26 @@ Available time ranges:
             # Display summary in the specified format
             metadata = results.get("metadata", {})
             metrics = results.get("metrics", {})
-            
+
             print("=" * 50)
             print("KNOWLEDGE SHARING METRICS ANALYSIS SUMMARY")
             print("=" * 50)
             print(f"Teams: {', '.join(metadata.get('team_ids', []))}")
-            print(f"Time Period: {metadata.get('start_date')} to {metadata.get('end_date')}")
+            print(
+                f"Time Period: {metadata.get('start_date')} to {metadata.get('end_date')}"
+            )
             print()
             print(f"Total PRs Reviewed: {metrics.get('total_prs_reviewed', 0)}")
             print(f"Unique Reviewers: {metrics.get('unique_reviewers', 0)}")
-            print(f"Average Review Time: {metrics.get('average_review_time_hours', 0)} hours")
+            print(
+                f"Average Review Time: {metrics.get('average_review_time_hours', 0)} hours"
+            )
             print(f"Bus Factor: {metrics.get('bus_factor', 0)}")
-            print(f"Knowledge Distribution Score: {metrics.get('knowledge_distribution_score', 0)}")
+            print(
+                f"Knowledge Distribution Score: {metrics.get('knowledge_distribution_score', 0)}"
+            )
             print()
-            
+
             # Display insights
             insights = results.get("insights", [])
             if insights:
@@ -145,7 +151,7 @@ Available time ranges:
                 for insight in insights:
                     print(f"  - {insight}")
                 print()
-            
+
             # Save results if requested
             output_path = None
             if args.output_file:
@@ -153,14 +159,18 @@ Available time ranges:
             else:
                 # Save to default location
                 output_path = service.save_results(results, None)
-            
+
             print(f"Detailed report saved to: {output_path}")
             print("=" * 50)
-            
+
             # Add note about data limitations if needed
-            if metrics.get('average_review_time_hours', 0) == 0:
-                print("\nNote: Some metrics may be limited due to API permissions or data availability.")
-                print("Contact your LinearB administrator for full access to review time data.")
+            if metrics.get("average_review_time_hours", 0) == 0:
+                print(
+                    "\nNote: Some metrics may be limited due to API permissions or data availability."
+                )
+                print(
+                    "Contact your LinearB administrator for full access to review time data."
+                )
 
             logger.info("Knowledge sharing metrics analysis completed successfully")
 
@@ -171,5 +181,7 @@ Available time ranges:
         except Exception as e:
             logger.error(f"Knowledge sharing metrics command failed: {e}")
             print(f"Error: {e}")
-            print("An unexpected error occurred. Please check the logs for more details.")
+            print(
+                "An unexpected error occurred. Please check the logs for more details."
+            )
             exit(1)

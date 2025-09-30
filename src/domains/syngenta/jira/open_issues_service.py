@@ -66,7 +66,9 @@ class OpenIssuesService:
             Dict: Results with open issues and summary metrics
         """
         try:
-            self.logger.info(f"Starting open issues retrieval for project {project_key}")
+            self.logger.info(
+                f"Starting open issues retrieval for project {project_key}"
+            )
 
             # Default status categories if not provided
             if status_categories is None:
@@ -216,10 +218,14 @@ class OpenIssuesService:
         summary = fields.get("summary", "")
         issue_type = fields.get("issuetype", {}).get("name", "")
         status = fields.get("status", {}).get("name", "")
-        status_category = fields.get("status", {}).get("statusCategory", {}).get("name", "")
+        status_category = (
+            fields.get("status", {}).get("statusCategory", {}).get("name", "")
+        )
 
         # Extract optional fields
-        priority = fields.get("priority", {}).get("name") if fields.get("priority") else None
+        priority = (
+            fields.get("priority", {}).get("name") if fields.get("priority") else None
+        )
         assignee_field = fields.get("assignee")
         assignee = assignee_field.get("displayName") if assignee_field else None
 
@@ -272,7 +278,9 @@ class OpenIssuesService:
             status_breakdown[issue.status] = status_breakdown.get(issue.status, 0) + 1
 
             # Type breakdown
-            type_breakdown[issue.issue_type] = type_breakdown.get(issue.issue_type, 0) + 1
+            type_breakdown[issue.issue_type] = (
+                type_breakdown.get(issue.issue_type, 0) + 1
+            )
 
             # Priority breakdown
             priority = issue.priority or "No Priority"

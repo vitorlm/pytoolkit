@@ -17,19 +17,19 @@ USAGE EXAMPLES:
    python src/main.py syngenta jira open-issues --project-key "CWS" --issue-types "Bug"
 
 2. Get all open issues for a specific team:
-   python src/main.py syngenta jira open-issues --project-key "CWS" 
+   python src/main.py syngenta jira open-issues --project-key "CWS"
    --issue-types "Story,Task,Bug" --team "Catalog"
 
 2b. Get all open issues for multiple teams:
-   python src/main.py syngenta jira open-issues --project-key "CWS" 
+   python src/main.py syngenta jira open-issues --project-key "CWS"
    --issue-types "Story,Task,Bug" --teams "Catalog,Platform"
 
 3. Get all open issues with custom status:
-   python src/main.py syngenta jira open-issues --project-key "CWS" 
+   python src/main.py syngenta jira open-issues --project-key "CWS"
    --issue-types "Bug,Support" --status-categories "To Do,In Progress"
 
 4. Export to file:
-   python src/main.py syngenta jira open-issues --project-key "CWS" 
+   python src/main.py syngenta jira open-issues --project-key "CWS"
    --issue-types "Bug" --output-file "open_bugs.json"
 
 ISSUE TYPES (examples):
@@ -139,7 +139,9 @@ class OpenIssuesCommand(BaseCommand):
 
             # Parse teams (repeatable flag and comma-separated)
             raw_teams = getattr(args, "teams", []) or []
-            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
+            teams = [
+                t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()
+            ] or None
 
             # Fetch open issues
             result = service.fetch_open_issues(
@@ -161,7 +163,9 @@ class OpenIssuesCommand(BaseCommand):
                 print(f"Project: {args.project_key}")
                 print(f"Issue Types: {', '.join(issue_types)}")
                 print(f"Status Categories: {', '.join(status_categories)}")
-                meta_team = result.get("team") or result.get("analysis_metadata", {}).get("team")
+                meta_team = result.get("team") or result.get(
+                    "analysis_metadata", {}
+                ).get("team")
                 if meta_team:
                     print(f"Teams: {meta_team}")
 

@@ -58,7 +58,9 @@ class LinearBApiClient:
         """
         # Check cache first if cache_key is provided
         if cache_key:
-            cached_data = self.cache.load(cache_key, expiration_minutes=cache_expiration)
+            cached_data = self.cache.load(
+                cache_key, expiration_minutes=cache_expiration
+            )
             if cached_data is not None:
                 self.logger.info(f"Using cached data for {cache_key}")
                 return cached_data
@@ -74,7 +76,9 @@ class LinearBApiClient:
             if method.upper() == "GET":
                 response = requests.get(url, headers=self.headers, timeout=timeout)
             elif method.upper() == "POST":
-                response = requests.post(url, headers=self.headers, json=data, timeout=timeout)
+                response = requests.post(
+                    url, headers=self.headers, json=data, timeout=timeout
+                )
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -84,8 +88,13 @@ class LinearBApiClient:
                 self.logger.info("Export request accepted, processing in background")
             elif response.status_code == 204:
                 # No content - filters resulted in no data
-                self.logger.warning("API returned no content - filters may have resulted in no data")
-                return {"detail": "No data available for the specified filters", "data": []}
+                self.logger.warning(
+                    "API returned no content - filters may have resulted in no data"
+                )
+                return {
+                    "detail": "No data available for the specified filters",
+                    "data": [],
+                }
 
             response.raise_for_status()
             result = response.json()
@@ -105,7 +114,9 @@ class LinearBApiClient:
             self.logger.error(f"API request failed: {e}. {error_details}")
             raise
 
-    def _format_api_error(self, error: requests.exceptions.RequestException, endpoint: str) -> str:
+    def _format_api_error(
+        self, error: requests.exceptions.RequestException, endpoint: str
+    ) -> str:
         """Format API error with LinearB-specific context."""
         if not hasattr(error, "response") or error.response is None:
             return str(error)
@@ -168,7 +179,9 @@ class LinearBApiClient:
                 "api_key_prefix": f"{self.api_key[:8]}..." if self.api_key else "None",
             }
 
-    def get_teams(self, search_term: Optional[str] = None, page_size: int = 50, offset: int = 0) -> Dict[str, Any]:
+    def get_teams(
+        self, search_term: Optional[str] = None, page_size: int = 50, offset: int = 0
+    ) -> Dict[str, Any]:
         """
         Get teams from LinearB.
 
@@ -192,7 +205,9 @@ class LinearBApiClient:
             endpoint += f"?{param_str}"
 
         cache_key = f"linearb_teams_{hash(str(params))}"
-        return self._make_request("GET", endpoint, cache_key=cache_key, cache_expiration=120)
+        return self._make_request(
+            "GET", endpoint, cache_key=cache_key, cache_expiration=120
+        )
 
     def get_metrics(
         self,
@@ -236,7 +251,9 @@ class LinearBApiClient:
             payload["repository_ids"] = [str(rid) for rid in repository_ids]
 
         cache_key = f"linearb_metrics_{hash(str(payload))}"
-        return self._make_request("POST", endpoint, data=payload, cache_key=cache_key, cache_expiration=60)
+        return self._make_request(
+            "POST", endpoint, data=payload, cache_key=cache_key, cache_expiration=60
+        )
 
     def export_metrics(
         self,
@@ -338,7 +355,11 @@ class LinearBApiClient:
         metrics = self.metrics_manager.get_default_engineering_metrics(aggregation)
 
         return self.get_metrics(
-            requested_metrics=metrics, time_ranges=time_ranges, group_by=group_by, team_ids=team_ids, roll_up=roll_up
+            requested_metrics=metrics,
+            time_ranges=time_ranges,
+            group_by=group_by,
+            team_ids=team_ids,
+            roll_up=roll_up,
         )
 
     def get_performance_metrics(
@@ -366,7 +387,11 @@ class LinearBApiClient:
         metrics = self.metrics_manager.get_default_performance_metrics(aggregation)
 
         return self.get_metrics(
-            requested_metrics=metrics, time_ranges=time_ranges, group_by=group_by, team_ids=team_ids, roll_up=roll_up
+            requested_metrics=metrics,
+            time_ranges=time_ranges,
+            group_by=group_by,
+            team_ids=team_ids,
+            roll_up=roll_up,
         )
 
     def get_knowledge_sharing_metrics(
@@ -394,7 +419,11 @@ class LinearBApiClient:
         metrics = self.metrics_manager.get_knowledge_sharing_metrics(aggregation)
 
         return self.get_metrics(
-            requested_metrics=metrics, time_ranges=time_ranges, group_by=group_by, team_ids=team_ids, roll_up=roll_up
+            requested_metrics=metrics,
+            time_ranges=time_ranges,
+            group_by=group_by,
+            team_ids=team_ids,
+            roll_up=roll_up,
         )
 
     def get_custom_metrics(
@@ -421,10 +450,16 @@ class LinearBApiClient:
             Custom metrics data
         """
         time_ranges = self.time_helper.parse_time_period(time_period)
-        metrics = self.metrics_manager.build_metrics_from_names(metric_names, aggregation)
+        metrics = self.metrics_manager.build_metrics_from_names(
+            metric_names, aggregation
+        )
 
         return self.get_metrics(
-            requested_metrics=metrics, time_ranges=time_ranges, group_by=group_by, team_ids=team_ids, roll_up=roll_up
+            requested_metrics=metrics,
+            time_ranges=time_ranges,
+            group_by=group_by,
+            team_ids=team_ids,
+            roll_up=roll_up,
         )
 
     def parse_team_ids(self, team_ids_input: Any) -> Optional[List[int]]:
@@ -441,7 +476,9 @@ class LinearBApiClient:
             return None
 
         if isinstance(team_ids_input, str):
-            return [int(tid.strip()) for tid in team_ids_input.split(",") if tid.strip()]
+            return [
+                int(tid.strip()) for tid in team_ids_input.split(",") if tid.strip()
+            ]
         elif isinstance(team_ids_input, list):
             return [int(tid) for tid in team_ids_input]
         elif isinstance(team_ids_input, int):
@@ -459,9 +496,17 @@ class LinearBApiClient:
         return {
             "metrics_with_aggregation": self.metrics_manager.get_metrics_requiring_aggregation(),
             "metrics_count_only": self.metrics_manager.get_metrics_count_only(),
-            "default_engineering_metrics": [m["name"] for m in self.metrics_manager.get_default_engineering_metrics()],
-            "default_performance_metrics": [m["name"] for m in self.metrics_manager.get_default_performance_metrics()],
-            "knowledge_sharing_metrics": [m["name"] for m in self.metrics_manager.get_knowledge_sharing_metrics()],
+            "default_engineering_metrics": [
+                m["name"]
+                for m in self.metrics_manager.get_default_engineering_metrics()
+            ],
+            "default_performance_metrics": [
+                m["name"]
+                for m in self.metrics_manager.get_default_performance_metrics()
+            ],
+            "knowledge_sharing_metrics": [
+                m["name"] for m in self.metrics_manager.get_knowledge_sharing_metrics()
+            ],
             "aggregation_types": [
                 LinearBAggregation.DEFAULT,
                 LinearBAggregation.P75,
@@ -476,7 +521,12 @@ class LinearBApiClient:
                 LinearBGroupBy.REPOSITORY,
                 LinearBGroupBy.LABEL,
             ],
-            "rollup_options": [LinearBRollup.DAILY, LinearBRollup.WEEKLY, LinearBRollup.MONTHLY, LinearBRollup.CUSTOM],
+            "rollup_options": [
+                LinearBRollup.DAILY,
+                LinearBRollup.WEEKLY,
+                LinearBRollup.MONTHLY,
+                LinearBRollup.CUSTOM,
+            ],
         }
 
 
@@ -546,7 +596,9 @@ class LinearBTimeRangeHelper:
                 datetime.strptime(end_str.strip(), "%Y-%m-%d")
                 return [{"after": start_str.strip(), "before": end_str.strip()}]
             except ValueError:
-                raise ValueError(f"Invalid date range format: {time_period}. Expected YYYY-MM-DD,YYYY-MM-DD")
+                raise ValueError(
+                    f"Invalid date range format: {time_period}. Expected YYYY-MM-DD,YYYY-MM-DD"
+                )
 
         else:
             raise ValueError(f"Unsupported time period format: {time_period}")
@@ -573,7 +625,9 @@ class LinearBTimeRangeHelper:
         return {"after": after, "before": before}
 
     @staticmethod
-    def get_relative_time_range(days_ago: int, days_duration: int = 1) -> List[Dict[str, str]]:
+    def get_relative_time_range(
+        days_ago: int, days_duration: int = 1
+    ) -> List[Dict[str, str]]:
         """
         Get time range relative to today.
 
@@ -656,14 +710,18 @@ class LinearBMetricsManager:
     GITSTREAM_AI_BUGS_PRS = "gitstream.ai.review.bugs.prs.count"
     GITSTREAM_AI_PERFORMANCE_PRS = "gitstream.ai.review.performance_issues.prs.count"
     GITSTREAM_AI_READABILITY_PRS = "gitstream.ai.review.readability_issues.prs.count"
-    GITSTREAM_AI_MAINTAINABILITY_PRS = "gitstream.ai.review.maintainability_issues.prs.count"
+    GITSTREAM_AI_MAINTAINABILITY_PRS = (
+        "gitstream.ai.review.maintainability_issues.prs.count"
+    )
 
     # Code churn metrics
     COMMIT_CODE_CHURN_REWORK = "commit.code_churn.rework"
     COMMIT_CODE_CHURN_REFACTOR = "commit.code_churn.refactor"
 
     @classmethod
-    def get_default_engineering_metrics(cls, aggregation: str = "default") -> List[Dict[str, str]]:
+    def get_default_engineering_metrics(
+        cls, aggregation: str = "default"
+    ) -> List[Dict[str, str]]:
         """Get default engineering metrics set for software development analysis."""
         return [
             {"name": cls.PR_MERGED_WITHOUT_REVIEW, "agg": "default"},
@@ -678,7 +736,9 @@ class LinearBMetricsManager:
         ]
 
     @classmethod
-    def get_default_performance_metrics(cls, aggregation: str = "default") -> List[Dict[str, str]]:
+    def get_default_performance_metrics(
+        cls, aggregation: str = "default"
+    ) -> List[Dict[str, str]]:
         """Get default performance metrics set for team performance analysis."""
         return [
             {"name": cls.CYCLE_TIME, "agg": aggregation},
@@ -692,7 +752,9 @@ class LinearBMetricsManager:
         ]
 
     @classmethod
-    def get_knowledge_sharing_metrics(cls, aggregation: str = "default") -> List[Dict[str, str]]:
+    def get_knowledge_sharing_metrics(
+        cls, aggregation: str = "default"
+    ) -> List[Dict[str, str]]:
         """Get knowledge sharing metrics for collaboration analysis."""
         return [
             {"name": cls.PR_REVIEWS, "agg": "default"},
@@ -704,7 +766,9 @@ class LinearBMetricsManager:
         ]
 
     @classmethod
-    def build_metrics_from_names(cls, metric_names: List[str], aggregation: str = "default") -> List[Dict[str, str]]:
+    def build_metrics_from_names(
+        cls, metric_names: List[str], aggregation: str = "default"
+    ) -> List[Dict[str, str]]:
         """Build metrics list from metric names with specified aggregation."""
         return [{"name": name, "agg": aggregation} for name in metric_names]
 

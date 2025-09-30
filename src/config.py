@@ -33,4 +33,6 @@ class Config:
     # Additional settings
     USE_FILTER = os.getenv("USE_FILTER", "false").lower()
     if USE_FILTER not in {"true", "false"}:
-        raise ValueError(f"Invalid USE_FILTER: {USE_FILTER}. Must be 'true' or 'false'.")
+        raise ValueError(
+            f"Invalid USE_FILTER: {USE_FILTER}. Must be 'true' or 'false'."
+        )

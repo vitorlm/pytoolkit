@@ -415,9 +415,7 @@ class CWCatalogComparisonService:
                 total_need_to_delete += need_to_delete
 
         print("-" * 50)
-        print(
-            f"{'TOTAL':<10} {total_already_deleted:<15} {total_need_to_delete:<15}"
-        )
+        print(f"{'TOTAL':<10} {total_already_deleted:<15} {total_need_to_delete:<15}")
         print("=" * 50)
 
     def save_simplified_deletion_csv(

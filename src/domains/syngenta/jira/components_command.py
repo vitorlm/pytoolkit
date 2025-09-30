@@ -85,7 +85,9 @@ class ComponentsCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return "Manage JIRA project components (list, create, delete, batch operations)."
+        return (
+            "Manage JIRA project components (list, create, delete, batch operations)."
+        )
 
     @staticmethod
     def get_help() -> str:
@@ -212,7 +214,9 @@ class ComponentsCommand(BaseCommand):
     @staticmethod
     def _list_components(args: Namespace, service: ComponentService):
         """List all components in a project."""
-        service.list_components(project_key=args.project_key, output_file=args.output_file)
+        service.list_components(
+            project_key=args.project_key, output_file=args.output_file
+        )
 
     @staticmethod
     def _create_component(args: Namespace, service: ComponentService):
@@ -235,14 +239,18 @@ class ComponentsCommand(BaseCommand):
     def _create_components_batch(args: Namespace, service: ComponentService):
         """Create multiple components from a JSON file."""
         service.create_components_batch(
-            project_key=args.project_key, input_file=args.input_file, output_file=args.output_file
+            project_key=args.project_key,
+            input_file=args.input_file,
+            output_file=args.output_file,
         )
 
     @staticmethod
     def _delete_components_batch(args: Namespace, service: ComponentService):
         """Delete multiple components by IDs."""
         component_ids = [id.strip() for id in args.component_ids.split(",")]
-        service.delete_components_batch(component_ids=component_ids, output_file=args.output_file)
+        service.delete_components_batch(
+            component_ids=component_ids, output_file=args.output_file
+        )
 
     @staticmethod
     def _update_issue_components(args: Namespace, service: ComponentService):

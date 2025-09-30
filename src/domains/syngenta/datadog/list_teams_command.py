@@ -92,16 +92,26 @@ class ListTeamsCommand(BaseCommand):
             base = "datadog_teams"
             if args.out == "json":
                 out_path = (
-                    args.output_file if args.output_file else OutputManager.get_output_path(sub_dir, base, "json")
+                    args.output_file
+                    if args.output_file
+                    else OutputManager.get_output_path(sub_dir, base, "json")
                 )
                 print(f"\nOutput file:\n- {out_path}")
-                OutputManager.save_json_report(payload, sub_dir, base, output_path=out_path)
+                OutputManager.save_json_report(
+                    payload, sub_dir, base, output_path=out_path
+                )
                 print("✅ Teams list saved in JSON format")
             else:
                 md = ListTeamsCommand._to_markdown(payload)
-                out_path = args.output_file if args.output_file else OutputManager.get_output_path(sub_dir, base, "md")
+                out_path = (
+                    args.output_file
+                    if args.output_file
+                    else OutputManager.get_output_path(sub_dir, base, "md")
+                )
                 print(f"\nOutput file:\n- {out_path}")
-                OutputManager.save_markdown_report(md, sub_dir, base, output_path=out_path)
+                OutputManager.save_markdown_report(
+                    md, sub_dir, base, output_path=out_path
+                )
                 print("📄 Teams list saved in MD format")
 
         except Exception as e:
@@ -137,7 +147,9 @@ class ListTeamsCommand(BaseCommand):
             print("No teams found.")
             return
         print("\nHandle                          | Name")
-        print("--------------------------------|----------------------------------------------")
+        print(
+            "--------------------------------|----------------------------------------------"
+        )
         for t in teams[:100]:
             handle = (t.get("handle") or "")[:30]
             name = (t.get("name") or "")[:46]
@@ -160,5 +172,7 @@ class ListTeamsCommand(BaseCommand):
         lines.append("| Handle | Name | ID |")
         lines.append("|---|---|---|")
         for t in teams:
-            lines.append(f"| {t.get('handle', '')} | {t.get('name', '')} | {t.get('id', '')} |")
+            lines.append(
+                f"| {t.get('handle', '')} | {t.get('name', '')} | {t.get('id', '')} |"
+            )
         return "\n".join(lines)

@@ -186,7 +186,9 @@ class LogManager:
             use_filter (bool): Whether to use level-based filtering. Defaults to False.
         """
         if LogManager._instance is None:
-            LogManager._instance = LogManager(log_dir, log_file, log_retention_hours, default_level, use_filter)
+            LogManager._instance = LogManager(
+                log_dir, log_file, log_retention_hours, default_level, use_filter
+            )
 
     @staticmethod
     def get_instance():
@@ -194,7 +196,9 @@ class LogManager:
         Returns the singleton instance of LogManager.
         """
         if LogManager._instance is None:
-            raise RuntimeError("LogManager is not initialized. Call `LogManager.initialize()` first.")
+            raise RuntimeError(
+                "LogManager is not initialized. Call `LogManager.initialize()` first."
+            )
         return LogManager._instance
 
     def __new__(cls, *args, **kwargs):
@@ -273,7 +277,9 @@ class LogManager:
 
         # File handler
         log_file_path = os.path.join(self.log_dir, self.log_file)
-        file_handler = TimedRotatingFileHandler(log_file_path, when="h", interval=1, backupCount=0)
+        file_handler = TimedRotatingFileHandler(
+            log_file_path, when="h", interval=1, backupCount=0
+        )
         file_handler.setFormatter(
             logging.Formatter(
                 "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
@@ -353,7 +359,9 @@ class LogManager:
             log_manager = LogManager.get_instance()
             logger = log_manager.get_logger(logger_name)
             if not logger:
-                raise ValueError(f"Logger with name '{logger_name}' could not be found or created.")
+                raise ValueError(
+                    f"Logger with name '{logger_name}' could not be found or created."
+                )
 
             if replace_existing:
                 while logger.handlers:
@@ -375,7 +383,9 @@ class LogManager:
                 logger.propagate = False
 
         except Exception as e:
-            raise RuntimeError(f"Failed to add custom handler to logger '{logger_name}': {e}") from e
+            raise RuntimeError(
+                f"Failed to add custom handler to logger '{logger_name}': {e}"
+            ) from e
 
     def list_log_files(self, extension: str = ".log") -> List[str]:
         """

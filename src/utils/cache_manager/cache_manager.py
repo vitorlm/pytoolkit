@@ -59,7 +59,9 @@ class CacheManager:
         """
         try:
             if cache_backend == "file":
-                cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "../../../cache")
+                cache_dir = cache_dir or os.path.join(
+                    os.path.dirname(__file__), "../../../cache"
+                )
 
                 # Ensure the cache directory exists
                 os.makedirs(cache_dir, exist_ok=True)
@@ -110,7 +112,9 @@ class CacheManager:
             return self._backend.load(key, expiration_minutes)
         except Exception as e:
             self._logger.error(f"Failed to load cache for key '{key}': {e}")
-            raise CacheManagerError(f"Error loading cache for key '{key}'", error=str(e))
+            raise CacheManagerError(
+                f"Error loading cache for key '{key}'", error=str(e)
+            )
 
     def save(self, key: str, data: Any):
         """
@@ -139,7 +143,9 @@ class CacheManager:
             self._backend.invalidate(key)
         except Exception as e:
             self._logger.error(f"Failed to invalidate cache for key '{key}': {e}")
-            raise CacheManagerError(f"Error invalidating cache for key '{key}'", error=str(e))
+            raise CacheManagerError(
+                f"Error invalidating cache for key '{key}'", error=str(e)
+            )
 
     def clear_all(self):
         """

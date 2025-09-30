@@ -20,9 +20,13 @@ class EpicIssue:
         self.key = epic_data.get("key", "")
         self.summary = epic_data.get("fields", {}).get("summary", "")
         self.status = epic_data.get("fields", {}).get("status", {}).get("name", "")
-        self.start_date = self._parse_date(epic_data.get("fields", {}).get("customfield_10015"))
+        self.start_date = self._parse_date(
+            epic_data.get("fields", {}).get("customfield_10015")
+        )
         self.due_date = self._parse_date(epic_data.get("fields", {}).get("duedate"))
-        self.fix_version = self._get_fix_version(epic_data.get("fields", {}).get("fixVersions", []))
+        self.fix_version = self._get_fix_version(
+            epic_data.get("fields", {}).get("fixVersions", [])
+        )
         assignee = epic_data.get("fields", {}).get("assignee")
         self.assignee_id = assignee.get("accountId", "") if assignee else ""
         self.assignee_name = assignee.get("displayName", "") if assignee else ""
@@ -114,12 +118,18 @@ class CycleDetector:
         for quarter in range(1, 5):  # Q1, Q2, Q3, Q4
             # C1 cycle (6 weeks)
             c1_start = current_date
-            c1_end = current_date + timedelta(weeks=cls.CYCLE_WEEKS["C1"]) - timedelta(days=1)
+            c1_end = (
+                current_date
+                + timedelta(weeks=cls.CYCLE_WEEKS["C1"])
+                - timedelta(days=1)
+            )
             cycles[f"Q{quarter}C1"] = {"start": c1_start, "end": c1_end}
 
             # C2 cycle (7 weeks)
             c2_start = c1_end + timedelta(days=1)
-            c2_end = c2_start + timedelta(weeks=cls.CYCLE_WEEKS["C2"]) - timedelta(days=1)
+            c2_end = (
+                c2_start + timedelta(weeks=cls.CYCLE_WEEKS["C2"]) - timedelta(days=1)
+            )
             cycles[f"Q{quarter}C2"] = {"start": c2_start, "end": c2_end}
 
             # Move to next quarter
@@ -239,15 +249,21 @@ class EpicMonitorService:
         today = date.today()
 
         # Get configurable thresholds from environment
-        business_days_threshold = int(os.getenv("EPIC_MONITOR_BUSINESS_DAYS_THRESHOLD", "3"))
-        due_date_warning_days = int(os.getenv("EPIC_MONITOR_DUE_DATE_WARNING_DAYS", "3"))
+        business_days_threshold = int(
+            os.getenv("EPIC_MONITOR_BUSINESS_DAYS_THRESHOLD", "3")
+        )
+        due_date_warning_days = int(
+            os.getenv("EPIC_MONITOR_DUE_DATE_WARNING_DAYS", "3")
+        )
 
         for epic in epics:
             epic.problems = []
 
             # Rule 1: Status is "7 PI Started" and Start Date is missing
             if epic.status == "7 PI Started" and not epic.start_date:
-                epic.problems.append("Status is '7 PI Started' but Start Date is missing")
+                epic.problems.append(
+                    "Status is '7 PI Started' but Start Date is missing"
+                )
 
             # Rule 2: Status is "7 PI Started" and Due Date is missing
             if epic.status == "7 PI Started" and not epic.due_date:
@@ -256,7 +272,9 @@ class EpicMonitorService:
             # Rule 3: Status is "7 PI Started", Start Date exists,
             # but Due Date missing for X business days
             if epic.status == "7 PI Started" and epic.start_date and not epic.due_date:
-                business_days_since_start = self._calculate_business_days(epic.start_date, today)
+                business_days_since_start = self._calculate_business_days(
+                    epic.start_date, today
+                )
                 if business_days_since_start >= business_days_threshold:
                     epic.problems.append(
                         f"Status is '7 PI Started', started {business_days_since_start} "
@@ -270,7 +288,9 @@ class EpicMonitorService:
 
             # Rule 5: Epic is approaching due date (3 or fewer business days remaining)
             if epic.due_date and epic.due_date >= today:
-                business_days_remaining = self._calculate_business_days(today, epic.due_date)
+                business_days_remaining = self._calculate_business_days(
+                    today, epic.due_date
+                )
                 if business_days_remaining <= due_date_warning_days:
                     epic.problems.append(
                         f"Epic is approaching due date ({business_days_remaining} "
@@ -337,7 +357,9 @@ class SlackNotificationService:
             return False
 
         if not channel:
-            self._logger.error("Slack channel not provided and SLACK_CHANNEL_ID not set")
+            self._logger.error(
+                "Slack channel not provided and SLACK_CHANNEL_ID not set"
+            )
             return False
 
         blocks = self._format_epic_problems_blocks(problematic_epics)
@@ -349,7 +371,10 @@ class SlackNotificationService:
                 "text": f"{len(problematic_epics)} problematic epics detected.",
             }
 
-            headers = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            }
 
             response = requests.post(
                 "https://slack.com/api/chat.postMessage",
@@ -364,7 +389,9 @@ class SlackNotificationService:
                 )
                 return True
             else:
-                self._logger.error(f"Failed to send Slack notification. Response: {response.text}")
+                self._logger.error(
+                    f"Failed to send Slack notification. Response: {response.text}"
+                )
                 return False
 
         except Exception as e:
@@ -381,7 +408,10 @@ class SlackNotificationService:
         blocks.append(
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": f"🚨 Epic Issues Alert - {current_cycle}"},
+                "text": {
+                    "type": "plain_text",
+                    "text": f"🚨 Epic Issues Alert - {current_cycle}",
+                },
             }
         )
 
@@ -406,11 +436,14 @@ class SlackNotificationService:
                 # Create epic URL when base URL is available
                 epic_url = f"{jira_url}/browse/{epic.key}"
                 epic_text = (
-                    f"📌 *<{epic_url}|{epic.key}>*: {epic.summary}\n" f"• Status: *{epic.status}*\n"
+                    f"📌 *<{epic_url}|{epic.key}>*: {epic.summary}\n"
+                    f"• Status: *{epic.status}*\n"
                 )
             else:
                 # Just show the key without link when base URL is not available
-                epic_text = f"📌 *{epic.key}*: {epic.summary}\n" f"• Status: *{epic.status}*\n"
+                epic_text = (
+                    f"📌 *{epic.key}*: {epic.summary}\n• Status: *{epic.status}*\n"
+                )
 
             if epic.assignee_slack_id:
                 epic_text += f"• Assignee: <@{epic.assignee_slack_id}>\n"
@@ -426,7 +459,9 @@ class SlackNotificationService:
             for problem in epic.problems:
                 epic_text += f"\n> • {problem}"
 
-            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": epic_text}})
+            blocks.append(
+                {"type": "section", "text": {"type": "mrkdwn", "text": epic_text}}
+            )
 
             blocks.append({"type": "divider"})
 
@@ -457,7 +492,9 @@ class EpicCronService:
         # Use provided webhook or environment variable
         webhook_url = slack_webhook_url or os.getenv("SLACK_WEBHOOK_URL")
         if not webhook_url:
-            raise ValueError("Slack webhook URL must be provided or set in SLACK_WEBHOOK_URL")
+            raise ValueError(
+                "Slack webhook URL must be provided or set in SLACK_WEBHOOK_URL"
+            )
         self.slack_service = SlackNotificationService(webhook_url)
 
     def run_epic_check(self) -> bool:
@@ -477,7 +514,9 @@ class EpicCronService:
             problematic_epics = self.epic_monitor.analyze_epic_problems(epics)
 
             # 3. Send notifications if problems found
-            success = self.slack_service.send_epic_problems_notification(problematic_epics)
+            success = self.slack_service.send_epic_problems_notification(
+                problematic_epics
+            )
 
             if success:
                 self._logger.info("Epic monitoring check completed successfully")
@@ -487,5 +526,7 @@ class EpicCronService:
             return success
 
         except Exception as e:
-            self._logger.error(f"Error during epic monitoring check: {e}", exc_info=True)
+            self._logger.error(
+                f"Error during epic monitoring check: {e}", exc_info=True
+            )
             return False

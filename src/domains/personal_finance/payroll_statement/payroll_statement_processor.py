@@ -12,10 +12,11 @@ class PayrollStatementProcessor:
     """
 
     _logger = LogManager.get_instance().get_logger("PayrollStatementProcessor")
-    LogManager.add_custom_handler(logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2")
+    LogManager.add_custom_handler(
+        logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2"
+    )
 
     def __init__(self):
-
         self.data = []
 
     def process_pdf(self, file_path: str) -> List[Dict[str, str]]:
@@ -82,7 +83,9 @@ class PayrollStatementProcessor:
                 statements = self.process_pdf(pdf_file)
                 all_statements.extend(statements)
             except Exception as e:
-                self._logger.error(f"Error processing file {pdf_file}: {e}", exc_info=True)
+                self._logger.error(
+                    f"Error processing file {pdf_file}: {e}", exc_info=True
+                )
 
         self._logger.info(
             f"Processed {len(pdf_files)} files with {len(all_statements)} "
@@ -182,7 +185,9 @@ class PayrollStatementProcessor:
         """
         # Simple validation: check if tables contain at least one meaningful row
         for table in tables:
-            if len(table) > 1 and any(row for row in table if any(cell.strip() for cell in row)):
+            if len(table) > 1 and any(
+                row for row in table if any(cell.strip() for cell in row)
+            ):
                 return True
         return False
 

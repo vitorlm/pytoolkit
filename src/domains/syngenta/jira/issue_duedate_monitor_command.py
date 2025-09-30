@@ -1,7 +1,9 @@
 from argparse import ArgumentParser, Namespace
 import os
 from utils.command.base_command import BaseCommand
-from domains.syngenta.jira.issue_duedate_monitor_service import IssueDueDateMonitorService
+from domains.syngenta.jira.issue_duedate_monitor_service import (
+    IssueDueDateMonitorService,
+)
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
 
@@ -80,7 +82,10 @@ class IssueDueDateMonitorCommand(BaseCommand):
                 issue_types = [t.strip() for t in args.issue_types.split(",")]
 
             success = monitor_service.run_issue_check(
-                squad=args.squad, project_key=args.project_key, issue_types=issue_types, dry_run=args.dry_run
+                squad=args.squad,
+                project_key=args.project_key,
+                issue_types=issue_types,
+                dry_run=args.dry_run,
             )
 
             if success:

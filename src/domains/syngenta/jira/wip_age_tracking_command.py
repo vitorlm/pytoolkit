@@ -46,7 +46,9 @@ class WipAgeTrackingCommand(BaseCommand):
             help="Comma-separated issue types (default: 'Story,Task,Bug')",
         )
         parser.add_argument("--output-file", help="Save results to specific JSON file")
-        parser.add_argument("--verbose", action="store_true", help="Enable detailed issue-level output")
+        parser.add_argument(
+            "--verbose", action="store_true", help="Enable detailed issue-level output"
+        )
         parser.add_argument(
             "--include-subtasks",
             action="store_true",
@@ -70,7 +72,11 @@ class WipAgeTrackingCommand(BaseCommand):
 
         try:
             # Parse issue types
-            issue_types = [t.strip() for t in args.issue_types.split(",")] if args.issue_types else None
+            issue_types = (
+                [t.strip() for t in args.issue_types.split(",")]
+                if args.issue_types
+                else None
+            )
 
             # Initialize service
             service = WipAgeTrackingService()
@@ -92,7 +98,9 @@ class WipAgeTrackingCommand(BaseCommand):
                 logger.info("WIP Age Analysis completed successfully")
                 WipAgeTrackingCommand._print_wip_report(results, args)
                 if args.output_format in ["json", "md"]:
-                    print(f"\nDetailed report saved in {args.output_format.upper()} format")
+                    print(
+                        f"\nDetailed report saved in {args.output_format.upper()} format"
+                    )
             else:
                 logger.error("WIP Age Analysis failed")
                 exit(1)
@@ -127,7 +135,9 @@ class WipAgeTrackingCommand(BaseCommand):
         except Exception:
             formatted_date = analysis_date
 
-        header = f"⏰ WIP AGE Health - {project_key} (Threshold: {alert_threshold} days)"
+        header = (
+            f"⏰ WIP AGE Health - {project_key} (Threshold: {alert_threshold} days)"
+        )
         print("\n" + "=" * len(header))
         print(header)
         print(f"(Análise executada em: {formatted_date} | Team: {team})")
@@ -141,10 +151,16 @@ class WipAgeTrackingCommand(BaseCommand):
         median_age = summary.get("median_age_days", 0)
         oldest_age = summary.get("oldest_issue_age_days", 0)
 
-        status_icon, status_text = WipAgeTrackingCommand._get_wip_status(issues_over_threshold, total_wip)
+        status_icon, status_text = WipAgeTrackingCommand._get_wip_status(
+            issues_over_threshold, total_wip
+        )
         print(f"- Total WIP Issues: {total_wip} 📊")
-        print(f"- Over Threshold:   {issues_over_threshold} {status_icon} ({status_text})")
-        print(f"- Average Age:      {avg_age:.1f} days {WipAgeTrackingCommand._get_age_icon(avg_age, alert_threshold)}")
+        print(
+            f"- Over Threshold:   {issues_over_threshold} {status_icon} ({status_text})"
+        )
+        print(
+            f"- Average Age:      {avg_age:.1f} days {WipAgeTrackingCommand._get_age_icon(avg_age, alert_threshold)}"
+        )
         print(
             f"- Median Age:       {median_age:.1f} days {WipAgeTrackingCommand._get_age_icon(median_age, alert_threshold)}"
         )
@@ -172,8 +188,12 @@ class WipAgeTrackingCommand(BaseCommand):
                 issue_count = data.get("issue_count", 0)
                 avg_status_age = data.get("avg_age_days", 0)
                 status_over_threshold = data.get("issues_over_threshold", 0)
-                status_health = WipAgeTrackingCommand._get_status_health_icon(status_over_threshold, issue_count)
-                print(f"- {status}: {issue_count} issues (avg: {avg_status_age:.1f}d) {status_health}")
+                status_health = WipAgeTrackingCommand._get_status_health_icon(
+                    status_over_threshold, issue_count
+                )
+                print(
+                    f"- {status}: {issue_count} issues (avg: {avg_status_age:.1f}d) {status_health}"
+                )
                 if status_over_threshold > 0:
                     print(f"  └─ {status_over_threshold} over threshold ⚠️")
 
@@ -192,11 +212,15 @@ class WipAgeTrackingCommand(BaseCommand):
                 print(f"  ... and {len(alert_issues) - 8} more issues")
 
         # FLOW HEALTH ASSESSMENT
-        risk_level = WipAgeTrackingCommand._get_risk_level(issues_over_threshold, total_wip)
+        risk_level = WipAgeTrackingCommand._get_risk_level(
+            issues_over_threshold, total_wip
+        )
         risk_icon = WipAgeTrackingCommand._get_risk_icon(risk_level)
         print("\nFLOW HEALTH ASSESSMENT:")
         print(f"- Risk Level:       {risk_level} {risk_icon}")
-        print(f"- Threshold Rate:   {(issues_over_threshold / total_wip * 100) if total_wip > 0 else 0:.1f}%")
+        print(
+            f"- Threshold Rate:   {(issues_over_threshold / total_wip * 100) if total_wip > 0 else 0:.1f}%"
+        )
 
         # KEY INSIGHTS
         if insights:
@@ -221,7 +245,9 @@ class WipAgeTrackingCommand(BaseCommand):
         print("\n" + "=" * len(header))
 
     @staticmethod
-    def _get_wip_status(issues_over_threshold: int, total_issues: int) -> tuple[str, str]:
+    def _get_wip_status(
+        issues_over_threshold: int, total_issues: int
+    ) -> tuple[str, str]:
         """Get icon and text for WIP status."""
         if total_issues == 0:
             return "ℹ️", "No WIP issues"

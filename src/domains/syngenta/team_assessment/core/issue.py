@@ -15,14 +15,26 @@ class IssueSummary(BaseModel):
     planned_end_date: Optional[date] = Field(None, description="Planned end date.")
     actual_end_date: Optional[date] = Field(None, description="Actual end date.")
 
-    planned_issue_days: Optional[int] = Field(None, description="Planned duration in days.")
-    executed_issue_days: Optional[int] = Field(None, description="Actual duration in days.")
+    planned_issue_days: Optional[int] = Field(
+        None, description="Planned duration in days."
+    )
+    executed_issue_days: Optional[int] = Field(
+        None, description="Actual duration in days."
+    )
 
-    planned_resources: Optional[int] = Field(None, description="Planned number of resources.")
-    actual_resources: Optional[int] = Field(None, description="Actual number of resources.")
+    planned_resources: Optional[int] = Field(
+        None, description="Planned number of resources."
+    )
+    actual_resources: Optional[int] = Field(
+        None, description="Actual number of resources."
+    )
 
-    executed: Optional[bool] = Field(None, description="Indicates whether the issue was executed.")
-    closed: Optional[bool] = Field(None, description="Indicates whether the issue is closed.")
+    executed: Optional[bool] = Field(
+        None, description="Indicates whether the issue was executed."
+    )
+    closed: Optional[bool] = Field(
+        None, description="Indicates whether the issue is closed."
+    )
 
     @model_validator(mode="after")
     def validate_summary_dates(self) -> "IssueSummary":
@@ -88,7 +100,9 @@ class IssueSummary(BaseModel):
             else:
                 end_adherence += abs(end_diff) * early_bonus
 
-        total_adherence = (start_adherence * start_weight) + (end_adherence * end_weight)
+        total_adherence = (start_adherence * start_weight) + (
+            end_adherence * end_weight
+        )
         return max(0, min(total_adherence, 100))
 
     @property
@@ -157,7 +171,8 @@ class IssueSummary(BaseModel):
         """Calculates the duration deviation as a percentage."""
         if self.planned_issue_days:
             return (
-                (self.executed_issue_days - self.planned_issue_days) / self.planned_issue_days
+                (self.executed_issue_days - self.planned_issue_days)
+                / self.planned_issue_days
             ) * 100
         return 0.0
 
@@ -187,7 +202,9 @@ class IssueSummary(BaseModel):
         return 0
 
     @property
-    def efficiency(self, duration_weight: float = 0.5, resource_weight: float = 0.5) -> float:
+    def efficiency(
+        self, duration_weight: float = 0.5, resource_weight: float = 0.5
+    ) -> float:
         """
         Calculates the overall efficiency, considering both duration and resource utilization.
         The efficiency is capped at 100% to prevent values exceeding the maximum.
@@ -206,14 +223,20 @@ class IssueSummary(BaseModel):
             )  # Cap at 100%
 
         return min(
-            (duration_efficiency * duration_weight) + (resource_efficiency * resource_weight), 100
+            (duration_efficiency * duration_weight)
+            + (resource_efficiency * resource_weight),
+            100,
         )
 
     @property
     def resource_utilization(self) -> Optional[float]:
         """Calculates resource utilization."""
         if self.planned_resources:
-            return self.actual_resources / self.planned_resources if self.actual_resources else None
+            return (
+                self.actual_resources / self.planned_resources
+                if self.actual_resources
+                else None
+            )
         return None
 
     @property
@@ -246,7 +269,9 @@ class IssueDetails(BaseModel):
 
     start_date: Optional[date] = Field(None, description="Start date of the issue.")
     end_date: Optional[date] = Field(None, description="End date of the issue.")
-    issue_total_days: Optional[int] = Field(0, description="Total days allocated for the issue.")
+    issue_total_days: Optional[int] = Field(
+        0, description="Total days allocated for the issue."
+    )
     member_list: List[str] = Field(
         default_factory=list, description="List of team members assigned to the issue."
     )
@@ -265,14 +290,22 @@ class Issue(BaseModel):
             values["code"] = values["code"].lower()
         return values
 
-    type: str = Field("default_type", description="Type of the issue (e.g., bug, task).")
+    type: str = Field(
+        "default_type", description="Type of the issue (e.g., bug, task)."
+    )
     jira: Optional[str] = Field(None, description="Jira ID associated with the issue.")
     description: Optional[str] = Field(None, description="Description of the issue.")
 
-    closed: Optional[bool] = Field(False, description="Indicates whether the issue is closed.")
+    closed: Optional[bool] = Field(
+        False, description="Indicates whether the issue is closed."
+    )
 
-    planned: Optional[IssueDetails] = Field(None, description="Planned details for the issue.")
-    executed: Optional[IssueDetails] = Field(None, description="Executed details for the issue.")
+    planned: Optional[IssueDetails] = Field(
+        None, description="Planned details for the issue."
+    )
+    executed: Optional[IssueDetails] = Field(
+        None, description="Executed details for the issue."
+    )
 
     summary: Optional[IssueSummary] = Field(
         None, description="Summary of planned and actual metrics."
@@ -285,10 +318,14 @@ class Issue(BaseModel):
         """
         if self.planned and self.planned.start_date and self.planned.end_date:
             if self.planned.start_date > self.planned.end_date:
-                raise ValueError("Planned end date must be after the planned start date.")
+                raise ValueError(
+                    "Planned end date must be after the planned start date."
+                )
         if self.executed and self.executed.start_date and self.executed.end_date:
             if self.executed.start_date > self.executed.end_date:
-                raise ValueError("Executed end date must be after the executed start date.")
+                raise ValueError(
+                    "Executed end date must be after the executed start date."
+                )
         return self
 
     def summarize(self):
@@ -302,15 +339,31 @@ class Issue(BaseModel):
         planned_issue = self.planned
         executed_issue = self.executed
 
-        self.summary.planned_start_date = planned_issue.start_date if planned_issue else None
-        self.summary.planned_end_date = planned_issue.end_date if planned_issue else None
-        self.summary.planned_issue_days = planned_issue.issue_total_days if planned_issue else 0
-        self.summary.planned_resources = len(planned_issue.member_list) if planned_issue else 0
+        self.summary.planned_start_date = (
+            planned_issue.start_date if planned_issue else None
+        )
+        self.summary.planned_end_date = (
+            planned_issue.end_date if planned_issue else None
+        )
+        self.summary.planned_issue_days = (
+            planned_issue.issue_total_days if planned_issue else 0
+        )
+        self.summary.planned_resources = (
+            len(planned_issue.member_list) if planned_issue else 0
+        )
 
-        self.summary.actual_start_date = executed_issue.start_date if executed_issue else None
-        self.summary.actual_end_date = executed_issue.end_date if executed_issue else None
-        self.summary.executed_issue_days = executed_issue.issue_total_days if executed_issue else 0
-        self.summary.actual_resources = len(executed_issue.member_list) if executed_issue else 0
+        self.summary.actual_start_date = (
+            executed_issue.start_date if executed_issue else None
+        )
+        self.summary.actual_end_date = (
+            executed_issue.end_date if executed_issue else None
+        )
+        self.summary.executed_issue_days = (
+            executed_issue.issue_total_days if executed_issue else 0
+        )
+        self.summary.actual_resources = (
+            len(executed_issue.member_list) if executed_issue else 0
+        )
 
         if self.executed and self.executed.issue_total_days > 0:
             self.summary.executed = True

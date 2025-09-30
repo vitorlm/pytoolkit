@@ -28,7 +28,9 @@ class IssueResolutionTimeChartService(ChartMixin):
             output_path (str): Path where charts will be saved
         """
         self.output_path = output_path
-        self._logger = LogManager.get_instance().get_logger("IssueResolutionTimeChartService")
+        self._logger = LogManager.get_instance().get_logger(
+            "IssueResolutionTimeChartService"
+        )
 
         # Ensure output directory exists
         if self.output_path and not os.path.exists(self.output_path):
@@ -75,7 +77,12 @@ class IssueResolutionTimeChartService(ChartMixin):
         Returns:
             int: Numeric order (1 for P1, 2 for P2, etc.)
         """
-        priority_map = {"Critical [P1]": 1, "High [P2]": 2, "Medium [P3]": 3, "Low [P4]": 4}
+        priority_map = {
+            "Critical [P1]": 1,
+            "High [P2]": 2,
+            "Medium [P3]": 3,
+            "Low [P4]": 4,
+        }
         return priority_map.get(priority, 999)  # Unknown priorities go to end
 
     def _get_priority_colors(self) -> Dict[str, str]:
@@ -92,7 +99,9 @@ class IssueResolutionTimeChartService(ChartMixin):
         return {"Bug": "#E74C3C", "Support": "#3498DB"}  # Red-ish  # Blue
 
     def plot_resolution_metrics_comparison(
-        self, stats_by_type_priority: Dict, filename: str = "resolution_metrics_comparison.png"
+        self,
+        stats_by_type_priority: Dict,
+        filename: str = "resolution_metrics_comparison.png",
     ) -> None:
         """
         Create separate grouped bar charts for each issue type comparing median_days,
@@ -102,12 +111,16 @@ class IssueResolutionTimeChartService(ChartMixin):
             stats_by_type_priority (Dict): Statistics data
             filename (str): Base output filename (will be modified per issue type)
         """
-        self.logger.info("Generating resolution metrics comparison charts by issue type")
+        self.logger.info(
+            "Generating resolution metrics comparison charts by issue type"
+        )
 
         df = self._prepare_chart_data(stats_by_type_priority)
 
         if df.empty:
-            self.logger.warning("No data available for resolution metrics comparison chart")
+            self.logger.warning(
+                "No data available for resolution metrics comparison chart"
+            )
             return
 
         # Create separate chart for each issue type
@@ -139,7 +152,9 @@ class IssueResolutionTimeChartService(ChartMixin):
             )
 
     def plot_issue_count_distribution(
-        self, stats_by_type_priority: Dict, filename: str = "issue_count_distribution.png"
+        self,
+        stats_by_type_priority: Dict,
+        filename: str = "issue_count_distribution.png",
     ) -> None:
         """
         Create separate bar charts showing issue count distribution by priority for each type.
@@ -177,7 +192,9 @@ class IssueResolutionTimeChartService(ChartMixin):
 
             colors = [priority_colors.get(p, "#CCCCCC") for p in issue_df["priority"]]
 
-            bars = ax.bar(issue_df["priority"], issue_df["count"], color=colors, width=0.6)
+            bars = ax.bar(
+                issue_df["priority"], issue_df["count"], color=colors, width=0.6
+            )
 
             # Add value labels on bars
             for bar in bars:
@@ -315,14 +332,18 @@ class IssueResolutionTimeChartService(ChartMixin):
             self._save_plot(plt, type_filename)
 
     def plot_resolution_time_histogram(
-        self, raw_issues_data: List[Dict], filename: str = "resolution_time_histogram.png"
+        self,
+        raw_issues_data: List[Dict],
+        filename: str = "resolution_time_histogram.png",
     ) -> None:
         """
         Create histograms of resolution times by issue type and priority.
         Bin ranges: <1d, 1-2d, 2-3d, 3-5d, 5-10d, 10-20d, >20d.
         Uses _get_priority_colors for color consistency.
         """
-        self.logger.info("Generating resolution time histograms by issue type and priority")
+        self.logger.info(
+            "Generating resolution time histograms by issue type and priority"
+        )
 
         if not raw_issues_data:
             self.logger.warning("No raw issue data available for histogram")
@@ -350,9 +371,14 @@ class IssueResolutionTimeChartService(ChartMixin):
                 if prio_df.empty:
                     continue
                 prio_df.loc[:, "bucket"] = pd.cut(
-                    prio_df["resolution_time_days"], bins=bins, labels=bin_labels, right=False
+                    prio_df["resolution_time_days"],
+                    bins=bins,
+                    labels=bin_labels,
+                    right=False,
                 )
-                counts = prio_df["bucket"].value_counts().reindex(bin_labels, fill_value=0)
+                counts = (
+                    prio_df["bucket"].value_counts().reindex(bin_labels, fill_value=0)
+                )
                 color = priority_colors.get(priority, "#CCCCCC")
                 fig, ax = plt.subplots(figsize=(8, 5))
                 bars = ax.bar(bin_labels, counts.values, color=color, alpha=0.8)
@@ -415,7 +441,11 @@ class IssueResolutionTimeChartService(ChartMixin):
             type_filename = f"{base_name}_{issue_type.lower()}.png"
 
             # Group data by priority for this issue type
-            groups = issue_df.groupby("priority")["resolution_time_days"].apply(list).to_dict()
+            groups = (
+                issue_df.groupby("priority")["resolution_time_days"]
+                .apply(list)
+                .to_dict()
+            )
 
             if not groups:
                 continue
@@ -436,7 +466,9 @@ class IssueResolutionTimeChartService(ChartMixin):
         Create charts showing SLA vs. actual metrics and percentage of issues resolved under SLA.
         Uses the precise sla_compliance_percentage metric from the data.
         """
-        self.logger.info("Generating SLA comparison charts by issue type (actual compliance)")
+        self.logger.info(
+            "Generating SLA comparison charts by issue type (actual compliance)"
+        )
 
         df = self._prepare_chart_data(stats_by_type_priority)
 
@@ -472,7 +504,14 @@ class IssueResolutionTimeChartService(ChartMixin):
                 color="#3498DB",
                 alpha=0.8,
             )
-            ax1.bar(x_pos, issue_df["p90_days"], width, label="P90", color="#E67E22", alpha=0.8)
+            ax1.bar(
+                x_pos,
+                issue_df["p90_days"],
+                width,
+                label="P90",
+                color="#E67E22",
+                alpha=0.8,
+            )
             ax1.bar(
                 [x + width for x in x_pos],
                 issue_df["p95_days"],
@@ -500,8 +539,13 @@ class IssueResolutionTimeChartService(ChartMixin):
 
             # Bottom chart: Issues resolved under SLA percentage (actual)
             sla_compliance = list(issue_df["sla_compliance_percentage"].fillna(0.0))
-            colors = [self._get_priority_colors().get(p, "#CCCCCC") for p in issue_df["priority"]]
-            bars = ax2.bar(issue_df["priority"], sla_compliance, color=colors, alpha=0.8)
+            colors = [
+                self._get_priority_colors().get(p, "#CCCCCC")
+                for p in issue_df["priority"]
+            ]
+            bars = ax2.bar(
+                issue_df["priority"], sla_compliance, color=colors, alpha=0.8
+            )
 
             # Add percentage labels on bars
             for bar, pct in zip(bars, sla_compliance):
@@ -634,9 +678,15 @@ class IssueResolutionTimeChartService(ChartMixin):
                 stats_by_type_priority, raw_issues_data or []
             ),
             "boxplot": lambda: self.plot_resolution_time_boxplot(raw_issues_data or []),
-            "sla_comparison": lambda: self.plot_sla_comparison_chart(stats_by_type_priority),
-            "trends_over_time": lambda: self.plot_trends_over_time(raw_issues_data or []),
-            "histogram": lambda: self.plot_resolution_time_histogram(raw_issues_data or []),
+            "sla_comparison": lambda: self.plot_sla_comparison_chart(
+                stats_by_type_priority
+            ),
+            "trends_over_time": lambda: self.plot_trends_over_time(
+                raw_issues_data or []
+            ),
+            "histogram": lambda: self.plot_resolution_time_histogram(
+                raw_issues_data or []
+            ),
         }
 
         # Generate requested charts or all if none specified

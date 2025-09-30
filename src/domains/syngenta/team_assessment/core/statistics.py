@@ -32,7 +32,9 @@ class BaseStatistics(BaseModel):
             self.average_level = StatisticsHelper.calculate_mean(self.overall_levels)
             self.highest_level = max(self.overall_levels)
             self.lowest_level = min(self.overall_levels)
-            self.q1, self.q3 = StatisticsHelper.calculate_percentiles(self.overall_levels)
+            self.q1, self.q3 = StatisticsHelper.calculate_percentiles(
+                self.overall_levels
+            )
 
 
 class TeamStatistics(BaseStatistics):
@@ -109,10 +111,12 @@ class IndividualStatistics(BaseStatistics):
                 )
 
             # Indicator-level evaluation
-            for indicator, indicator_data in criterion_data.get("indicator_stats", {}).items():
-                team_indicator_data = team_criterion_data.get("indicator_stats", {}).get(
-                    indicator, {}
-                )
+            for indicator, indicator_data in criterion_data.get(
+                "indicator_stats", {}
+            ).items():
+                team_indicator_data = team_criterion_data.get(
+                    "indicator_stats", {}
+                ).get(indicator, {})
 
                 member_avg = indicator_data["average"]
                 team_q1 = team_indicator_data.get("q1", float("-inf"))
@@ -174,7 +178,9 @@ class StatisticsHelper:
     """
 
     @staticmethod
-    def calculate_correlation(indicators: List[Indicator], reference: List[int]) -> Optional[float]:
+    def calculate_correlation(
+        indicators: List[Indicator], reference: List[int]
+    ) -> Optional[float]:
         """
         Calculate the Pearson correlation coefficient between two lists of indicators and a
         reference.

@@ -65,13 +65,17 @@ class TaskSummary(Task):
         if self.actual_start_date and self.planned_start_date:
             start_delay = (self.actual_start_date - self.planned_start_date).days
             planned_duration = (self.planned_end_date - self.planned_start_date).days
-            start_delay_proportion = start_delay / planned_duration if planned_duration else 0
+            start_delay_proportion = (
+                start_delay / planned_duration if planned_duration else 0
+            )
             adherence_start -= start_delay_proportion * 50
 
         if self.actual_end_date and self.planned_end_date:
             end_delay = (self.actual_end_date - self.planned_end_date).days
             planned_duration = (self.planned_end_date - self.planned_start_date).days
-            end_delay_proportion = end_delay / planned_duration if planned_duration else 0
+            end_delay_proportion = (
+                end_delay / planned_duration if planned_duration else 0
+            )
             adherence_end -= end_delay_proportion * 50
 
         return adherence_start + adherence_end
@@ -182,7 +186,8 @@ class TaskSummary(Task):
         """
         if self.planned_task_days and self.planned_task_days > 0:
             return (
-                (self.executed_task_days - self.planned_task_days) / self.planned_task_days
+                (self.executed_task_days - self.planned_task_days)
+                / self.planned_task_days
             ) * 100
         return 0.0
 
@@ -223,7 +228,9 @@ class TaskSummary(Task):
         return 0
 
     @property
-    def efficiency(self, duration_weight: float = 0.5, resource_weight: float = 0.5) -> float:
+    def efficiency(
+        self, duration_weight: float = 0.5, resource_weight: float = 0.5
+    ) -> float:
         """
         Calculate the efficiency of the task considering both duration and resources.
 
@@ -240,10 +247,20 @@ class TaskSummary(Task):
         duration_efficiency = 0.0
         resource_efficiency = 0.0
 
-        if self.executed_task_days and self.planned_task_days and self.executed_task_days > 0:
-            duration_efficiency = (self.planned_task_days / self.executed_task_days) * 100
+        if (
+            self.executed_task_days
+            and self.planned_task_days
+            and self.executed_task_days > 0
+        ):
+            duration_efficiency = (
+                self.planned_task_days / self.executed_task_days
+            ) * 100
 
-        if self.actual_resources and self.planned_resources and self.actual_resources > 0:
+        if (
+            self.actual_resources
+            and self.planned_resources
+            and self.actual_resources > 0
+        ):
             resource_efficiency = (self.planned_resources / self.actual_resources) * 100
 
         # Calculate the combined efficiency
@@ -299,7 +316,11 @@ class TaskSummary(Task):
         Returns:
             float: Efficiency index. Values >1 indicate higher output per resource.
         """
-        if self.actual_resources and self.executed_task_days and self.actual_resources > 0:
+        if (
+            self.actual_resources
+            and self.executed_task_days
+            and self.actual_resources > 0
+        ):
             return self.executed_task_days / self.actual_resources
         return None
 

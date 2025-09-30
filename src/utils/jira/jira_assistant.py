@@ -34,14 +34,20 @@ class JiraAssistant:
             cache_expiration (int): Cache expiration time in minutes.
         """
         jira_config = JiraConfig()
-        if not jira_config.base_url or not jira_config.email or not jira_config.api_token:
+        if (
+            not jira_config.base_url
+            or not jira_config.email
+            or not jira_config.api_token
+        ):
             raise ValueError(
                 "JiraConfig is missing required fields: base_url, email, or api_token. "
                 f"base_url={jira_config.base_url}, "
                 f"email={jira_config.email}, "
                 f"api_token={'***' if jira_config.api_token else None}"
             )
-        self.client = JiraApiClient(jira_config.base_url, jira_config.email, jira_config.api_token)
+        self.client = JiraApiClient(
+            jira_config.base_url, jira_config.email, jira_config.api_token
+        )
         self.cache_manager = CacheManager.get_instance()
         self.cache_expiration = cache_expiration
 
@@ -75,9 +81,13 @@ class JiraAssistant:
             Optional[Dict]: Cached data if available, None otherwise.
         """
         try:
-            return self.cache_manager.load(cache_key, expiration_minutes=self.cache_expiration)
+            return self.cache_manager.load(
+                cache_key, expiration_minutes=self.cache_expiration
+            )
         except Exception as e:
-            self._logger.warning(f"Cache miss or load failure for key '{cache_key}': {e}")
+            self._logger.warning(
+                f"Cache miss or load failure for key '{cache_key}': {e}"
+            )
             return None
 
     def _save_to_cache(self, cache_key: str, data: Dict):
@@ -105,10 +115,14 @@ class JiraAssistant:
             List[Dict]: A list of project components.
         """
         try:
-            cache_key = self._generate_cache_key("project_components", project_key=project_key)
+            cache_key = self._generate_cache_key(
+                "project_components", project_key=project_key
+            )
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
-                self._logger.info(f"Loaded components from cache for project '{project_key}'.")
+                self._logger.info(
+                    f"Loaded components from cache for project '{project_key}'."
+                )
                 if isinstance(cached_data, list):
                     return cached_data
                 elif isinstance(cached_data, dict) and "components" in cached_data:
@@ -131,7 +145,10 @@ class JiraAssistant:
             response = self.client.get(f"project/{project_key}/components")
 
             if not response:
-                raise JiraComponentFetchError("No response received for project components.", project_key=project_key)
+                raise JiraComponentFetchError(
+                    "No response received for project components.",
+                    project_key=project_key,
+                )
 
             # Ensure response is a list for cache and return
             if isinstance(response, list):
@@ -160,7 +177,9 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraComponentFetchError(
-                "Error fetching project components.", project_key=project_key, error=str(e)
+                "Error fetching project components.",
+                project_key=project_key,
+                error=str(e),
             ) from e
 
     def create_component(
@@ -202,7 +221,9 @@ class JiraAssistant:
             response = self.client.post("component", payload)
 
             if not response:
-                raise JiraComponentCreationError("Failed to create component.", project_key=project_key, name=name)
+                raise JiraComponentCreationError(
+                    "Failed to create component.", project_key=project_key, name=name
+                )
 
             self._logger.info(f"Component created with ID: {response.get('id')}")
             return response
@@ -211,7 +232,10 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraComponentCreationError(
-                "Error creating component.", project_key=project_key, name=name, error=str(e)
+                "Error creating component.",
+                project_key=project_key,
+                name=name,
+                error=str(e),
             ) from e
 
     def delete_component(self, component_id: str) -> bool:
@@ -237,7 +261,9 @@ class JiraAssistant:
                 "Error deleting component.", component_id=component_id, error=str(e)
             ) from e
 
-    def create_components_batch(self, project_key: str, components: List[Dict]) -> List[Dict]:
+    def create_components_batch(
+        self, project_key: str, components: List[Dict]
+    ) -> List[Dict]:
         """
         Create multiple components in a Jira project.
 
@@ -256,7 +282,9 @@ class JiraAssistant:
                 assignee_type = component_data.get("assignee_type", "PROJECT_DEFAULT")
                 lead = component_data.get("lead")
 
-                result = self.create_component(project_key, name, description, assignee_type, lead)
+                result = self.create_component(
+                    project_key, name, description, assignee_type, lead
+                )
                 results.append(
                     {
                         "name": name,
@@ -266,7 +294,9 @@ class JiraAssistant:
                 )
             except Exception as e:
                 component_name = component_data.get("name")
-                self._logger.error(f"Failed to create component '{component_name}': {e}")
+                self._logger.error(
+                    f"Failed to create component '{component_name}': {e}"
+                )
                 results.append(
                     {
                         "name": component_data.get("name"),
@@ -290,7 +320,12 @@ class JiraAssistant:
         for component_id in component_ids:
             try:
                 success = self.delete_component(component_id)
-                results.append({"component_id": component_id, "status": "success" if success else "failed"})
+                results.append(
+                    {
+                        "component_id": component_id,
+                        "status": "success" if success else "failed",
+                    }
+                )
             except Exception as e:
                 self._logger.error(f"Failed to delete component '{component_id}': {e}")
                 results.append(
@@ -316,14 +351,18 @@ class JiraAssistant:
         try:
             payload = {"fields": {"components": [{"id": str(component_id)}]}}
 
-            self._logger.info(f"Updating issue '{issue_key}' with component ID '{component_id}'")
+            self._logger.info(
+                f"Updating issue '{issue_key}' with component ID '{component_id}'"
+            )
             self.client.put(f"issue/{issue_key}", payload)
 
             # PUT requests typically return None for successful updates
             self._logger.info(f"Issue '{issue_key}' components updated successfully")
             return True
         except Exception as e:
-            self._logger.error(f"Error updating components for issue '{issue_key}': {e}")
+            self._logger.error(
+                f"Error updating components for issue '{issue_key}': {e}"
+            )
             raise JiraIssueComponentUpdateError(
                 "Error updating issue components.",
                 issue_key=issue_key,
@@ -331,7 +370,9 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def update_issues_components_batch(self, issues_components: List[Dict]) -> List[Dict]:
+    def update_issues_components_batch(
+        self, issues_components: List[Dict]
+    ) -> List[Dict]:
         """
         Update multiple issues with their respective components.
 
@@ -381,10 +422,14 @@ class JiraAssistant:
             Optional[Dict]: The created issue data or None if failed.
         """
         try:
-            self._logger.info(f"Creating issue in project '{project_key}' with payload: {payload}")
+            self._logger.info(
+                f"Creating issue in project '{project_key}' with payload: {payload}"
+            )
             response = self.client.post("issue", payload)
             if not response:
-                raise JiraIssueCreationError("Failed to create issue.", project_key=project_key, payload=payload)
+                raise JiraIssueCreationError(
+                    "Failed to create issue.", project_key=project_key, payload=payload
+                )
 
             self._logger.info(f"Issue created with key: {response.get('key')}")
             return response
@@ -393,7 +438,10 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraIssueCreationError(
-                "Error creating issue.", project_key=project_key, payload=payload, error=str(e)
+                "Error creating issue.",
+                project_key=project_key,
+                payload=payload,
+                error=str(e),
             ) from e
 
     def fetch_metadata(self, project_key: str, issue_type_id: str) -> Optional[Dict]:
@@ -408,7 +456,9 @@ class JiraAssistant:
             Optional[Dict]: Metadata of the specified issue type.
         """
         try:
-            cache_key = self._generate_cache_key("metadata", project_key=project_key, issue_type_id=issue_type_id)
+            cache_key = self._generate_cache_key(
+                "metadata", project_key=project_key, issue_type_id=issue_type_id
+            )
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
                 self._logger.info(
@@ -416,8 +466,12 @@ class JiraAssistant:
                 )
                 return cached_data
 
-            self._logger.info(f"Fetching metadata for issue type '{issue_type_id}' in project '{project_key}'")
-            response = self.client.get(f"issue/createmeta/{project_key}/issuetypes/{issue_type_id}")
+            self._logger.info(
+                f"Fetching metadata for issue type '{issue_type_id}' in project '{project_key}'"
+            )
+            response = self.client.get(
+                f"issue/createmeta/{project_key}/issuetypes/{issue_type_id}"
+            )
 
             if not response:
                 raise JiraMetadataFetchError(
@@ -440,7 +494,9 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def fetch_completed_epics(self, team_name: str, time_period_days: int) -> List[Dict]:
+    def fetch_completed_epics(
+        self, team_name: str, time_period_days: int
+    ) -> List[Dict]:
         """
         Fetch completed epics for a specific team within a given time period.
 
@@ -453,11 +509,15 @@ class JiraAssistant:
         """
         try:
             cache_key = self._generate_cache_key(
-                "completed_epics", team_name=team_name, time_period_days=time_period_days
+                "completed_epics",
+                team_name=team_name,
+                time_period_days=time_period_days,
             )
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
-                self._logger.info(f"Loaded completed epics from cache for team '{team_name}'.")
+                self._logger.info(
+                    f"Loaded completed epics from cache for team '{team_name}'."
+                )
                 if isinstance(cached_data, list):
                     return cached_data
                 elif isinstance(cached_data, dict) and "epics" in cached_data:
@@ -490,7 +550,10 @@ class JiraAssistant:
             ) from e
 
     def fetch_open_issues_by_type(
-        self, team_name: str, issue_type: str = "Epic", fix_version: Optional[str] = None
+        self,
+        team_name: str,
+        issue_type: str = "Epic",
+        fix_version: Optional[str] = None,
     ) -> List[Dict]:
         """
         Fetch open issues of a specified type for a team, optionally filtered by fix version.
@@ -505,11 +568,16 @@ class JiraAssistant:
         """
         try:
             cache_key = self._generate_cache_key(
-                "open_issues", team_name=team_name, issue_type=issue_type, fix_version=fix_version
+                "open_issues",
+                team_name=team_name,
+                issue_type=issue_type,
+                fix_version=fix_version,
             )
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
-                self._logger.info(f"Loaded open {issue_type}s from cache for team '{team_name}'.")
+                self._logger.info(
+                    f"Loaded open {issue_type}s from cache for team '{team_name}'."
+                )
                 if isinstance(cached_data, list):
                     return cached_data
                 elif isinstance(cached_data, dict) and "issues" in cached_data:
@@ -524,7 +592,9 @@ class JiraAssistant:
             if fix_version:
                 jql_query += f" AND fixVersion = '{fix_version}'"
 
-            self._logger.info(f"Fetching open {issue_type}s for team '{team_name}', fix version '{fix_version}'.")
+            self._logger.info(
+                f"Fetching open {issue_type}s for team '{team_name}', fix version '{fix_version}'."
+            )
             open_issues = self.fetch_issues(jql_query)
 
             if open_issues:
@@ -594,7 +664,9 @@ class JiraAssistant:
                         break
                     continue
 
-                self._logger.info(f"Fetching issues with JQL: {jql_query} (next_page_token={next_page_token})")
+                self._logger.info(
+                    f"Fetching issues with JQL: {jql_query} (next_page_token={next_page_token})"
+                )
 
                 # Prepare request payload for enhanced search API
                 payload = {
@@ -612,7 +684,9 @@ class JiraAssistant:
                 response = self.client.post("search/jql", payload)
 
                 if not response:
-                    raise JiraQueryError("No response received from Jira API.", jql=jql_query)
+                    raise JiraQueryError(
+                        "No response received from Jira API.", jql=jql_query
+                    )
 
                 self._save_to_cache(cache_key, response)
                 if isinstance(response, dict):
@@ -637,7 +711,9 @@ class JiraAssistant:
             self._logger.error(e)
             raise
         except Exception as e:
-            raise JiraQueryError("Error fetching issues.", jql=jql_query, error=str(e)) from e
+            raise JiraQueryError(
+                "Error fetching issues.", jql=jql_query, error=str(e)
+            ) from e
 
     def fetch_project_metadata(self, project_key: str) -> Dict:
         """
@@ -650,17 +726,23 @@ class JiraAssistant:
             Dict: Project metadata including issue types, statuses, etc.
         """
         try:
-            cache_key = self._generate_cache_key("project_metadata", project_key=project_key)
+            cache_key = self._generate_cache_key(
+                "project_metadata", project_key=project_key
+            )
             cached_data = self._load_from_cache(cache_key)
             if cached_data:
-                self._logger.info(f"Loaded project metadata from cache for project: {project_key}")
+                self._logger.info(
+                    f"Loaded project metadata from cache for project: {project_key}"
+                )
                 return cached_data
 
             self._logger.info(f"Fetching project metadata for project: {project_key}")
             response = self.client.get(f"project/{project_key}")
 
             if not response:
-                raise JiraMetadataFetchError(f"No metadata found for project {project_key}")
+                raise JiraMetadataFetchError(
+                    f"No metadata found for project {project_key}"
+                )
 
             self._save_to_cache(cache_key, response)
             return response
@@ -669,7 +751,9 @@ class JiraAssistant:
             raise
         except Exception as e:
             raise JiraMetadataFetchError(
-                f"Error fetching project metadata for {project_key}", project_key=project_key, error=str(e)
+                f"Error fetching project metadata for {project_key}",
+                project_key=project_key,
+                error=str(e),
             ) from e
 
     def fetch_project_issue_types(self, project_key: str) -> List[Dict]:
@@ -686,9 +770,13 @@ class JiraAssistant:
             project_metadata = self.fetch_project_metadata(project_key)
             issue_types = project_metadata.get("issueTypes", [])
 
-            self._logger.info(f"Found {len(issue_types)} issue types for project {project_key}")
+            self._logger.info(
+                f"Found {len(issue_types)} issue types for project {project_key}"
+            )
             return issue_types
         except Exception as e:
             raise JiraMetadataFetchError(
-                f"Error fetching issue types for project {project_key}", project_key=project_key, error=str(e)
+                f"Error fetching issue types for project {project_key}",
+                project_key=project_key,
+                error=str(e),
             ) from e

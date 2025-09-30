@@ -116,7 +116,9 @@ class EmbeddingSimilarity:
         # Check cache first
         if self.cache_enabled:
             cache_key = f"{self.embedding_cache_key}:{hash(text)}"
-            cached_embedding = self.cache.load(cache_key, expiration_minutes=1440)  # 24 hours
+            cached_embedding = self.cache.load(
+                cache_key, expiration_minutes=1440
+            )  # 24 hours
             if cached_embedding is not None:
                 return np.array(cached_embedding)
 
@@ -161,7 +163,9 @@ class EmbeddingSimilarity:
         for i, text in enumerate(valid_texts):
             if self.cache_enabled:
                 cache_key = f"{self.embedding_cache_key}:{hash(text)}"
-                cached_embedding = self.cache.load(cache_key, expiration_minutes=1440)  # 24 hours
+                cached_embedding = self.cache.load(
+                    cache_key, expiration_minutes=1440
+                )  # 24 hours
                 if cached_embedding is not None:
                     embeddings.append(np.array(cached_embedding))
                 else:

@@ -6,14 +6,13 @@ import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from utils.logging.logging_manager import LogManager
 
 from .enhanced_alert_cycle import (
     CycleClassification,
     EnhancedAlertCycle,
-    EnhancedLifecycleEvent,
 )
 
 
@@ -74,7 +73,7 @@ class AlertCycleClassifier:
             return ClassificationResult(
                 classification=CycleClassification.ACTIONABLE,
                 confidence=0.1,
-                reasons=["Insufficient events for reliable classification"]
+                reasons=["Insufficient events for reliable classification"],
             )
 
         # Check for benign transient first (most restrictive)
@@ -94,7 +93,7 @@ class AlertCycleClassifier:
         self,
         monitor_id: str,
         cycles: List[EnhancedAlertCycle],
-        time_window_hours: int = 24
+        time_window_hours: int = 24,
     ) -> Dict[str, ClassificationResult]:
         """Classify all cycles for a monitor, considering temporal patterns."""
         results = {}
@@ -104,12 +103,13 @@ class AlertCycleClassifier:
 
         # Sort cycles by timestamp
         sorted_cycles = sorted(
-            cycles,
-            key=lambda c: c.start or datetime.min.replace(tzinfo=timezone.utc)
+            cycles, key=lambda c: c.start or datetime.min.replace(tzinfo=timezone.utc)
         )
 
         # Check for monitor-level flapping patterns
-        monitor_flapping = self._detect_monitor_flapping(sorted_cycles, time_window_hours)
+        monitor_flapping = self._detect_monitor_flapping(
+            sorted_cycles, time_window_hours
+        )
 
         for cycle in sorted_cycles:
             # Classify individual cycle
@@ -118,25 +118,33 @@ class AlertCycleClassifier:
             # Apply monitor-level context
             if monitor_flapping["is_flapping"]:
                 if result.classification != CycleClassification.FLAPPING:
-                    result.reasons.append(f"Part of monitor-level flapping pattern")
+                    result.reasons.append("Part of monitor-level flapping pattern")
                     result.confidence = min(result.confidence + 0.2, 1.0)
 
                 # Override classification if strong monitor-level flapping evidence
-                if (monitor_flapping["confidence"] > 0.8 and
-                    result.classification == CycleClassification.BENIGN_TRANSIENT):
+                if (
+                    monitor_flapping["confidence"] > 0.8
+                    and result.classification == CycleClassification.BENIGN_TRANSIENT
+                ):
                     result = ClassificationResult(
                         classification=CycleClassification.FLAPPING,
-                        confidence=min(result.confidence + monitor_flapping["confidence"] * 0.3, 1.0),
-                        reasons=result.reasons + [
+                        confidence=min(
+                            result.confidence + monitor_flapping["confidence"] * 0.3,
+                            1.0,
+                        ),
+                        reasons=result.reasons
+                        + [
                             f"Monitor shows strong flapping pattern ({monitor_flapping['cycles_in_window']} cycles in {time_window_hours}h)"
-                        ]
+                        ],
                     )
 
             results[cycle.key] = result
 
         return results
 
-    def _check_benign_transient(self, cycle: EnhancedAlertCycle) -> ClassificationResult:
+    def _check_benign_transient(
+        self, cycle: EnhancedAlertCycle
+    ) -> ClassificationResult:
         """Check if cycle qualifies as benign transient."""
         reasons = []
         confidence_factors = []
@@ -147,10 +155,12 @@ class AlertCycleClassifier:
             return ClassificationResult(
                 classification=CycleClassification.ACTIONABLE,
                 confidence=0.8,
-                reasons=["Duration exceeds benign transient threshold"]
+                reasons=["Duration exceeds benign transient threshold"],
             )
 
-        reasons.append(f"Short duration: {duration:.1f}s (< {self.config.transient_max_duration_seconds}s)")
+        reasons.append(
+            f"Short duration: {duration:.1f}s (< {self.config.transient_max_duration_seconds}s)"
+        )
         confidence_factors.append(0.3)
 
         # Check state transitions (should be simple: alert -> recover)
@@ -159,7 +169,7 @@ class AlertCycleClassifier:
             return ClassificationResult(
                 classification=CycleClassification.ACTIONABLE,
                 confidence=0.7,
-                reasons=["Complex state transitions suggest non-transient issue"]
+                reasons=["Complex state transitions suggest non-transient issue"],
             )
 
         reasons.append("Simple transition pattern (single alert → recovery)")
@@ -170,7 +180,7 @@ class AlertCycleClassifier:
             return ClassificationResult(
                 classification=CycleClassification.ACTIONABLE,
                 confidence=0.9,
-                reasons=["Evidence of human intervention"]
+                reasons=["Evidence of human intervention"],
             )
 
         reasons.append("No evidence of manual intervention")
@@ -181,7 +191,9 @@ class AlertCycleClassifier:
         if ttr and duration:
             ratio = abs(ttr - duration) / max(duration, 1)
             if ratio < 0.2:  # TTR ≈ cycle duration
-                reasons.append("Resolution time matches cycle duration (automatic recovery)")
+                reasons.append(
+                    "Resolution time matches cycle duration (automatic recovery)"
+                )
                 confidence_factors.append(0.15)
             else:
                 confidence_factors.append(-0.1)  # Penalty for mismatch
@@ -203,14 +215,14 @@ class AlertCycleClassifier:
                 metadata={
                     "duration_seconds": duration,
                     "transition_count": transitions,
-                    "time_to_resolution": ttr
-                }
+                    "time_to_resolution": ttr,
+                },
             )
 
         return ClassificationResult(
             classification=CycleClassification.ACTIONABLE,
             confidence=0.8 - final_confidence,
-            reasons=["Does not meet benign transient criteria"] + reasons
+            reasons=["Does not meet benign transient criteria"] + reasons,
         )
 
     def _check_flapping(self, cycle: EnhancedAlertCycle) -> ClassificationResult:
@@ -250,14 +262,14 @@ class AlertCycleClassifier:
                 metadata={
                     "transition_count": transitions,
                     "duration_seconds": duration,
-                    "oscillation_detected": True
-                }
+                    "oscillation_detected": True,
+                },
             )
 
         return ClassificationResult(
             classification=CycleClassification.ACTIONABLE,
             confidence=0.6,
-            reasons=["No strong flapping indicators in individual cycle"]
+            reasons=["No strong flapping indicators in individual cycle"],
         )
 
     def _classify_actionable(self, cycle: EnhancedAlertCycle) -> ClassificationResult:
@@ -268,7 +280,9 @@ class AlertCycleClassifier:
         # Duration indicates substantial issue
         duration = cycle.duration_seconds
         if duration and duration >= self.config.actionable_min_duration_seconds:
-            reasons.append(f"Substantial duration: {duration:.1f}s (≥ {self.config.actionable_min_duration_seconds}s)")
+            reasons.append(
+                f"Substantial duration: {duration:.1f}s (≥ {self.config.actionable_min_duration_seconds}s)"
+            )
             confidence_factors.append(0.3)
 
         # Human action involvement
@@ -298,14 +312,12 @@ class AlertCycleClassifier:
             metadata={
                 "duration_seconds": duration,
                 "transition_count": transitions,
-                "business_hours": cycle.is_business_hours_cycle()
-            }
+                "business_hours": cycle.is_business_hours_cycle(),
+            },
         )
 
     def _detect_monitor_flapping(
-        self,
-        cycles: List[EnhancedAlertCycle],
-        time_window_hours: int
+        self, cycles: List[EnhancedAlertCycle], time_window_hours: int
     ) -> Dict[str, any]:
         """Detect flapping at monitor level across cycles."""
         if len(cycles) < self.config.flap_min_cycles:
@@ -343,11 +355,14 @@ class AlertCycleClassifier:
         # Calculate confidence based on cycle density
         if is_flapping:
             # Higher density = higher confidence
-            confidence = min(1.0, (max_cycles_in_window - self.config.flap_min_cycles) / 10.0 + 0.6)
+            confidence = min(
+                1.0, (max_cycles_in_window - self.config.flap_min_cycles) / 10.0 + 0.6
+            )
 
             # Additional confidence from duration patterns
             short_cycles = sum(
-                1 for cycle in cycles[-max_cycles_in_window:]
+                1
+                for cycle in cycles[-max_cycles_in_window:]
                 if cycle.duration_seconds and cycle.duration_seconds < 300
             )
             if short_cycles >= max_cycles_in_window * 0.7:
@@ -359,7 +374,7 @@ class AlertCycleClassifier:
             "is_flapping": is_flapping,
             "confidence": confidence,
             "cycles_in_window": max_cycles_in_window,
-            "window_hours": time_window_hours
+            "window_hours": time_window_hours,
         }
 
     def _calculate_oscillation_score(self, state_sequence: List[str]) -> float:
@@ -370,7 +385,10 @@ class AlertCycleClassifier:
         # Count state reversals (A->B->A patterns)
         reversals = 0
         for i in range(len(state_sequence) - 2):
-            if state_sequence[i] == state_sequence[i + 2] and state_sequence[i] != state_sequence[i + 1]:
+            if (
+                state_sequence[i] == state_sequence[i + 2]
+                and state_sequence[i] != state_sequence[i + 1]
+            ):
                 reversals += 1
 
         # Normalize by sequence length
@@ -378,8 +396,7 @@ class AlertCycleClassifier:
         return reversals / max_possible_reversals
 
     def generate_classification_summary(
-        self,
-        classification_results: Dict[str, ClassificationResult]
+        self, classification_results: Dict[str, ClassificationResult]
     ) -> Dict[str, any]:
         """Generate summary statistics from classification results."""
         if not classification_results:
@@ -388,24 +405,29 @@ class AlertCycleClassifier:
                 "flapping_cycles": 0,
                 "benign_transient_cycles": 0,
                 "actionable_cycles": 0,
-                "avg_confidence": 0.0
+                "avg_confidence": 0.0,
             }
 
         total_cycles = len(classification_results)
         flapping_cycles = sum(
-            1 for r in classification_results.values()
+            1
+            for r in classification_results.values()
             if r.classification == CycleClassification.FLAPPING
         )
         benign_transient_cycles = sum(
-            1 for r in classification_results.values()
+            1
+            for r in classification_results.values()
             if r.classification == CycleClassification.BENIGN_TRANSIENT
         )
         actionable_cycles = sum(
-            1 for r in classification_results.values()
+            1
+            for r in classification_results.values()
             if r.classification == CycleClassification.ACTIONABLE
         )
 
-        avg_confidence = statistics.mean([r.confidence for r in classification_results.values()])
+        avg_confidence = statistics.mean(
+            [r.confidence for r in classification_results.values()]
+        )
 
         return {
             "total_cycles": total_cycles,
@@ -415,14 +437,14 @@ class AlertCycleClassifier:
             "flapping_rate": flapping_cycles / max(total_cycles, 1),
             "benign_transient_rate": benign_transient_cycles / max(total_cycles, 1),
             "actionable_rate": actionable_cycles / max(total_cycles, 1),
-            "avg_confidence": avg_confidence
+            "avg_confidence": avg_confidence,
         }
 
     def generate_recommendations(
         self,
         monitor_id: str,
         classification_results: Dict[str, ClassificationResult],
-        monitor_metadata: Optional[Dict[str, any]] = None
+        monitor_metadata: Optional[Dict[str, any]] = None,
     ) -> List[Dict[str, any]]:
         """Generate actionable recommendations based on classification results."""
         recommendations = []
@@ -430,41 +452,47 @@ class AlertCycleClassifier:
 
         # High flapping rate recommendations
         if summary["flapping_rate"] > 0.5:
-            recommendations.append({
-                "type": "threshold_adjustment",
-                "priority": "high",
-                "action": "Increase debounce window or add hysteresis",
-                "reason": f"{summary['flapping_cycles']}/{summary['total_cycles']} cycles are flapping",
-                "details": {
-                    "suggested_debounce_seconds": self.config.debounce_seconds * 2,
-                    "suggested_hysteresis": True
+            recommendations.append(
+                {
+                    "type": "threshold_adjustment",
+                    "priority": "high",
+                    "action": "Increase debounce window or add hysteresis",
+                    "reason": f"{summary['flapping_cycles']}/{summary['total_cycles']} cycles are flapping",
+                    "details": {
+                        "suggested_debounce_seconds": self.config.debounce_seconds * 2,
+                        "suggested_hysteresis": True,
+                    },
                 }
-            })
+            )
 
         # High benign transient rate recommendations
         if summary["benign_transient_rate"] > 0.7:
-            recommendations.append({
-                "type": "notification_policy",
-                "priority": "medium",
-                "action": "Route to dashboard instead of paging",
-                "reason": f"{summary['benign_transient_cycles']}/{summary['total_cycles']} cycles are benign transients",
-                "details": {
-                    "suggested_notification_level": "info",
-                    "consider_dashboard_only": True
+            recommendations.append(
+                {
+                    "type": "notification_policy",
+                    "priority": "medium",
+                    "action": "Route to dashboard instead of paging",
+                    "reason": f"{summary['benign_transient_cycles']}/{summary['total_cycles']} cycles are benign transients",
+                    "details": {
+                        "suggested_notification_level": "info",
+                        "consider_dashboard_only": True,
+                    },
                 }
-            })
+            )
 
         # Low actionable rate with high confidence
         if summary["actionable_rate"] < 0.3 and summary["avg_confidence"] > 0.8:
-            recommendations.append({
-                "type": "monitor_review",
-                "priority": "medium",
-                "action": "Consider monitor removal or threshold adjustment",
-                "reason": f"Only {summary['actionable_cycles']}/{summary['total_cycles']} cycles require action",
-                "details": {
-                    "removal_candidate": True,
-                    "confidence_score": summary["avg_confidence"]
+            recommendations.append(
+                {
+                    "type": "monitor_review",
+                    "priority": "medium",
+                    "action": "Consider monitor removal or threshold adjustment",
+                    "reason": f"Only {summary['actionable_cycles']}/{summary['total_cycles']} cycles require action",
+                    "details": {
+                        "removal_candidate": True,
+                        "confidence_score": summary["avg_confidence"],
+                    },
                 }
-            })
+            )
 
         return recommendations

@@ -17,6 +17,7 @@ def handle_generic_exception(
     """
     metadata_info = f" | Metadata: {metadata}" if metadata else ""
     logger.error(
-        f"An error occurred: {context_message}{metadata_info} - {exception}", exc_info=True
+        f"An error occurred: {context_message}{metadata_info} - {exception}",
+        exc_info=True,
     )
     raise Exception(f"{context_message}{metadata_info}")

@@ -14,7 +14,8 @@ class Config:
         self._row_members_end = int(os.getenv("ROW_MEMBERS_END"))
         self._row_days = int(os.getenv("ROW_DAYS")) - 1
         self._issue_helper_codes = [
-            issue.strip().lower() for issue in os.getenv("ISSUES_HELPER_CODES", "").split(",")
+            issue.strip().lower()
+            for issue in os.getenv("ISSUES_HELPER_CODES", "").split(",")
         ]
         self._issue_type_bug = os.getenv("ISSUE_TYPE_BUG").strip().lower()
         self._issue_type_off = os.getenv("ISSUE_TYPE_OFF").strip().lower()
@@ -22,12 +23,16 @@ class Config:
         self._col_epics_start = os.getenv("COL_EPICS_START")
         self._col_epics_end = os.getenv("COL_EPICS_END")
         self._col_epics_assignment_start = os.getenv("COL_EPICS_ASSIGNMENT_START")
-        self._row_epics_assignment_start = int(os.getenv("ROW_EPICS_ASSIGNMENT_START")) - 1
+        self._row_epics_assignment_start = (
+            int(os.getenv("ROW_EPICS_ASSIGNMENT_START")) - 1
+        )
         self._row_epics_assignment_end = int(os.getenv("ROW_EPICS_ASSIGNMENT_END"))
         self._row_planned_epics_assignment_start = (
             int(os.getenv("ROW_PLANNED_EPICS_ASSIGNMENT_START")) - 1
         )
-        self._row_planned_epics_assignment_end = int(os.getenv("ROW_PLANNED_EPICS_ASSIGNMENT_END"))
+        self._row_planned_epics_assignment_end = int(
+            os.getenv("ROW_PLANNED_EPICS_ASSIGNMENT_END")
+        )
         self._row_header_start = int(os.getenv("ROW_HEADER_START")) - 1
         self._row_header_end = int(os.getenv("ROW_HEADER_END"))
         self._row_epics_start = int(os.getenv("ROW_EPICS_START")) - 1
@@ -37,9 +42,9 @@ class Config:
         self._col_member_idx = ord(self._col_members.upper()) - ord("A")
         self._col_epics_start_idx = ord(self._col_epics_start.upper()) - ord("A")
         self._col_epics_end_idx = ord(self._col_epics_end.upper()) - ord("A")
-        self._col_epics_assignment_start_idx = ord(self._col_epics_assignment_start.upper()) - ord(
-            "A"
-        )
+        self._col_epics_assignment_start_idx = ord(
+            self._col_epics_assignment_start.upper()
+        ) - ord("A")
 
         # Conexão Ollama
         self._ollama_host = os.getenv("OLLAMA_HOST")
@@ -56,7 +61,9 @@ class Config:
         self._ollama_stop = os.getenv("OLLAMA_STOP").split(",")
         self._ollama_num_predict = int(os.getenv("OLLAMA_NUM_PREDICT"))
         self._ollama_seed = int(os.getenv("OLLAMA_SEED"))
-        self._ollama_embedding_only = os.getenv("OLLAMA_EMBEDDING_ONLY").lower() == "true"
+        self._ollama_embedding_only = (
+            os.getenv("OLLAMA_EMBEDDING_ONLY").lower() == "true"
+        )
         self._ollama_low_vram = os.getenv("OLLAMA_LOW_VRAM").lower() == "true"
         self._ollama_presence_penalty = float(os.getenv("OLLAMA_PRESENCE_PENALTY"))
         self._ollama_frequency_penalty = float(os.getenv("OLLAMA_FREQUENCY_PENALTY"))

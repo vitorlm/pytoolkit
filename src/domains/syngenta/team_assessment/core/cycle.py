@@ -17,22 +17,30 @@ class CycleSummary(BaseModel):
     total_bug_days: int = Field(0, description="Total number of bug days.")
     total_spillover_days: int = Field(0, description="Total number of spillover days.")
     total_off_days: int = Field(0, description="Total number of off days.")
-    net_available_cycle_work_days: int = Field(0, description="Net available work days.")
+    net_available_cycle_work_days: int = Field(
+        0, description="Net available work days."
+    )
     effective_work_days: int = Field(0, description="Effective work days.")
     total_epics: int = Field(0, description="Total number of epics in the cycle.")
     total_non_epics: int = Field(0, description="Total number of non-epic issues.")
     total_bugs: int = Field(0, description="Total number of bugs.")
     total_closed_epics: int = Field(0, description="Total number of closed epics.")
-    total_spillover_epics: int = Field(0, description="Total number of spillover epics.")
+    total_spillover_epics: int = Field(
+        0, description="Total number of spillover epics."
+    )
     total_members: int = Field(0, description="Total number of members in the cycle.")
 
     epics_completion_rate: float = Field(0.0, description="Epics completion rate.")
     planned_cycle_days: int = Field(0, description="Total planned days for the cycle.")
-    executed_cycle_days: int = Field(0, description="Total executed days for the cycle.")
+    executed_cycle_days: int = Field(
+        0, description="Total executed days for the cycle."
+    )
     efficiency: float = Field(0.0, description="Efficiency of the cycle.")
     bug_workload_percentage: float = Field(0.0, description="Bug workload percentage.")
     bugs_epic_ratio: float = Field(0.0, description="Bug epic ratio.")
-    spillover_workload_percentage: float = Field(0.0, description="Spillover workload percentage.")
+    spillover_workload_percentage: float = Field(
+        0.0, description="Spillover workload percentage."
+    )
     days_off_impact_ratio: float = Field(0.0, description="Days off impact ratio.")
 
     average_adherence_to_dates: float = Field(
@@ -42,8 +50,12 @@ class CycleSummary(BaseModel):
         default_factory=lambda: {"Excellent": 0, "Good": 0, "Fair": 0, "Poor": 0},
         description="Distribution of epics across adherence categories.",
     )
-    average_efficiency: float = Field(0.0, description="Average efficiency of the cycle.")
-    average_resource_utilization: float = Field(0.0, description="Average resource utilization.")
+    average_efficiency: float = Field(
+        0.0, description="Average efficiency of the cycle."
+    )
+    average_resource_utilization: float = Field(
+        0.0, description="Average resource utilization."
+    )
     epics_by_type: Dict[str, int] = Field(
         default_factory=dict, description="Number of epics by type."
     )
@@ -69,7 +81,9 @@ class Cycle(BaseModel):
     executed_issues: List[str] = Field(
         default_factory=list, description="List of executed issue codes in the cycle."
     )
-    closed_epics: List[Dict] = Field(default_factory=list, description="Closed epics in the cycle.")
+    closed_epics: List[Dict] = Field(
+        default_factory=list, description="Closed epics in the cycle."
+    )
     spillover_epics: List[Dict] = Field(
         default_factory=list, description="Spillover epics in the cycle."
     )
@@ -117,13 +131,16 @@ class Cycle(BaseModel):
         return total_days
 
     def summarize(self):
-
-        total_cycle_work_days, total_cycle_duration = self._calculate_cycle_duration_and_work_days()
+        total_cycle_work_days, total_cycle_duration = (
+            self._calculate_cycle_duration_and_work_days()
+        )
 
         epics = [
             issue
             for issue in self.backlog.values()
-            if issue and issue.executed and issue.code not in self._config.issue_helper_codes
+            if issue
+            and issue.executed
+            and issue.code not in self._config.issue_helper_codes
         ]
         total_epics = len(epics)
 
@@ -141,7 +158,10 @@ class Cycle(BaseModel):
 
         net_available_cycle_work_days = total_cycle_work_days - total_off_days
         effective_work_days = (
-            total_cycle_work_days - total_spillover_days - total_bug_days - total_off_days
+            total_cycle_work_days
+            - total_spillover_days
+            - total_bug_days
+            - total_off_days
         )
 
         total_bugs = len(self.bugs) if self.bugs else 0
@@ -182,7 +202,9 @@ class Cycle(BaseModel):
             2,
         )
 
-        bugs_epic_ratio = round(((total_bugs / total_epics) * 100 if total_epics else 0), 2)
+        bugs_epic_ratio = round(
+            ((total_bugs / total_epics) * 100 if total_epics else 0), 2
+        )
 
         spillover_workload_percentage = round(
             (
@@ -194,11 +216,18 @@ class Cycle(BaseModel):
         )
 
         days_off_impact_ratio = round(
-            ((total_off_days / total_cycle_duration) * 100 if total_cycle_duration else 0), 2
+            (
+                (total_off_days / total_cycle_duration) * 100
+                if total_cycle_duration
+                else 0
+            ),
+            2,
         )
 
         average_adherence_to_dates = (
-            round(sum(epic.summary.adherence_to_dates for epic in epics) / total_epics, 2)
+            round(
+                sum(epic.summary.adherence_to_dates for epic in epics) / total_epics, 2
+            )
             if total_epics > 0
             else 0
         )
@@ -241,7 +270,8 @@ class Cycle(BaseModel):
             epics_by_type[epic_type] = epics_by_type.get(epic_type, 0) + 1
 
         members_contribution = {
-            member: {"planned_item": 0, "executed_item": 0} for member in self.member_list
+            member: {"planned_item": 0, "executed_item": 0}
+            for member in self.member_list
         }
         for member in self.member_list:
             for code in self.planned_issues:

@@ -35,7 +35,9 @@ class BaseProcessor(ABC):
             Dict[str, Any]: Aggregated data from all processed files.
         """
         folder_path = Path(folder_path)
-        self.logger.info(f"Processing folder using {self.__class__.__name__}: {folder_path}")
+        self.logger.info(
+            f"Processing folder using {self.__class__.__name__}: {folder_path}"
+        )
 
         # Validate the folder
         FileManager.validate_folder(folder_path)
@@ -43,11 +45,15 @@ class BaseProcessor(ABC):
         data = {}
         for file_path in folder_path.glob("*.*"):
             if not self._is_allowed_extension(file_path):
-                self.logger.warning(f"Skipping file with unsupported extension: {file_path}")
+                self.logger.warning(
+                    f"Skipping file with unsupported extension: {file_path}"
+                )
                 continue
 
             try:
-                self.logger.info(f"Processing file: {file_path} with {self.__class__.__name__}")
+                self.logger.info(
+                    f"Processing file: {file_path} with {self.__class__.__name__}"
+                )
                 file_data = self.process_file(file_path, **kwargs)
 
                 for key, value in file_data.items():
@@ -56,7 +62,9 @@ class BaseProcessor(ABC):
                     else:
                         data[key] = value
             except Exception as e:
-                self.logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
+                self.logger.error(
+                    f"Error processing file {file_path}: {e}", exc_info=True
+                )
 
         return data
 

@@ -95,7 +95,14 @@ Examples:
         parser.add_argument(
             "--filter-type",
             type=str,
-            choices=["organization", "contributor", "team", "repository", "label", "custom_metric"],
+            choices=[
+                "organization",
+                "contributor",
+                "team",
+                "repository",
+                "label",
+                "custom_metric",
+            ],
             default="team",
             help="Filter type: organization, contributor, team (default), "
             "repository, label, custom_metric",

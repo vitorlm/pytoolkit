@@ -74,7 +74,9 @@ class JSONManager:
         def pydantic_encoder(obj):
             if isinstance(obj, BaseModel):
                 return obj.model_dump()
-            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+            raise TypeError(
+                f"Object of type {type(obj).__name__} is not JSON serializable"
+            )
 
         try:
             if os.path.exists(file_path):

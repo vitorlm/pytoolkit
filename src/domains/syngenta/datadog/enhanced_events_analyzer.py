@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from utils.logging.logging_manager import LogManager
@@ -13,7 +9,6 @@ from utils.logging.logging_manager import LogManager
 from .alert_classifier import AlertCycleClassifier, ClassificationConfig
 from .config import ObservabilityConfig, load_config
 from .enhanced_alert_cycle import (
-    CycleClassification,
     EnhancedAlertCycle,
     EnhancedLifecycleEvent,
     WeeklyMonitorSnapshot,
@@ -32,13 +27,19 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
         *,
         analysis_period_days: int = 30,
         deleted_monitors: List[str] = None,
-        config: Optional[ObservabilityConfig] = None
+        config: Optional[ObservabilityConfig] = None,
     ) -> None:
         # Initialize base analyzer
-        super().__init__(events_data, analysis_period_days=analysis_period_days, deleted_monitors=deleted_monitors)
+        super().__init__(
+            events_data,
+            analysis_period_days=analysis_period_days,
+            deleted_monitors=deleted_monitors,
+        )
 
         self.config = config or load_config()
-        self.logger = LogManager.get_instance().get_logger("EnhancedDatadogEventsAnalyzer")
+        self.logger = LogManager.get_instance().get_logger(
+            "EnhancedDatadogEventsAnalyzer"
+        )
 
         # Initialize enhanced components
         classification_config = ClassificationConfig(
@@ -48,7 +49,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             transient_max_duration_seconds=self.config.transient.transient_max_duration_seconds,
             actionable_min_duration_seconds=self.config.actionable.actionable_min_duration_seconds,
             business_hours_start=self.config.business_hours.start_hour,
-            business_hours_end=self.config.business_hours.end_hour
+            business_hours_end=self.config.business_hours.end_hour,
         )
 
         self.classifier = AlertCycleClassifier(classification_config)
@@ -59,7 +60,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
         )
         self.trend_analyzer = TrendAnalyzer(
             self.snapshot_manager,
-            min_weeks=self.config.trend_analysis.min_weeks_for_trends
+            min_weeks=self.config.trend_analysis.min_weeks_for_trends,
         )
 
         # Enhanced cycle storage
@@ -94,7 +95,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
                     was_paged=self._infer_paged_status(event),
                     human_action_taken=None,  # Will be inferred during classification
                     correlation_id=None,
-                    severity_level=self._infer_severity_level(event)
+                    severity_level=self._infer_severity_level(event),
                 )
                 enhanced_events.append(enhanced_event)
 
@@ -103,7 +104,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
                 key=cycle.key,
                 monitor_id=cycle.monitor_id,
                 monitor_name=cycle.monitor_name,
-                events=enhanced_events
+                events=enhanced_events,
             )
 
             self.enhanced_cycles[cycle_key] = enhanced_cycle
@@ -111,12 +112,14 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
     def _infer_paged_status(self, event) -> Optional[bool]:
         """Infer if event resulted in paging based on metadata."""
         # Check priority level
-        if hasattr(event, 'priority') and event.priority and event.priority >= 3:
+        if hasattr(event, "priority") and event.priority and event.priority >= 3:
             return True
 
         # Check alert type
-        alert_type = event.raw.get('alert_type') or ''
-        if isinstance(alert_type, str) and ('error' in alert_type.lower() or 'critical' in alert_type.lower()):
+        alert_type = event.raw.get("alert_type") or ""
+        if isinstance(alert_type, str) and (
+            "error" in alert_type.lower() or "critical" in alert_type.lower()
+        ):
             return True
 
         return None
@@ -124,14 +127,14 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
     def _infer_severity_level(self, event) -> Optional[str]:
         """Infer severity level from event data."""
         # Check destination state
-        if hasattr(event, 'destination_state'):
-            state = (event.destination_state or '').upper()
-            if state == 'ALERT':
-                return 'HIGH'
-            elif state == 'WARN':
-                return 'MEDIUM'
-            elif state == 'OK':
-                return 'LOW'
+        if hasattr(event, "destination_state"):
+            state = (event.destination_state or "").upper()
+            if state == "ALERT":
+                return "HIGH"
+            elif state == "WARN":
+                return "MEDIUM"
+            elif state == "OK":
+                return "LOW"
 
         return None
 
@@ -172,14 +175,14 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
         return {
             "overall": overall,
             "per_monitor": per_monitor,
-            "classification_summary": self._generate_classification_summary()
+            "classification_summary": self._generate_classification_summary(),
         }
 
     def _compute_enhanced_monitor_quality(
         self,
         monitor_id: str,
         cycles: List[EnhancedAlertCycle],
-        classifications: Dict[str, Any]
+        classifications: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Compute enhanced quality metrics including classification results."""
         # Use the original alert cycles from the base class
@@ -187,52 +190,59 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
         base_metrics = self._compute_monitor_quality(monitor_id, original_cycles)
 
         # Add enhanced classification metrics
-        classification_summary = self.classifier.generate_classification_summary(classifications)
+        classification_summary = self.classifier.generate_classification_summary(
+            classifications
+        )
 
         enhanced_metrics = base_metrics.copy()
-        enhanced_metrics.update({
-            # Classification counts
-            "flapping_cycles": classification_summary["flapping_cycles"],
-            "benign_transient_cycles": classification_summary["benign_transient_cycles"],
-            "actionable_cycles": classification_summary["actionable_cycles"],
-
-            # Classification rates
-            "flapping_rate": classification_summary["flapping_rate"],
-            "benign_transient_rate": classification_summary["benign_transient_rate"],
-            "actionable_rate": classification_summary["actionable_rate"],
-
-            # Average classification confidence
-            "classification_confidence": classification_summary["avg_confidence"],
-
-            # Business hours analysis
-            "business_hours_cycles": sum(
-                1 for cycle in cycles if cycle.is_business_hours_cycle()
-            ),
-            "business_hours_percentage": (
-                sum(1 for cycle in cycles if cycle.is_business_hours_cycle()) /
-                max(len(cycles), 1) * 100
-            )
-        })
+        enhanced_metrics.update(
+            {
+                # Classification counts
+                "flapping_cycles": classification_summary["flapping_cycles"],
+                "benign_transient_cycles": classification_summary[
+                    "benign_transient_cycles"
+                ],
+                "actionable_cycles": classification_summary["actionable_cycles"],
+                # Classification rates
+                "flapping_rate": classification_summary["flapping_rate"],
+                "benign_transient_rate": classification_summary[
+                    "benign_transient_rate"
+                ],
+                "actionable_rate": classification_summary["actionable_rate"],
+                # Average classification confidence
+                "classification_confidence": classification_summary["avg_confidence"],
+                # Business hours analysis
+                "business_hours_cycles": sum(
+                    1 for cycle in cycles if cycle.is_business_hours_cycle()
+                ),
+                "business_hours_percentage": (
+                    sum(1 for cycle in cycles if cycle.is_business_hours_cycle())
+                    / max(len(cycles), 1)
+                    * 100
+                ),
+            }
+        )
 
         return enhanced_metrics
 
     def _aggregate_enhanced_quality_metrics(
-        self,
-        monitor_metrics: List[Dict[str, Any]]
+        self, monitor_metrics: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Aggregate enhanced quality metrics across monitors."""
         base_overall = self._aggregate_quality_metrics(monitor_metrics)
 
         if not monitor_metrics:
-            base_overall.update({
-                "total_flapping_cycles": 0,
-                "total_benign_transient_cycles": 0,
-                "total_actionable_cycles": 0,
-                "avg_flapping_rate": 0.0,
-                "avg_benign_transient_rate": 0.0,
-                "avg_actionable_rate": 0.0,
-                "avg_classification_confidence": 0.0
-            })
+            base_overall.update(
+                {
+                    "total_flapping_cycles": 0,
+                    "total_benign_transient_cycles": 0,
+                    "total_actionable_cycles": 0,
+                    "avg_flapping_rate": 0.0,
+                    "avg_benign_transient_rate": 0.0,
+                    "avg_actionable_rate": 0.0,
+                    "avg_classification_confidence": 0.0,
+                }
+            )
             return base_overall
 
         # Calculate enhanced aggregates
@@ -253,7 +263,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             "avg_flapping_rate": sum(flapping_rates) / len(flapping_rates),
             "avg_benign_transient_rate": sum(benign_rates) / len(benign_rates),
             "avg_actionable_rate": sum(actionable_rates) / len(actionable_rates),
-            "avg_classification_confidence": sum(confidences) / len(confidences)
+            "avg_classification_confidence": sum(confidences) / len(confidences),
         }
 
         base_overall.update(enhanced_metrics)
@@ -273,7 +283,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             "flapping_mitigation": [],
             "benign_transient_policies": [],
             "threshold_adjustments": [],
-            "automation_opportunities": []
+            "automation_opportunities": [],
         }
 
         for monitor_id, classifications in self.classification_results.items():
@@ -285,26 +295,36 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             for rec in monitor_recs:
                 rec_type = rec.get("type", "other")
                 if rec_type == "threshold_adjustment":
-                    recommendations["threshold_adjustments"].append({
-                        "monitor_id": monitor_id,
-                        "monitor_name": self._monitor_metrics.get(monitor_id, {}).get("monitor_name"),
-                        **rec
-                    })
+                    recommendations["threshold_adjustments"].append(
+                        {
+                            "monitor_id": monitor_id,
+                            "monitor_name": self._monitor_metrics.get(
+                                monitor_id, {}
+                            ).get("monitor_name"),
+                            **rec,
+                        }
+                    )
                 elif rec_type == "notification_policy":
-                    recommendations["benign_transient_policies"].append({
-                        "monitor_id": monitor_id,
-                        "monitor_name": self._monitor_metrics.get(monitor_id, {}).get("monitor_name"),
-                        **rec
-                    })
+                    recommendations["benign_transient_policies"].append(
+                        {
+                            "monitor_id": monitor_id,
+                            "monitor_name": self._monitor_metrics.get(
+                                monitor_id, {}
+                            ).get("monitor_name"),
+                            **rec,
+                        }
+                    )
 
         return recommendations
 
-    def create_weekly_snapshot(self, iso_week: Optional[str] = None) -> Tuple[List[WeeklyMonitorSnapshot], WeeklySummarySnapshot]:
+    def create_weekly_snapshot(
+        self, iso_week: Optional[str] = None
+    ) -> Tuple[List[WeeklyMonitorSnapshot], WeeklySummarySnapshot]:
         """Create weekly snapshots for trend analysis."""
         if iso_week is None:
             iso_week = get_current_iso_week()
 
-        year, week = iso_week.split('-W')
+        year, week = iso_week.split("-W")
         year, week = int(year), int(week)
 
         monitor_snapshots = []
@@ -317,16 +337,13 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
                 iso_week=iso_week,
                 year=year,
                 week=week,
-                metrics=metrics
+                metrics=metrics,
             )
             monitor_snapshots.append(snapshot)
 
         # Create summary snapshot
         summary_snapshot = WeeklySummarySnapshot.from_monitor_snapshots(
-            iso_week=iso_week,
-            year=year,
-            week=week,
-            monitor_snapshots=monitor_snapshots
+            iso_week=iso_week, year=year, week=week, monitor_snapshots=monitor_snapshots
         )
 
         return monitor_snapshots, summary_snapshot
@@ -337,9 +354,7 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
 
         current_week = iso_week or get_current_iso_week()
         self.snapshot_manager.save_weekly_snapshots(
-            current_week,
-            monitor_snapshots,
-            summary_snapshot
+            current_week, monitor_snapshots, summary_snapshot
         )
 
         # Cleanup old snapshots if enabled
@@ -349,13 +364,13 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             )
 
     def analyze_trends(
-        self,
-        current_week: Optional[str] = None,
-        lookback_weeks: Optional[int] = None
+        self, current_week: Optional[str] = None, lookback_weeks: Optional[int] = None
     ) -> Dict[str, Any]:
         """Analyze temporal trends across monitors."""
         current_week = current_week or get_current_iso_week()
-        lookback_weeks = lookback_weeks or self.config.trend_analysis.default_lookback_weeks
+        lookback_weeks = (
+            lookback_weeks or self.config.trend_analysis.default_lookback_weeks
+        )
 
         # Analyze overall trends
         trend_summary = self.trend_analyzer.analyze_overall_trends(
@@ -377,8 +392,10 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
             "analysis_period": {
                 "current_week": current_week,
                 "lookback_weeks": lookback_weeks,
-                "total_weeks_analyzed": len(self.snapshot_manager.get_available_weeks(lookback_weeks + 1))
-            }
+                "total_weeks_analyzed": len(
+                    self.snapshot_manager.get_available_weeks(lookback_weeks + 1)
+                ),
+            },
         }
 
     def generate_comprehensive_report(self) -> Dict[str, Any]:
@@ -417,6 +434,6 @@ class EnhancedDatadogEventsAnalyzer(DatadogEventsAnalyzer):
                 "analysis_period_days": self.analysis_period_days,
                 "classification_enabled": True,
                 "trend_analysis_enabled": self.config.enable_trend_analysis,
-                "min_weeks_for_trends": self.config.trend_analysis.min_weeks_for_trends
-            }
+                "min_weeks_for_trends": self.config.trend_analysis.min_weeks_for_trends,
+            },
         }

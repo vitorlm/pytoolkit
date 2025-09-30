@@ -6,6 +6,15 @@ This project provides a command-line interface (CLI) for managing various domain
 
 The project also includes tools to facilitate debugging using VS Code, making it easy to develop, debug, and extend the CLI functionalities.
 
+## Summary System
+
+PyToolkit includes a centralized summary system that emits standardized JSON summaries for command outputs. Domain-specific managers encapsulate summary generation to avoid duplication and ensure consistency, while preserving backward compatibility of metric formats and output paths.
+
+- JIRA: `domains.syngenta.jira.summary.jira_summary_manager.JiraSummaryManager`
+- Datadog: `domains.syngenta.datadog.summary.datadog_summary_manager.DatadogSummaryManager`
+
+Commands delegate summary emission to these managers (e.g., via `emit_summary_compatible`), keeping Markdown rendering and printing logic within the command.
+
 ## Project Structure
 
 Here is a brief description of the main components in this project:

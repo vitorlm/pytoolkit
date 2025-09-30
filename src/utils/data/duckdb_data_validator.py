@@ -161,9 +161,7 @@ class DuckDBDataValidator:
 
         all_keys = {key for record in records for key in record}
         for col in all_keys:
-            col_values = [
-                record[col] for record in records if col in record and record[col] is not None
-            ]
+            col_values = [record[col] for record in records if col in record and record[col] is not None]
             if not col_values:
                 schema[col] = "VARCHAR"
                 continue
@@ -173,9 +171,9 @@ class DuckDBDataValidator:
                 schema[col] = "VARCHAR"
 
             sample_type = types.pop()
-            if sample_type == bool:
+            if sample_type is bool:
                 schema[col] = "BOOLEAN"
-            elif sample_type == int:
+            elif sample_type is int:
                 min_val = min(col_values)
                 max_val = max(col_values)
                 if -128 <= min_val and max_val <= 127:
@@ -188,9 +186,9 @@ class DuckDBDataValidator:
                     schema[col] = "BIGINT"
                 else:
                     schema[col] = "HUGEINT"
-            elif sample_type == float:
+            elif sample_type is float:
                 schema[col] = "DOUBLE"
-            elif sample_type == str:
+            elif sample_type is str:
                 if all(self._is_valid_datetime(v) for v in col_values):
                     if all(self._is_date_only(v) for v in col_values):
                         schema[col] = "DATE"
@@ -202,22 +200,16 @@ class DuckDBDataValidator:
                     schema[col] = "VARCHAR"
                 else:
                     schema[col] = "VARCHAR"
-            elif sample_type == dict:
+            elif isinstance(sample_type, dict):
                 if all(self._is_valid_json(v) for v in col_values):
                     schema[col] = "VARCHAR"
-            elif sample_type == list:
-                lists = [
-                    record[col]
-                    for record in records
-                    if col in record and isinstance(record[col], list)
-                ]
+            elif isinstance(sample_type, list):
+                lists = [record[col] for record in records if col in record and isinstance(record[col], list)]
                 inner_values = []
                 for lst in lists:
                     inner_values.extend(lst)
                 if inner_values:
-                    inferred = {
-                        self._infer_value_type(item) for item in inner_values if item is not None
-                    }
+                    inferred = {self._infer_value_type(item) for item in inner_values if item is not None}
                     inner_type = inferred.pop() if len(inferred) == 1 else "VARCHAR"
                     schema[col] = f"{inner_type}[]"
                 else:

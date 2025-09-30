@@ -72,7 +72,9 @@ class OllamaAssistant:
         """
         self._logger.info(f"Generating text with model {self.model}")
         try:
-            response = self.client.generate(model=self.model, prompt=prompt, options=self.config)
+            response = self.client.generate(
+                model=self.model, prompt=prompt, options=self.config
+            )
             self._logger.debug(f"Generated response: {response}")
             return response["response"]
         except ResponseError as e:
@@ -119,7 +121,9 @@ class OllamaAssistant:
             self._logger.error(f"Invalid input for summarization: {e}", exc_info=True)
             raise
         except Exception as e:
-            self._logger.error(f"Unexpected error in summarize_text: {e}", exc_info=True)
+            self._logger.error(
+                f"Unexpected error in summarize_text: {e}", exc_info=True
+            )
             raise
 
     def translate_text(self, text: str, target_language: str) -> str:
@@ -197,8 +201,12 @@ class OllamaAssistant:
                 },
             ]
             response = self.generate_text(messages)
-            languages = response.split(",")  # Split response assuming it's a comma-separated list
-            return [lang.strip() for lang in languages]  # Clean whitespace around language names
+            languages = response.split(
+                ","
+            )  # Split response assuming it's a comma-separated list
+            return [
+                lang.strip() for lang in languages
+            ]  # Clean whitespace around language names
         except Exception as e:
             self._logger.error(f"Error in identify_languages: {e}", exc_info=True)
             raise

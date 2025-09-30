@@ -59,7 +59,9 @@ class JiraApiClient:
                 )
 
         # Handle unexpected content types
-        self.logger.warning(f"Unexpected content type: {response.headers.get('Content-Type')}")
+        self.logger.warning(
+            f"Unexpected content type: {response.headers.get('Content-Type')}"
+        )
         return {"raw_response": response.content.decode("utf-8", errors="replace")}
 
     def _request(self, method: str, endpoint: str, **kwargs):
@@ -78,24 +80,33 @@ class JiraApiClient:
         """
         url = f"{self.base_url}{endpoint}"
         try:
-            self.logger.info(f"Sending {method.upper()} request to {url} with kwargs {kwargs}")
-            response = requests.request(method, url, headers=self.headers, auth=self.auth, **kwargs)
+            self.logger.info(
+                f"Sending {method.upper()} request to {url} with kwargs {kwargs}"
+            )
+            response = requests.request(
+                method, url, headers=self.headers, auth=self.auth, **kwargs
+            )
             response.raise_for_status()
             return self._handle_response(response)
         except requests.RequestException as e:
             error_message = f"Failed to execute {method.upper()} request"
-            
+
             # Try to get detailed error message from response
-            if hasattr(e, 'response') and e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 try:
                     error_details = e.response.json()
                     if isinstance(error_details, dict):
                         # Extract meaningful error messages from JIRA response
-                        if 'errorMessages' in error_details and error_details['errorMessages']:
-                            error_message += f" - {'; '.join(error_details['errorMessages'])}"
-                        elif 'errors' in error_details and error_details['errors']:
+                        if (
+                            "errorMessages" in error_details
+                            and error_details["errorMessages"]
+                        ):
+                            error_message += (
+                                f" - {'; '.join(error_details['errorMessages'])}"
+                            )
+                        elif "errors" in error_details and error_details["errors"]:
                             error_details_str = []
-                            for field, message in error_details['errors'].items():
+                            for field, message in error_details["errors"].items():
                                 error_details_str.append(f"{field}: {message}")
                             error_message += f" - {'; '.join(error_details_str)}"
                 except (ValueError, AttributeError):
@@ -103,10 +114,12 @@ class JiraApiClient:
                     try:
                         raw_text = e.response.text
                         if raw_text:
-                            error_message += f" - Response: {raw_text[:500]}..."  # Limit length
+                            error_message += (
+                                f" - Response: {raw_text[:500]}..."  # Limit length
+                            )
                     except AttributeError:
                         pass
-            
+
             self.logger.error(f"{method.upper()} request failed: {error_message}")
             raise JiraApiRequestError(
                 message=error_message,

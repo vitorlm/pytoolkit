@@ -3,14 +3,46 @@ from __future__ import annotations
 import os
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Any, Dict, List, Mapping, Optional, TypedDict, cast
 
+import requests
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
 
 from .datadog_software_service import DatadogSoftwareService
+
+
+class TeamStats(TypedDict):
+    count: int
+
+
+class ServiceEntry(TypedDict, total=False):
+    id: Optional[str]
+    name: Optional[str]
+    owner: str
+    links: Dict[str, str]
+    env_facets: List[str]
+    notes: List[str]
+
+
+class TeamReport(TypedDict):
+    team: str
+    services: List[ServiceEntry]
+    stats: TeamStats
+
+
+class ReportPayload(TypedDict):
+    site: str
+    queried_teams: List[str]
+    teams: List[TeamReport]
+    generated_at: str
+
+
+class TeamSummary(TypedDict):
+    team: str
+    count: int
 
 
 class TeamsSoftwareCommand(BaseCommand):
@@ -50,7 +82,7 @@ class TeamsSoftwareCommand(BaseCommand):
             type=str,
             required=True,
             help=(
-                'Comma-separated Datadog team handles, e.g. '
+                "Comma-separated Datadog team handles, e.g. "
                 '"cropwise-core-services-catalog,cropwise-core-services-identity"'
             ),
         )
@@ -107,17 +139,18 @@ class TeamsSoftwareCommand(BaseCommand):
                 cache_ttl_minutes=30,
             )
 
-            payload: Dict[str, object] = {
+            teams_payload: List[TeamReport] = []
+            payload: ReportPayload = {
                 "site": site,
-                "queried_teams": teams,
-                "teams": [],
+                "queried_teams": list(teams),
+                "teams": teams_payload,
                 "generated_at": datetime.now(timezone.utc).isoformat(),
             }
 
             total_services = 0
             teams_found = 0
             fallbacks_used: List[str] = []
-            per_team_stats: List[Dict[str, object]] = []
+            per_team_stats: List[TeamSummary] = []
 
             for handle in teams:
                 team_info = None if args.no_validate_teams else service.get_team(handle)
@@ -126,31 +159,59 @@ class TeamsSoftwareCommand(BaseCommand):
                 else:
                     teams_found += 1
 
-                services, meta = service.list_services_for_team(handle)
-                if meta.get("fallback"):
+                services_raw, meta_raw = service.list_services_for_team(handle)
+                services = cast(List[Mapping[str, Any]], services_raw)
+                meta = cast(Dict[str, Any], meta_raw)
+                if meta.get("fallback") is not None:
                     fallbacks_used.append(str(meta["fallback"]))
 
-                normalized = []
-                for s in services:
+                normalized: List[ServiceEntry] = []
+                for service_record in services:
+                    identifier = service_record.get("id")
+                    service_id = str(identifier) if identifier is not None else None
+
+                    name_value = service_record.get("name")
+                    service_name = str(name_value) if isinstance(name_value, str) and name_value else None
+
+                    owner_value = service_record.get("owner")
+                    owner = str(owner_value) if isinstance(owner_value, str) and owner_value else handle
+
+                    raw_links = service_record.get("links")
+                    links: Dict[str, str] = {}
+                    if isinstance(raw_links, Mapping):
+                        links = {
+                            str(key): str(value)
+                            for key, value in raw_links.items()
+                            if isinstance(key, str) and isinstance(value, str)
+                        }
+
+                    raw_env_facets = service_record.get("env_facets")
+                    env_facets: List[str] = []
+                    if isinstance(raw_env_facets, list):
+                        env_facets = [str(item) for item in raw_env_facets if isinstance(item, str)]
+
+                    raw_notes = service_record.get("notes")
+                    notes: List[str] = []
+                    if isinstance(raw_notes, list):
+                        notes = [str(note) for note in raw_notes if isinstance(note, str)]
+
                     normalized.append(
                         {
-                            "id": s.get("id"),
-                            "name": s.get("name") or s.get("id"),
-                            "owner": s.get("owner") or handle,
-                            "links": s.get("links") or {},
-                            "env_facets": s.get("env_facets") or [],
-                            "notes": [],
+                            "id": service_id,
+                            "name": service_name or service_id,
+                            "owner": owner,
+                            "links": links,
+                            "env_facets": env_facets,
+                            "notes": notes,
                         }
                     )
 
                 total_services += len(normalized)
-                team_entry = (
-                    {
-                        "team": handle,
-                        "services": normalized,
-                        "stats": {"count": len(normalized)},
-                    }
-                )
+                team_entry: TeamReport = {
+                    "team": handle,
+                    "services": normalized,
+                    "stats": {"count": len(normalized)},
+                }
                 payload["teams"].append(team_entry)
                 per_team_stats.append({"team": handle, "count": len(normalized)})
 
@@ -221,12 +282,12 @@ class TeamsSoftwareCommand(BaseCommand):
         return out
 
     @staticmethod
-    def _to_markdown(payload: Dict[str, object]) -> str:
+    def _to_markdown(payload: ReportPayload) -> str:
         lines: List[str] = []
-        site = payload.get("site", "-")
-        teams: List[Dict[str, object]] = payload.get("teams", [])  # type: ignore[assignment]
+        site = payload["site"]
+        teams = payload["teams"]
 
-        total_services = sum(int((t.get("stats") or {}).get("count", 0)) for t in teams)
+        total_services = sum(team["stats"]["count"] for team in teams)
         lines.append("## Datadog Teams → Software Services")
         lines.append("")
         lines.append(f"- Site: `{site}`")
@@ -234,30 +295,37 @@ class TeamsSoftwareCommand(BaseCommand):
         lines.append(f"- Services discovered: {total_services}")
         lines.append("")
 
-        for t in teams:
-            team_handle = str(t.get("team", ""))
+        for team_report in teams:
+            team_handle = team_report["team"]
             lines.append(f"### Team: {team_handle}")
             lines.append("")
             lines.append("| Service | Owner | Links | Notes |")
             lines.append("|---|---|---|---|")
-            for s in t.get("services", []):
-                s_name = s.get("name") or s.get("id") or "-"
-                owner = s.get("owner") or team_handle
-                links = s.get("links") or {}
-                link_md_parts = []
+            for service_entry in team_report["services"]:
+                resolved_name = service_entry.get("name") or service_entry.get("id") or "-"
+                owner = service_entry.get("owner") or team_handle
+                links = service_entry.get("links", {})
+                link_md_parts: List[str] = []
                 for key in ("docs", "repo", "runbook"):
                     url = links.get(key)
                     if isinstance(url, str) and url:
                         link_md_parts.append(f"[{key}]({url})")
                 links_md = ", ".join(link_md_parts) if link_md_parts else "-"
-                notes = ", ".join(s.get("notes") or []) if isinstance(s.get("notes"), list) else ""
-                lines.append(f"| {s_name} | {owner} | {links_md} | {notes} |")
+                notes_list = service_entry.get("notes", [])
+                notes_text = ", ".join(notes_list) if notes_list else ""
+                lines.append(f"| {resolved_name} | {owner} | {links_md} | {notes_text} |")
             lines.append("")
         return "\n".join(lines)
 
     @staticmethod
     def _print_executive_summary(
-        *, site: str, queried: int, valid: int, total_services: int, fallbacks: List[str], per_team: List[Dict[str, object]]
+        *,
+        site: str,
+        queried: int,
+        valid: int,
+        total_services: int,
+        fallbacks: List[str],
+        per_team: List[TeamSummary],
     ):
         header = f"📡 DATADOG TEAMS → SOFTWARE (site: {site})"
         print("\n" + "=" * len(header))
@@ -270,7 +338,7 @@ class TeamsSoftwareCommand(BaseCommand):
             print(f"- Fallbacks used: {', '.join(fallbacks)}")
         # Per-team one-liners
         for row in per_team:
-            t = row.get("team")
-            c = row.get("count")
-            print(f"  • {t}: {c} services")
+            team = row["team"]
+            count = row["count"]
+            print(f"  • {team}: {count} services")
         print("=" * len(header))

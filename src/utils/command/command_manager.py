@@ -27,7 +27,9 @@ class CommandManager:
         """
         Dynamically loads all commands inheriting BaseCommand and builds the hierarchy.
         """
-        self._logger.debug(f"Starting to load commands from base path: {self.base_path}")
+        self._logger.debug(
+            f"Starting to load commands from base path: {self.base_path}"
+        )
 
         for root, _, _ in os.walk(self.base_path):
             if not os.path.isfile(os.path.join(root, "__init__.py")):
@@ -37,10 +39,14 @@ class CommandManager:
             for _, module_name, _ in pkgutil.iter_modules([root]):
                 try:
                     absolute_module_path = os.path.join(root, module_name)
-                    if FileManager.is_folder(absolute_module_path) and not os.path.isfile(
+                    if FileManager.is_folder(
+                        absolute_module_path
+                    ) and not os.path.isfile(
                         os.path.join(absolute_module_path, "__init__.py")
                     ):
-                        self._logger.debug(f"Skipping non-package module: {absolute_module_path}")
+                        self._logger.debug(
+                            f"Skipping non-package module: {absolute_module_path}"
+                        )
                         continue
 
                     self._logger.debug(f"Processing module: {module_name} in {root}")
@@ -167,9 +173,13 @@ class CommandManager:
 
             return parser
         except Exception as e:
-            raise CommandManagerError(message="Failed to build argument parser hierarchy", error=e)
+            raise CommandManagerError(
+                message="Failed to build argument parser hierarchy", error=e
+            )
 
-    def _add_subparser(self, subparsers: _SubParsersAction, name: str, substructure: Dict):
+    def _add_subparser(
+        self, subparsers: _SubParsersAction, name: str, substructure: Dict
+    ):
         """
         Recursively adds subparsers for domains, subdomains, and commands.
         """

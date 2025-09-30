@@ -50,7 +50,9 @@ class JiraProcessor:
             f"AND 'Squad[Dropdown]' = '{team_name}' AND ("
             f"'Start date' is EMPTY OR 'End date' is EMPTY)"
         )
-        self._logger.info(f"Fetching epics for project '{project_name}', team '{team_name}'.")
+        self._logger.info(
+            f"Fetching epics for project '{project_name}', team '{team_name}'."
+        )
         try:
             # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
             # Our fetch_issues method handles pagination automatically to get all results
@@ -63,7 +65,9 @@ class JiraProcessor:
         except JiraQueryError as e:
             raise JiraQueryError("Error fetching epics", jql=jql_query, error=str(e))
 
-    def _analyze_changelog(self, changelog: List[Dict]) -> Tuple[Optional[date], Optional[date]]:
+    def _analyze_changelog(
+        self, changelog: List[Dict]
+    ) -> Tuple[Optional[date], Optional[date]]:
         """
         Analyzes changelog to extract inferred start and end dates.
         """
@@ -107,7 +111,9 @@ class JiraProcessor:
                 ):
                     start_date, end_date = self._analyze_changelog(changelog)
                     if start_date or end_date:
-                        self._update_epic_dates(issue_key, start_date=start_date, end_date=end_date)
+                        self._update_epic_dates(
+                            issue_key, start_date=start_date, end_date=end_date
+                        )
         except JiraQueryError as e:
             self._logger.error(f"Error fetching epics: {e}", exc_info=True)
             raise JiraManagerError("Failed to fetch epics.", error=str(e))
@@ -116,7 +122,10 @@ class JiraProcessor:
             raise JiraManagerError("An unexpected error occurred.", error=str(e))
 
     def _update_epic_dates(
-        self, issue_key: str, start_date: Optional[date] = None, end_date: Optional[date] = None
+        self,
+        issue_key: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
     ):
         """
         Updates the dates of a specific epic.
@@ -131,7 +140,9 @@ class JiraProcessor:
             self.jira_assistant.client.put(f"issue/{issue_key}", payload)
             self._logger.info(f"Updated epic '{issue_key}' with dates: {payload}")
         except Exception as e:
-            self._logger.error(f"Unexpected error occurred while updating epic '{issue_key}': {e}")
+            self._logger.error(
+                f"Unexpected error occurred while updating epic '{issue_key}': {e}"
+            )
             raise JiraManagerError(
                 f"Unexpected error occurred while updating epic '{issue_key}'",
                 payload=payload,
@@ -143,8 +154,12 @@ class JiraProcessor:
         Fetches a list of all custom fields available in Jira.
         """
         try:
-            self._logger.info("Fetching custom fields using the /field/search endpoint.")
-            fields_data = self.jira_assistant.client.get("field/search", params={"type": "custom"})
+            self._logger.info(
+                "Fetching custom fields using the /field/search endpoint."
+            )
+            fields_data = self.jira_assistant.client.get(
+                "field/search", params={"type": "custom"}
+            )
             custom_fields = [
                 {
                     "id": field["id"],

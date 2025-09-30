@@ -93,7 +93,9 @@ Note: Reports are automatically downloaded to the specified output folder with
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument("--team-ids", type=str, help="Comma-separated team IDs to filter by")
+        parser.add_argument(
+            "--team-ids", type=str, help="Comma-separated team IDs to filter by"
+        )
 
         parser.add_argument(
             "--time-range",
@@ -274,7 +276,9 @@ Note: Reports are automatically downloaded to the specified output folder with
                 elif download_error:
                     logger.warning("⚠️  Export succeeded but download failed:")
                     logger.warning(f"Error: {download_error}")
-                    logger.info("You can still download the report manually using the URL above.")
+                    logger.info(
+                        "You can still download the report manually using the URL above."
+                    )
                 else:
                     logger.info("You can download the report using the provided URL.")
                     logger.info("The report will be available for a limited time.")

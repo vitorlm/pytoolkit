@@ -8,15 +8,15 @@ from utils.command.base_command import BaseCommand
 
 class CircleCICommand(BaseCommand):
     """Main CircleCI domain command that provides subcommands"""
-    
+
     @staticmethod
     def get_name() -> str:
         return "circleci"
-    
+
     @staticmethod
     def get_description() -> str:
         return "CircleCI pipeline analysis and optimization tools"
-    
+
     @staticmethod
     def get_help() -> str:
         return """
@@ -41,24 +41,23 @@ Examples:
   # Quick summary analysis
   python src/main.py circleci circleci-analyze --project-slug gh/org/repo --summary-only
         """
-    
+
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         # No domain-level arguments
         pass
-    
+
     @staticmethod
     def add_subcommands(parser: ArgumentParser):
         from .circleci_analysis_command import CircleCIAnalysisCommand
-        
+
         subparsers = parser.add_subparsers(
-            dest="circleci_command",
-            help="CircleCI commands"
+            dest="circleci_command", help="CircleCI commands"
         )
-        
+
         # Register analysis command
         CircleCIAnalysisCommand.register_command(subparsers)
-    
+
     @staticmethod
     def main(args):
         # This should not be called directly since this is a parent command

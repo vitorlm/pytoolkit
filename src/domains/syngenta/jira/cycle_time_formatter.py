@@ -28,24 +28,42 @@ class CycleTimeFormatter:
         metrics = results.get("metrics", {})
 
         # Wrap each section in try-catch to prevent one section from breaking the entire display
-        self._safe_print_section("Header", lambda: self._print_header(metadata, metrics))
-        self._safe_print_section("Executive Summary", lambda: self._print_executive_summary(metrics))
+        self._safe_print_section(
+            "Header", lambda: self._print_header(metadata, metrics)
+        )
+        self._safe_print_section(
+            "Executive Summary", lambda: self._print_executive_summary(metrics)
+        )
         self._safe_print_section("Metrics", lambda: self._print_metrics(metrics))
-        self._safe_print_section("Robust Statistics & Outliers", lambda: self._print_outlier_analysis(metrics))
+        self._safe_print_section(
+            "Robust Statistics & Outliers",
+            lambda: self._print_outlier_analysis(metrics),
+        )
         self._safe_print_section("SLE Targets", lambda: self._print_sle_targets())
-        self._safe_print_section("SLE Compliance", lambda: self._print_sle_compliance(results))
-        self._safe_print_section("Time Distribution", lambda: self._print_time_distribution(metrics))
-        self._safe_print_section("Priority Breakdown", lambda: self._print_priority_breakdown(metrics))
+        self._safe_print_section(
+            "SLE Compliance", lambda: self._print_sle_compliance(results)
+        )
+        self._safe_print_section(
+            "Time Distribution", lambda: self._print_time_distribution(metrics)
+        )
+        self._safe_print_section(
+            "Priority Breakdown", lambda: self._print_priority_breakdown(metrics)
+        )
 
         # Print trending analysis if available
         trending_analysis = results.get("trending_analysis")
         if trending_analysis:
             self._safe_print_section(
-                "Trending Analysis", lambda: self._print_trending_analysis(trending_analysis, metrics)
+                "Trending Analysis",
+                lambda: self._print_trending_analysis(trending_analysis, metrics),
             )
 
-        self._safe_print_section("Performance Analysis", lambda: self._print_performance_analysis(metrics))
-        self._safe_print_section("Sample Issues", lambda: self._print_sample_issues(results))
+        self._safe_print_section(
+            "Performance Analysis", lambda: self._print_performance_analysis(metrics)
+        )
+        self._safe_print_section(
+            "Sample Issues", lambda: self._print_sample_issues(results)
+        )
         self._safe_print_section("Footer", lambda: self._print_footer())
 
     def _safe_print_section(self, section_name: str, print_func):
@@ -100,53 +118,81 @@ class CycleTimeFormatter:
         robust_cycle_stats = metrics.get("robust_cycle_stats", {})
         robust_lead_stats = metrics.get("robust_lead_stats", {})
 
-        median_cycle_time = robust_cycle_stats.get("robust_median", metrics.get("median_cycle_time_hours", 0))
+        median_cycle_time = robust_cycle_stats.get(
+            "robust_median", metrics.get("median_cycle_time_hours", 0)
+        )
         median_cycle_days = median_cycle_time / 24
-        median_lead_time = robust_lead_stats.get("robust_median", metrics.get("median_lead_time_hours", 0))
+        median_lead_time = robust_lead_stats.get(
+            "robust_median", metrics.get("median_lead_time_hours", 0)
+        )
         median_lead_days = median_lead_time / 24
 
-        perf_emoji = self._get_performance_emoji(median_cycle_time)  # Use median for performance assessment
+        perf_emoji = self._get_performance_emoji(
+            median_cycle_time
+        )  # Use median for performance assessment
         performance = self._get_performance_text(median_cycle_time)
 
         # Check for outliers to guide which metrics to emphasize
         cycle_outliers = robust_cycle_stats.get("outliers_detected", 0)
         lead_outliers = robust_lead_stats.get("outliers_detected", 0)
         total_issues = metrics.get("total_issues", 0)
-        outlier_rate = ((cycle_outliers + lead_outliers) / (total_issues * 2) * 100) if total_issues > 0 else 0
+        outlier_rate = (
+            ((cycle_outliers + lead_outliers) / (total_issues * 2) * 100)
+            if total_issues > 0
+            else 0
+        )
 
         print(f"\n{perf_emoji} EXECUTIVE SUMMARY")
         print("-" * 40)
 
         # Emphasize robust metrics when outliers are present
         if outlier_rate > 10:  # If >10% outlier rate, emphasize robust metrics
-            print(f"⏱️  Median Cycle Time: {median_cycle_time:.1f} hours ({median_cycle_days:.1f} days) 📊")
-            print(f"🔄 Median Lead Time: {median_lead_time:.1f} hours ({median_lead_days:.1f} days) 📊")
+            print(
+                f"⏱️  Median Cycle Time: {median_cycle_time:.1f} hours ({median_cycle_days:.1f} days) 📊"
+            )
+            print(
+                f"🔄 Median Lead Time: {median_lead_time:.1f} hours ({median_lead_days:.1f} days) 📊"
+            )
             print(f"📈 Performance: {performance} (robust metrics recommended)")
             print(f"⚠️  Outlier Rate: {outlier_rate:.1f}% - Using robust statistics")
         else:
-            print(f"⏱️  Average Cycle Time: {avg_cycle_time:.1f} hours ({avg_days:.1f} days)")
-            print(f"🔄 Average Lead Time: {avg_lead_time:.1f} hours ({avg_lead_days:.1f} days)")
+            print(
+                f"⏱️  Average Cycle Time: {avg_cycle_time:.1f} hours ({avg_days:.1f} days)"
+            )
+            print(
+                f"🔄 Average Lead Time: {avg_lead_time:.1f} hours ({avg_lead_days:.1f} days)"
+            )
             print(f"📈 Performance: {performance}")
 
         print(f"📋 Total Issues: {total_issues}")
-        print(f"✅ With Valid Cycle Time: {metrics.get('issues_with_valid_cycle_time', 0)}")
+        print(
+            f"✅ With Valid Cycle Time: {metrics.get('issues_with_valid_cycle_time', 0)}"
+        )
 
         # Show anomaly information
         anomaly_count = metrics.get("zero_cycle_time_anomalies", 0)
         anomaly_percentage = metrics.get("anomaly_percentage", 0)
         if anomaly_count > 0:
-            print(f"🚨 Zero Cycle Time Anomalies: {anomaly_count} ({anomaly_percentage:.1f}%)")
+            print(
+                f"🚨 Zero Cycle Time Anomalies: {anomaly_count} ({anomaly_percentage:.1f}%)"
+            )
 
         # Show robust metrics summary
         if cycle_outliers > 0 or lead_outliers > 0:
             print("\n📊 ROBUST METRICS SUMMARY:")
-            print(f"🎯 Median: {median_cycle_time:.1f}h (cycle), {median_lead_time:.1f}h (lead)")
+            print(
+                f"🎯 Median: {median_cycle_time:.1f}h (cycle), {median_lead_time:.1f}h (lead)"
+            )
             if cycle_outliers > 0:
                 p95_cycle = robust_cycle_stats.get("percentile_95", 0)
-                print(f"📈 95th Percentile Cycle Time: {p95_cycle:.1f}h ({p95_cycle / 24:.1f}d)")
+                print(
+                    f"📈 95th Percentile Cycle Time: {p95_cycle:.1f}h ({p95_cycle / 24:.1f}d)"
+                )
             if lead_outliers > 0:
                 p95_lead = robust_lead_stats.get("percentile_95", 0)
-                print(f"📈 95th Percentile Lead Time: {p95_lead:.1f}h ({p95_lead / 24:.1f}d)")
+                print(
+                    f"📈 95th Percentile Lead Time: {p95_lead:.1f}h ({p95_lead / 24:.1f}d)"
+                )
 
     def _print_metrics(self, metrics: dict) -> None:
         """Print cycle time and lead time metrics."""
@@ -192,11 +238,16 @@ class CycleTimeFormatter:
         if cycle_outliers > 0:
             print("\n🚨 CYCLE TIME OUTLIERS DETECTED:")
             print(f"📊 Method: {cycle_method}")
-            print(f"🔢 Count: {cycle_outliers} outliers ({cycle_outlier_pct:.1f}% of data)")
+            print(
+                f"🔢 Count: {cycle_outliers} outliers ({cycle_outlier_pct:.1f}% of data)"
+            )
 
             outlier_values = robust_cycle_stats.get("outlier_values", [])
             if outlier_values:
-                outlier_days = [f"{val:.1f}h ({val / 24:.1f}d)" for val in sorted(outlier_values, reverse=True)]
+                outlier_days = [
+                    f"{val:.1f}h ({val / 24:.1f}d)"
+                    for val in sorted(outlier_values, reverse=True)
+                ]
                 print(f"📈 Outlier Values: {', '.join(outlier_days[:5])}")  # Show top 5
                 if len(outlier_values) > 5:
                     print(f"   ... and {len(outlier_values) - 5} more")
@@ -211,11 +262,16 @@ class CycleTimeFormatter:
         if lead_outliers > 0:
             print("\n🚨 LEAD TIME OUTLIERS DETECTED:")
             print(f"📊 Method: {lead_method}")
-            print(f"🔢 Count: {lead_outliers} outliers ({lead_outlier_pct:.1f}% of data)")
+            print(
+                f"🔢 Count: {lead_outliers} outliers ({lead_outlier_pct:.1f}% of data)"
+            )
 
             outlier_values = robust_lead_stats.get("outlier_values", [])
             if outlier_values:
-                outlier_days = [f"{val:.1f}h ({val / 24:.1f}d)" for val in sorted(outlier_values, reverse=True)]
+                outlier_days = [
+                    f"{val:.1f}h ({val / 24:.1f}d)"
+                    for val in sorted(outlier_values, reverse=True)
+                ]
                 print(f"📈 Outlier Values: {', '.join(outlier_days[:5])}")  # Show top 5
                 if len(outlier_values) > 5:
                     print(f"   ... and {len(outlier_values) - 5} more")
@@ -264,20 +320,28 @@ class CycleTimeFormatter:
         # Recommendations based on outlier analysis
         total_outliers = cycle_outliers + lead_outliers
         total_issues = metrics.get("total_issues", 0)
-        overall_outlier_pct = (total_outliers / total_issues * 100) if total_issues > 0 else 0
+        overall_outlier_pct = (
+            (total_outliers / total_issues * 100) if total_issues > 0 else 0
+        )
 
         print("\n💡 STATISTICAL RECOMMENDATIONS:")
         if overall_outlier_pct > 20:
-            print(f"🔴 HIGH OUTLIER RATE ({overall_outlier_pct:.1f}%): Consider process review")
+            print(
+                f"🔴 HIGH OUTLIER RATE ({overall_outlier_pct:.1f}%): Consider process review"
+            )
             print("   • Investigate issues with extreme cycle/lead times")
             print("   • Review workflow bottlenecks and approval processes")
             print("   • Consider separate analysis for different issue complexities")
         elif overall_outlier_pct > 10:
-            print(f"🟡 MODERATE OUTLIER RATE ({overall_outlier_pct:.1f}%): Monitor trends")
+            print(
+                f"🟡 MODERATE OUTLIER RATE ({overall_outlier_pct:.1f}%): Monitor trends"
+            )
             print("   • Track outlier patterns over time")
             print("   • Consider using robust metrics (median, percentiles) for KPIs")
         else:
-            print(f"🟢 LOW OUTLIER RATE ({overall_outlier_pct:.1f}%): Process is stable")
+            print(
+                f"🟢 LOW OUTLIER RATE ({overall_outlier_pct:.1f}%): Process is stable"
+            )
             print("   • Current process shows consistent performance")
             print("   • Outliers are within expected range for software development")
 
@@ -308,8 +372,12 @@ class CycleTimeFormatter:
                 cycle_time = issue.get("cycle_time_hours", 0)
                 lead_time = issue.get("lead_time_hours", 0)
 
-                cycle_compliance = self.sle_config.check_sle_compliance(priority, cycle_time)
-                lead_compliance = self.sle_config.check_sle_compliance(priority, lead_time)
+                cycle_compliance = self.sle_config.check_sle_compliance(
+                    priority, cycle_time
+                )
+                lead_compliance = self.sle_config.check_sle_compliance(
+                    priority, lead_time
+                )
 
                 if cycle_compliance["is_compliant"]:
                     sle_compliant_cycle += 1
@@ -326,11 +394,25 @@ class CycleTimeFormatter:
                 sle_compliant_lead += 1
 
         if total_issues_analyzed > 0:
-            cycle_compliance_rate = (sle_compliant_cycle / len(issues)) * 100 if issues else 0
+            cycle_compliance_rate = (
+                (sle_compliant_cycle / len(issues)) * 100 if issues else 0
+            )
             lead_compliance_rate = (sle_compliant_lead / total_issues_analyzed) * 100
 
-            cycle_emoji = "✅" if cycle_compliance_rate >= 80 else "⚠️" if cycle_compliance_rate >= 60 else "❌"
-            lead_emoji = "✅" if lead_compliance_rate >= 80 else "⚠️" if lead_compliance_rate >= 60 else "❌"
+            cycle_emoji = (
+                "✅"
+                if cycle_compliance_rate >= 80
+                else "⚠️"
+                if cycle_compliance_rate >= 60
+                else "❌"
+            )
+            lead_emoji = (
+                "✅"
+                if lead_compliance_rate >= 80
+                else "⚠️"
+                if lead_compliance_rate >= 60
+                else "❌"
+            )
 
             print(
                 f"{cycle_emoji} Cycle Time SLE Compliance: {sle_compliant_cycle}/{len(issues)} ({cycle_compliance_rate:.1f}%)"
@@ -372,7 +454,8 @@ class CycleTimeFormatter:
 
             # Sort by average cycle time
             sorted_priorities = sorted(
-                priority_breakdown.items(), key=lambda x: x[1].get("average_cycle_time_hours", 0)
+                priority_breakdown.items(),
+                key=lambda x: x[1].get("average_cycle_time_hours", 0),
             )
 
             for priority, p_metrics in sorted_priorities:
@@ -388,18 +471,30 @@ class CycleTimeFormatter:
                 priority_emoji = self._get_priority_emoji(priority)
 
                 # SLE compliance check for both cycle time and lead time
-                cycle_sle_compliance = self.sle_config.check_sle_compliance(priority, avg_hours)
-                lead_sle_compliance = self.sle_config.check_sle_compliance(priority, avg_lead_hours)
+                cycle_sle_compliance = self.sle_config.check_sle_compliance(
+                    priority, avg_hours
+                )
+                lead_sle_compliance = self.sle_config.check_sle_compliance(
+                    priority, avg_lead_hours
+                )
                 cycle_sle_emoji = self.sle_config.get_sle_emoji(priority, avg_hours)
                 lead_sle_emoji = self.sle_config.get_sle_emoji(priority, avg_lead_hours)
                 sle_target_hours = cycle_sle_compliance["target_hours"]
                 sle_target_days = cycle_sle_compliance["target_days"]
 
                 print(f"{priority_emoji} {priority}: {count} issues")
-                print(f"    Cycle Time: {avg_hours:.1f}h ({avg_days:.1f}d) {cycle_sle_emoji}")
-                print(f"    Lead Time: {avg_lead_hours:.1f}h ({avg_lead_days:.1f}d) {lead_sle_emoji}")
-                print(f"    SLE Target: {sle_target_hours:.0f}h ({sle_target_days:.1f}d)")
-                print(f"    Cycle: {cycle_sle_compliance['status']} | Lead: {lead_sle_compliance['status']}")
+                print(
+                    f"    Cycle Time: {avg_hours:.1f}h ({avg_days:.1f}d) {cycle_sle_emoji}"
+                )
+                print(
+                    f"    Lead Time: {avg_lead_hours:.1f}h ({avg_lead_days:.1f}d) {lead_sle_emoji}"
+                )
+                print(
+                    f"    SLE Target: {sle_target_hours:.0f}h ({sle_target_days:.1f}d)"
+                )
+                print(
+                    f"    Cycle: {cycle_sle_compliance['status']} | Lead: {lead_sle_compliance['status']}"
+                )
                 print()
 
     def _print_performance_analysis(self, metrics: dict) -> None:
@@ -410,8 +505,12 @@ class CycleTimeFormatter:
         avg_cycle_time = metrics.get("average_cycle_time_hours", 0)
 
         if avg_cycle_time < 24:
-            print("✅ Excellent performance! Fast resolution times indicate efficient processes.")
-            print("💡 Continue current practices and share success patterns with other teams.")
+            print(
+                "✅ Excellent performance! Fast resolution times indicate efficient processes."
+            )
+            print(
+                "💡 Continue current practices and share success patterns with other teams."
+            )
         elif avg_cycle_time < 72:
             print("🟡 Good performance with opportunities for optimization.")
             print("💡 Analyze top performers and eliminate minor bottlenecks.")
@@ -433,7 +532,9 @@ class CycleTimeFormatter:
 
         # Show valid issues
         if issues:
-            valid_issues = [issue for issue in issues if issue.get("has_valid_cycle_time", False)]
+            valid_issues = [
+                issue for issue in issues if issue.get("has_valid_cycle_time", False)
+            ]
             if valid_issues:
                 self._print_cycle_time_analysis(valid_issues)
                 self._print_lead_time_analysis(valid_issues)
@@ -442,7 +543,9 @@ class CycleTimeFormatter:
         """Print anomaly details."""
         print("\n🚨 ZERO CYCLE TIME ANOMALIES")
         print("-" * 40)
-        print(f"Found {len(anomalies)} issues with 0.0h cycle time (batch updates/admin closures)")
+        print(
+            f"Found {len(anomalies)} issues with 0.0h cycle time (batch updates/admin closures)"
+        )
         print("Using lead time as alternative metric:")
         print("\n📋 ANOMALY DETAILS (showing Lead Time, not Cycle Time):")
 
@@ -455,7 +558,9 @@ class CycleTimeFormatter:
             lead_time_days = issue.get("lead_time_days", 0)
             priority = issue.get("priority")
             summary = issue.get("summary", "N/A")
-            batch_indicator = " 🔄" if issue.get("has_batch_update_pattern", False) else " 📋"
+            batch_indicator = (
+                " 🔄" if issue.get("has_batch_update_pattern", False) else " 📋"
+            )
             priority_prefix = self._get_priority_prefix(priority or "Unknown")
             if len(summary) > 60:
                 summary = summary[:57] + "..."
@@ -489,7 +594,9 @@ class CycleTimeFormatter:
         print("-" * 40)
 
         # Sort by lead time
-        sorted_by_lead_time = sorted(valid_issues, key=lambda x: x.get("lead_time_hours", 0))
+        sorted_by_lead_time = sorted(
+            valid_issues, key=lambda x: x.get("lead_time_hours", 0)
+        )
 
         print("⚡ Fastest 3 Issues (Lead Time):")
         for i, issue in enumerate(sorted_by_lead_time[:3], 1):
@@ -519,7 +626,9 @@ class CycleTimeFormatter:
         if len(summary) > 60:
             summary = summary[:57] + "..."
 
-        print(f"  {index}. {priority_prefix}[{issue_key}] {summary}: {time_hours:.1f}h ({time_days:.1f}d) {sle_emoji}")
+        print(
+            f"  {index}. {priority_prefix}[{issue_key}] {summary}: {time_hours:.1f}h ({time_days:.1f}d) {sle_emoji}"
+        )
 
     def _print_footer(self) -> None:
         """Print report footer."""
@@ -529,7 +638,9 @@ class CycleTimeFormatter:
         print("💡 Use --enable-trending for trend analysis and alerts")
         print("=" * 80)
 
-    def _print_trending_analysis(self, trending_analysis: dict, current_metrics: dict = None) -> None:
+    def _print_trending_analysis(
+        self, trending_analysis: dict, current_metrics: dict = None
+    ) -> None:
         """Print trending analysis section."""
         print("\n📈 TRENDING ANALYSIS")
         print("=" * 80)
@@ -539,8 +650,14 @@ class CycleTimeFormatter:
         baseline_period = trending_analysis.get("baseline_period", {})
 
         # Extract current period issue counts
-        current_total_issues = current_metrics.get("total_issues", 0) if current_metrics else 0
-        current_valid_issues = current_metrics.get("issues_with_valid_cycle_time", 0) if current_metrics else 0
+        current_total_issues = (
+            current_metrics.get("total_issues", 0) if current_metrics else 0
+        )
+        current_valid_issues = (
+            current_metrics.get("issues_with_valid_cycle_time", 0)
+            if current_metrics
+            else 0
+        )
 
         # Print baseline period info with issue counts
         if baseline_period:
@@ -555,11 +672,19 @@ class CycleTimeFormatter:
             else:
                 # Dictionary format
                 baseline_total_issues = baseline_data.get("total_issues", 0)
-                baseline_valid_issues = baseline_data.get("issues_with_valid_cycle_time", 0)
+                baseline_valid_issues = baseline_data.get(
+                    "issues_with_valid_cycle_time", 0
+                )
 
-            print(f"📊 Baseline Period: {baseline_start} to {baseline_end} (4x current period)")
-            print(f"📋 Current Period: {current_total_issues} issues ({current_valid_issues} with valid cycle time)")
-            print(f"📋 Baseline Period: {baseline_total_issues} issues ({baseline_valid_issues} with valid cycle time)")
+            print(
+                f"📊 Baseline Period: {baseline_start} to {baseline_end} (4x current period)"
+            )
+            print(
+                f"📋 Current Period: {current_total_issues} issues ({current_valid_issues} with valid cycle time)"
+            )
+            print(
+                f"📋 Baseline Period: {baseline_total_issues} issues ({baseline_valid_issues} with valid cycle time)"
+            )
             print("ℹ️  Note: Count-based metrics are normalized for fair comparison")
             print("-" * 40)
 
@@ -577,7 +702,9 @@ class CycleTimeFormatter:
                 significance = trend.significance
 
                 # Get appropriate emojis
-                direction_emoji = self._get_trend_direction_emoji(trend_direction, metric_name)
+                direction_emoji = self._get_trend_direction_emoji(
+                    trend_direction, metric_name
+                )
                 significance_emoji = "📊" if significance else "📋"
 
                 # Format values based on metric type and normalization status
@@ -590,14 +717,18 @@ class CycleTimeFormatter:
                 else:
                     # Handle normalized metrics (throughput, total issues, etc.)
                     if hasattr(trend, "is_normalized") and trend.is_normalized:
-                        normalized_baseline = getattr(trend, "normalized_baseline", baseline_value)
+                        normalized_baseline = getattr(
+                            trend, "normalized_baseline", baseline_value
+                        )
                         current_str = f"{current_value:.0f}"
                         baseline_str = f"{baseline_value:.0f} (normalized {normalized_baseline:.0f})"
                     else:
                         current_str = f"{current_value:.0f}"
                         baseline_str = f"{baseline_value:.0f}"
 
-                change_str = f"{change_percent:+.1f}%" if change_percent != 0 else "0.0%"
+                change_str = (
+                    f"{change_percent:+.1f}%" if change_percent != 0 else "0.0%"
+                )
 
                 print(f"  {direction_emoji} {metric_name}:")
                 print(
@@ -683,7 +814,9 @@ class CycleTimeFormatter:
             return "➡️"
 
         # For metrics where lower is better (cycle time, anomaly rate)
-        lower_is_better = any(keyword in metric_name.lower() for keyword in ["time", "anomaly"])
+        lower_is_better = any(
+            keyword in metric_name.lower() for keyword in ["time", "anomaly"]
+        )
 
         if direction == "IMPROVING":
             return "📈" if not lower_is_better else "📉"

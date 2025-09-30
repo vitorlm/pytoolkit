@@ -52,7 +52,11 @@ class DataCopyCommand(BaseCommand):
         dynamodb_manager = DynamoDBManager()
         duckdb_manager = DuckDBManager()
         duckdb_manager.add_connection_config(
-            {"name": "ag_operations_db", "path": "data/ag_operations.duckdb", "read_only": False}
+            {
+                "name": "ag_operations_db",
+                "path": "data/ag_operations.duckdb",
+                "read_only": False,
+            }
         )
 
         copy_processor = DataCopyProcessor(dynamodb_manager, duckdb_manager)

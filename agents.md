@@ -309,6 +309,37 @@ except Exception as e:
     exit(1)  # Always exit with error code for CLI commands
 ```
 
+### Summary System (NEW)
+
+Centralize summary JSON generation using domain-specific SummaryManagers to avoid duplication.
+
+```python
+from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
+from domains.syngenta.datadog.summary.datadog_summary_manager import DatadogSummaryManager
+
+# Example (JIRA):
+summary_path = JiraSummaryManager().emit_summary_compatible(
+    result,                # dict from service
+    args.summary_output,   # 'auto' | 'json' | 'none'
+    result.get('output_file'),
+    args,                  # Namespace with context
+)
+
+# Example (Datadog):
+summary_path = DatadogSummaryManager().emit_summary_compatible(
+    payload,               # dict with summary/teams/metadata
+    args.summary_output,
+    payload.get('output_file'),
+    teams,                 # list of team handles
+)
+```
+
+Guidelines:
+- Remove local `_emit_summary` and helpers in commands; delegate to the Manager
+- Keep Markdown rendering and printing in command (business logic)
+- JSON emitted remains fully backward-compatible (metric_name, value, unit, period, dimensions, source_command, raw_data_path)
+- Output paths follow existing conventions (subdir by date, base name by domain/op)
+
 ### JIRA Integration
 
 ```python

@@ -45,13 +45,19 @@ class TeamTaskProcessor(BaseProcessor):
         file_path = Path(file_path)
         FileManager.validate_file(file_path, allowed_extensions=self.allowed_extensions)
 
-        relevant_sheets = ExcelManager.filter_sheets_by_pattern(file_path, pattern=r"Q[1-4]-C[1-2]")
-        self.logger.info(f"Processing {len(relevant_sheets)} relevant sheets from {file_path}")
+        relevant_sheets = ExcelManager.filter_sheets_by_pattern(
+            file_path, pattern=r"Q[1-4]-C[1-2]"
+        )
+        self.logger.info(
+            f"Processing {len(relevant_sheets)} relevant sheets from {file_path}"
+        )
 
         self._team = Team(name=team_name, config=self._config)
 
         for sheet_name in relevant_sheets:
-            sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
+            sheet_data = ExcelManager.read_excel_as_list(
+                file_path, sheet_name=sheet_name
+            )
             self.logger.info(f"Processing sheet: {sheet_name}")
             self.process_sheet(sheet_name, sheet_data, jira_project, team_name)
 
@@ -130,7 +136,9 @@ class TeamTaskProcessor(BaseProcessor):
         delattr(cycle, "_config")
         self._team.add_cycle(cycle_name, cycle)
 
-    def _extract_header(self, sheet_data: List[List[Union[str, None]]]) -> Dict[str, int]:
+    def _extract_header(
+        self, sheet_data: List[List[Union[str, None]]]
+    ) -> Dict[str, int]:
         """
         Extracts the header row from the sheet data.
 
@@ -141,7 +149,9 @@ class TeamTaskProcessor(BaseProcessor):
             Dict[str, int]: A dictionary mapping header items to their column indices.
         """
         header_map = {}
-        for row_idx in range(self._config.row_header_start, self._config.row_header_end):
+        for row_idx in range(
+            self._config.row_header_start, self._config.row_header_end
+        ):
             for col_idx, cell_value in enumerate(sheet_data[row_idx]):
                 if isinstance(cell_value, str) and cell_value.lower() in [
                     "code",
@@ -165,12 +175,17 @@ class TeamTaskProcessor(BaseProcessor):
         col_idx = self._config.col_member_idx
         cycle.member_list = [
             row[col_idx]
-            for row in sheet_data[self._config.row_members_start : self._config.row_members_end]
+            for row in sheet_data[
+                self._config.row_members_start : self._config.row_members_end
+            ]
             if row[col_idx]
         ]
 
     def _create_backlog(
-        self, cycle: Cycle, sheet_data: List[List[Union[str, None]]], header_idxs: Dict[str, int]
+        self,
+        cycle: Cycle,
+        sheet_data: List[List[Union[str, None]]],
+        header_idxs: Dict[str, int],
     ):
         """
         Creates a backlog of tasks from the sheet data.
@@ -181,7 +196,9 @@ class TeamTaskProcessor(BaseProcessor):
             header_idxs (Dict[str, int]): Column indices for key headers.
         """
 
-        for row in sheet_data[self._config.row_epics_start : self._config.row_epics_end]:
+        for row in sheet_data[
+            self._config.row_epics_start : self._config.row_epics_end
+        ]:
             code = row[header_idxs.get("code")]
             if code:
                 code = code.lower()
@@ -190,7 +207,9 @@ class TeamTaskProcessor(BaseProcessor):
                 task_type = row[header_idxs.get("type")]
 
                 if code not in cycle.backlog:
-                    issue = Issue(code=code, jira=jira, description=description, type=task_type)
+                    issue = Issue(
+                        code=code, jira=jira, description=description, type=task_type
+                    )
                     cycle.backlog[code] = issue
                 else:
                     self.logger.warning(f"Duplicate task code found: {code}")
@@ -206,7 +225,10 @@ class TeamTaskProcessor(BaseProcessor):
         days_row = sheet_data[self._config.row_days]
         dates = [cell for cell in days_row if isinstance(cell, date)]
         if dates:
-            cycle.start_date, cycle.end_date = pd.Timestamp(min(dates)), pd.Timestamp(max(dates))
+            cycle.start_date, cycle.end_date = (
+                pd.Timestamp(min(dates)),
+                pd.Timestamp(max(dates)),
+            )
 
     def _extract_issue_durations(
         self,
@@ -216,7 +238,6 @@ class TeamTaskProcessor(BaseProcessor):
         row_end: int,
         type: str,
     ):
-
         col_assignment_start = self._config.col_epics_assignment_start_idx
         col_assignment_end = len(sheet_data[self._config.row_days])
 
@@ -227,7 +248,9 @@ class TeamTaskProcessor(BaseProcessor):
                 if issue_code and issue_code in cycle.backlog:
                     date_cell = sheet_data[self._config.row_days][col_idx]
                     if isinstance(date_cell, date):
-                        self._update_issue_details(cycle, issue_code, date_cell, member, type)
+                        self._update_issue_details(
+                            cycle, issue_code, date_cell, member, type
+                        )
 
     def _update_issue_details(
         self, cycle: Cycle, issue_code: str, date_cell: date, member: str, type: str
@@ -280,12 +303,19 @@ class TeamTaskProcessor(BaseProcessor):
         jira_issue = JiraIssueFetcher()
         epics = jira_issue.get_epics_by_keys(epic_keys)
         filtered_epics = [
-            epic for epic in epics if cycle.start_date <= epic.closed_date <= cycle.end_date
+            epic
+            for epic in epics
+            if cycle.start_date <= epic.closed_date <= cycle.end_date
         ]
         return filtered_epics
 
     def _load_unplanned_epics_closed_within_date_range(
-        self, cycle: Cycle, project_name: str, team_name: str, start_date: date, end_date: date
+        self,
+        cycle: Cycle,
+        project_name: str,
+        team_name: str,
+        start_date: date,
+        end_date: date,
     ) -> List[Dict]:
         """
         Fetches epic issues from Jira and checks if the closed date is within the cycle's date range
@@ -304,6 +334,7 @@ class TeamTaskProcessor(BaseProcessor):
         filtered_epics = [
             epic
             for epic in epics
-            if epic.key not in [backlog_epic.jira for backlog_epic in cycle.backlog.values()]
+            if epic.key
+            not in [backlog_epic.jira for backlog_epic in cycle.backlog.values()]
         ]
         return filtered_epics

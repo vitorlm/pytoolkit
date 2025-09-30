@@ -1,5 +1,7 @@
 from argparse import ArgumentParser, Namespace
-from domains.personal_finance.credit_card.credit_card_processor import CreditCardProcessor
+from domains.personal_finance.credit_card.credit_card_processor import (
+    CreditCardProcessor,
+)
 from utils.command.base_command import BaseCommand
 from utils.logging.logging_manager import LogManager
 
@@ -68,7 +70,9 @@ class CreditCardProcessorCommand(BaseCommand):
 
             processor = CreditCardProcessor(args.input_file, args.output)
             processor.run()
-            logger.info(f"Expense report successfully generated and saved to {args.output}")
+            logger.info(
+                f"Expense report successfully generated and saved to {args.output}"
+            )
 
         except FileNotFoundError as fnfe:
             logger.error(f"File not found: {fnfe}", exc_info=True)

@@ -44,13 +44,19 @@ class ValidationHelper:
 
             for evaluatee, evaluator_data in competency_matrix.items():
                 if not isinstance(evaluatee, str):
-                    raise ValidationError(f"Evaluatee name '{evaluatee}' is not a string.")
+                    raise ValidationError(
+                        f"Evaluatee name '{evaluatee}' is not a string."
+                    )
                 if not isinstance(evaluator_data, dict):
-                    raise ValidationError(f"Evaluator data for {evaluatee} must be a dictionary.")
+                    raise ValidationError(
+                        f"Evaluator data for {evaluatee} must be a dictionary."
+                    )
 
                 for evaluator, criteria_data in evaluator_data.items():
                     if not isinstance(evaluator, str):
-                        raise ValidationError(f"Evaluator name must be a string for {evaluatee}.")
+                        raise ValidationError(
+                            f"Evaluator name must be a string for {evaluatee}."
+                        )
                     if not isinstance(criteria_data, dict):
                         raise ValidationError(
                             f"Criteria data for {evaluator} must be a dictionary."
@@ -62,7 +68,9 @@ class ValidationHelper:
                                 f"Criterion name must be a string for {evaluator}."
                             )
                         if not isinstance(indicators, list):
-                            raise ValidationError(f"Indicators for {criterion} must be a list.")
+                            raise ValidationError(
+                                f"Indicators for {criterion} must be a list."
+                            )
 
                         for indicator in indicators:
                             if not isinstance(indicator, Indicator):
@@ -131,13 +139,21 @@ class ValidationHelper:
                 if not isinstance(evaluator, str):
                     raise ValidationError("Each evaluator name must be a string.")
                 if not isinstance(feedback_list, list):
-                    raise ValidationError(f"Feedback for evaluator {evaluator} must be a list.")
+                    raise ValidationError(
+                        f"Feedback for evaluator {evaluator} must be a list."
+                    )
 
                 for feedback in feedback_list:
                     if not isinstance(feedback, dict):
-                        raise ValidationError("Each feedback entry must be a dictionary.")
-                    if "comment" not in feedback or not isinstance(feedback["comment"], str):
-                        raise ValidationError("Each feedback entry must have a string 'comment'.")
+                        raise ValidationError(
+                            "Each feedback entry must be a dictionary."
+                        )
+                    if "comment" not in feedback or not isinstance(
+                        feedback["comment"], str
+                    ):
+                        raise ValidationError(
+                            "Each feedback entry must have a string 'comment'."
+                        )
 
             logger.info("Feedback data validation completed successfully.")
         except Exception as e:
@@ -156,18 +172,32 @@ class ValidationHelper:
         """
         try:
             if not isinstance(health_check_data, list):
-                raise ValidationError("Health check data must be a list of dictionaries.")
+                raise ValidationError(
+                    "Health check data must be a list of dictionaries."
+                )
 
             for entry in health_check_data:
                 if not isinstance(entry, FeedbackAssessment):
                     raise ValidationError(
                         "Each health check entry must be an instance of FeedbackAssessment."
                     )
-                if hasattr(entry, "impact") and entry.impact and not isinstance(entry.impact, int):
+                if (
+                    hasattr(entry, "impact")
+                    and entry.impact
+                    and not isinstance(entry.impact, int)
+                ):
                     raise ValidationError("'impact' must be an integer if present")
-                if hasattr(entry, "effort") and entry.effort and not isinstance(entry.effort, int):
+                if (
+                    hasattr(entry, "effort")
+                    and entry.effort
+                    and not isinstance(entry.effort, int)
+                ):
                     raise ValidationError("'effort' must be an integer if present.")
-                if hasattr(entry, "morale") and entry.morale and not isinstance(entry.morale, int):
+                if (
+                    hasattr(entry, "morale")
+                    and entry.morale
+                    and not isinstance(entry.morale, int)
+                ):
                     raise ValidationError("'morale' must be an integer if present.")
                 if (
                     hasattr(entry, "retention")

@@ -44,8 +44,12 @@ class HealthCheckProcessor(BaseProcessor):
         members_health_check: Dict[str, MemberHealthCheck] = {}
         for sheet_name in relevant_sheets:
             member_name = sheet_name.split(" ")[0]
-            self.logger.info(f"Processing sheet: {sheet_name} for member: {member_name}")
-            sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
+            self.logger.info(
+                f"Processing sheet: {sheet_name} for member: {member_name}"
+            )
+            sheet_data = ExcelManager.read_excel_as_list(
+                file_path, sheet_name=sheet_name
+            )
             feedback_data = self.process_sheet(sheet_data)
 
             # Validate feedback data
@@ -53,7 +57,9 @@ class HealthCheckProcessor(BaseProcessor):
 
             # Calculate statistics if there are enough records
             statistics = (
-                self._calculate_statistics(feedback_data) if len(feedback_data) > 3 else None
+                self._calculate_statistics(feedback_data)
+                if len(feedback_data) > 3
+                else None
             )
 
             members_health_check[member_name] = MemberHealthCheck(
@@ -93,7 +99,9 @@ class HealthCheckProcessor(BaseProcessor):
                     impact_comment=row[header_map.get("impact comment")],
                     morale=self._parse_optional_int(row[header_map.get("morale")]),
                     morale_comment=row[header_map.get("morale comment")],
-                    retention=self._parse_optional_int(row[header_map.get("retention")]),
+                    retention=self._parse_optional_int(
+                        row[header_map.get("retention")]
+                    ),
                     retention_comment=row[header_map.get("retention comment")],
                 )
             )
@@ -135,10 +143,16 @@ class HealthCheckProcessor(BaseProcessor):
         correlations = CorrelationSummary(
             effort_vs_impact=StatisticsHelper.calculate_correlation(efforts, impacts),
             effort_vs_morale=StatisticsHelper.calculate_correlation(efforts, morales),
-            effort_vs_retention=StatisticsHelper.calculate_correlation(efforts, retentions),
+            effort_vs_retention=StatisticsHelper.calculate_correlation(
+                efforts, retentions
+            ),
             impact_vs_morale=StatisticsHelper.calculate_correlation(impacts, morales),
-            impact_vs_retention=StatisticsHelper.calculate_correlation(impacts, retentions),
-            morale_vs_retention=StatisticsHelper.calculate_correlation(morales, retentions),
+            impact_vs_retention=StatisticsHelper.calculate_correlation(
+                impacts, retentions
+            ),
+            morale_vs_retention=StatisticsHelper.calculate_correlation(
+                morales, retentions
+            ),
         )
 
         self.logger.info("Statistics calculation completed.")

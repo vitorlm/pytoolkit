@@ -80,7 +80,9 @@ The command will:
             help="S3 bucket name (e.g., cropwise.core.crops.catalog-prod-214187291705)",
         )
         parser.add_argument(
-            "--prefix", required=True, help="S3 object prefix to filter by (e.g., backup/)"
+            "--prefix",
+            required=True,
+            help="S3 object prefix to filter by (e.g., backup/)",
         )
         parser.add_argument(
             "--local-dir",
@@ -93,7 +95,9 @@ The command will:
             help="Download only files at the current prefix level, not subdirectories",
         )
         parser.add_argument(
-            "--max-files", type=int, help="Maximum number of files to download (default: unlimited)"
+            "--max-files",
+            type=int,
+            help="Maximum number of files to download (default: unlimited)",
         )
         parser.add_argument(
             "--extensions",
@@ -154,7 +158,9 @@ The command will:
             if "Failed to initialize S3 client" in str(e):
                 logger.error("")
                 logger.error("🔧 TROUBLESHOOTING AWS CREDENTIALS:")
-                logger.error("1. Install AWS CLI: brew install awscli (Mac) or pip install awscli")
+                logger.error(
+                    "1. Install AWS CLI: brew install awscli (Mac) or pip install awscli"
+                )
                 logger.error("2. Configure credentials: aws configure")
                 logger.error("3. Test access: aws s3 ls")
                 logger.error("4. Or set environment variables:")

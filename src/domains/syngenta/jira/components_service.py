@@ -16,7 +16,9 @@ class ComponentService:
         self.jira_assistant = JiraAssistant()
         self._logger = LogManager.get_instance().get_logger("ComponentService")
 
-    def list_components(self, project_key: str, output_file: Optional[str] = None) -> List[Dict]:
+    def list_components(
+        self, project_key: str, output_file: Optional[str] = None
+    ) -> List[Dict]:
         """List all components in a project."""
         if not project_key:
             raise ValueError("project_key is required for list operation")
@@ -49,7 +51,9 @@ class ComponentService:
             JSONManager.write_json(components, output_path)
             print(f"Components saved to '{output_path}'.")
 
-        self._logger.info(f"Listed {len(components)} components for project '{project_key}'.")
+        self._logger.info(
+            f"Listed {len(components)} components for project '{project_key}'."
+        )
         return components
 
     def create_component(
@@ -102,7 +106,9 @@ class ComponentService:
             )
             return component
         else:
-            raise RuntimeError(f"Failed to create component '{name}' in project '{project_key}'.")
+            raise RuntimeError(
+                f"Failed to create component '{name}' in project '{project_key}'."
+            )
 
     def delete_component(self, component_id: str) -> bool:
         """Delete a single component."""
@@ -133,9 +139,13 @@ class ComponentService:
             raise ValueError(f"Failed to read input file '{input_file}': {e}")
 
         if not isinstance(components_data, list):
-            raise ValueError("Input file must contain a JSON array of component objects")
+            raise ValueError(
+                "Input file must contain a JSON array of component objects"
+            )
 
-        results = self.jira_assistant.create_components_batch(project_key, components_data)
+        results = self.jira_assistant.create_components_batch(
+            project_key, components_data
+        )
 
         print(f"\nBatch component creation results for project '{project_key}':")
         print("=" * 70)
@@ -211,7 +221,9 @@ class ComponentService:
             print(f"Detailed results saved to '{output_file}'.")
         else:
             # Generate default output file in organized structure
-            output_path = OutputManager.get_output_path("delete-components-batch", "batch_deletion")
+            output_path = OutputManager.get_output_path(
+                "delete-components-batch", "batch_deletion"
+            )
             JSONManager.write_json(results, output_path)
             print(f"Detailed results saved to '{output_path}'.")
 
@@ -240,7 +252,9 @@ class ComponentService:
             raise ValueError("component_id is required for update operation")
 
         try:
-            success = self.jira_assistant.update_issue_components(issue_key, component_id)
+            success = self.jira_assistant.update_issue_components(
+                issue_key, component_id
+            )
 
             result = {
                 "issue_key": issue_key,

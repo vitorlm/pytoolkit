@@ -223,7 +223,9 @@ class JiraIssueFetcher:
                 expand_changelog=True,
             )
         except JiraQueryError as e:
-            raise JiraQueryError("Error fetching epics by keys", jql=jql_query, error=str(e))
+            raise JiraQueryError(
+                "Error fetching epics by keys", jql=jql_query, error=str(e)
+            )
 
     def _fetch_epics_closed_by_period(
         self, project_name: str, team_name: str, start_date: date, end_date: date
@@ -257,7 +259,9 @@ class JiraIssueFetcher:
                 expand_changelog=True,
             )
         except JiraQueryError as e:
-            raise JiraQueryError("Error fetching closed epics", jql=jql_query, error=str(e))
+            raise JiraQueryError(
+                "Error fetching closed epics", jql=jql_query, error=str(e)
+            )
 
     def _analyze_issue_changelog(self, changelog: List[Dict]) -> Optional[date]:
         """
@@ -272,7 +276,10 @@ class JiraIssueFetcher:
         closed_date = None
         for history in changelog:
             for item in history.get("items", []):
-                if item.get("field") == "status" and item.get("toString") in ["Done", "10 Done"]:
+                if item.get("field") == "status" and item.get("toString") in [
+                    "Done",
+                    "10 Done",
+                ]:
                     closed_date = datetime.strptime(
                         history["created"], "%Y-%m-%dT%H:%M:%S.%f%z"
                     ).date()

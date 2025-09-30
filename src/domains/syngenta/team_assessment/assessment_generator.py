@@ -1,7 +1,9 @@
 import os
 from pathlib import Path
 from typing import Optional
-from domains.syngenta.team_assessment.processors.criteria_processor import CriteriaProcessor
+from domains.syngenta.team_assessment.processors.criteria_processor import (
+    CriteriaProcessor,
+)
 from domains.syngenta.team_assessment.services.member_analyzer import MemberAnalyzer
 from domains.syngenta.team_assessment.services.team_analyzer import TeamAnalyzer
 from utils.data.json_manager import JSONManager
@@ -59,7 +61,11 @@ class AssessmentGenerator:
         #     **self.config.get_ollama_config(),
         # )
         self.feedback_analyzer = FeedbackAnalyzer()
-        self.ignored_member_list = JSONManager.read_json(ignored_member_list, default=[]) if ignored_member_list else []
+        self.ignored_member_list = (
+            JSONManager.read_json(ignored_member_list, default=[])
+            if ignored_member_list
+            else []
+        )
 
     def run(self):
         """
@@ -74,12 +80,16 @@ class AssessmentGenerator:
             self._process_health_checks()
         feedback = self._process_feedback()
         self._update_members_with_feedback(feedback)
-        team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
+        team_stats, members_stats = self.feedback_analyzer.analyze(
+            competency_matrix, feedback
+        )
         self._update_members_with_stats(members_stats)
         for member_name, member_data in members_stats.items():
             if self._is_member_ignored(member_name):
                 continue
-            member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
+            member_analyzer = MemberAnalyzer(
+                member_name, member_data, team_stats, self.output_path
+            )
             member_analyzer.plot_all_charts()
             # self.feedback_specialist.generate_feedback(
             #     member_name, member_data, team_stats, competency_matrix
@@ -109,7 +119,9 @@ class AssessmentGenerator:
         """
         Loads the default competency matrix from the specified file.
         """
-        self._logger.info(f"Loading competency matrix from: {self.competency_matrix_file}")
+        self._logger.info(
+            f"Loading competency matrix from: {self.competency_matrix_file}"
+        )
         return self.criteria_processor.process_file(Path(self.competency_matrix_file))
 
     def _process_tasks(self):
@@ -126,7 +138,9 @@ class AssessmentGenerator:
         Processes health checks data for each member.
         """
         self._logger.info(f"Processing health checks from: {self.health_check_folder}")
-        health_check_data = self.health_check_processor.process_folder(self.health_check_folder)
+        health_check_data = self.health_check_processor.process_folder(
+            self.health_check_folder
+        )
         for member_name, health_check in health_check_data.items():
             if self._is_member_ignored(member_name):
                 continue
@@ -148,7 +162,9 @@ class AssessmentGenerator:
             return
 
         if member_name not in self.members:
-            self.members[member_name] = Member(name=member_name, tasks=list(tasks), health_check=None, feedback=None)
+            self.members[member_name] = Member(
+                name=member_name, tasks=list(tasks), health_check=None, feedback=None
+            )
         else:
             self.members[member_name].tasks = list(tasks)
 
@@ -161,7 +177,9 @@ class AssessmentGenerator:
             return
 
         if member_name not in self.members:
-            self.members[member_name] = Member(name=member_name, health_check=health_check, tasks=[], feedback={})
+            self.members[member_name] = Member(
+                name=member_name, health_check=health_check, tasks=[], feedback={}
+            )
         else:
             self.members[member_name].health_check = health_check
 
@@ -251,7 +269,9 @@ class AssessmentGenerator:
                 "feedback": member.feedback,
                 "feedback_stats": member.feedback_stats,
             }
-            member_output_folder = os.path.join(members_output_path, member.name.split()[0])
+            member_output_folder = os.path.join(
+                members_output_path, member.name.split()[0]
+            )
             FileManager.create_folder(member_output_folder)
             member_file_path = os.path.join(member_output_folder, "stats.json")
             JSONManager.write_json(member_data, member_file_path)
@@ -274,12 +294,18 @@ class AssessmentGenerator:
         """
         name_parts = member_name.split(" ", 1)
         first_name = StringUtils.remove_accents(name_parts[0])
-        last_name = StringUtils.remove_accents(name_parts[1]) if len(name_parts) > 1 else ""
+        last_name = (
+            StringUtils.remove_accents(name_parts[1]) if len(name_parts) > 1 else ""
+        )
 
         for ignored_member in self.ignored_member_list:
             ignored_parts = ignored_member.split(" ", 1)
             ignored_first_name = StringUtils.remove_accents(ignored_parts[0])
-            ignored_last_name = StringUtils.remove_accents(ignored_parts[1]) if len(ignored_parts) > 1 else ""
+            ignored_last_name = (
+                StringUtils.remove_accents(ignored_parts[1])
+                if len(ignored_parts) > 1
+                else ""
+            )
 
             if first_name == ignored_first_name:
                 if not last_name or last_name == ignored_last_name:

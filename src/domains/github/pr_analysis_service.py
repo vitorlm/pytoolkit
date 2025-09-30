@@ -63,7 +63,9 @@ class PrAnalysisService:
             # Step 6: Return summary
             results = {
                 "total_prs": len(pr_data),
-                "external_prs": len([pr for pr in pr_data if pr.get("is_external", False)]),
+                "external_prs": len(
+                    [pr for pr in pr_data if pr.get("is_external", False)]
+                ),
                 "team_members_count": len(team_members),
                 "repositories_analyzed": len(repos),
                 "metrics": metrics,
@@ -80,7 +82,9 @@ class PrAnalysisService:
 
     def _resolve_team_members(self, team_specs: List[str]) -> set:
         """Resolve team members from CODEOWNERS team specifications."""
-        self.logger.info(f"👥 Resolving team members from {len(team_specs)} teams: {team_specs}")
+        self.logger.info(
+            f"👥 Resolving team members from {len(team_specs)} teams: {team_specs}"
+        )
 
         try:
             team_members = self.github_client.resolve_team_members_parallel(team_specs)
@@ -108,7 +112,9 @@ class PrAnalysisService:
                 self.logger.info(f"Targeting {len(repos)} specific repositories")
             else:
                 # All repositories in org
-                repos = self.github_client.get_org_repos(args.org, args.include_archived)
+                repos = self.github_client.get_org_repos(
+                    args.org, args.include_archived
+                )
                 self.logger.info(f"Found {len(repos)} repositories in organization")
 
             return repos
@@ -116,7 +122,9 @@ class PrAnalysisService:
             self.logger.error(f"Failed to get target repositories: {e}")
             raise
 
-    def _collect_pr_data(self, repos: List[Dict[str, Any]], team_members: set, args: Namespace) -> List[Dict[str, Any]]:
+    def _collect_pr_data(
+        self, repos: List[Dict[str, Any]], team_members: set, args: Namespace
+    ) -> List[Dict[str, Any]]:
         """Collect PR data from all target repositories."""
         self.logger.info(f"📊 Collecting PR data from {len(repos)} repositories")
 
@@ -127,36 +135,50 @@ class PrAnalysisService:
                 repo_name = repo["name"]
                 owner = repo["owner"]["login"] if "owner" in repo else args.org
 
-                self.logger.info(f"📂 Processing repository {i}/{len(repos)}: {owner}/{repo_name}")
+                self.logger.info(
+                    f"📂 Processing repository {i}/{len(repos)}: {owner}/{repo_name}"
+                )
 
                 # Fetch PRs via selected API path
                 if getattr(args, "use_graphql", False):
                     self.logger.info(
                         f"⚡ Using optimized GraphQL path (page_size={getattr(args, 'graphql_page_size', 50)}) for {owner}/{repo_name}"
                     )
-                    self.logger.info("🔥 This will fetch ALL PR data in 1-2 API calls instead of hundreds!")
+                    self.logger.info(
+                        "🔥 This will fetch ALL PR data in 1-2 API calls instead of hundreds!"
+                    )
 
                     # Use enhanced GraphQL method with approvers if requested
                     if getattr(args, "include_approvers", True):
                         self.logger.info("📊 Including approver data in GraphQL query")
-                        prs = self.github_client.fetch_pull_requests_graphql_with_reviews(
-                            owner,
-                            repo_name,
-                            args.since if getattr(args, "merged_window", False) is False else None,
-                            getattr(args, "until", None),
-                            getattr(args, "graphql_page_size", 50),
+                        prs = (
+                            self.github_client.fetch_pull_requests_graphql_with_reviews(
+                                owner,
+                                repo_name,
+                                args.since
+                                if getattr(args, "merged_window", False) is False
+                                else None,
+                                getattr(args, "until", None),
+                                getattr(args, "graphql_page_size", 50),
+                            )
                         )
                     else:
                         # Use basic GraphQL method without enhanced approver data
                         prs = self.github_client.get_enriched_pull_requests_graphql(
                             owner,
                             repo_name,
-                            args.since if getattr(args, "merged_window", False) is False else None,
+                            args.since
+                            if getattr(args, "merged_window", False) is False
+                            else None,
                             getattr(args, "graphql_page_size", 50),
                         )
                 else:
-                    self.logger.info(f"🐌 Using slower REST API for {owner}/{repo_name} (consider --use-graphql)")
-                    prs = self.github_client.get_pull_requests(owner, repo_name, args.state)
+                    self.logger.info(
+                        f"🐌 Using slower REST API for {owner}/{repo_name} (consider --use-graphql)"
+                    )
+                    prs = self.github_client.get_pull_requests(
+                        owner, repo_name, args.state
+                    )
                 self.logger.info(f"✅ Fetched {len(prs)} PRs in {owner}/{repo_name}")
 
                 if not prs:
@@ -165,18 +187,24 @@ class PrAnalysisService:
                 # Step 1: Apply date and merge filters before enrichment
                 filtered_prs = []
 
-                self.logger.info(f"Pre-filtering {len(prs)} PRs with date and merge criteria...")
+                self.logger.info(
+                    f"Pre-filtering {len(prs)} PRs with date and merge criteria..."
+                )
 
                 for i, pr in enumerate(prs, 1):
                     if i % 100 == 0 or i == len(prs):
-                        self.logger.info(f"Pre-filtering progress: {i}/{len(prs)} PRs processed")
+                        self.logger.info(
+                            f"Pre-filtering progress: {i}/{len(prs)} PRs processed"
+                        )
 
                     # Apply date filters early (before expensive API calls)
                     created_at_str = pr.get("created_at", "")
                     merged_at_str = pr.get("merged_at")
 
                     created_at = self._parse_timestamp(created_at_str)
-                    merged_at = self._parse_timestamp(merged_at_str) if merged_at_str else None
+                    merged_at = (
+                        self._parse_timestamp(merged_at_str) if merged_at_str else None
+                    )
 
                     if not self._passes_date_filters(created_at, merged_at, args):
                         continue
@@ -192,7 +220,9 @@ class PrAnalysisService:
                 )
 
                 if not filtered_prs:
-                    self.logger.info(f"No PRs found in {owner}/{repo_name} after filtering")
+                    self.logger.info(
+                        f"No PRs found in {owner}/{repo_name} after filtering"
+                    )
                     continue
 
                 # Step 2: Process filtered PRs with enrichment and progress tracking
@@ -203,13 +233,19 @@ class PrAnalysisService:
                 )
 
                 all_pr_data.extend(repo_pr_data)
-                self.logger.info(f"Completed processing {owner}/{repo_name}: {len(repo_pr_data)} PRs added")
+                self.logger.info(
+                    f"Completed processing {owner}/{repo_name}: {len(repo_pr_data)} PRs added"
+                )
 
             except Exception as e:
-                self.logger.error(f"Failed to process repository {repo.get('name', 'unknown')}: {e}")
+                self.logger.error(
+                    f"Failed to process repository {repo.get('name', 'unknown')}: {e}"
+                )
                 continue
 
-        self.logger.info(f"Collected data for {len(all_pr_data)} PRs across all repositories")
+        self.logger.info(
+            f"Collected data for {len(all_pr_data)} PRs across all repositories"
+        )
         return all_pr_data
 
     def _process_single_pr(
@@ -244,7 +280,9 @@ class PrAnalysisService:
             is_team_member = not is_external  # Keep for backward compatibility
 
             # Calculate lead time metrics
-            lead_time_data = self._calculate_lead_time(created_at, merged_at, closed_at, args)
+            lead_time_data = self._calculate_lead_time(
+                created_at, merged_at, closed_at, args
+            )
 
             # Skip unmerged PRs unless explicitly included
             if not merged_at and not args.include_unmerged:
@@ -278,10 +316,14 @@ class PrAnalysisService:
                 "requested_reviewers": pr.get("requested_reviewers"),
                 "requested_teams": pr.get("requested_teams"),
                 "time_to_first_review_seconds": pr.get("time_to_first_review_seconds"),
-                "first_response_latency_seconds": pr.get("first_response_latency_seconds"),
+                "first_response_latency_seconds": pr.get(
+                    "first_response_latency_seconds"
+                ),
                 # Review rounds metrics
                 "review_rounds": pr.get("review_rounds"),
-                "synchronize_after_first_review": pr.get("synchronize_after_first_review"),
+                "synchronize_after_first_review": pr.get(
+                    "synchronize_after_first_review"
+                ),
                 "re_review_pushes": pr.get("re_review_pushes"),
                 # Approver fields (added by GraphQL with reviews)
                 "approvers": pr.get("approvers"),
@@ -295,7 +337,9 @@ class PrAnalysisService:
             return pr_data
 
         except Exception as e:
-            self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+            self.logger.error(
+                f"Failed to process PR {pr.get('number', 'unknown')}: {e}"
+            )
             return None
 
     def _parse_timestamp(self, timestamp_str: str) -> Optional[datetime]:
@@ -406,27 +450,39 @@ class PrAnalysisService:
 
         # Determine if we need enrichment (skip if GraphQL already provided enriched data)
         needs_enrichment = not is_graphql and (
-            args.include_size_metrics or args.include_review_metrics or getattr(args, "include_review_rounds", False)
+            args.include_size_metrics
+            or args.include_review_metrics
+            or getattr(args, "include_review_rounds", False)
         )
 
         if is_graphql:
-            self.logger.info(f"Processing {total_prs} PRs with GraphQL enriched data (fast mode)...")
+            self.logger.info(
+                f"Processing {total_prs} PRs with GraphQL enriched data (fast mode)..."
+            )
             # GraphQL data is already enriched, just process
             for i, pr in enumerate(filtered_prs, 1):
                 try:
                     if i % 50 == 0 or i == total_prs:
-                        self.logger.info(f"Processing progress: {i}/{total_prs} PRs ({(i / total_prs) * 100:.1f}%)")
+                        self.logger.info(
+                            f"Processing progress: {i}/{total_prs} PRs ({(i / total_prs) * 100:.1f}%)"
+                        )
 
-                    pr_data = self._process_single_pr(pr, owner, repo_name, team_members, args)
+                    pr_data = self._process_single_pr(
+                        pr, owner, repo_name, team_members, args
+                    )
 
                     if pr_data:
                         processed_prs.append(pr_data)
 
                 except Exception as e:
-                    self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+                    self.logger.error(
+                        f"Failed to process PR {pr.get('number', 'unknown')}: {e}"
+                    )
                     continue
         elif needs_enrichment:
-            self.logger.info(f"Starting enrichment for {total_prs} PRs in {owner}/{repo_name}...")
+            self.logger.info(
+                f"Starting enrichment for {total_prs} PRs in {owner}/{repo_name}..."
+            )
             self.logger.info(
                 f"Each PR requires 1-6 API calls. Estimated time: {total_prs * 2}-{total_prs * 12} seconds"
             )
@@ -459,13 +515,17 @@ class PrAnalysisService:
                         getattr(args, "include_review_rounds", False),
                     )
 
-                    pr_data = self._process_single_pr(enriched_pr, owner, repo_name, team_members, args)
+                    pr_data = self._process_single_pr(
+                        enriched_pr, owner, repo_name, team_members, args
+                    )
 
                     if pr_data:
                         processed_prs.append(pr_data)
 
                 except Exception as e:
-                    self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+                    self.logger.error(
+                        f"Failed to process PR {pr.get('number', 'unknown')}: {e}"
+                    )
                     continue
 
             total_time = time.time() - start_time
@@ -474,25 +534,35 @@ class PrAnalysisService:
             )
         else:
             # No enrichment needed - process quickly
-            self.logger.info(f"Processing {total_prs} PRs without enrichment (fast mode)...")
+            self.logger.info(
+                f"Processing {total_prs} PRs without enrichment (fast mode)..."
+            )
 
             for i, pr in enumerate(filtered_prs, 1):
                 try:
                     if i % 50 == 0 or i == total_prs:
-                        self.logger.info(f"Processing progress: {i}/{total_prs} PRs ({(i / total_prs) * 100:.1f}%)")
+                        self.logger.info(
+                            f"Processing progress: {i}/{total_prs} PRs ({(i / total_prs) * 100:.1f}%)"
+                        )
 
-                    pr_data = self._process_single_pr(pr, owner, repo_name, team_members, args)
+                    pr_data = self._process_single_pr(
+                        pr, owner, repo_name, team_members, args
+                    )
 
                     if pr_data:
                         processed_prs.append(pr_data)
 
                 except Exception as e:
-                    self.logger.error(f"Failed to process PR {pr.get('number', 'unknown')}: {e}")
+                    self.logger.error(
+                        f"Failed to process PR {pr.get('number', 'unknown')}: {e}"
+                    )
                     continue
 
         return processed_prs
 
-    def _calculate_metrics(self, pr_data: List[Dict[str, Any]], args: Namespace) -> Dict[str, Any]:
+    def _calculate_metrics(
+        self, pr_data: List[Dict[str, Any]], args: Namespace
+    ) -> Dict[str, Any]:
         """Calculate summary metrics from PR data."""
         self.logger.info("Calculating summary metrics")
 
@@ -506,9 +576,15 @@ class PrAnalysisService:
             merged_internal_prs = [pr for pr in internal_prs if pr["is_merged"]]
 
             # Extract lead times for merged external PRs (primary focus)
-            lead_times_days = [pr["lead_time_days"] for pr in merged_external_prs if pr["lead_time_days"] is not None]
+            lead_times_days = [
+                pr["lead_time_days"]
+                for pr in merged_external_prs
+                if pr["lead_time_days"] is not None
+            ]
             lead_times_hours = [
-                pr["lead_time_hours"] for pr in merged_external_prs if pr["lead_time_hours"] is not None
+                pr["lead_time_hours"]
+                for pr in merged_external_prs
+                if pr["lead_time_hours"] is not None
             ]
 
             metrics: Dict[str, Any] = {
@@ -517,10 +593,14 @@ class PrAnalysisService:
                 "internal_prs": len(internal_prs),
                 "merged_external_prs": len(merged_external_prs),
                 "merged_internal_prs": len(merged_internal_prs),
-                "external_merge_rate": round(len(merged_external_prs) / len(external_prs) * 100, 2)
+                "external_merge_rate": round(
+                    len(merged_external_prs) / len(external_prs) * 100, 2
+                )
                 if external_prs
                 else 0,
-                "internal_merge_rate": round(len(merged_internal_prs) / len(internal_prs) * 100, 2)
+                "internal_merge_rate": round(
+                    len(merged_internal_prs) / len(internal_prs) * 100, 2
+                )
                 if internal_prs
                 else 0,
                 "lead_time_metrics": {},
@@ -537,7 +617,9 @@ class PrAnalysisService:
                 }
 
                 # Calculate percentiles
-                if len(lead_times_days) >= 10:  # Only calculate percentiles if we have enough data
+                if (
+                    len(lead_times_days) >= 10
+                ):  # Only calculate percentiles if we have enough data
                     sorted_times = sorted(lead_times_days)
                     n = len(sorted_times)
 
@@ -554,7 +636,9 @@ class PrAnalysisService:
                 repo = pr["repo"]
                 repo_counts[repo] = repo_counts.get(repo, 0) + 1
 
-            metrics["repository_breakdown"] = dict(sorted(repo_counts.items(), key=lambda x: x[1], reverse=True))
+            metrics["repository_breakdown"] = dict(
+                sorted(repo_counts.items(), key=lambda x: x[1], reverse=True)
+            )
 
             self.logger.info(f"Calculated metrics for {len(external_prs)} external PRs")
             return metrics
@@ -563,7 +647,9 @@ class PrAnalysisService:
             self.logger.error(f"Failed to calculate metrics: {e}")
             raise
 
-    def _generate_outputs(self, pr_data: List[Dict[str, Any]], metrics: Dict[str, Any], args: Namespace):
+    def _generate_outputs(
+        self, pr_data: List[Dict[str, Any]], metrics: Dict[str, Any], args: Namespace
+    ):
         """Generate output files in specified formats."""
         self.logger.info(f"Generating outputs in {args.format} format(s)")
 
@@ -663,12 +749,21 @@ class PrAnalysisService:
                     for col in columns:
                         value = pr.get(col, "")
                         # Handle list/array fields by converting to JSON string
-                        if col in ["requested_reviewers", "requested_teams", "approvers"] and isinstance(value, list):
+                        if col in [
+                            "requested_reviewers",
+                            "requested_teams",
+                            "approvers",
+                        ] and isinstance(value, list):
                             row[col] = ",".join(value) if value else ""
                         elif col == "latest_approvals" and isinstance(value, list):
                             # Convert latest_approvals to a more readable format
                             row[col] = (
-                                "; ".join([f"{a.get('login', '')}@{a.get('submitted_at', '')}" for a in value])
+                                "; ".join(
+                                    [
+                                        f"{a.get('login', '')}@{a.get('submitted_at', '')}"
+                                        for a in value
+                                    ]
+                                )
                                 if value
                                 else ""
                             )
@@ -682,7 +777,9 @@ class PrAnalysisService:
             self.logger.error(f"Failed to generate CSV output: {e}")
             raise
 
-    def _generate_json_output(self, pr_data: List[Dict[str, Any]], metrics: Dict[str, Any], output_prefix: str):
+    def _generate_json_output(
+        self, pr_data: List[Dict[str, Any]], metrics: Dict[str, Any], output_prefix: str
+    ):
         """Generate JSON output file."""
         json_file = f"{output_prefix}.json"
 

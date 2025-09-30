@@ -34,5 +34,6 @@ class StringUtils:
             bool: True if the words are equivalent without accents, False otherwise.
         """
         return (
-            StringUtils.remove_accents(word1).lower() == StringUtils.remove_accents(word2).lower()
+            StringUtils.remove_accents(word1).lower()
+            == StringUtils.remove_accents(word2).lower()
         )

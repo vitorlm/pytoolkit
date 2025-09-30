@@ -7,7 +7,9 @@ from argparse import ArgumentParser, Namespace
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
-from domains.syngenta.aws.dynamodb_json_processor_service import DynamoDBJSONProcessorService
+from domains.syngenta.aws.dynamodb_json_processor_service import (
+    DynamoDBJSONProcessorService,
+)
 
 
 class DynamoDBJSONProcessorCommand(BaseCommand):
@@ -174,7 +176,9 @@ REQUIREMENTS:
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         parser.add_argument(
-            "--input-dir", required=True, help="Directory containing DynamoDB JSON export files"
+            "--input-dir",
+            required=True,
+            help="Directory containing DynamoDB JSON export files",
         )
         parser.add_argument(
             "--output-db",
@@ -211,7 +215,9 @@ REQUIREMENTS:
             action="store_true",
             help="Skip creating business-friendly views when using structured processing",
         )
-        parser.add_argument("--verbose", action="store_true", help="Enable verbose progress output")
+        parser.add_argument(
+            "--verbose", action="store_true", help="Enable verbose progress output"
+        )
 
     @staticmethod
     def main(args: Namespace):
@@ -234,9 +240,11 @@ REQUIREMENTS:
             logger.info(f"Starting DynamoDB JSON processing from {args.input_dir}")
 
             service = DynamoDBJSONProcessorService()
-            
+
             if args.structured:
-                logger.info("Using structured processing - entities will be separated into different tables")
+                logger.info(
+                    "Using structured processing - entities will be separated into different tables"
+                )
                 result = service.process_exports_structured(
                     input_dir=args.input_dir,
                     output_db=args.output_db,
@@ -263,26 +271,32 @@ REQUIREMENTS:
             logger.info("=" * 60)
             logger.info("PROCESSING SUMMARY")
             logger.info("=" * 60)
-            
+
             if args.structured:
                 # Structured processing results
                 logger.info(f"Total records imported: {result['total_records']}")
                 logger.info(f"Entity types found: {result['total_entities']}")
                 logger.info(f"Tables created: {', '.join(result['tables_created'])}")
                 logger.info(f"Views created: {result['views_created']}")
-                
+
                 logger.info("\nEntity Statistics:")
-                for entity_type, count in result['entity_statistics'].items():
+                for entity_type, count in result["entity_statistics"].items():
                     table_name = f"{entity_type.lower()}_entities"
-                    logger.info(f"  • {entity_type}: {count:,} records → table '{table_name}'")
-                
+                    logger.info(
+                        f"  • {entity_type}: {count:,} records → table '{table_name}'"
+                    )
+
                 # Show processing errors if any
                 if result.get("error_count", 0) > 0:
-                    logger.warning(f"\nProcessing errors encountered: {result['error_count']}")
+                    logger.warning(
+                        f"\nProcessing errors encountered: {result['error_count']}"
+                    )
                     for error_info in result.get("processing_errors", []):
-                        logger.warning(f"  • File {error_info['file_index']}: {error_info['file']}")
+                        logger.warning(
+                            f"  • File {error_info['file_index']}: {error_info['file']}"
+                        )
                         logger.warning(f"    Error: {error_info['error']}")
-                
+
             else:
                 # Legacy processing results
                 logger.info(f"Files processed: {result.get('files_processed', 0)}")
@@ -308,7 +322,9 @@ REQUIREMENTS:
                 if result.get("errors", 0) > 0:
                     logger.warning("Errors occurred during processing:")
                     for error_detail in result.get("error_details", []):
-                        logger.warning(f"  • {error_detail['file']}: {error_detail['error']}")
+                        logger.warning(
+                            f"  • {error_detail['file']}: {error_detail['error']}"
+                        )
 
             logger.info(f"Output database: {args.output_db}")
             logger.info("=" * 60)

@@ -26,9 +26,9 @@ class DynamoDBJSONProcessorService:
         )
         self.cache = CacheManager.get_instance()
         self._column_mapping: Dict[str, str] = {}  # Original -> Normalized mapping
-        self._column_conflicts: Dict[str, List[str]] = (
-            {}
-        )  # Normalized -> List of originals
+        self._column_conflicts: Dict[
+            str, List[str]
+        ] = {}  # Normalized -> List of originals
         self._mapping_config: Optional[Dict[str, Any]] = (
             None  # Column mapping configuration
         )

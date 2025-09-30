@@ -7,11 +7,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from utils.logging.logging_manager import LogManager
 
 
 class CycleClassification(Enum):
     """Classification types for alert cycles based on auto-healing analysis."""
+
     FLAPPING = "FLAPPING"
     BENIGN_TRANSIENT = "BENIGN_TRANSIENT"
     ACTIONABLE = "ACTIONABLE"
@@ -20,6 +20,7 @@ class CycleClassification(Enum):
 @dataclass(frozen=True)
 class EnhancedLifecycleEvent:
     """Enhanced lifecycle event with additional metadata for classification."""
+
     raw: Dict[str, Any]
     timestamp: Optional[datetime]
     timestamp_epoch: Optional[float]
@@ -52,6 +53,7 @@ class EnhancedLifecycleEvent:
         try:
             # Convert to Brazilian timezone (UTC-3)
             from datetime import timedelta, timezone
+
             brazil_tz = timezone(timedelta(hours=-3))
             brazil_time = self.timestamp.astimezone(brazil_tz)
             return 9 <= brazil_time.hour <= 17
@@ -63,6 +65,7 @@ class EnhancedLifecycleEvent:
 @dataclass
 class EnhancedAlertCycle:
     """Enhanced AlertCycle with auto-healing classification capabilities."""
+
     key: str
     monitor_id: str
     monitor_name: Optional[str]
@@ -78,7 +81,9 @@ class EnhancedAlertCycle:
     correlation_group: Optional[str] = None
 
     def __post_init__(self) -> None:
-        self.events.sort(key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc))
+        self.events.sort(
+            key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
     @property
     def start(self) -> Optional[datetime]:
@@ -105,7 +110,9 @@ class EnhancedAlertCycle:
     def state_sequence(self) -> List[str]:
         sequence: List[str] = []
         for event in self.events:
-            if event.source_state and (not sequence or sequence[-1] != event.source_state):
+            if event.source_state and (
+                not sequence or sequence[-1] != event.source_state
+            ):
                 sequence.append(event.source_state)
             destination = event.destination_state or event.status
             if destination and (not sequence or sequence[-1] != destination):
@@ -225,8 +232,8 @@ class WeeklyMonitorSnapshot:
         iso_week: str,
         year: int,
         week: int,
-        metrics: Dict[str, Any]
-    ) -> 'WeeklyMonitorSnapshot':
+        metrics: Dict[str, Any],
+    ) -> "WeeklyMonitorSnapshot":
         """Create snapshot from computed monitor metrics."""
         return cls(
             monitor_id=monitor_id,
@@ -244,11 +251,15 @@ class WeeklyMonitorSnapshot:
             flapping_cycles=int(metrics.get("flapping_cycles", 0)),
             benign_transient_cycles=int(metrics.get("benign_transient_cycles", 0)),
             actionable_cycles=int(metrics.get("actionable_cycles", 0)),
-            business_hours_events_pct=float(metrics.get("business_hours_percentage", 0.0)),
+            business_hours_events_pct=float(
+                metrics.get("business_hours_percentage", 0.0)
+            ),
             teams=metrics.get("teams", []),
             environments=metrics.get("environments", []),
             avg_cycle_duration_minutes=metrics.get("avg_cycle_duration_minutes"),
-            health_score=metrics.get("health_score", {}).get("score") if isinstance(metrics.get("health_score"), dict) else None
+            health_score=metrics.get("health_score", {}).get("score")
+            if isinstance(metrics.get("health_score"), dict)
+            else None,
         )
 
 
@@ -286,8 +297,8 @@ class WeeklySummarySnapshot:
         iso_week: str,
         year: int,
         week: int,
-        monitor_snapshots: List[WeeklyMonitorSnapshot]
-    ) -> 'WeeklySummarySnapshot':
+        monitor_snapshots: List[WeeklyMonitorSnapshot],
+    ) -> "WeeklySummarySnapshot":
         """Create summary from individual monitor snapshots."""
         if not monitor_snapshots:
             return cls(
@@ -303,7 +314,7 @@ class WeeklySummarySnapshot:
                 avg_health_score=None,
                 total_flapping_cycles=0,
                 total_benign_transient_cycles=0,
-                total_actionable_cycles=0
+                total_actionable_cycles=0,
             )
 
         total_monitors = len(monitor_snapshots)
@@ -312,11 +323,19 @@ class WeeklySummarySnapshot:
 
         # Calculate averages
         avg_noise_score = sum(s.noise_score for s in monitor_snapshots) / total_monitors
-        avg_self_heal_rate = sum(s.self_heal_rate for s in monitor_snapshots) / total_monitors
-        avg_actionable_rate = sum(s.actionable_rate for s in monitor_snapshots) / total_monitors
+        avg_self_heal_rate = (
+            sum(s.self_heal_rate for s in monitor_snapshots) / total_monitors
+        )
+        avg_actionable_rate = (
+            sum(s.actionable_rate for s in monitor_snapshots) / total_monitors
+        )
 
-        health_scores = [s.health_score for s in monitor_snapshots if s.health_score is not None]
-        avg_health_score = sum(health_scores) / len(health_scores) if health_scores else None
+        health_scores = [
+            s.health_score for s in monitor_snapshots if s.health_score is not None
+        ]
+        avg_health_score = (
+            sum(health_scores) / len(health_scores) if health_scores else None
+        )
 
         return cls(
             iso_week=iso_week,
@@ -330,6 +349,8 @@ class WeeklySummarySnapshot:
             avg_actionable_rate=avg_actionable_rate,
             avg_health_score=avg_health_score,
             total_flapping_cycles=sum(s.flapping_cycles for s in monitor_snapshots),
-            total_benign_transient_cycles=sum(s.benign_transient_cycles for s in monitor_snapshots),
-            total_actionable_cycles=sum(s.actionable_cycles for s in monitor_snapshots)
+            total_benign_transient_cycles=sum(
+                s.benign_transient_cycles for s in monitor_snapshots
+            ),
+            total_actionable_cycles=sum(s.actionable_cycles for s in monitor_snapshots),
         )

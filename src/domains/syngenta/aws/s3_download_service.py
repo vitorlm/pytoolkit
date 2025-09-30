@@ -29,7 +29,9 @@ class S3DownloadService:
             return True
         except NoCredentialsError:
             self.logger.error("❌ AWS credentials not found!")
-            self.logger.error("Please configure AWS credentials using one of these methods:")
+            self.logger.error(
+                "Please configure AWS credentials using one of these methods:"
+            )
             self.logger.error("1. AWS CLI: run 'aws configure'")
             self.logger.error("2. Environment variables:")
             self.logger.error("   export AWS_ACCESS_KEY_ID=your_access_key")
@@ -46,7 +48,9 @@ class S3DownloadService:
             elif error_code == "SignatureDoesNotMatch":
                 self.logger.error("Your AWS Secret Access Key is invalid")
             elif error_code == "AccessDenied":
-                self.logger.error("Your AWS credentials don't have permission to access S3")
+                self.logger.error(
+                    "Your AWS credentials don't have permission to access S3"
+                )
             self.logger.error("Please check your AWS credentials and permissions")
             return False
         except Exception as e:
@@ -89,7 +93,9 @@ class S3DownloadService:
                 # Add objects to list
                 if "Contents" in response:
                     objects.extend(response["Contents"])
-                    self.logger.info(f"Found {len(response['Contents'])} objects in this page")
+                    self.logger.info(
+                        f"Found {len(response['Contents'])} objects in this page"
+                    )
 
                 # Check if there are more objects
                 if response.get("IsTruncated", False):
@@ -171,7 +177,9 @@ class S3DownloadService:
         self.logger.info(f"Created local directory: {local_dir}")
 
         # List all objects
-        self.logger.info(f"Listing objects in bucket '{bucket}' with prefix '{prefix}'...")
+        self.logger.info(
+            f"Listing objects in bucket '{bucket}' with prefix '{prefix}'..."
+        )
         if not recursive:
             self.logger.info(
                 "Non-recursive mode: will only download files at the current prefix level"
@@ -207,7 +215,9 @@ class S3DownloadService:
 
             # Apply file extension filter
             if file_extensions:
-                if not any(key.lower().endswith(ext.lower()) for ext in file_extensions):
+                if not any(
+                    key.lower().endswith(ext.lower()) for ext in file_extensions
+                ):
                     continue
 
             filtered_objects.append(obj)
@@ -219,7 +229,12 @@ class S3DownloadService:
         self.logger.info(f"After filtering: {len(filtered_objects)} files to download")
 
         # Download statistics
-        stats = {"total_files": len(filtered_objects), "downloaded": 0, "failed": 0, "skipped": 0}
+        stats = {
+            "total_files": len(filtered_objects),
+            "downloaded": 0,
+            "failed": 0,
+            "skipped": 0,
+        }
 
         # Download each file
         for i, obj in enumerate(filtered_objects, 1):
@@ -249,14 +264,20 @@ class S3DownloadService:
                     continue
 
             # Download file
-            self.logger.info(f"[{i}/{len(filtered_objects)}] Downloading: {key} ({size:,} bytes)")
+            self.logger.info(
+                f"[{i}/{len(filtered_objects)}] Downloading: {key} ({size:,} bytes)"
+            )
 
             if self.download_file(bucket, key, local_path):
                 stats["downloaded"] += 1
-                self.logger.info(f"[{i}/{len(filtered_objects)}] ✅ Successfully downloaded: {key}")
+                self.logger.info(
+                    f"[{i}/{len(filtered_objects)}] ✅ Successfully downloaded: {key}"
+                )
             else:
                 stats["failed"] += 1
-                self.logger.error(f"[{i}/{len(filtered_objects)}] ❌ Failed to download: {key}")
+                self.logger.error(
+                    f"[{i}/{len(filtered_objects)}] ❌ Failed to download: {key}"
+                )
 
         # Log summary
         self.logger.info("=" * 60)

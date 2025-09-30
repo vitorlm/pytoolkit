@@ -77,7 +77,9 @@ class JiraMetadataFetchError(JiraManagerError):
     Raised when fetching metadata for a specific issue type fails.
     """
 
-    def __init__(self, message: str = "Failed to fetch metadata for issue type", **metadata):
+    def __init__(
+        self, message: str = "Failed to fetch metadata for issue type", **metadata
+    ):
         super().__init__(message, **metadata)
 
 
@@ -94,7 +96,9 @@ class JiraApiRequestError(JiraApiClientError):
     Raised for errors during API requests.
     """
 
-    def __init__(self, message: str, endpoint: str, payload=None, params=None, status_code=None):
+    def __init__(
+        self, message: str, endpoint: str, payload=None, params=None, status_code=None
+    ):
         super().__init__(
             message,
             endpoint=endpoint,

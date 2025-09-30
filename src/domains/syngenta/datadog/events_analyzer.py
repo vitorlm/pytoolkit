@@ -48,7 +48,9 @@ class AlertCycle:
     events: List[LifecycleEvent] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        self.events.sort(key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc))
+        self.events.sort(
+            key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc)
+        )
 
     @property
     def start(self) -> Optional[datetime]:
@@ -69,7 +71,9 @@ class AlertCycle:
     def state_sequence(self) -> List[str]:
         sequence: List[str] = []
         for event in self.events:
-            if event.source_state and (not sequence or sequence[-1] != event.source_state):
+            if event.source_state and (
+                not sequence or sequence[-1] != event.source_state
+            ):
                 sequence.append(event.source_state)
             destination = event.destination_state or event.status
             if destination and (not sequence or sequence[-1] != destination):
@@ -138,7 +142,13 @@ class AlertCycle:
 class DatadogEventsAnalyzer:
     """Advanced analysis engine for Datadog events lifecycle and quality metrics."""
 
-    def __init__(self, events_data: List[Dict[str, Any]], *, analysis_period_days: int = 30, deleted_monitors: List[str] = None) -> None:
+    def __init__(
+        self,
+        events_data: List[Dict[str, Any]],
+        *,
+        analysis_period_days: int = 30,
+        deleted_monitors: List[str] = None,
+    ) -> None:
         self.logger = LogManager.get_instance().get_logger("DatadogEventsAnalyzer")
         self.analysis_period_days = max(analysis_period_days, 1)
         self.deleted_monitors = set(deleted_monitors or [])
@@ -149,7 +159,9 @@ class DatadogEventsAnalyzer:
         ]
         self.alert_cycles: Dict[str, AlertCycle] = self._group_by_alert_cycles()
         self.monitor_groups: Dict[str, List[LifecycleEvent]] = self._group_by_monitor()
-        self.monitor_cycles: Dict[str, List[AlertCycle]] = self._map_cycles_to_monitors()
+        self.monitor_cycles: Dict[str, List[AlertCycle]] = (
+            self._map_cycles_to_monitors()
+        )
         self._monitor_metrics: Dict[str, Dict[str, Any]] = {}
 
     def analyze_alert_quality(self) -> Dict[str, Any]:
@@ -210,7 +222,8 @@ class DatadogEventsAnalyzer:
 
             candidate = {
                 "monitor_id": monitor_id,
-                "monitor_name": metrics.get("monitor_name") or (first_event.monitor_name if first_event else None),
+                "monitor_name": metrics.get("monitor_name")
+                or (first_event.monitor_name if first_event else None),
                 "noise_score": round(monitor_noise, 2),
                 "self_healing_rate": round(self_healing, 2),
                 "confidence_score": round(confidence, 2),
@@ -238,7 +251,8 @@ class DatadogEventsAnalyzer:
         for monitor_cycles in self.monitor_cycles.values():
             ordered_cycles = sorted(
                 monitor_cycles,
-                key=lambda cycle: cycle.start or datetime.min.replace(tzinfo=timezone.utc),
+                key=lambda cycle: cycle.start
+                or datetime.min.replace(tzinfo=timezone.utc),
             )
             for index, cycle in enumerate(ordered_cycles):
                 ttr = cycle.time_to_resolution_seconds()
@@ -279,7 +293,9 @@ class DatadogEventsAnalyzer:
     def detect_behavioral_patterns(self) -> Dict[str, Any]:
         pattern_counts: Dict[str, int] = {name: 0 for name in ALERT_PATTERNS}
         pattern_counts["unknown"] = 0
-        per_monitor: Dict[str, Dict[str, int]] = defaultdict(lambda: {name: 0 for name in ALERT_PATTERNS})
+        per_monitor: Dict[str, Dict[str, int]] = defaultdict(
+            lambda: {name: 0 for name in ALERT_PATTERNS}
+        )
 
         examples: Dict[str, Dict[str, Any]] = {name: {} for name in ALERT_PATTERNS}
 
@@ -352,7 +368,9 @@ class DatadogEventsAnalyzer:
             if not monitor_events:
                 continue
 
-            stats = self._calculate_comprehensive_monitor_stats(monitor_id, cycles, monitor_events)
+            stats = self._calculate_comprehensive_monitor_stats(
+                monitor_id, cycles, monitor_events
+            )
             detailed_stats[monitor_id] = stats
 
         # Calculate overall insights
@@ -361,7 +379,7 @@ class DatadogEventsAnalyzer:
         return {
             "per_monitor": detailed_stats,
             "overall_insights": overall_insights,
-            "recommendations": self._generate_enhanced_recommendations(detailed_stats)
+            "recommendations": self._generate_enhanced_recommendations(detailed_stats),
         }
 
     # ------------------------------------------------------------------
@@ -369,10 +387,17 @@ class DatadogEventsAnalyzer:
     # ------------------------------------------------------------------
     def _build_event(self, event: Dict[str, Any]) -> Optional[LifecycleEvent]:
         monitor = event.get("monitor") if isinstance(event.get("monitor"), dict) else {}
-        lifecycle = event.get("lifecycle") if isinstance(event.get("lifecycle"), dict) else {}
+        lifecycle = (
+            event.get("lifecycle") if isinstance(event.get("lifecycle"), dict) else {}
+        )
         timestamp = self._parse_timestamp(event)
         timestamp_epoch = self._extract_timestamp_epoch(event)
-        monitor_id = str(monitor.get("id") or monitor.get("name") or event.get("monitor_id") or "unknown")
+        monitor_id = str(
+            monitor.get("id")
+            or monitor.get("name")
+            or event.get("monitor_id")
+            or "unknown"
+        )
         cycle_key = (
             monitor.get("alert_cycle_key")
             or monitor.get("alert_cycle_key_txt")
@@ -407,7 +432,12 @@ class DatadogEventsAnalyzer:
         for key, items in cycles.items():
             monitor_id = items[0].monitor_id if items else "unknown"
             monitor_name = items[0].monitor_name if items else None
-            grouped[key] = AlertCycle(key=key, monitor_id=monitor_id, monitor_name=monitor_name, events=list(items))
+            grouped[key] = AlertCycle(
+                key=key,
+                monitor_id=monitor_id,
+                monitor_name=monitor_name,
+                events=list(items),
+            )
         return grouped
 
     def _group_by_monitor(self) -> Dict[str, List[LifecycleEvent]]:
@@ -415,7 +445,10 @@ class DatadogEventsAnalyzer:
         for event in self.events:
             monitors[event.monitor_id].append(event)
         for monitor_events in monitors.values():
-            monitor_events.sort(key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc))
+            monitor_events.sort(
+                key=lambda evt: evt.timestamp
+                or datetime.min.replace(tzinfo=timezone.utc)
+            )
         return monitors
 
     def _map_cycles_to_monitors(self) -> Dict[str, List[AlertCycle]]:
@@ -424,12 +457,16 @@ class DatadogEventsAnalyzer:
             mapping[cycle.monitor_id].append(cycle)
         return mapping
 
-    def _compute_monitor_quality(self, monitor_id: str, cycles: List[AlertCycle]) -> Dict[str, Any]:
+    def _compute_monitor_quality(
+        self, monitor_id: str, cycles: List[AlertCycle]
+    ) -> Dict[str, Any]:
         monitor_events = self.monitor_groups.get(monitor_id, [])
         cycle_count = len(cycles)
         if cycle_count == 0:
             return {
-                "monitor_name": monitor_events[0].monitor_name if monitor_events else None,
+                "monitor_name": monitor_events[0].monitor_name
+                if monitor_events
+                else None,
                 "cycle_count": 0,
                 "event_count": len(monitor_events),
                 "self_healing_rate": 0.0,
@@ -498,7 +535,9 @@ class DatadogEventsAnalyzer:
             "alert_event_ratio": round(alert_event_ratio, 4),
         }
 
-    def _aggregate_quality_metrics(self, monitor_metrics: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+    def _aggregate_quality_metrics(
+        self, monitor_metrics: Iterable[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         monitor_metrics = list(monitor_metrics)
         if not monitor_metrics:
             return {
@@ -510,13 +549,18 @@ class DatadogEventsAnalyzer:
             }
 
         noise_scores = [metric.get("noise_score") or 0.0 for metric in monitor_metrics]
-        self_healings = [metric.get("self_healing_rate") or 0.0 for metric in monitor_metrics]
+        self_healings = [
+            metric.get("self_healing_rate") or 0.0 for metric in monitor_metrics
+        ]
         manual_rates = [metric.get("manual_rate") or 0.0 for metric in monitor_metrics]
         flapping_incidents = [
-            metric.get("flapping", {}).get("flapping_incidents", 0) for metric in monitor_metrics
+            metric.get("flapping", {}).get("flapping_incidents", 0)
+            for metric in monitor_metrics
         ]
 
-        actionable_percentage = 1.0 - (sum(manual_rates) / len(manual_rates) if manual_rates else 0.0)
+        actionable_percentage = 1.0 - (
+            sum(manual_rates) / len(manual_rates) if manual_rates else 0.0
+        )
 
         return {
             "overall_noise_score": round(sum(noise_scores) / len(noise_scores), 2),
@@ -526,7 +570,9 @@ class DatadogEventsAnalyzer:
             "actionable_alerts_percentage": round(actionable_percentage, 2),
         }
 
-    def _detect_flapping(self, events: List[LifecycleEvent], time_window_hours: int = 1) -> Dict[str, Any]:
+    def _detect_flapping(
+        self, events: List[LifecycleEvent], time_window_hours: int = 1
+    ) -> Dict[str, Any]:
         timestamps = [evt.timestamp for evt in events if evt.timestamp]
         timestamps.sort()
         if not timestamps:
@@ -540,7 +586,10 @@ class DatadogEventsAnalyzer:
         window_delta = timedelta(hours=time_window_hours)
         start_index = 0
         for end_index, current_time in enumerate(timestamps):
-            while start_index <= end_index and current_time - timestamps[start_index] > window_delta:
+            while (
+                start_index <= end_index
+                and current_time - timestamps[start_index] > window_delta
+            ):
                 start_index += 1
             counts.append(end_index - start_index + 1)
 
@@ -569,7 +618,10 @@ class DatadogEventsAnalyzer:
         factors = {
             "self_healing": self_healing_rate * 40,
             "frequency": frequency_score * 25,
-            "flapping": min(1.0, (flapping.get("max_transitions_per_hour", 0) or 0) / 10) * 20,
+            "flapping": min(
+                1.0, (flapping.get("max_transitions_per_hour", 0) or 0) / 10
+            )
+            * 20,
             "manual_intervention": max(0.0, 1.0 - manual_rate) * 15,
         }
         return min(100.0, sum(factors.values()))
@@ -585,7 +637,10 @@ class DatadogEventsAnalyzer:
         duration_factor = min(1.0, alert_duration_minutes / 30.0) * 20
         alert_factor = min(1.0, alert_ratio) * 30
         score = min(100.0, manual_factor + duration_factor + alert_factor)
-        confidence = min(1.0, (manual_rate + min(1.0, alert_duration_minutes / 60.0) + alert_ratio) / 3)
+        confidence = min(
+            1.0,
+            (manual_rate + min(1.0, alert_duration_minutes / 60.0) + alert_ratio) / 3,
+        )
         return round(score, 2), round(confidence, 2)
 
     def _sequence_matches(self, sequence: List[str], pattern: List[str]) -> bool:
@@ -608,7 +663,12 @@ class DatadogEventsAnalyzer:
     def _estimate_noise_reduction(self, candidates: List[Dict[str, Any]]) -> float:
         if not candidates:
             return 0.0
-        return round(sum(item.get("noise_score", 0.0) for item in candidates) / len(candidates) / 100, 3)
+        return round(
+            sum(item.get("noise_score", 0.0) for item in candidates)
+            / len(candidates)
+            / 100,
+            3,
+        )
 
     def _ensure_quality_cached(self) -> None:
         if not self._monitor_metrics:
@@ -662,14 +722,14 @@ class DatadogEventsAnalyzer:
         lower_index = int(k)
         upper_index = min(lower_index + 1, len(sorted_values) - 1)
         weight = k - lower_index
-        percentile_value = sorted_values[lower_index] * (1 - weight) + sorted_values[upper_index] * weight
+        percentile_value = (
+            sorted_values[lower_index] * (1 - weight)
+            + sorted_values[upper_index] * weight
+        )
         return round(percentile_value, 2)
 
     def _calculate_comprehensive_monitor_stats(
-        self,
-        monitor_id: str,
-        cycles: List[AlertCycle],
-        events: List[LifecycleEvent]
+        self, monitor_id: str, cycles: List[AlertCycle], events: List[LifecycleEvent]
     ) -> Dict[str, Any]:
         """Calculate comprehensive statistics for a single monitor."""
 
@@ -679,11 +739,19 @@ class DatadogEventsAnalyzer:
 
         # Time-based analysis
         if events:
-            first_event = min(events, key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc))
-            last_event = max(events, key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc))
+            first_event = min(
+                events,
+                key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+            )
+            last_event = max(
+                events,
+                key=lambda e: e.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+            )
 
             if first_event.timestamp and last_event.timestamp:
-                monitor_age_days = (last_event.timestamp - first_event.timestamp).days + 1
+                monitor_age_days = (
+                    last_event.timestamp - first_event.timestamp
+                ).days + 1
                 events_per_day = total_events / max(monitor_age_days, 1)
                 cycles_per_week = (total_cycles * 7) / max(monitor_age_days, 1)
             else:
@@ -705,18 +773,21 @@ class DatadogEventsAnalyzer:
         complete_cycles = sum(1 for cycle in cycles if cycle.has_recovery())
         orphaned_alerts = total_cycles - complete_cycles
         quick_recoveries = sum(
-            1 for cycle in cycles
+            1
+            for cycle in cycles
             if cycle.duration_seconds and cycle.duration_seconds < 300  # < 5 minutes
         )
 
         # Business impact analysis (adjusted for Brazilian timezone)
         business_hours_events = sum(
-            1 for event in events
+            1
+            for event in events
             if event.timestamp and self._is_business_hours_brazil(event.timestamp)
         )
 
         weekend_events = sum(
-            1 for event in events
+            1
+            for event in events
             if event.timestamp and self._is_weekend_brazil(event.timestamp)
         )
 
@@ -731,13 +802,12 @@ class DatadogEventsAnalyzer:
             total_events=total_events,
             quick_recoveries=quick_recoveries,
             orphaned_alerts=orphaned_alerts,
-            response_rate=response_rate
+            response_rate=response_rate,
         )
 
         # Priority analysis
         high_priority_events = sum(
-            1 for event in events
-            if event.priority and event.priority >= 3
+            1 for event in events if event.priority and event.priority >= 3
         )
 
         return {
@@ -745,60 +815,63 @@ class DatadogEventsAnalyzer:
             "monitor_name": events[0].monitor_name if events else None,
             "teams": sorted({e.team for e in events if e.team}),
             "environments": sorted({e.env for e in events if e.env}),
-
             # Volume metrics
             "total_events": total_events,
             "total_alert_cycles": total_cycles,
             "monitor_age_days": monitor_age_days,
             "events_per_day": round(events_per_day, 2),
             "cycles_per_week": round(cycles_per_week, 2),
-
             # Status distribution
             "status_distribution": dict(status_counts),
             "status_percentages": {
                 status: round((count / max(total_events, 1)) * 100, 1)
                 for status, count in status_counts.items()
             },
-
             # Alert patterns
             "complete_cycles": complete_cycles,
             "complete_cycle_rate": round(complete_cycles / max(total_cycles, 1), 3),
             "orphaned_alerts": orphaned_alerts,
             "quick_recoveries": quick_recoveries,
             "quick_recovery_rate": round(quick_recoveries / max(total_cycles, 1), 3),
-
             # Business impact
             "business_hours_events": business_hours_events,
-            "business_hours_percentage": round((business_hours_events / max(total_events, 1)) * 100, 1),
+            "business_hours_percentage": round(
+                (business_hours_events / max(total_events, 1)) * 100, 1
+            ),
             "weekend_events": weekend_events,
-            "weekend_percentage": round((weekend_events / max(total_events, 1)) * 100, 1),
-
+            "weekend_percentage": round(
+                (weekend_events / max(total_events, 1)) * 100, 1
+            ),
             # Response analysis
             "estimated_manual_responses": estimated_manual_responses,
             "estimated_response_rate": round(response_rate, 3),
             "high_priority_events": high_priority_events,
-            "high_priority_percentage": round((high_priority_events / max(total_events, 1)) * 100, 1),
-
+            "high_priority_percentage": round(
+                (high_priority_events / max(total_events, 1)) * 100, 1
+            ),
             # Health and decision metrics
             "health_score": health_score,
-            "removal_recommendation": self._get_removal_recommendation(health_score, cycles, total_events),
-
+            "removal_recommendation": self._get_removal_recommendation(
+                health_score, cycles, total_events
+            ),
             # Additional temporal metrics per monitor
-            "avg_time_to_resolution_minutes": self._round_safe_mean([
-                cycle.time_to_resolution_seconds() / 60
-                for cycle in cycles
-                if cycle.time_to_resolution_seconds() is not None
-            ]),
-            "median_cycle_duration_minutes": self._calculate_median([
-                cycle.duration_seconds / 60
-                for cycle in cycles
-                if cycle.duration_seconds is not None
-            ]),
-
+            "avg_time_to_resolution_minutes": self._round_safe_mean(
+                [
+                    cycle.time_to_resolution_seconds() / 60
+                    for cycle in cycles
+                    if cycle.time_to_resolution_seconds() is not None
+                ]
+            ),
+            "median_cycle_duration_minutes": self._calculate_median(
+                [
+                    cycle.duration_seconds / 60
+                    for cycle in cycles
+                    if cycle.duration_seconds is not None
+                ]
+            ),
             # Time patterns
             "hourly_distribution": self._calculate_hourly_distribution(events),
             "daily_distribution": self._calculate_daily_distribution(events),
-
             # Monitor status
             "is_deleted": monitor_id in self.deleted_monitors,
         }
@@ -809,7 +882,7 @@ class DatadogEventsAnalyzer:
         total_events: int,
         quick_recoveries: int,
         orphaned_alerts: int,
-        response_rate: float
+        response_rate: float,
     ) -> Dict[str, Any]:
         """Calculate a comprehensive business value score for the monitor (0-100)."""
 
@@ -817,8 +890,14 @@ class DatadogEventsAnalyzer:
             return {"score": 0, "factors": {}, "grade": "F"}
 
         # Calculate average duration for quick recovery analysis
-        valid_durations = [cycle.duration_seconds for cycle in cycles if cycle.duration_seconds is not None]
-        avg_duration_minutes = (sum(valid_durations) / len(valid_durations)) / 60 if valid_durations else 0
+        valid_durations = [
+            cycle.duration_seconds
+            for cycle in cycles
+            if cycle.duration_seconds is not None
+        ]
+        avg_duration_minutes = (
+            (sum(valid_durations) / len(valid_durations)) / 60 if valid_durations else 0
+        )
 
         # Factor 1: Alert Relevance (35% weight) - "Este alerta importa?"
         alert_relevance_score = self._calculate_alert_relevance(
@@ -832,7 +911,8 @@ class DatadogEventsAnalyzer:
 
         # Factor 3: Business Impact (20% weight) - "Afeta o negócio?"
         business_impact_score = self._calculate_business_impact(
-            cycles, total_events  # We'll need business hours data here
+            cycles,
+            total_events,  # We'll need business hours data here
         )
 
         # Factor 4: Timing Quality (15% weight) - "Alerta na hora certa?"
@@ -841,10 +921,10 @@ class DatadogEventsAnalyzer:
         )
 
         total_score = (
-            alert_relevance_score +
-            response_necessity_score +
-            business_impact_score +
-            timing_quality_score
+            alert_relevance_score
+            + response_necessity_score
+            + business_impact_score
+            + timing_quality_score
         )
 
         # Grade assignment
@@ -866,8 +946,8 @@ class DatadogEventsAnalyzer:
                 "alert_relevance": round(alert_relevance_score, 1),
                 "response_necessity": round(response_necessity_score, 1),
                 "business_impact": round(business_impact_score, 1),
-                "timing_quality": round(timing_quality_score, 1)
-            }
+                "timing_quality": round(timing_quality_score, 1),
+            },
         }
 
     def _calculate_alert_relevance(
@@ -875,7 +955,7 @@ class DatadogEventsAnalyzer:
         cycles: List[AlertCycle],
         quick_recoveries: int,
         avg_duration_minutes: float,
-        orphaned_alerts: int
+        orphaned_alerts: int,
     ) -> float:
         """Calculate alert relevance score (35% weight)."""
 
@@ -905,10 +985,7 @@ class DatadogEventsAnalyzer:
         return min(35, relevance_base + completeness_bonus)
 
     def _calculate_response_necessity(
-        self,
-        response_rate: float,
-        quick_recoveries: int,
-        total_cycles: int
+        self, response_rate: float, quick_recoveries: int, total_cycles: int
     ) -> float:
         """Calculate response necessity score (30% weight)."""
 
@@ -922,7 +999,7 @@ class DatadogEventsAnalyzer:
         elif response_rate > 0.2:
             necessity_base = 12  # Rarely needs action
         else:
-            necessity_base = 5   # Almost never needs action
+            necessity_base = 5  # Almost never needs action
 
         # Adjust for quick recoveries (if too many, reduces necessity)
         quick_recovery_rate = quick_recoveries / total_cycles if total_cycles > 0 else 0
@@ -931,7 +1008,9 @@ class DatadogEventsAnalyzer:
 
         return min(30, necessity_base)
 
-    def _calculate_business_impact(self, cycles: List[AlertCycle], total_events: int) -> float:
+    def _calculate_business_impact(
+        self, cycles: List[AlertCycle], total_events: int
+    ) -> float:
         """Calculate business impact score (20% weight)."""
 
         # For now, use a base score - in real implementation, you'd factor in:
@@ -959,7 +1038,7 @@ class DatadogEventsAnalyzer:
         self,
         cycles: List[AlertCycle],
         avg_duration_minutes: float,
-        orphaned_alerts: int
+        orphaned_alerts: int,
     ) -> float:
         """Calculate timing quality score (15% weight)."""
 
@@ -984,10 +1063,7 @@ class DatadogEventsAnalyzer:
         return max(0, min(15, timing_base - orphan_penalty))
 
     def _get_removal_recommendation(
-        self,
-        health_score: Dict[str, Any],
-        cycles: List[AlertCycle],
-        total_events: int
+        self, health_score: Dict[str, Any], cycles: List[AlertCycle], total_events: int
     ) -> Dict[str, Any]:
         """Generate specific removal/action recommendation for the monitor."""
 
@@ -998,31 +1074,33 @@ class DatadogEventsAnalyzer:
                 "action": "remove",
                 "priority": "high",
                 "reason": f"Poor health score ({score:.1f}) with high event volume",
-                "confidence": 0.9
+                "confidence": 0.9,
             }
         elif score < 50 and len(cycles) > 20:
             return {
                 "action": "review_thresholds",
                 "priority": "medium",
                 "reason": f"Low health score ({score:.1f}) suggests threshold issues",
-                "confidence": 0.7
+                "confidence": 0.7,
             }
         elif score < 60:
             return {
                 "action": "monitor",
                 "priority": "low",
                 "reason": f"Moderate health score ({score:.1f}) - monitor for improvement",
-                "confidence": 0.5
+                "confidence": 0.5,
             }
         else:
             return {
                 "action": "keep",
                 "priority": "none",
                 "reason": f"Good health score ({score:.1f}) - monitor is valuable",
-                "confidence": 0.8
+                "confidence": 0.8,
             }
 
-    def _calculate_hourly_distribution(self, events: List[LifecycleEvent]) -> Dict[int, int]:
+    def _calculate_hourly_distribution(
+        self, events: List[LifecycleEvent]
+    ) -> Dict[int, int]:
         """Calculate distribution of events by hour of day (Brazilian timezone)."""
         hourly_counts = defaultdict(int)
         for event in events:
@@ -1031,8 +1109,9 @@ class DatadogEventsAnalyzer:
                     # Try using pytz for proper timezone conversion
                     try:
                         import pytz
+
                         utc_tz = pytz.UTC
-                        brazil_tz = pytz.timezone('America/Sao_Paulo')
+                        brazil_tz = pytz.timezone("America/Sao_Paulo")
 
                         # Ensure timestamp is timezone-aware
                         if event.timestamp.tzinfo is None:
@@ -1045,7 +1124,9 @@ class DatadogEventsAnalyzer:
 
                     except ImportError:
                         # Fallback to manual timezone conversion
-                        brazil_time = event.timestamp.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3)))
+                        brazil_time = event.timestamp.replace(
+                            tzinfo=timezone.utc
+                        ).astimezone(timezone(timedelta(hours=-3)))
 
                     hourly_counts[brazil_time.hour] += 1
                 except Exception:
@@ -1053,9 +1134,19 @@ class DatadogEventsAnalyzer:
                     hourly_counts[event.timestamp.hour] += 1
         return dict(hourly_counts)
 
-    def _calculate_daily_distribution(self, events: List[LifecycleEvent]) -> Dict[str, int]:
+    def _calculate_daily_distribution(
+        self, events: List[LifecycleEvent]
+    ) -> Dict[str, int]:
         """Calculate distribution of events by day of week (Brazilian timezone)."""
-        day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         daily_counts = defaultdict(int)
         for event in events:
             if event.timestamp:
@@ -1063,8 +1154,9 @@ class DatadogEventsAnalyzer:
                     # Try using pytz for proper timezone conversion
                     try:
                         import pytz
+
                         utc_tz = pytz.UTC
-                        brazil_tz = pytz.timezone('America/Sao_Paulo')
+                        brazil_tz = pytz.timezone("America/Sao_Paulo")
 
                         # Ensure timestamp is timezone-aware
                         if event.timestamp.tzinfo is None:
@@ -1077,7 +1169,9 @@ class DatadogEventsAnalyzer:
 
                     except ImportError:
                         # Fallback to manual timezone conversion
-                        brazil_time = event.timestamp.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3)))
+                        brazil_time = event.timestamp.replace(
+                            tzinfo=timezone.utc
+                        ).astimezone(timezone(timedelta(hours=-3)))
 
                     day_name = day_names[brazil_time.weekday()]
                     daily_counts[day_name] += 1
@@ -1087,12 +1181,17 @@ class DatadogEventsAnalyzer:
                     daily_counts[day_name] += 1
         return dict(daily_counts)
 
-    def _calculate_overall_monitor_insights(self, detailed_stats: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def _calculate_overall_monitor_insights(
+        self, detailed_stats: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Calculate insights across all monitors."""
         if not detailed_stats:
             return {}
 
-        health_scores = [stats.get("health_score", {}).get("score", 0) for stats in detailed_stats.values()]
+        health_scores = [
+            stats.get("health_score", {}).get("score", 0)
+            for stats in detailed_stats.values()
+        ]
 
         grade_distribution = defaultdict(int)
         for stats in detailed_stats.values():
@@ -1103,15 +1202,28 @@ class DatadogEventsAnalyzer:
             "total_monitors_analyzed": len(detailed_stats),
             "average_health_score": self._round_safe_mean(health_scores),
             "grade_distribution": dict(grade_distribution),
-            "monitors_needing_attention": len([s for s in detailed_stats.values()
-                                            if s.get("health_score", {}).get("score", 0) < 60]),
-            "high_volume_monitors": len([s for s in detailed_stats.values()
-                                       if s.get("events_per_day", 0) > 5]),
-            "weekend_heavy_monitors": len([s for s in detailed_stats.values()
-                                         if s.get("weekend_percentage", 0) > 30])
+            "monitors_needing_attention": len(
+                [
+                    s
+                    for s in detailed_stats.values()
+                    if s.get("health_score", {}).get("score", 0) < 60
+                ]
+            ),
+            "high_volume_monitors": len(
+                [s for s in detailed_stats.values() if s.get("events_per_day", 0) > 5]
+            ),
+            "weekend_heavy_monitors": len(
+                [
+                    s
+                    for s in detailed_stats.values()
+                    if s.get("weekend_percentage", 0) > 30
+                ]
+            ),
         }
 
-    def _generate_enhanced_recommendations(self, detailed_stats: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    def _generate_enhanced_recommendations(
+        self, detailed_stats: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
         """Generate enhanced recommendations based on detailed statistics."""
 
         high_priority_removals = []
@@ -1121,36 +1233,45 @@ class DatadogEventsAnalyzer:
         for monitor_id, stats in detailed_stats.items():
             recommendation = stats.get("removal_recommendation", {})
 
-            if recommendation.get("action") == "remove" and recommendation.get("priority") == "high":
-                high_priority_removals.append({
-                    "monitor_id": monitor_id,
-                    "monitor_name": stats.get("monitor_name"),
-                    "health_score": stats.get("health_score", {}).get("score"),
-                    "total_events": stats.get("total_events"),
-                    "reason": recommendation.get("reason")
-                })
+            if (
+                recommendation.get("action") == "remove"
+                and recommendation.get("priority") == "high"
+            ):
+                high_priority_removals.append(
+                    {
+                        "monitor_id": monitor_id,
+                        "monitor_name": stats.get("monitor_name"),
+                        "health_score": stats.get("health_score", {}).get("score"),
+                        "total_events": stats.get("total_events"),
+                        "reason": recommendation.get("reason"),
+                    }
+                )
 
             if stats.get("quick_recovery_rate", 0) > 0.7:
-                automation_candidates.append({
-                    "monitor_id": monitor_id,
-                    "monitor_name": stats.get("monitor_name"),
-                    "quick_recovery_rate": stats.get("quick_recovery_rate"),
-                    "suggestion": "Consider automating resolution - high rate of quick recoveries"
-                })
+                automation_candidates.append(
+                    {
+                        "monitor_id": monitor_id,
+                        "monitor_name": stats.get("monitor_name"),
+                        "quick_recovery_rate": stats.get("quick_recovery_rate"),
+                        "suggestion": "Consider automating resolution - high rate of quick recoveries",
+                    }
+                )
 
             if recommendation.get("action") == "review_thresholds":
-                threshold_adjustments.append({
-                    "monitor_id": monitor_id,
-                    "monitor_name": stats.get("monitor_name"),
-                    "health_score": stats.get("health_score", {}).get("score"),
-                    "cycles_per_week": stats.get("cycles_per_week"),
-                    "suggestion": recommendation.get("reason")
-                })
+                threshold_adjustments.append(
+                    {
+                        "monitor_id": monitor_id,
+                        "monitor_name": stats.get("monitor_name"),
+                        "health_score": stats.get("health_score", {}).get("score"),
+                        "cycles_per_week": stats.get("cycles_per_week"),
+                        "suggestion": recommendation.get("reason"),
+                    }
+                )
 
         return {
             "high_priority_removals": high_priority_removals,
             "automation_candidates": automation_candidates,
-            "threshold_adjustments": threshold_adjustments
+            "threshold_adjustments": threshold_adjustments,
         }
 
     def _is_business_hours_brazil(self, timestamp: datetime) -> bool:
@@ -1159,8 +1280,9 @@ class DatadogEventsAnalyzer:
             # Try using pytz for proper timezone conversion with DST support
             try:
                 import pytz
+
                 utc_tz = pytz.UTC
-                brazil_tz = pytz.timezone('America/Sao_Paulo')
+                brazil_tz = pytz.timezone("America/Sao_Paulo")
 
                 # Ensure timestamp is timezone-aware
                 if timestamp.tzinfo is None:
@@ -1173,7 +1295,9 @@ class DatadogEventsAnalyzer:
 
             except ImportError:
                 # Fallback to manual timezone conversion (UTC-3)
-                brazil_time = timestamp.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3)))
+                brazil_time = timestamp.replace(tzinfo=timezone.utc).astimezone(
+                    timezone(timedelta(hours=-3))
+                )
 
             # Check if it's between 9 AM and 5 PM (17:00) Brazilian time
             return 9 <= brazil_time.hour <= 17
@@ -1187,8 +1311,9 @@ class DatadogEventsAnalyzer:
             # Try using pytz for proper timezone conversion with DST support
             try:
                 import pytz
+
                 utc_tz = pytz.UTC
-                brazil_tz = pytz.timezone('America/Sao_Paulo')
+                brazil_tz = pytz.timezone("America/Sao_Paulo")
 
                 # Ensure timestamp is timezone-aware
                 if timestamp.tzinfo is None:
@@ -1201,7 +1326,9 @@ class DatadogEventsAnalyzer:
 
             except ImportError:
                 # Fallback to manual timezone conversion (UTC-3)
-                brazil_time = timestamp.replace(tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=-3)))
+                brazil_time = timestamp.replace(tzinfo=timezone.utc).astimezone(
+                    timezone(timedelta(hours=-3))
+                )
 
             # Saturday = 5, Sunday = 6 in Python's weekday()
             return brazil_time.weekday() >= 5

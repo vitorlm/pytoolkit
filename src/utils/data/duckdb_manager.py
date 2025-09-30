@@ -65,7 +65,6 @@ class DuckDBManager:
 
         config = self.connection_configs[name]
         try:
-
             self.connections[name] = duckdb.connect(
                 database=config["path"], read_only=config.get("read_only", False)
             )
@@ -167,7 +166,9 @@ class DuckDBManager:
             if isinstance(obj, list):
                 return [convert_json_serializable(item) for item in obj]
             if isinstance(obj, dict):
-                return {key: convert_json_serializable(value) for key, value in obj.items()}
+                return {
+                    key: convert_json_serializable(value) for key, value in obj.items()
+                }
             return obj
 
         # Obter conexão para recuperar o esquema, se necessário
@@ -207,7 +208,9 @@ class DuckDBManager:
             return
 
         # Particiona os registros válidos em batches
-        batches = [valid_records[i : i + batch_size] for i in range(0, total_valid, batch_size)]
+        batches = [
+            valid_records[i : i + batch_size] for i in range(0, total_valid, batch_size)
+        ]
 
         # Variável compartilhada e lock para controle do progresso
         inserted_count = 0

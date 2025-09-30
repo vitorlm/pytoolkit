@@ -128,7 +128,9 @@ def ensure_env_loaded(required_vars: Optional[List[str]] = None) -> None:
         # Check again after loading
         still_missing = [var for var in required_vars if not os.getenv(var)]
         if still_missing:
-            print(f"Warning: Required environment variables still missing: {still_missing}")
+            print(
+                f"Warning: Required environment variables still missing: {still_missing}"
+            )
 
 
 def ensure_jira_env_loaded() -> None:
@@ -160,7 +162,9 @@ def ensure_linearb_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(f"Warning: Required LinearB environment variables missing: {missing_vars}")
+        print(
+            f"Warning: Required LinearB environment variables missing: {missing_vars}"
+        )
 
 
 def ensure_circleci_env_loaded() -> None:
@@ -178,7 +182,9 @@ def ensure_circleci_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(f"Warning: Required CircleCI environment variables missing: {missing_vars}")
+        print(
+            f"Warning: Required CircleCI environment variables missing: {missing_vars}"
+        )
 
 
 def ensure_sonarqube_env_loaded() -> None:
@@ -196,7 +202,9 @@ def ensure_sonarqube_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(f"Warning: Required SonarQube environment variables missing: {missing_vars}")
+        print(
+            f"Warning: Required SonarQube environment variables missing: {missing_vars}"
+        )
 
 
 def ensure_github_env_loaded() -> None:
@@ -230,4 +238,6 @@ def ensure_datadog_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(f"Warning: Required Datadog environment variables missing: {missing_vars}")
+        print(
+            f"Warning: Required Datadog environment variables missing: {missing_vars}"
+        )

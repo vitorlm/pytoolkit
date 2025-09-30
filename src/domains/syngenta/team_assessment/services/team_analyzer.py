@@ -54,7 +54,8 @@ class TeamAnalyzer(ChartMixin):
         """
         data = self._get_boxplot_data()
         colors = [
-            "#" + "".join([np.random.choice(list("0123456789ABCDEF")) for _ in range(6)])
+            "#"
+            + "".join([np.random.choice(list("0123456789ABCDEF")) for _ in range(6)])
             for _ in range(len(data))
         ]
         self.plot_boxplot_chart(
@@ -86,7 +87,9 @@ class TeamAnalyzer(ChartMixin):
         }
         return labels, data
 
-    def plot_radar_chart(self, title: str = "Team Skills Distribution Radar Chart") -> None:
+    def plot_radar_chart(
+        self, title: str = "Team Skills Distribution Radar Chart"
+    ) -> None:
         """
         Generates a radar chart comparing the team's average skills.
         Transforms the team data into generic radar data and calls the mixin method.
@@ -124,7 +127,9 @@ class TeamAnalyzer(ChartMixin):
                 )
         return pd.DataFrame(rows)
 
-    def plot_bar_chart(self, title: str = "Average of Each Criterion by Indicator") -> None:
+    def plot_bar_chart(
+        self, title: str = "Average of Each Criterion by Indicator"
+    ) -> None:
         """
         Generates a horizontal bar chart to display the average of indicators within each criterion.
         Transforms the team data into a DataFrame and calls the generic horizontal bar chart method.

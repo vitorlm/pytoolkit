@@ -81,7 +81,8 @@ class FeedbackAnalyzer:
 
                     for indicator in indicators:
                         if isinstance(indicator, Indicator) and (
-                            hasattr(indicator, "level") and isinstance(indicator.level, int)
+                            hasattr(indicator, "level")
+                            and isinstance(indicator.level, int)
                         ):
                             level = indicator.level
                             ind_name = indicator.name
@@ -91,15 +92,17 @@ class FeedbackAnalyzer:
 
                             if (
                                 ind_name
-                                not in team_stats.criteria_stats[criterion]["indicator_stats"]
+                                not in team_stats.criteria_stats[criterion][
+                                    "indicator_stats"
+                                ]
                             ):
                                 team_stats.criteria_stats[criterion]["indicator_stats"][
                                     ind_name
                                 ] = {"levels": []}
 
-                            team_stats.criteria_stats[criterion]["indicator_stats"][ind_name][
-                                "levels"
-                            ].append(level)
+                            team_stats.criteria_stats[criterion]["indicator_stats"][
+                                ind_name
+                            ]["levels"].append(level)
 
         self._finalize_statistics_for_criteria(team_stats.criteria_stats)
         team_stats.finalize_statistics(self._config.criteria_weights)
@@ -192,7 +195,8 @@ class FeedbackAnalyzer:
 
                     for indicator in indicators:
                         if isinstance(indicator, Indicator) and (
-                            hasattr(indicator, "level") and isinstance(indicator.level, int)
+                            hasattr(indicator, "level")
+                            and isinstance(indicator.level, int)
                         ):
                             level = indicator.level
                             ind_name = indicator.name
@@ -200,7 +204,9 @@ class FeedbackAnalyzer:
                             individual_stats.overall_levels.append(level)
                             criterion_stats["levels"].append(level)
 
-                            ind_stats = criterion_stats["indicator_stats"].setdefault(ind_name, {})
+                            ind_stats = criterion_stats["indicator_stats"].setdefault(
+                                ind_name, {}
+                            )
 
                             if "levels" not in ind_stats:
                                 ind_stats["levels"] = []
@@ -208,13 +214,17 @@ class FeedbackAnalyzer:
                             ind_stats["levels"].append(level)
 
             self._finalize_statistics_for_criteria(individual_stats.criteria_stats)
-            individual_stats.finalize_statistics(self._config.criteria_weights, team_stats)
+            individual_stats.finalize_statistics(
+                self._config.criteria_weights, team_stats
+            )
             del individual_stats.overall_levels
             team_member_statistics[evaluatee_name] = individual_stats
 
         return team_member_statistics
 
-    def _detect_outliers(self, individual_stats: Dict[str, IndividualStatistics]) -> Dict:
+    def _detect_outliers(
+        self, individual_stats: Dict[str, IndividualStatistics]
+    ) -> Dict:
         """
         Detects statistical outliers in individual statistics.
 

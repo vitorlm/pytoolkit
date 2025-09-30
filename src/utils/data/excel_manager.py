@@ -32,7 +32,9 @@ class ExcelManager:
         return pd.ExcelFile(file_path, engine="calamine")
 
     @staticmethod
-    def write_excel(data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1") -> None:
+    def write_excel(
+        data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1"
+    ) -> None:
         """
         Writes a DataFrame to an Excel file.
 
@@ -163,10 +165,17 @@ class ExcelManager:
         Returns:
             List[str]: List of non-empty values.
         """
-        return df.iloc[row_start:, col_start:col_end].dropna(axis=1).values.flatten().tolist()
+        return (
+            df.iloc[row_start:, col_start:col_end]
+            .dropna(axis=1)
+            .values.flatten()
+            .tolist()
+        )
 
     @staticmethod
-    def read_excel_as_list(file_path: str, sheet_name: str) -> List[List[Union[str, None]]]:
+    def read_excel_as_list(
+        file_path: str, sheet_name: str
+    ) -> List[List[Union[str, None]]]:
         """
         Reads an Excel sheet and returns its data as a list of lists.
 
@@ -177,6 +186,8 @@ class ExcelManager:
         Returns:
             List[List[Union[str, None]]]: Sheet data as rows of values.
         """
-        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine="calamine")
+        df = pd.read_excel(
+            file_path, sheet_name=sheet_name, header=None, engine="calamine"
+        )
         df_filled = df.fillna("")
         return df_filled.values.tolist()

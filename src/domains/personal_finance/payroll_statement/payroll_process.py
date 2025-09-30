@@ -58,5 +58,7 @@ class PayrollProcessCommand(BaseCommand):
             JSONManager.write_json(data, args.output)
             logger.info(f"Payroll data successfully saved to {args.output}")
         except Exception as e:
-            logger.error(f"An error occurred during payroll processing: {e}", exc_info=True)
+            logger.error(
+                f"An error occurred during payroll processing: {e}", exc_info=True
+            )
             raise

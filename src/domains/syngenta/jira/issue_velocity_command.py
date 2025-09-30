@@ -194,7 +194,9 @@ class IssueVelocityCommand(BaseCommand):
             # Run velocity analysis
             # Parse teams
             raw_teams = getattr(args, "teams", []) or []
-            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
+            teams = [
+                t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()
+            ] or None
 
             result = service.analyze_issue_velocity(
                 project_key=args.project_key,
@@ -227,7 +229,9 @@ class IssueVelocityCommand(BaseCommand):
         except Exception as e:
             # Check for common errors and provide helpful guidance
             error_str = str(e)
-            if "400" in error_str and ("does not exist for the field 'type'" in error_str):
+            if "400" in error_str and (
+                "does not exist for the field 'type'" in error_str
+            ):
                 logger.error(f"Failed to execute velocity analysis: {e}")
                 print("\n" + "=" * 70)
                 print("ERROR: Invalid Issue Type Detected")
@@ -238,7 +242,9 @@ class IssueVelocityCommand(BaseCommand):
                 )
                 print(f"You provided: {args.issue_types}")
                 print("\nTo fix this issue:")
-                print("1. Use the list-custom-fields command to see available issue types:")
+                print(
+                    "1. Use the list-custom-fields command to see available issue types:"
+                )
                 print(
                     f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}"
                 )
@@ -279,7 +285,11 @@ class IssueVelocityCommand(BaseCommand):
         print(f"Project: {args.project_key}")
         print(f"Period: {result.get('period_display', args.time_period)}")
         print(f"Issue Types: {', '.join(issue_types)}")
-        meta_team = result.get("analysis_metadata", {}).get("team") if isinstance(result, dict) else None
+        meta_team = (
+            result.get("analysis_metadata", {}).get("team")
+            if isinstance(result, dict)
+            else None
+        )
         if meta_team:
             print(f"Teams: {meta_team}")
         if args.labels:
@@ -302,7 +312,7 @@ class IssueVelocityCommand(BaseCommand):
             f"{'Period':<12} {'Created':<8} {'Resolved':<9} {'Net Vel':<8} "
             f"{'Backlog':<8} {'Efficiency':<10}"
         )
-        print(f"{'=' * 12} {'=' * 8} {'=' * 9} {'=' * 8} " f"{'=' * 8} {'=' * 10}")
+        print(f"{'=' * 12} {'=' * 8} {'=' * 9} {'=' * 8} {'=' * 8} {'=' * 10}")
 
         # Data rows
         cumulative_backlog = 0
@@ -315,7 +325,9 @@ class IssueVelocityCommand(BaseCommand):
 
             cumulative_backlog += net_velocity
             backlog_display = (
-                f"+{cumulative_backlog}" if cumulative_backlog > 0 else str(cumulative_backlog)
+                f"+{cumulative_backlog}"
+                if cumulative_backlog > 0
+                else str(cumulative_backlog)
             )
 
             print(

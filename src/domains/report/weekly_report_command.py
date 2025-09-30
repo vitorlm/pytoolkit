@@ -25,12 +25,27 @@ class WeeklyReportCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument("--scope", choices=["tribe", "team"], required=True, help="Report scope: tribe or team")
         parser.add_argument(
-            "--period", type=str, required=True, help="Reporting period (e.g., last-week, last-2-weeks)"
+            "--scope",
+            choices=["tribe", "team"],
+            required=True,
+            help="Report scope: tribe or team",
         )
-        parser.add_argument("--team", type=str, help="Team name (required for team scope)")
-        parser.add_argument("--output-dir", type=str, default="output", help="Output directory for report files")
+        parser.add_argument(
+            "--period",
+            type=str,
+            required=True,
+            help="Reporting period (e.g., last-week, last-2-weeks)",
+        )
+        parser.add_argument(
+            "--team", type=str, help="Team name (required for team scope)"
+        )
+        parser.add_argument(
+            "--output-dir",
+            type=str,
+            default="output",
+            help="Output directory for report files",
+        )
 
     @staticmethod
     def main(args: Namespace):

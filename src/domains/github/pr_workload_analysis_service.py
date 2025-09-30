@@ -29,104 +29,140 @@ class PrWorkloadAnalysisService:
 
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("PrWorkloadAnalysisService")
-    
-    def _calculate_business_days(self, start_date: pd.Timestamp, end_date: pd.Timestamp) -> int:
+
+    def _calculate_business_days(
+        self, start_date: pd.Timestamp, end_date: pd.Timestamp
+    ) -> int:
         """Calculate the number of business days between two dates (excluding weekends)."""
         if pd.isna(start_date) or pd.isna(end_date):
             return 0
-        
+
         # Use pandas bdate_range to get business days
-        business_days = len(pd.bdate_range(start=start_date.date(), end=end_date.date()))
-        return max(business_days - 1, 0)  # Subtract 1 to get the count of days in between
-    
-    def _get_date_range_business_days(self, start_date: pd.Timestamp, end_date: pd.Timestamp) -> int:
+        business_days = len(
+            pd.bdate_range(start=start_date.date(), end=end_date.date())
+        )
+        return max(
+            business_days - 1, 0
+        )  # Subtract 1 to get the count of days in between
+
+    def _get_date_range_business_days(
+        self, start_date: pd.Timestamp, end_date: pd.Timestamp
+    ) -> int:
         """Get the number of business days in a date range."""
         if pd.isna(start_date) or pd.isna(end_date):
             return 0
-        
+
         return len(pd.bdate_range(start=start_date.date(), end=end_date.date()))
-    
-    def _calculate_monthly_work_day_rate(self, month_period: pd.Period, pr_count: int) -> float:
+
+    def _calculate_monthly_work_day_rate(
+        self, month_period: pd.Period, pr_count: int
+    ) -> float:
         """Calculate PRs per work day for a specific month."""
         # Convert Period to start and end dates
         start_date = month_period.to_timestamp()
-        end_date = month_period.to_timestamp(how='end')
-        
+        end_date = month_period.to_timestamp(how="end")
+
         # Get business days in the month
-        business_days_in_month = self._get_date_range_business_days(start_date, end_date)
-        
+        business_days_in_month = self._get_date_range_business_days(
+            start_date, end_date
+        )
+
         # Calculate rate (avoid division by zero)
         return pr_count / max(business_days_in_month, 1)
-    
+
     def _calculate_analysis_period_months(self, df: pd.DataFrame) -> float:
         """Calculate the analysis period in months."""
         if "created_at" not in df.columns or len(df) == 0:
             return 0
-        
+
         min_date = df["created_at"].min()
         max_date = df["created_at"].max()
-        
+
         # Calculate difference in months (approximate)
         days_diff = (max_date - min_date).days
         months_diff = days_diff / 30.44  # Average days per month
-        
+
         return max(months_diff, 0.1)  # At least 0.1 month to avoid division issues
-    
+
     def _filter_by_date_range(self, df: pd.DataFrame, args) -> pd.DataFrame:
         """Filter dataframe by date range if start_date and/or end_date are specified."""
-        if not hasattr(args, 'start_date') or not hasattr(args, 'end_date'):
+        if not hasattr(args, "start_date") or not hasattr(args, "end_date"):
             return df
-            
-        start_date = getattr(args, 'start_date', None)
-        end_date = getattr(args, 'end_date', None)
-        
+
+        start_date = getattr(args, "start_date", None)
+        end_date = getattr(args, "end_date", None)
+
         # If no date filtering is requested, return original data
         if not start_date and not end_date:
             return df
-            
+
         original_count = len(df)
         filtered_df = df.copy()
-        
+
         # Check if created_at column has timezone information
-        has_timezone = hasattr(filtered_df['created_at'].dtype, 'tz') and filtered_df['created_at'].dtype.tz is not None
-        
+        has_timezone = (
+            hasattr(filtered_df["created_at"].dtype, "tz")
+            and filtered_df["created_at"].dtype.tz is not None
+        )
+
         # Apply start date filter
         if start_date:
             start_dt = pd.to_datetime(start_date)
             # Make timezone-aware if the data has timezone info
             if has_timezone:
-                start_dt = start_dt.tz_localize('UTC') if start_dt.tz is None else start_dt.tz_convert('UTC')
-            filtered_df = filtered_df[filtered_df['created_at'] >= start_dt]
-            self.logger.info(f"Filtered by start date {start_date}: {len(filtered_df)} PRs remaining")
-        
+                start_dt = (
+                    start_dt.tz_localize("UTC")
+                    if start_dt.tz is None
+                    else start_dt.tz_convert("UTC")
+                )
+            filtered_df = filtered_df[filtered_df["created_at"] >= start_dt]
+            self.logger.info(
+                f"Filtered by start date {start_date}: {len(filtered_df)} PRs remaining"
+            )
+
         # Apply end date filter (if not provided, use current date)
         if start_date and not end_date:
             end_dt = pd.Timestamp.now()
             # Make timezone-aware if the data has timezone info
             if has_timezone:
-                end_dt = end_dt.tz_localize('UTC') if end_dt.tz is None else end_dt.tz_convert('UTC')
-            filtered_df = filtered_df[filtered_df['created_at'] <= end_dt]
+                end_dt = (
+                    end_dt.tz_localize("UTC")
+                    if end_dt.tz is None
+                    else end_dt.tz_convert("UTC")
+                )
+            filtered_df = filtered_df[filtered_df["created_at"] <= end_dt]
             self.logger.info(f"Using current date as end date: {end_dt.date()}")
         elif end_date:
             end_dt = pd.to_datetime(end_date)
             # Make timezone-aware if the data has timezone info
             if has_timezone:
-                end_dt = end_dt.tz_localize('UTC') if end_dt.tz is None else end_dt.tz_convert('UTC')
-            filtered_df = filtered_df[filtered_df['created_at'] <= end_dt]
-            self.logger.info(f"Filtered by end date {end_date}: {len(filtered_df)} PRs remaining")
-        
+                end_dt = (
+                    end_dt.tz_localize("UTC")
+                    if end_dt.tz is None
+                    else end_dt.tz_convert("UTC")
+                )
+            filtered_df = filtered_df[filtered_df["created_at"] <= end_dt]
+            self.logger.info(
+                f"Filtered by end date {end_date}: {len(filtered_df)} PRs remaining"
+            )
+
         if len(filtered_df) != original_count:
-            self.logger.info(f"Date filtering applied: {original_count} -> {len(filtered_df)} PRs")
-            
+            self.logger.info(
+                f"Date filtering applied: {original_count} -> {len(filtered_df)} PRs"
+            )
+
         if len(filtered_df) == 0:
             self.logger.warning("Date filtering resulted in no PRs remaining")
-            
+
         return filtered_df
 
     def _convert_to_json_serializable(self, data: Any) -> Any:
         """Convert pandas/numpy data types to JSON-serializable Python native types."""
         if isinstance(data, dict):
-            return {key: self._convert_to_json_serializable(value) for key, value in data.items()}
+            return {
+                key: self._convert_to_json_serializable(value)
+                for key, value in data.items()
+            }
         elif isinstance(data, list):
             return [self._convert_to_json_serializable(item) for item in data]
         elif isinstance(data, (pd.Series, pd.DataFrame)):
@@ -173,7 +209,7 @@ class PrWorkloadAnalysisService:
 
             # Step 2: Prepare data for analysis
             df = self._prepare_dataframe(pr_data)
-            
+
             # Step 2.5: Filter data by date range if specified
             df = self._filter_by_date_range(df, args)
 
@@ -185,38 +221,64 @@ class PrWorkloadAnalysisService:
 
             # Step 5: Analyze CODEOWNERS pressure metrics
             pressure_metrics = self._analyze_codeowners_pressure(df, args)
-            
+
             # Step 5.5: NEW - Analyze specific team members workload
             team_analysis = self._analyze_team_members_workload(df)
 
             # Step 6: Generate insights and recommendations
-            insights = self._generate_insights(df, monthly_trends, correlations, pressure_metrics, team_analysis)
+            insights = self._generate_insights(
+                df, monthly_trends, correlations, pressure_metrics, team_analysis
+            )
 
             # Add pressure formula to correlations for reporting
-            correlations["pressure_formula"] = pressure_metrics.get("pressure_formula", {})
+            correlations["pressure_formula"] = pressure_metrics.get(
+                "pressure_formula", {}
+            )
 
             # Step 7: Create output directory
             output_dir = self._ensure_output_directory(args.output)
 
             # Step 8: Save results
             output_files = self._save_results(
-                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir, args.detailed_analysis
+                df,
+                monthly_trends,
+                correlations,
+                pressure_metrics,
+                team_analysis,
+                insights,
+                output_dir,
+                args.detailed_analysis,
             )
 
             # Step 9: Generate charts if requested
             if args.generate_charts:
-                chart_files = self._generate_charts(df, monthly_trends, correlations, output_dir)
+                chart_files = self._generate_charts(
+                    df, monthly_trends, correlations, output_dir
+                )
                 output_files.extend(chart_files)
 
             # Step 10: Generate markdown report
             report_file = self._generate_markdown_report(
-                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir, args.generate_charts
+                df,
+                monthly_trends,
+                correlations,
+                pressure_metrics,
+                team_analysis,
+                insights,
+                output_dir,
+                args.generate_charts,
             )
             output_files.append(report_file)
 
             # Step 11: Generate HTML dashboard
             dashboard_file = self._generate_html_dashboard(
-                df, monthly_trends, correlations, pressure_metrics, team_analysis, insights, output_dir
+                df,
+                monthly_trends,
+                correlations,
+                pressure_metrics,
+                team_analysis,
+                insights,
+                output_dir,
             )
             output_files.append(dashboard_file)
 
@@ -270,7 +332,9 @@ class PrWorkloadAnalysisService:
             elif isinstance(data, dict) and "pull_requests" in data:
                 return data["pull_requests"]
             else:
-                raise ValueError("JSON file must contain a list of PR records or have a 'prs' or 'pull_requests' key")
+                raise ValueError(
+                    "JSON file must contain a list of PR records or have a 'prs' or 'pull_requests' key"
+                )
         except Exception as e:
             raise ValueError(f"Failed to load JSON data: {e}")
 
@@ -283,12 +347,16 @@ class PrWorkloadAnalysisService:
                 for row in reader:
                     # Convert string booleans
                     if "is_team_member" in row:
-                        row["is_team_member"] = row["is_team_member"].lower() in ("true", "1", "yes")
+                        row["is_team_member"] = row["is_team_member"].lower() in (
+                            "true",
+                            "1",
+                            "yes",
+                        )
 
                     # Convert numeric fields
                     numeric_fields = [
                         "lead_time_days",
-                        "lead_time_hours", 
+                        "lead_time_hours",
                         "lead_time_seconds",
                         "additions",
                         "deletions",
@@ -308,7 +376,11 @@ class PrWorkloadAnalysisService:
                     for field in numeric_fields:
                         if field in row and row[field]:
                             try:
-                                row[field] = float(row[field]) if "." in str(row[field]) else int(row[field])
+                                row[field] = (
+                                    float(row[field])
+                                    if "." in str(row[field])
+                                    else int(row[field])
+                                )
                             except ValueError:
                                 row[field] = 0
 
@@ -320,7 +392,9 @@ class PrWorkloadAnalysisService:
     def _validate_data(self, data: List[Dict[str, Any]], min_records: int):
         """Validate the loaded data has required fields and minimum records."""
         if len(data) < min_records:
-            raise ValueError(f"Insufficient data: {len(data)} records, minimum required: {min_records}")
+            raise ValueError(
+                f"Insufficient data: {len(data)} records, minimum required: {min_records}"
+            )
 
         required_fields = ["author", "created_at", "is_team_member", "lead_time_days"]
 
@@ -329,9 +403,13 @@ class PrWorkloadAnalysisService:
         for i, record in enumerate(data[:sample_size]):
             missing_fields = [field for field in required_fields if field not in record]
             if missing_fields:
-                raise ValueError(f"Record {i + 1} missing required fields: {missing_fields}")
+                raise ValueError(
+                    f"Record {i + 1} missing required fields: {missing_fields}"
+                )
 
-        self.logger.info(f"Data validation passed: {len(data)} records with required fields")
+        self.logger.info(
+            f"Data validation passed: {len(data)} records with required fields"
+        )
 
     def _prepare_dataframe(self, data: List[Dict[str, Any]]) -> pd.DataFrame:
         """Convert data to pandas DataFrame and prepare for analysis."""
@@ -350,7 +428,7 @@ class PrWorkloadAnalysisService:
         # Fill missing numeric values with 0
         numeric_fields = [
             "lead_time_days",
-            "lead_time_hours", 
+            "lead_time_hours",
             "lead_time_seconds",
             "additions",
             "deletions",
@@ -374,7 +452,9 @@ class PrWorkloadAnalysisService:
         # Sort by creation date
         df = df.sort_values("created_at")
 
-        self.logger.info(f"Prepared DataFrame with {len(df)} records and {len(df.columns)} columns")
+        self.logger.info(
+            f"Prepared DataFrame with {len(df)} records and {len(df.columns)} columns"
+        )
         return df
 
     def _calculate_monthly_trends(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -387,7 +467,11 @@ class PrWorkloadAnalysisService:
             .agg(
                 {
                     "author": "count",  # PR count
-                    "lead_time_days": ["mean", lambda x: x.quantile(0.85), lambda x: x.quantile(0.95)],
+                    "lead_time_days": [
+                        "mean",
+                        lambda x: x.quantile(0.85),
+                        lambda x: x.quantile(0.95),
+                    ],
                     "pr_size": "mean",
                 }
             )
@@ -409,7 +493,10 @@ class PrWorkloadAnalysisService:
 
         # Calculate work-days per PR creation rate (using business days)
         monthly_stats["prs_per_work_day"] = monthly_stats.apply(
-            lambda row: self._calculate_monthly_work_day_rate(row["month_year"], row["pr_count"]), axis=1
+            lambda row: self._calculate_monthly_work_day_rate(
+                row["month_year"], row["pr_count"]
+            ),
+            axis=1,
         )
 
         # Separate team member vs external trends
@@ -428,7 +515,9 @@ class PrWorkloadAnalysisService:
         # Drop original Period columns before converting to dict
         monthly_stats_dict = monthly_stats.drop("month_year", axis=1).to_dict("records")
         team_trends_dict = team_trends.drop("month_year", axis=1).to_dict("records")
-        external_trends_dict = external_trends.drop("month_year", axis=1).to_dict("records")
+        external_trends_dict = external_trends.drop("month_year", axis=1).to_dict(
+            "records"
+        )
 
         return {
             "monthly_stats": monthly_stats_dict,
@@ -488,7 +577,9 @@ class PrWorkloadAnalysisService:
         corr_df = df[available_columns].corr()
 
         # Focus on correlations with lead_time_days
-        lead_time_correlations = corr_df["lead_time_days"].drop("lead_time_days").to_dict()
+        lead_time_correlations = (
+            corr_df["lead_time_days"].drop("lead_time_days").to_dict()
+        )
 
         # Find strongest correlations
         strong_correlations = {
@@ -505,10 +596,14 @@ class PrWorkloadAnalysisService:
     def _summarize_correlations(self, correlations: Dict[str, float]) -> List[str]:
         """Generate human-readable correlation summary."""
         summary = []
-        for metric, correlation in sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True):
+        for metric, correlation in sorted(
+            correlations.items(), key=lambda x: abs(x[1]), reverse=True
+        ):
             strength = "strong" if abs(correlation) > 0.6 else "moderate"
             direction = "positive" if correlation > 0 else "negative"
-            summary.append(f"{metric}: {strength} {direction} correlation ({correlation:.3f})")
+            summary.append(
+                f"{metric}: {strength} {direction} correlation ({correlation:.3f})"
+            )
         return summary
 
     def _analyze_codeowners_pressure(self, df: pd.DataFrame, args) -> Dict[str, Any]:
@@ -516,16 +611,16 @@ class PrWorkloadAnalysisService:
         self.logger.info("Analyzing CODEOWNERS pressure metrics for external PRs")
 
         # Get team size from args (with fallback)
-        team_size = getattr(args, 'team_size', 6)
-        
+        team_size = getattr(args, "team_size", 6)
+
         # Calculate total PRs and external split
         total_prs = len(df)
         internal_prs = df[df["is_team_member"]]
         external_prs = df[~df["is_team_member"]]
-        
+
         total_internal_prs = len(internal_prs)
         total_external_prs = len(external_prs)
-        
+
         if total_external_prs == 0:
             self.logger.warning("No external PRs found in dataset")
             return {"error": "No external PRs found"}
@@ -533,11 +628,15 @@ class PrWorkloadAnalysisService:
         # Calculate external PR fraction and team impact
         external_pr_fraction = total_external_prs / total_prs if total_prs > 0 else 0
         prs_per_engineer = total_prs / team_size if team_size > 0 else 0
-        external_prs_per_engineer = total_external_prs / team_size if team_size > 0 else 0
+        external_prs_per_engineer = (
+            total_external_prs / team_size if team_size > 0 else 0
+        )
 
         # Monthly external PR volume trend - convert Period index to string
         monthly_external_volume_raw = external_prs.groupby("month_year").size()
-        monthly_external_volume = {str(k): int(v) for k, v in monthly_external_volume_raw.to_dict().items()}
+        monthly_external_volume = {
+            str(k): int(v) for k, v in monthly_external_volume_raw.to_dict().items()
+        }
 
         # Lead time statistics for external PRs
         external_avg_lead_time = external_prs["lead_time_days"].mean()
@@ -556,7 +655,9 @@ class PrWorkloadAnalysisService:
 
         # Time to first review statistics
         if "time_to_first_review_seconds" in external_prs.columns:
-            first_review_times = external_prs["time_to_first_review_seconds"] / 3600  # Convert to hours
+            first_review_times = (
+                external_prs["time_to_first_review_seconds"] / 3600
+            )  # Convert to hours
             avg_time_to_first_review_hours = first_review_times.mean()
             median_time_to_first_review_hours = first_review_times.median()
             p95_time_to_first_review_hours = first_review_times.quantile(0.95)
@@ -567,15 +668,21 @@ class PrWorkloadAnalysisService:
 
         # Review rounds and re-work analysis (new GraphQL metrics)
         avg_review_rounds = external_prs.get("review_rounds", pd.Series([0])).mean()
-        avg_synchronize_events = external_prs.get("synchronize_after_first_review", pd.Series([0])).mean()
-        avg_re_review_pushes = external_prs.get("re_review_pushes", pd.Series([0])).mean()
-        
+        avg_synchronize_events = external_prs.get(
+            "synchronize_after_first_review", pd.Series([0])
+        ).mean()
+        avg_re_review_pushes = external_prs.get(
+            "re_review_pushes", pd.Series([0])
+        ).mean()
+
         # Calculate external PR workload intensity metrics
         workload_intensity = self._calculate_external_workload_intensity(external_prs)
-        
+
         # Team member comparison (if team PRs exist for comparison)
         team_prs = df[df["is_team_member"]]
-        comparison_metrics = self._calculate_team_comparison_metrics(external_prs, team_prs)
+        comparison_metrics = self._calculate_team_comparison_metrics(
+            external_prs, team_prs
+        )
 
         # Calculate pressure score using updated formula
         pressure_score = self._calculate_pressure_score(
@@ -592,12 +699,10 @@ class PrWorkloadAnalysisService:
             "total_internal_prs": total_internal_prs,
             "total_external_prs": total_external_prs,
             "external_pr_fraction": external_pr_fraction,
-            
             # Team capacity metrics
             "team_size": team_size,
             "prs_per_engineer": prs_per_engineer,
             "external_prs_per_engineer": external_prs_per_engineer,
-            
             # External PR specific metrics
             "monthly_external_volume_trend": monthly_external_volume,
             "external_avg_lead_time_days": external_avg_lead_time,
@@ -644,21 +749,27 @@ class PrWorkloadAnalysisService:
             },
         }
 
-    def _calculate_external_workload_intensity(self, external_prs: pd.DataFrame) -> Dict[str, Any]:
+    def _calculate_external_workload_intensity(
+        self, external_prs: pd.DataFrame
+    ) -> Dict[str, Any]:
         """Calculate workload intensity metrics specific to external PRs."""
         if len(external_prs) == 0:
             return {}
-            
+
         # Calculate work-day external PR submission rate (business days only)
         if "created_at" in external_prs.columns:
             min_date = external_prs["created_at"].min()
             max_date = external_prs["created_at"].max()
-            business_days_in_range = self._get_date_range_business_days(min_date, max_date)
+            business_days_in_range = self._get_date_range_business_days(
+                min_date, max_date
+            )
             calendar_days_range = (max_date - min_date).days
-            
+
             # Work-day rate (excluding weekends)
-            work_day_external_pr_rate = len(external_prs) / max(business_days_in_range, 1)
-            
+            work_day_external_pr_rate = len(external_prs) / max(
+                business_days_in_range, 1
+            )
+
             # Keep calendar days for reference but focus on work-day calculations
             daily_external_pr_rate = len(external_prs) / max(calendar_days_range, 1)
         else:
@@ -666,23 +777,33 @@ class PrWorkloadAnalysisService:
             calendar_days_range = 0
             work_day_external_pr_rate = 0
             daily_external_pr_rate = 0
-            
+
         # Calculate rework intensity (based on review rounds and synchronize events)
-        avg_rework_events = external_prs.get("synchronize_after_first_review", pd.Series([0])).mean()
-        high_rework_prs = len(external_prs[external_prs.get("review_rounds", pd.Series([0])) >= 2])
-        rework_percentage = (high_rework_prs / len(external_prs)) * 100 if len(external_prs) > 0 else 0
-        
+        avg_rework_events = external_prs.get(
+            "synchronize_after_first_review", pd.Series([0])
+        ).mean()
+        high_rework_prs = len(
+            external_prs[external_prs.get("review_rounds", pd.Series([0])) >= 2]
+        )
+        rework_percentage = (
+            (high_rework_prs / len(external_prs)) * 100 if len(external_prs) > 0 else 0
+        )
+
         # Calculate response time pressure
         if "time_to_first_review_seconds" in external_prs.columns:
-            slow_response_prs = len(external_prs[external_prs["time_to_first_review_seconds"] > 86400])  # > 24h
+            slow_response_prs = len(
+                external_prs[external_prs["time_to_first_review_seconds"] > 86400]
+            )  # > 24h
             slow_response_percentage = (slow_response_prs / len(external_prs)) * 100
         else:
             slow_response_percentage = 0
-            
+
         # Calculate complex PR burden
         large_prs = len(external_prs[external_prs["pr_size"] > 500])
-        complex_prs_percentage = (large_prs / len(external_prs)) * 100 if len(external_prs) > 0 else 0
-        
+        complex_prs_percentage = (
+            (large_prs / len(external_prs)) * 100 if len(external_prs) > 0 else 0
+        )
+
         return {
             "work_day_external_pr_rate": work_day_external_pr_rate,
             "daily_external_pr_rate": daily_external_pr_rate,  # Keep for reference
@@ -695,49 +816,72 @@ class PrWorkloadAnalysisService:
             "total_analysis_calendar_days": calendar_days_range,
         }
 
-    def _calculate_team_comparison_metrics(self, external_prs: pd.DataFrame, team_prs: pd.DataFrame) -> Dict[str, Any]:
+    def _calculate_team_comparison_metrics(
+        self, external_prs: pd.DataFrame, team_prs: pd.DataFrame
+    ) -> Dict[str, Any]:
         """Calculate comparison metrics between external and team PRs."""
         if len(team_prs) == 0:
-            return {"comparison_available": False, "reason": "No team PRs found for comparison"}
-            
+            return {
+                "comparison_available": False,
+                "reason": "No team PRs found for comparison",
+            }
+
         comparison = {}
-        
+
         # Lead time comparison
         ext_lead_time = external_prs["lead_time_days"].mean()
         team_lead_time = team_prs["lead_time_days"].mean()
         comparison["lead_time_difference_days"] = ext_lead_time - team_lead_time
-        comparison["lead_time_ratio"] = ext_lead_time / team_lead_time if team_lead_time > 0 else 0
-        
+        comparison["lead_time_ratio"] = (
+            ext_lead_time / team_lead_time if team_lead_time > 0 else 0
+        )
+
         # Review burden comparison
         ext_reviews = external_prs["reviews_count"].mean()
         team_reviews = team_prs["reviews_count"].mean()
         comparison["review_burden_difference"] = ext_reviews - team_reviews
-        comparison["review_burden_ratio"] = ext_reviews / team_reviews if team_reviews > 0 else 0
-        
+        comparison["review_burden_ratio"] = (
+            ext_reviews / team_reviews if team_reviews > 0 else 0
+        )
+
         # PR size comparison
         ext_size = external_prs["pr_size"].mean()
         team_size = team_prs["pr_size"].mean()
         comparison["size_difference"] = ext_size - team_size
         comparison["size_ratio"] = ext_size / team_size if team_size > 0 else 0
-        
+
         # Time to first review comparison (if available)
-        if "time_to_first_review_seconds" in external_prs.columns and "time_to_first_review_seconds" in team_prs.columns:
-            ext_response = external_prs["time_to_first_review_seconds"].mean() / 3600  # hours
-            team_response = team_prs["time_to_first_review_seconds"].mean() / 3600  # hours
+        if (
+            "time_to_first_review_seconds" in external_prs.columns
+            and "time_to_first_review_seconds" in team_prs.columns
+        ):
+            ext_response = (
+                external_prs["time_to_first_review_seconds"].mean() / 3600
+            )  # hours
+            team_response = (
+                team_prs["time_to_first_review_seconds"].mean() / 3600
+            )  # hours
             comparison["response_time_difference_hours"] = ext_response - team_response
-            comparison["response_time_ratio"] = ext_response / team_response if team_response > 0 else 0
-        
+            comparison["response_time_ratio"] = (
+                ext_response / team_response if team_response > 0 else 0
+            )
+
         # Review rounds comparison (if available)
-        if "review_rounds" in external_prs.columns and "review_rounds" in team_prs.columns:
+        if (
+            "review_rounds" in external_prs.columns
+            and "review_rounds" in team_prs.columns
+        ):
             ext_rounds = external_prs["review_rounds"].mean()
             team_rounds = team_prs["review_rounds"].mean()
             comparison["review_rounds_difference"] = ext_rounds - team_rounds
-            comparison["review_rounds_ratio"] = ext_rounds / team_rounds if team_rounds > 0 else 0
-        
+            comparison["review_rounds_ratio"] = (
+                ext_rounds / team_rounds if team_rounds > 0 else 0
+            )
+
         comparison["comparison_available"] = True
         comparison["external_prs_count"] = len(external_prs)
         comparison["team_prs_count"] = len(team_prs)
-        
+
         return comparison
 
     def _calculate_pressure_score(
@@ -759,7 +903,9 @@ class PrWorkloadAnalysisService:
         }
 
         # Normalize external percentage (0-100% -> 0-1)
-        external_factor = min(external_percentage / 50, 1.0)  # Cap at 50% as high pressure
+        external_factor = min(
+            external_percentage / 50, 1.0
+        )  # Cap at 50% as high pressure
 
         # Normalize lead time difference (assume 10 days difference as high pressure)
         lead_time_factor = min(max(external_lead_time - team_lead_time, 0) / 10, 1.0)
@@ -797,107 +943,141 @@ class PrWorkloadAnalysisService:
     def _analyze_team_members_workload(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Analyze workload for specific team members from the configured teams.
-        
+
         Args:
             df: DataFrame with PR data
-            
+
         Returns:
             Dictionary with team member analysis
         """
         self.logger.info("Analyzing team members workload")
-        
+
         # Define the specific teams we want to analyze
         target_teams = [
             "@syngenta-digital/cropwise-core-services-catalog",
-            "@syngenta-digital/cropwise-core-services-identity", 
-            "@syngenta-digital/cropwise-core-services-da-backbone"
+            "@syngenta-digital/cropwise-core-services-identity",
+            "@syngenta-digital/cropwise-core-services-da-backbone",
         ]
-        
+
         team_analysis = {
             "target_teams": target_teams,
             "pr_counts_by_author": {},
             "team_member_stats": {},
             "external_contributor_stats": {},
             "approver_analysis": {},
-            "summary_metrics": {}
+            "summary_metrics": {},
         }
-        
+
         # Analyze PRs by author for team members
         team_member_prs = df[df["is_team_member"] == True].copy()
         external_prs = df[df["is_team_member"] == False].copy()
-        
+
         # Count PRs by team member authors
         if not team_member_prs.empty:
             pr_counts = team_member_prs["author"].value_counts().to_dict()
             team_analysis["pr_counts_by_author"] = pr_counts
-            
+
             # Calculate stats for each team member
             for author, count in pr_counts.items():
                 author_prs = team_member_prs[team_member_prs["author"] == author]
-                
+
                 team_analysis["team_member_stats"][author] = {
                     "total_prs": count,
-                    "avg_lead_time_days": author_prs["lead_time_days"].mean() if len(author_prs) > 0 else 0,
-                    "avg_additions": author_prs["additions"].mean() if "additions" in author_prs.columns and len(author_prs) > 0 else 0,
-                    "avg_deletions": author_prs["deletions"].mean() if "deletions" in author_prs.columns and len(author_prs) > 0 else 0,
-                    "avg_changed_files": author_prs["changed_files"].mean() if "changed_files" in author_prs.columns and len(author_prs) > 0 else 0,
-                    "avg_commits": author_prs["commits"].mean() if "commits" in author_prs.columns and len(author_prs) > 0 else 0,
-                    "avg_reviews": author_prs["reviews_count"].mean() if "reviews_count" in author_prs.columns and len(author_prs) > 0 else 0
+                    "avg_lead_time_days": author_prs["lead_time_days"].mean()
+                    if len(author_prs) > 0
+                    else 0,
+                    "avg_additions": author_prs["additions"].mean()
+                    if "additions" in author_prs.columns and len(author_prs) > 0
+                    else 0,
+                    "avg_deletions": author_prs["deletions"].mean()
+                    if "deletions" in author_prs.columns and len(author_prs) > 0
+                    else 0,
+                    "avg_changed_files": author_prs["changed_files"].mean()
+                    if "changed_files" in author_prs.columns and len(author_prs) > 0
+                    else 0,
+                    "avg_commits": author_prs["commits"].mean()
+                    if "commits" in author_prs.columns and len(author_prs) > 0
+                    else 0,
+                    "avg_reviews": author_prs["reviews_count"].mean()
+                    if "reviews_count" in author_prs.columns and len(author_prs) > 0
+                    else 0,
                 }
-        
+
         # Analyze external contributors
         if not external_prs.empty:
             ext_pr_counts = external_prs["author"].value_counts().to_dict()
-            
-            for author, count in list(ext_pr_counts.items())[:10]:  # Top 10 external contributors
+
+            for author, count in list(ext_pr_counts.items())[
+                :10
+            ]:  # Top 10 external contributors
                 author_prs = external_prs[external_prs["author"] == author]
-                
+
                 team_analysis["external_contributor_stats"][author] = {
                     "total_prs": count,
-                    "avg_lead_time_days": author_prs["lead_time_days"].mean() if len(author_prs) > 0 else 0,
-                    "avg_additions": author_prs["additions"].mean() if "additions" in author_prs.columns and len(author_prs) > 0 else 0,
-                    "avg_changed_files": author_prs["changed_files"].mean() if "changed_files" in author_prs.columns and len(author_prs) > 0 else 0
+                    "avg_lead_time_days": author_prs["lead_time_days"].mean()
+                    if len(author_prs) > 0
+                    else 0,
+                    "avg_additions": author_prs["additions"].mean()
+                    if "additions" in author_prs.columns and len(author_prs) > 0
+                    else 0,
+                    "avg_changed_files": author_prs["changed_files"].mean()
+                    if "changed_files" in author_prs.columns and len(author_prs) > 0
+                    else 0,
                 }
-        
+
         # Analyze approvers if data is available
         if "approvers" in df.columns:
             all_approvers = []
             for _, row in df.iterrows():
-                if pd.notna(row["approvers"]) and isinstance(row["approvers"], (list, str)):
+                if pd.notna(row["approvers"]) and isinstance(
+                    row["approvers"], (list, str)
+                ):
                     if isinstance(row["approvers"], str):
                         # Handle string representation of list
                         try:
                             import ast
+
                             approvers = ast.literal_eval(row["approvers"])
                         except:
                             approvers = [row["approvers"]]
                     else:
                         approvers = row["approvers"]
-                    
+
                     all_approvers.extend(approvers)
-            
+
             if all_approvers:
                 from collections import Counter
+
                 approver_counts = Counter(all_approvers)
                 team_analysis["approver_analysis"] = {
                     "top_approvers": dict(approver_counts.most_common(10)),
                     "total_unique_approvers": len(set(all_approvers)),
-                    "total_approvals": len(all_approvers)
+                    "total_approvals": len(all_approvers),
                 }
-        
+
         # Calculate summary metrics
         team_analysis["summary_metrics"] = {
             "total_team_member_prs": len(team_member_prs),
             "total_external_prs": len(external_prs),
             "unique_team_members": len(team_analysis["pr_counts_by_author"]),
-            "unique_external_contributors": len(external_prs["author"].unique()) if not external_prs.empty else 0,
-            "avg_team_member_lead_time": team_member_prs["lead_time_days"].mean() if not team_member_prs.empty else 0,
-            "avg_external_lead_time": external_prs["lead_time_days"].mean() if not external_prs.empty else 0,
-            "external_to_team_pr_ratio": len(external_prs) / len(team_member_prs) if len(team_member_prs) > 0 else 0
+            "unique_external_contributors": len(external_prs["author"].unique())
+            if not external_prs.empty
+            else 0,
+            "avg_team_member_lead_time": team_member_prs["lead_time_days"].mean()
+            if not team_member_prs.empty
+            else 0,
+            "avg_external_lead_time": external_prs["lead_time_days"].mean()
+            if not external_prs.empty
+            else 0,
+            "external_to_team_pr_ratio": len(external_prs) / len(team_member_prs)
+            if len(team_member_prs) > 0
+            else 0,
         }
-        
-        self.logger.info(f"Team analysis completed. Found {team_analysis['summary_metrics']['unique_team_members']} team members and {team_analysis['summary_metrics']['unique_external_contributors']} external contributors")
-        
+
+        self.logger.info(
+            f"Team analysis completed. Found {team_analysis['summary_metrics']['unique_team_members']} team members and {team_analysis['summary_metrics']['unique_external_contributors']} external contributors"
+        )
+
         return team_analysis
 
     def _generate_insights(
@@ -917,13 +1097,19 @@ class PrWorkloadAnalysisService:
         # Analyze external PR trends
         external_growth = monthly_trends.get("external_pr_growth_rate", 0)
         if external_growth > 1:
-            key_points.append(f"External PR submissions are increasing at {external_growth:.1f} PRs per month")
-            recommendations.append("Monitor external PR growth trend and consider scaling review capacity")
+            key_points.append(
+                f"External PR submissions are increasing at {external_growth:.1f} PRs per month"
+            )
+            recommendations.append(
+                "Monitor external PR growth trend and consider scaling review capacity"
+            )
 
         # Analyze pressure level
         pressure_level = pressure_metrics.get("pressure_level", "UNKNOWN")
         pressure_score = pressure_metrics.get("pressure_score", 0)
-        key_points.append(f"CODEOWNERS pressure level: {pressure_level} (score: {pressure_score:.2f})")
+        key_points.append(
+            f"CODEOWNERS pressure level: {pressure_level} (score: {pressure_score:.2f})"
+        )
 
         if pressure_level == "HIGH":
             recommendations.extend(
@@ -937,15 +1123,21 @@ class PrWorkloadAnalysisService:
         # Analyze lead time differences
         lead_time_diff = pressure_metrics.get("lead_time_difference", 0)
         if lead_time_diff > 2:
-            key_points.append(f"External PRs take {lead_time_diff:.1f} days longer to merge than team PRs")
-            recommendations.append("Investigate bottlenecks in external PR review process")
+            key_points.append(
+                f"External PRs take {lead_time_diff:.1f} days longer to merge than team PRs"
+            )
+            recommendations.append(
+                "Investigate bottlenecks in external PR review process"
+            )
 
         # Analyze PR size impact
         strong_correlations = correlations.get("strong_correlations", {})
         if "pr_size" in strong_correlations:
             correlation_value = strong_correlations["pr_size"]
             if correlation_value > 0.5:
-                key_points.append(f"PR size strongly correlates with lead time (r={correlation_value:.3f})")
+                key_points.append(
+                    f"PR size strongly correlates with lead time (r={correlation_value:.3f})"
+                )
                 recommendations.extend(
                     [
                         "Encourage smaller, focused PRs through contributor guidelines",
@@ -956,8 +1148,12 @@ class PrWorkloadAnalysisService:
         # Analyze external PR percentage
         external_percentage = pressure_metrics.get("external_prs_percentage", 0)
         if external_percentage > 40:
-            key_points.append(f"External authors contribute {external_percentage:.1f}% of all PRs")
-            recommendations.append("Evaluate if current CODEOWNERS capacity matches external contribution volume")
+            key_points.append(
+                f"External authors contribute {external_percentage:.1f}% of all PRs"
+            )
+            recommendations.append(
+                "Evaluate if current CODEOWNERS capacity matches external contribution volume"
+            )
 
         return {"key_points": key_points, "recommendations": recommendations}
 
@@ -966,23 +1162,25 @@ class PrWorkloadAnalysisService:
         # Create timestamped directory name (using minutes instead of seconds for uniqueness per execution)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         timestamped_dirname = f"pr-workload-analysis_{timestamp}"
-        
+
         # Create full path: output_path/pr-workload-analysis_YYYYMMDD_HHMM/
         output_dir = os.path.abspath(os.path.join(output_path, timestamped_dirname))
-        
+
         # If directory already exists (multiple runs in same minute), add a counter
         counter = 1
         final_output_dir = output_dir
         while os.path.exists(final_output_dir):
             final_timestamped_dirname = f"{timestamped_dirname}_{counter:02d}"
-            final_output_dir = os.path.abspath(os.path.join(output_path, final_timestamped_dirname))
+            final_output_dir = os.path.abspath(
+                os.path.join(output_path, final_timestamped_dirname)
+            )
             counter += 1
             # Safety limit to avoid infinite loop
             if counter > 99:
                 break
-        
+
         FileManager.create_folder(final_output_dir)
-        
+
         final_dirname = os.path.basename(final_output_dir)
         self.logger.info(f"Created timestamped output directory: {final_dirname}")
         return final_output_dir
@@ -1051,7 +1249,9 @@ class PrWorkloadAnalysisService:
             for i, recommendation in enumerate(insights["recommendations"], 1):
                 f.write(f"{i}. {recommendation}\n")
 
-            f.write(f"\nAnalysis generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(
+                f"\nAnalysis generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
         output_files.append(recommendations_file)
 
         # 6. Detailed data if requested
@@ -1063,7 +1263,11 @@ class PrWorkloadAnalysisService:
         return output_files
 
     def _generate_charts(
-        self, df: pd.DataFrame, monthly_trends: Dict[str, Any], correlations: Dict[str, Any], output_dir: str
+        self,
+        df: pd.DataFrame,
+        monthly_trends: Dict[str, Any],
+        correlations: Dict[str, Any],
+        output_dir: str,
     ) -> List[str]:
         """Generate visualization charts."""
         self.logger.info("Generating visualization charts")
@@ -1078,12 +1282,16 @@ class PrWorkloadAnalysisService:
 
             # 1. Monthly external PR volume chart
             trend_chart = os.path.join(charts_dir, "monthly_external_pr_volume.png")
-            self.logger.info(f"Creating monthly external PR volume chart: {trend_chart}")
+            self.logger.info(
+                f"Creating monthly external PR volume chart: {trend_chart}"
+            )
             self._create_monthly_external_volume_chart(df, trend_chart)
             chart_files.append(trend_chart)
 
             # 2. Lead time distribution chart (external PRs only)
-            leadtime_chart = os.path.join(charts_dir, "external_lead_time_distribution.png")
+            leadtime_chart = os.path.join(
+                charts_dir, "external_lead_time_distribution.png"
+            )
             self.logger.info(f"Creating external lead time chart: {leadtime_chart}")
             self._create_lead_time_chart(df, leadtime_chart)
             chart_files.append(leadtime_chart)
@@ -1095,13 +1303,17 @@ class PrWorkloadAnalysisService:
             chart_files.append(corr_chart)
 
             # 4. PR size vs lead time scatter (external PRs only)
-            scatter_chart = os.path.join(charts_dir, "external_pr_size_vs_lead_time.png")
+            scatter_chart = os.path.join(
+                charts_dir, "external_pr_size_vs_lead_time.png"
+            )
             self.logger.info(f"Creating external PR scatter chart: {scatter_chart}")
             self._create_scatter_chart(df, scatter_chart)
             chart_files.append(scatter_chart)
 
             # 5. Monthly PR volume histogram
-            histogram_chart = os.path.join(charts_dir, "monthly_pr_volume_histogram.png")
+            histogram_chart = os.path.join(
+                charts_dir, "monthly_pr_volume_histogram.png"
+            )
             self.logger.info(f"Creating monthly volume histogram: {histogram_chart}")
             self._create_monthly_histogram(df, histogram_chart)
             chart_files.append(histogram_chart)
@@ -1110,18 +1322,24 @@ class PrWorkloadAnalysisService:
             period_months = self._calculate_analysis_period_months(df)
             if period_months <= 3:
                 work_day_chart = os.path.join(charts_dir, "work_day_volume_chart.png")
-                self.logger.info(f"Creating work-day volume chart (period: {period_months:.1f} months): {work_day_chart}")
+                self.logger.info(
+                    f"Creating work-day volume chart (period: {period_months:.1f} months): {work_day_chart}"
+                )
                 self._create_work_day_volume_chart(df, work_day_chart)
                 chart_files.append(work_day_chart)
             else:
-                self.logger.info(f"Skipping work-day volume chart (period: {period_months:.1f} months > 3 months)")
+                self.logger.info(
+                    f"Skipping work-day volume chart (period: {period_months:.1f} months > 3 months)"
+                )
 
         except Exception as e:
             self.logger.warning(f"Failed to generate some charts: {e}")
 
         return chart_files
 
-    def _create_monthly_trends_chart(self, monthly_trends: Dict[str, Any], output_path: str):
+    def _create_monthly_trends_chart(
+        self, monthly_trends: Dict[str, Any], output_path: str
+    ):
         """Create monthly PR trends chart."""
         self.logger.info(f"Starting monthly trends chart creation: {output_path}")
         try:
@@ -1136,12 +1354,22 @@ class PrWorkloadAnalysisService:
 
             if team_trends:
                 team_df = pd.DataFrame(team_trends)
-                team_df["month_year"] = pd.to_datetime(team_df["month_year"].astype(str))
-                ax1.plot(team_df["month_year"], team_df["pr_count"], marker="o", label="Team Members", linewidth=2)
+                team_df["month_year"] = pd.to_datetime(
+                    team_df["month_year"].astype(str)
+                )
+                ax1.plot(
+                    team_df["month_year"],
+                    team_df["pr_count"],
+                    marker="o",
+                    label="Team Members",
+                    linewidth=2,
+                )
 
             if external_trends:
                 external_df = pd.DataFrame(external_trends)
-                external_df["month_year"] = pd.to_datetime(external_df["month_year"].astype(str))
+                external_df["month_year"] = pd.to_datetime(
+                    external_df["month_year"].astype(str)
+                )
                 ax1.plot(
                     external_df["month_year"],
                     external_df["pr_count"],
@@ -1158,7 +1386,13 @@ class PrWorkloadAnalysisService:
 
             # Lead time trends
             if team_df is not None:
-                ax2.plot(team_df["month_year"], team_df["avg_lead_time"], marker="o", label="Team Members", linewidth=2)
+                ax2.plot(
+                    team_df["month_year"],
+                    team_df["avg_lead_time"],
+                    marker="o",
+                    label="Team Members",
+                    linewidth=2,
+                )
 
             if external_df is not None:
                 ax2.plot(
@@ -1169,7 +1403,9 @@ class PrWorkloadAnalysisService:
                     linewidth=2,
                 )
 
-            ax2.set_title("Monthly Average Lead Time Trends", fontsize=14, fontweight="bold")
+            ax2.set_title(
+                "Monthly Average Lead Time Trends", fontsize=14, fontweight="bold"
+            )
             ax2.set_xlabel("Month")
             ax2.set_ylabel("Average Lead Time (days)")
             ax2.legend()
@@ -1194,9 +1430,17 @@ class PrWorkloadAnalysisService:
             external_prs = df[~df["is_team_member"]]["lead_time_days"]
 
             ax.hist(team_prs, bins=30, alpha=0.7, label="Team Members", density=True)
-            ax.hist(external_prs, bins=30, alpha=0.7, label="External Contributors", density=True)
+            ax.hist(
+                external_prs,
+                bins=30,
+                alpha=0.7,
+                label="External Contributors",
+                density=True,
+            )
 
-            ax.set_title("Lead Time Distribution Comparison", fontsize=14, fontweight="bold")
+            ax.set_title(
+                "Lead Time Distribution Comparison", fontsize=14, fontweight="bold"
+            )
             ax.set_xlabel("Lead Time (days)")
             ax.set_ylabel("Density")
             ax.legend()
@@ -1209,7 +1453,9 @@ class PrWorkloadAnalysisService:
         except Exception as e:
             self.logger.error(f"Failed to create lead time chart: {e}")
 
-    def _create_correlation_heatmap(self, correlations: Dict[str, Any], output_path: str):
+    def _create_correlation_heatmap(
+        self, correlations: Dict[str, Any], output_path: str
+    ):
         """Create correlation heatmap."""
         self.logger.info(f"Creating correlation heatmap: {output_path}")
         try:
@@ -1222,7 +1468,9 @@ class PrWorkloadAnalysisService:
             corr_df = pd.DataFrame(corr_matrix)
 
             # Create a simple heatmap using matplotlib
-            im = ax.imshow(corr_df.values, cmap="RdBu_r", aspect="auto", vmin=-1, vmax=1)
+            im = ax.imshow(
+                corr_df.values, cmap="RdBu_r", aspect="auto", vmin=-1, vmax=1
+            )
 
             # Set ticks and labels
             ax.set_xticks(range(len(corr_df.columns)))
@@ -1233,12 +1481,23 @@ class PrWorkloadAnalysisService:
             # Add text annotations
             for i in range(len(corr_df.index)):
                 for j in range(len(corr_df.columns)):
-                    ax.text(j, i, f"{corr_df.iloc[i, j]:.2f}", ha="center", va="center", color="black")
+                    ax.text(
+                        j,
+                        i,
+                        f"{corr_df.iloc[i, j]:.2f}",
+                        ha="center",
+                        va="center",
+                        color="black",
+                    )
 
             # Add colorbar
             plt.colorbar(im, ax=ax, shrink=0.8)
 
-            ax.set_title("Correlation Matrix - PR Metrics vs Lead Time", fontsize=14, fontweight="bold")
+            ax.set_title(
+                "Correlation Matrix - PR Metrics vs Lead Time",
+                fontsize=14,
+                fontweight="bold",
+            )
             plt.tight_layout()
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
@@ -1255,9 +1514,19 @@ class PrWorkloadAnalysisService:
             team_prs = df[df["is_team_member"]]
             external_prs = df[~df["is_team_member"]]
 
-            ax.scatter(team_prs["pr_size"], team_prs["lead_time_days"], alpha=0.6, label="Team Members", s=30)
             ax.scatter(
-                external_prs["pr_size"], external_prs["lead_time_days"], alpha=0.6, label="External Contributors", s=30
+                team_prs["pr_size"],
+                team_prs["lead_time_days"],
+                alpha=0.6,
+                label="Team Members",
+                s=30,
+            )
+            ax.scatter(
+                external_prs["pr_size"],
+                external_prs["lead_time_days"],
+                alpha=0.6,
+                label="External Contributors",
+                s=30,
             )
 
             ax.set_title("PR Size vs Lead Time", fontsize=14, fontweight="bold")
@@ -1286,7 +1555,9 @@ class PrWorkloadAnalysisService:
 
             # Group by month
             monthly_counts = external_prs.groupby("month_year").size()
-            monthly_avg_lead_time = external_prs.groupby("month_year")["lead_time_days"].mean()
+            monthly_avg_lead_time = external_prs.groupby("month_year")[
+                "lead_time_days"
+            ].mean()
 
             # Convert Period index to datetime for plotting
             dates = [pd.to_datetime(str(period)) for period in monthly_counts.index]
@@ -1294,14 +1565,24 @@ class PrWorkloadAnalysisService:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
 
             # PR Volume
-            ax1.bar(dates, monthly_counts.values, color="steelblue", alpha=0.7, edgecolor="navy")
-            ax1.set_title("Monthly External PR Volume", fontsize=16, fontweight="bold", pad=20)
+            ax1.bar(
+                dates,
+                monthly_counts.values,
+                color="steelblue",
+                alpha=0.7,
+                edgecolor="navy",
+            )
+            ax1.set_title(
+                "Monthly External PR Volume", fontsize=16, fontweight="bold", pad=20
+            )
             ax1.set_ylabel("Number of External PRs", fontsize=12)
             ax1.grid(True, alpha=0.3)
 
             # Add value labels on bars
             for i, (date, count) in enumerate(zip(dates, monthly_counts.values)):
-                ax1.text(date, count + 0.5, str(count), ha="center", va="bottom", fontsize=10)
+                ax1.text(
+                    date, count + 0.5, str(count), ha="center", va="bottom", fontsize=10
+                )
 
             # Average Lead Time
             ax2.plot(
@@ -1313,8 +1594,15 @@ class PrWorkloadAnalysisService:
                 color="crimson",
                 label="Avg Lead Time",
             )
-            ax2.fill_between(dates, monthly_avg_lead_time.values, alpha=0.3, color="crimson")
-            ax2.set_title("Monthly Average Lead Time (External PRs)", fontsize=16, fontweight="bold", pad=20)
+            ax2.fill_between(
+                dates, monthly_avg_lead_time.values, alpha=0.3, color="crimson"
+            )
+            ax2.set_title(
+                "Monthly Average Lead Time (External PRs)",
+                fontsize=16,
+                fontweight="bold",
+                pad=20,
+            )
             ax2.set_xlabel("Month", fontsize=12)
             ax2.set_ylabel("Average Lead Time (days)", fontsize=12)
             ax2.grid(True, alpha=0.3)
@@ -1346,9 +1634,17 @@ class PrWorkloadAnalysisService:
 
             # Histogram of monthly volumes
             ax1.hist(
-                monthly_counts.values, bins=min(10, len(monthly_counts)), color="lightblue", edgecolor="navy", alpha=0.7
+                monthly_counts.values,
+                bins=min(10, len(monthly_counts)),
+                color="lightblue",
+                edgecolor="navy",
+                alpha=0.7,
             )
-            ax1.set_title("Distribution of Monthly External PR Volumes", fontsize=14, fontweight="bold")
+            ax1.set_title(
+                "Distribution of Monthly External PR Volumes",
+                fontsize=14,
+                fontweight="bold",
+            )
             ax1.set_xlabel("Number of PRs per Month")
             ax1.set_ylabel("Frequency (Number of Months)")
             ax1.grid(True, alpha=0.3)
@@ -1356,13 +1652,33 @@ class PrWorkloadAnalysisService:
             # Add stats text
             mean_vol = monthly_counts.mean()
             median_vol = monthly_counts.median()
-            ax1.axvline(mean_vol, color="red", linestyle="--", linewidth=2, label=f"Mean: {mean_vol:.1f}")
-            ax1.axvline(median_vol, color="green", linestyle="--", linewidth=2, label=f"Median: {median_vol:.1f}")
+            ax1.axvline(
+                mean_vol,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Mean: {mean_vol:.1f}",
+            )
+            ax1.axvline(
+                median_vol,
+                color="green",
+                linestyle="--",
+                linewidth=2,
+                label=f"Median: {median_vol:.1f}",
+            )
             ax1.legend()
 
             # PR Size distribution
-            ax2.hist(external_prs["pr_size"], bins=30, color="lightcoral", edgecolor="darkred", alpha=0.7)
-            ax2.set_title("Distribution of External PR Sizes", fontsize=14, fontweight="bold")
+            ax2.hist(
+                external_prs["pr_size"],
+                bins=30,
+                color="lightcoral",
+                edgecolor="darkred",
+                alpha=0.7,
+            )
+            ax2.set_title(
+                "Distribution of External PR Sizes", fontsize=14, fontweight="bold"
+            )
             ax2.set_xlabel("PR Size (lines changed)")
             ax2.set_ylabel("Frequency (Number of PRs)")
             ax2.grid(True, alpha=0.3)
@@ -1370,8 +1686,20 @@ class PrWorkloadAnalysisService:
             # Add percentiles
             p50 = external_prs["pr_size"].quantile(0.5)
             p95 = external_prs["pr_size"].quantile(0.95)
-            ax2.axvline(p50, color="orange", linestyle="--", linewidth=2, label=f"50th percentile: {p50:.0f}")
-            ax2.axvline(p95, color="red", linestyle="--", linewidth=2, label=f"95th percentile: {p95:.0f}")
+            ax2.axvline(
+                p50,
+                color="orange",
+                linestyle="--",
+                linewidth=2,
+                label=f"50th percentile: {p50:.0f}",
+            )
+            ax2.axvline(
+                p95,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"95th percentile: {p95:.0f}",
+            )
             ax2.legend()
 
             plt.tight_layout()
@@ -1381,79 +1709,108 @@ class PrWorkloadAnalysisService:
 
         except Exception as e:
             self.logger.error(f"Failed to create monthly histogram: {e}")
-    
+
     def _create_work_day_volume_chart(self, df: pd.DataFrame, output_path: str):
         """Create work-day volume chart for periods <= 3 months."""
         self.logger.info(f"Creating work-day volume chart: {output_path}")
         try:
             # Filter external PRs only
             external_prs = df[~df["is_team_member"]]
-            
+
             if len(external_prs) == 0:
                 self.logger.warning("No external PRs found for work-day volume chart")
                 return
-            
+
             # Get date range for analysis
             min_date = external_prs["created_at"].min()
             max_date = external_prs["created_at"].max()
-            
+
             # Create business day range
             business_days = pd.bdate_range(start=min_date.date(), end=max_date.date())
-            
+
             # Count PRs per work day
             external_prs_copy = external_prs.copy()
             external_prs_copy["date_only"] = external_prs_copy["created_at"].dt.date
             daily_counts = external_prs_copy.groupby("date_only").size()
-            
+
             # Create complete series with 0 for days with no PRs (business days only)
             work_day_counts = pd.Series(0, index=business_days.date)
             work_day_counts.update(daily_counts)
-            
+
             # Create the chart
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(16, 10))
-            
+
             # Top chart: Daily volume bars
             dates = work_day_counts.index
             values = work_day_counts.values
-            
-            ax1.bar(dates, values, color="steelblue", alpha=0.7, edgecolor="navy", width=0.8)
-            ax1.set_title("Daily External PR Volume (Work Days Only)", fontsize=16, fontweight="bold", pad=20)
+
+            ax1.bar(
+                dates, values, color="steelblue", alpha=0.7, edgecolor="navy", width=0.8
+            )
+            ax1.set_title(
+                "Daily External PR Volume (Work Days Only)",
+                fontsize=16,
+                fontweight="bold",
+                pad=20,
+            )
             ax1.set_ylabel("Number of PRs", fontsize=12)
             ax1.grid(True, alpha=0.3)
-            
+
             # Add average line
             avg_daily = work_day_counts.mean()
-            ax1.axhline(avg_daily, color="red", linestyle="--", linewidth=2, 
-                       label=f"Average: {avg_daily:.1f} PRs/work day")
+            ax1.axhline(
+                avg_daily,
+                color="red",
+                linestyle="--",
+                linewidth=2,
+                label=f"Average: {avg_daily:.1f} PRs/work day",
+            )
             ax1.legend()
-            
+
             # Rotate x-axis labels for better readability
-            ax1.tick_params(axis='x', rotation=45)
-            
+            ax1.tick_params(axis="x", rotation=45)
+
             # Bottom chart: 7-day rolling average
-            rolling_avg = work_day_counts.rolling(window=5, center=True).mean()  # 5-day rolling for work days
-            ax2.plot(dates, rolling_avg, color="crimson", linewidth=3, marker="o", markersize=4)
+            rolling_avg = work_day_counts.rolling(
+                window=5, center=True
+            ).mean()  # 5-day rolling for work days
+            ax2.plot(
+                dates,
+                rolling_avg,
+                color="crimson",
+                linewidth=3,
+                marker="o",
+                markersize=4,
+            )
             ax2.fill_between(dates, rolling_avg, alpha=0.3, color="crimson")
-            ax2.set_title("5-Work Day Rolling Average", fontsize=16, fontweight="bold", pad=20)
+            ax2.set_title(
+                "5-Work Day Rolling Average", fontsize=16, fontweight="bold", pad=20
+            )
             ax2.set_xlabel("Date", fontsize=12)
             ax2.set_ylabel("Average PRs per Work Day", fontsize=12)
             ax2.grid(True, alpha=0.3)
-            ax2.tick_params(axis='x', rotation=45)
-            
+            ax2.tick_params(axis="x", rotation=45)
+
             # Add statistics
             stats_text = f"Period: {len(business_days)} work days\\n"
             stats_text += f"Total PRs: {len(external_prs)}\\n"
             stats_text += f"Avg: {avg_daily:.1f} PRs/day\\n"
             stats_text += f"Peak: {work_day_counts.max()} PRs/day"
-            
-            ax2.text(0.02, 0.98, stats_text, transform=ax2.transAxes, 
-                    verticalalignment="top", bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
-            
+
+            ax2.text(
+                0.02,
+                0.98,
+                stats_text,
+                transform=ax2.transAxes,
+                verticalalignment="top",
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
+            )
+
             plt.tight_layout()
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
             self.logger.info(f"Work-day volume chart saved: {output_path}")
-            
+
         except Exception as e:
             self.logger.error(f"Failed to create work-day volume chart: {e}")
 
@@ -1490,23 +1847,31 @@ class PrWorkloadAnalysisService:
 
             # Executive Summary
             f.write("## 📊 Executive Summary\n\n")
-            
+
             # Get additional metrics
             total_prs = pressure_metrics.get("total_prs", 0)
             total_internal_prs = pressure_metrics.get("total_internal_prs", 0)
             external_fraction = pressure_metrics.get("external_pr_fraction", 0)
             team_size = pressure_metrics.get("team_size", 6)
             prs_per_engineer = pressure_metrics.get("prs_per_engineer", 0)
-            external_prs_per_engineer = pressure_metrics.get("external_prs_per_engineer", 0)
-            
+            external_prs_per_engineer = pressure_metrics.get(
+                "external_prs_per_engineer", 0
+            )
+
             f.write("| Metric | Value |\n")
             f.write("|--------|-------|\n")
             f.write(f"| **Total PRs Analyzed** | **{total_prs}** |\n")
-            f.write(f"| Internal PRs (Team Members) | {total_internal_prs} ({(1-external_fraction)*100:.1f}%) |\n")
-            f.write(f"| External PRs (Contributors) | {external_prs} ({external_fraction*100:.1f}%) |\n")
+            f.write(
+                f"| Internal PRs (Team Members) | {total_internal_prs} ({(1 - external_fraction) * 100:.1f}%) |\n"
+            )
+            f.write(
+                f"| External PRs (Contributors) | {external_prs} ({external_fraction * 100:.1f}%) |\n"
+            )
             f.write(f"| Team Size (Reviewers) | {team_size} engineers |\n")
             f.write(f"| PRs per Engineer | {prs_per_engineer:.1f} total |\n")
-            f.write(f"| External PRs per Engineer | {external_prs_per_engineer:.1f} |\n")
+            f.write(
+                f"| External PRs per Engineer | {external_prs_per_engineer:.1f} |\n"
+            )
             f.write(f"| Analysis Period | {analysis_period} |\n")
             f.write(f"| **CODEOWNERS Pressure Level** | **{pressure_level}** |\n")
             f.write(f"| **Pressure Score** | **{pressure_score:.2f}/1.00** |\n\n")
@@ -1514,10 +1879,14 @@ class PrWorkloadAnalysisService:
             # Pressure Level Alert
             if pressure_level == "HIGH":
                 f.write("🚨 **ALERT: HIGH PRESSURE DETECTED**\n")
-                f.write("CODEOWNERS are under significant pressure. Immediate action recommended.\n\n")
+                f.write(
+                    "CODEOWNERS are under significant pressure. Immediate action recommended.\n\n"
+                )
             elif pressure_level == "MEDIUM":
                 f.write("⚠️ **WARNING: MEDIUM PRESSURE**\n")
-                f.write("CODEOWNERS workload is elevated. Monitor closely and consider preventive measures.\n\n")
+                f.write(
+                    "CODEOWNERS workload is elevated. Monitor closely and consider preventive measures.\n\n"
+                )
             else:
                 f.write("✅ **PRESSURE LEVEL: LOW**\n")
                 f.write("CODEOWNERS workload appears manageable.\n\n")
@@ -1550,10 +1919,10 @@ class PrWorkloadAnalysisService:
 
             # Metrics Explanation Section
             self._write_metrics_explanation_section(f, pressure_metrics, correlations)
-            
+
             # Correlation Analysis Explanation
             self._write_correlation_explanation_section(f, correlations)
-            
+
             # Recommendations
             f.write("## 💡 Recommendations\n\n")
             for i, recommendation in enumerate(insights["recommendations"], 1):
@@ -1564,11 +1933,23 @@ class PrWorkloadAnalysisService:
             if include_charts:
                 f.write("## 📊 Visualizations\n\n")
                 charts = [
-                    ("charts/external_lead_time_distribution.png", "External PR Lead Time Distribution"),
+                    (
+                        "charts/external_lead_time_distribution.png",
+                        "External PR Lead Time Distribution",
+                    ),
                     ("charts/correlation_heatmap.png", "Correlation Matrix"),
-                    ("charts/external_pr_size_vs_lead_time.png", "External PR Size vs Lead Time"),
-                    ("charts/monthly_external_pr_volume.png", "Monthly External PR Volume"),
-                    ("charts/monthly_pr_volume_histogram.png", "Monthly Volume Distribution"),
+                    (
+                        "charts/external_pr_size_vs_lead_time.png",
+                        "External PR Size vs Lead Time",
+                    ),
+                    (
+                        "charts/monthly_external_pr_volume.png",
+                        "Monthly External PR Volume",
+                    ),
+                    (
+                        "charts/monthly_pr_volume_histogram.png",
+                        "Monthly Volume Distribution",
+                    ),
                     ("charts/work_day_volume_chart.png", "Daily Work-Day Volume Chart"),
                 ]
 
@@ -1580,7 +1961,9 @@ class PrWorkloadAnalysisService:
             # Action Items
             f.write("## 🎯 Immediate Action Items\n\n")
             if pressure_level == "HIGH":
-                f.write("- [ ] **URGENT**: Scale CODEOWNERS team or redistribute review load\n")
+                f.write(
+                    "- [ ] **URGENT**: Scale CODEOWNERS team or redistribute review load\n"
+                )
                 f.write("- [ ] Implement automated pre-review checks\n")
                 f.write("- [ ] Set up external contributor guidelines\n")
                 f.write("- [ ] Consider dedicated review time slots\n")
@@ -1597,7 +1980,9 @@ class PrWorkloadAnalysisService:
 
         return report_file
 
-    def _write_monthly_trends_section(self, f, monthly_trends: Dict[str, Any], df: pd.DataFrame):
+    def _write_monthly_trends_section(
+        self, f, monthly_trends: Dict[str, Any], df: pd.DataFrame
+    ):
         """Write monthly trends section to markdown file."""
         f.write("### External PR Volume Trends\n\n")
 
@@ -1608,31 +1993,45 @@ class PrWorkloadAnalysisService:
             return
 
         monthly_external = (
-            external_df.groupby("month_year").agg({"author": "count", "lead_time_days": "mean"}).reset_index()
+            external_df.groupby("month_year")
+            .agg({"author": "count", "lead_time_days": "mean"})
+            .reset_index()
         )
 
         if len(monthly_external) > 0:
-            f.write("| Month | External PRs | Avg Lead Time (days) | PRs per Work Day |\n")
-            f.write("|-------|-------------|---------------------|------------------|\n")
+            f.write(
+                "| Month | External PRs | Avg Lead Time (days) | PRs per Work Day |\n"
+            )
+            f.write(
+                "|-------|-------------|---------------------|------------------|\n"
+            )
 
             # Convert Period to string for display and calculate work-day rates
             for _, row in monthly_external.iterrows():
                 month_str = str(row["month_year"])
                 pr_count = int(row["author"])
                 avg_lead_time = row["lead_time_days"]
-                
+
                 # Calculate work-day rate for this month
-                work_day_rate = self._calculate_monthly_work_day_rate(row["month_year"], pr_count)
-                
-                f.write(f"| {month_str} | {pr_count} | {avg_lead_time:.1f} | {work_day_rate:.2f} |\n")
+                work_day_rate = self._calculate_monthly_work_day_rate(
+                    row["month_year"], pr_count
+                )
+
+                f.write(
+                    f"| {month_str} | {pr_count} | {avg_lead_time:.1f} | {work_day_rate:.2f} |\n"
+                )
 
         # Growth analysis
         external_growth = monthly_trends.get("external_pr_growth_rate", 0)
         f.write("\n**Growth Analysis:**\n")
         f.write(f"- External PR Growth Rate: {external_growth:.1f}% per month\n")
-        f.write(f"- Total Months Analyzed: {monthly_trends.get('total_months_analyzed', 0)}\n\n")
+        f.write(
+            f"- Total Months Analyzed: {monthly_trends.get('total_months_analyzed', 0)}\n\n"
+        )
 
-    def _write_lead_time_section(self, f, df: pd.DataFrame, pressure_metrics: Dict[str, Any]):
+    def _write_lead_time_section(
+        self, f, df: pd.DataFrame, pressure_metrics: Dict[str, Any]
+    ):
         """Write lead time analysis section to markdown file."""
         # Overall statistics focusing on external PRs only
         external_df = df[~df["is_team_member"]]
@@ -1691,9 +2090,13 @@ class PrWorkloadAnalysisService:
         if strong_correlations:
             f.write("\n**Strong Correlations Found:**\n")
             for metric, corr_value in strong_correlations.items():
-                f.write(f"- {metric}: {corr_value:.3f} ({self._interpret_correlation(corr_value)})\n")
+                f.write(
+                    f"- {metric}: {corr_value:.3f} ({self._interpret_correlation(corr_value)})\n"
+                )
         else:
-            f.write("\n**No strong correlations (|r| > 0.3) found between metrics and lead time.**\n")
+            f.write(
+                "\n**No strong correlations (|r| > 0.3) found between metrics and lead time.**\n"
+            )
 
         f.write("\n**Pressure Calculation Formula:**\n")
         pressure_formula = correlations.get("pressure_formula")
@@ -1739,9 +2142,15 @@ class PrWorkloadAnalysisService:
         medium_lead = medium_df["lead_time_days"].mean() if len(medium_df) > 0 else 0
         large_lead = large_df["lead_time_days"].mean() if len(large_df) > 0 else 0
 
-        f.write(f"| Small (≤100 changes) | {small_prs} | {small_prs / total * 100:.1f}% | {small_lead:.1f} |\n")
-        f.write(f"| Medium (101-500) | {medium_prs} | {medium_prs / total * 100:.1f}% | {medium_lead:.1f} |\n")
-        f.write(f"| Large (>500) | {large_prs} | {large_prs / total * 100:.1f}% | {large_lead:.1f} |\n")
+        f.write(
+            f"| Small (≤100 changes) | {small_prs} | {small_prs / total * 100:.1f}% | {small_lead:.1f} |\n"
+        )
+        f.write(
+            f"| Medium (101-500) | {medium_prs} | {medium_prs / total * 100:.1f}% | {medium_lead:.1f} |\n"
+        )
+        f.write(
+            f"| Large (>500) | {large_prs} | {large_prs / total * 100:.1f}% | {large_lead:.1f} |\n"
+        )
 
         # Size impact analysis
         lead_time_correlations = correlations.get("lead_time_correlations", {})
@@ -1773,7 +2182,7 @@ class PrWorkloadAnalysisService:
         avg_size = pressure_metrics.get("external_avg_pr_size", 0)
         score = pressure_metrics.get("pressure_score", 0)
         level = pressure_metrics.get("pressure_level", "UNKNOWN")
-        
+
         # Get work-day metrics from workload intensity
         workload_metrics = pressure_metrics.get("workload_intensity_metrics", {})
         work_day_rate = workload_metrics.get("work_day_external_pr_rate", 0)
@@ -1783,10 +2192,18 @@ class PrWorkloadAnalysisService:
         f.write("|--------|--------|--------|\n")
         f.write(f"| Total External PRs | {total_prs} | - |\n")
         f.write(f"| Analysis Period (Work Days) | {business_days} days | - |\n")
-        f.write(f"| External PRs per Work Day | {work_day_rate:.2f} PRs/day | {self._get_work_day_rate_status(work_day_rate)} |\n")
-        f.write(f"| Average Lead Time | {avg_lead_time:.1f} days | {self._get_lead_time_status(avg_lead_time)} |\n")
-        f.write(f"| Average Reviews per PR | {avg_reviews:.1f} | {self._get_reviews_status(avg_reviews)} |\n")
-        f.write(f"| Average PR Size | {avg_size:.0f} lines | {self._get_size_status(avg_size)} |\n")
+        f.write(
+            f"| External PRs per Work Day | {work_day_rate:.2f} PRs/day | {self._get_work_day_rate_status(work_day_rate)} |\n"
+        )
+        f.write(
+            f"| Average Lead Time | {avg_lead_time:.1f} days | {self._get_lead_time_status(avg_lead_time)} |\n"
+        )
+        f.write(
+            f"| Average Reviews per PR | {avg_reviews:.1f} | {self._get_reviews_status(avg_reviews)} |\n"
+        )
+        f.write(
+            f"| Average PR Size | {avg_size:.0f} lines | {self._get_size_status(avg_size)} |\n"
+        )
         f.write(f"| **Overall Pressure Score** | **{score:.3f}** | **{level}** |\n")
 
         # Breakdown of pressure factors
@@ -1856,7 +2273,7 @@ class PrWorkloadAnalysisService:
             return "🟡 MEDIUM"
         else:
             return "🟢 SMALL"
-    
+
     def _get_work_day_rate_status(self, work_day_rate: float) -> str:
         """Get status indicator for work-day PR rate."""
         if work_day_rate > 2.0:  # More than 2 PRs per work day
@@ -1865,131 +2282,213 @@ class PrWorkloadAnalysisService:
             return "🟡 MEDIUM"
         else:
             return "🟢 LOW"
-    
-    def _write_metrics_explanation_section(self, f, pressure_metrics: Dict[str, Any], correlations: Dict[str, Any]):
+
+    def _write_metrics_explanation_section(
+        self, f, pressure_metrics: Dict[str, Any], correlations: Dict[str, Any]
+    ):
         """Write detailed explanation of metrics and their significance."""
         f.write("## 📋 Understanding the Metrics\n\n")
-        
+
         external_fraction = pressure_metrics.get("external_pr_fraction", 0)
         team_size = pressure_metrics.get("team_size", 6)
-        
+
         f.write("### 🎯 Key Metrics Breakdown\n\n")
-        
+
         f.write("**External PR Fraction**: ")
         if external_fraction > 0.6:
-            f.write(f"{external_fraction:.1%} of all PRs come from external contributors. ")
-            f.write("🔴 **HIGH** - This represents significant external contribution volume that may strain review capacity.\n\n")
+            f.write(
+                f"{external_fraction:.1%} of all PRs come from external contributors. "
+            )
+            f.write(
+                "🔴 **HIGH** - This represents significant external contribution volume that may strain review capacity.\n\n"
+            )
         elif external_fraction > 0.4:
-            f.write(f"{external_fraction:.1%} of all PRs come from external contributors. ")
-            f.write("🟡 **MODERATE** - External contributions are substantial and should be monitored for team impact.\n\n")
+            f.write(
+                f"{external_fraction:.1%} of all PRs come from external contributors. "
+            )
+            f.write(
+                "🟡 **MODERATE** - External contributions are substantial and should be monitored for team impact.\n\n"
+            )
         else:
-            f.write(f"{external_fraction:.1%} of all PRs come from external contributors. ")
-            f.write("🟢 **LOW** - External contribution volume is manageable for the current team size.\n\n")
-        
+            f.write(
+                f"{external_fraction:.1%} of all PRs come from external contributors. "
+            )
+            f.write(
+                "🟢 **LOW** - External contribution volume is manageable for the current team size.\n\n"
+            )
+
         f.write("**Team Capacity Analysis**:\n")
         f.write(f"- With **{team_size} engineers** available for reviews\n")
-        f.write(f"- Each engineer handles approximately **{pressure_metrics.get('prs_per_engineer', 0):.1f} total PRs**\n")
-        f.write(f"- Each engineer reviews **{pressure_metrics.get('external_prs_per_engineer', 0):.1f} external PRs**\n\n")
-        
-        if pressure_metrics.get('external_prs_per_engineer', 0) > 8:
-            f.write("⚠️ **Capacity Warning**: High external PR load per engineer may impact review quality and response times.\n\n")
-        elif pressure_metrics.get('external_prs_per_engineer', 0) > 5:
-            f.write("📊 **Moderate Load**: External PR load is noticeable but generally manageable.\n\n")
+        f.write(
+            f"- Each engineer handles approximately **{pressure_metrics.get('prs_per_engineer', 0):.1f} total PRs**\n"
+        )
+        f.write(
+            f"- Each engineer reviews **{pressure_metrics.get('external_prs_per_engineer', 0):.1f} external PRs**\n\n"
+        )
+
+        if pressure_metrics.get("external_prs_per_engineer", 0) > 8:
+            f.write(
+                "⚠️ **Capacity Warning**: High external PR load per engineer may impact review quality and response times.\n\n"
+            )
+        elif pressure_metrics.get("external_prs_per_engineer", 0) > 5:
+            f.write(
+                "📊 **Moderate Load**: External PR load is noticeable but generally manageable.\n\n"
+            )
         else:
-            f.write("✅ **Healthy Load**: External PR distribution is well within team capacity.\n\n")
-        
+            f.write(
+                "✅ **Healthy Load**: External PR distribution is well within team capacity.\n\n"
+            )
+
         f.write("### 📊 Pressure Score Components\n\n")
-        
+
         pressure_formula = pressure_metrics.get("pressure_formula", {})
         weights = pressure_formula.get("weights", {})
-        
+
         f.write("The **Pressure Score** is calculated using weighted factors:\n\n")
-        f.write(f"- **External Ratio** ({weights.get('external_ratio_weight', 0.3):.0%}): How much of total PR volume is external\n")
-        f.write(f"- **Lead Time** ({weights.get('lead_time_weight', 0.25):.0%}): Average time from creation to merge/close\n")
-        f.write(f"- **Review Burden** ({weights.get('reviews_burden_weight', 0.25):.0%}): Average reviews per PR\n")
-        f.write(f"- **PR Complexity** ({weights.get('pr_size_weight', 0.15):.0%}): Average PR size (lines changed)\n")
-        f.write(f"- **Rework Factor** ({weights.get('review_rounds_weight', 0.05):.0%}): Review rounds needed\n\n")
-        
+        f.write(
+            f"- **External Ratio** ({weights.get('external_ratio_weight', 0.3):.0%}): How much of total PR volume is external\n"
+        )
+        f.write(
+            f"- **Lead Time** ({weights.get('lead_time_weight', 0.25):.0%}): Average time from creation to merge/close\n"
+        )
+        f.write(
+            f"- **Review Burden** ({weights.get('reviews_burden_weight', 0.25):.0%}): Average reviews per PR\n"
+        )
+        f.write(
+            f"- **PR Complexity** ({weights.get('pr_size_weight', 0.15):.0%}): Average PR size (lines changed)\n"
+        )
+        f.write(
+            f"- **Rework Factor** ({weights.get('review_rounds_weight', 0.05):.0%}): Review rounds needed\n\n"
+        )
+
         score = pressure_metrics.get("pressure_score", 0)
         if score >= 0.7:
-            f.write(f"**Score: {score:.3f}/1.000** - 🔴 **CRITICAL**: Immediate action needed to prevent team burnout\n\n")
+            f.write(
+                f"**Score: {score:.3f}/1.000** - 🔴 **CRITICAL**: Immediate action needed to prevent team burnout\n\n"
+            )
         elif score >= 0.4:
-            f.write(f"**Score: {score:.3f}/1.000** - 🟡 **ELEVATED**: Monitor closely and consider preventive measures\n\n")
+            f.write(
+                f"**Score: {score:.3f}/1.000** - 🟡 **ELEVATED**: Monitor closely and consider preventive measures\n\n"
+            )
         else:
-            f.write(f"**Score: {score:.3f}/1.000** - 🟢 **MANAGEABLE**: Current workload is sustainable\n\n")
-    
+            f.write(
+                f"**Score: {score:.3f}/1.000** - 🟢 **MANAGEABLE**: Current workload is sustainable\n\n"
+            )
+
     def _write_correlation_explanation_section(self, f, correlations: Dict[str, Any]):
         """Write explanation of correlation analysis and what it indicates."""
         f.write("## 🔗 Correlation Analysis Insights\n\n")
-        
+
         f.write("### 📈 Understanding Correlations\n\n")
-        f.write("Correlations measure how strongly two metrics move together. Values range from -1.0 to +1.0:\n\n")
-        f.write("- **+0.7 to +1.0**: Strong positive relationship (as one increases, the other increases)\n")
+        f.write(
+            "Correlations measure how strongly two metrics move together. Values range from -1.0 to +1.0:\n\n"
+        )
+        f.write(
+            "- **+0.7 to +1.0**: Strong positive relationship (as one increases, the other increases)\n"
+        )
         f.write("- **+0.3 to +0.7**: Moderate positive relationship\n")
         f.write("- **-0.3 to +0.3**: Weak or no relationship\n")
         f.write("- **-0.7 to -0.3**: Moderate negative relationship\n")
-        f.write("- **-1.0 to -0.7**: Strong negative relationship (as one increases, the other decreases)\n\n")
-        
+        f.write(
+            "- **-1.0 to -0.7**: Strong negative relationship (as one increases, the other decreases)\n\n"
+        )
+
         # Get key correlations
         lead_time_correlations = correlations.get("lead_time_correlations", {})
         strong_correlations = correlations.get("strong_correlations", {})
-        
+
         f.write("### 🎯 Key Correlation Findings\n\n")
-        
+
         # PR Size vs Lead Time
         size_lead_correlation = strong_correlations.get("pr_size", 0)
         f.write(f"**PR Size vs Lead Time**: {size_lead_correlation:.3f}\n")
         if abs(size_lead_correlation) > 0.5:
             if size_lead_correlation > 0:
-                f.write("- 🔴 **Strong Positive**: Larger PRs significantly increase merge time\n")
-                f.write("- **Impact**: This suggests PR size is a bottleneck - consider breaking down large PRs\n")
-                f.write("- **Action**: Implement PR size guidelines and automated warnings\n\n")
+                f.write(
+                    "- 🔴 **Strong Positive**: Larger PRs significantly increase merge time\n"
+                )
+                f.write(
+                    "- **Impact**: This suggests PR size is a bottleneck - consider breaking down large PRs\n"
+                )
+                f.write(
+                    "- **Action**: Implement PR size guidelines and automated warnings\n\n"
+                )
             else:
-                f.write("- 🟢 **Strong Negative**: Larger PRs are processed faster (unusual but possible)\n")
-                f.write("- **Possible Reason**: Large PRs may get priority attention or batch processing\n\n")
+                f.write(
+                    "- 🟢 **Strong Negative**: Larger PRs are processed faster (unusual but possible)\n"
+                )
+                f.write(
+                    "- **Possible Reason**: Large PRs may get priority attention or batch processing\n\n"
+                )
         elif abs(size_lead_correlation) > 0.3:
             f.write("- 🟡 **Moderate**: PR size has some influence on lead time\n")
             f.write("- **Monitoring**: Watch for trends, consider size guidelines\n\n")
         else:
             f.write("- 🟢 **Weak**: PR size has minimal impact on lead time\n")
-            f.write("- **Good Sign**: Review process is consistent regardless of PR size\n\n")
-        
+            f.write(
+                "- **Good Sign**: Review process is consistent regardless of PR size\n\n"
+            )
+
         # Reviews vs Lead Time
         reviews_lead_correlation = lead_time_correlations.get("reviews_count", 0)
         f.write(f"**Review Count vs Lead Time**: {reviews_lead_correlation:.3f}\n")
         if reviews_lead_correlation > 0.5:
-            f.write("- 🔴 **High Impact**: More reviews significantly delay merge time\n")
-            f.write("- **Potential Issue**: Review process may be inefficient or PRs are complex\n")
-            f.write("- **Consider**: Streamlining review process, clearer acceptance criteria\n\n")
+            f.write(
+                "- 🔴 **High Impact**: More reviews significantly delay merge time\n"
+            )
+            f.write(
+                "- **Potential Issue**: Review process may be inefficient or PRs are complex\n"
+            )
+            f.write(
+                "- **Consider**: Streamlining review process, clearer acceptance criteria\n\n"
+            )
         elif reviews_lead_correlation > 0.3:
-            f.write("- 🟡 **Moderate Impact**: Additional reviews somewhat increase lead time\n")
-            f.write("- **Normal**: Expected relationship, but monitor for efficiency\n\n")
+            f.write(
+                "- 🟡 **Moderate Impact**: Additional reviews somewhat increase lead time\n"
+            )
+            f.write(
+                "- **Normal**: Expected relationship, but monitor for efficiency\n\n"
+            )
         else:
-            f.write("- 🟢 **Low Impact**: Review count has minimal effect on lead time\n")
+            f.write(
+                "- 🟢 **Low Impact**: Review count has minimal effect on lead time\n"
+            )
             f.write("- **Efficient Process**: Reviews are conducted effectively\n\n")
-        
+
         # Changed Files vs Lead Time
         files_lead_correlation = lead_time_correlations.get("changed_files", 0)
         f.write(f"**Changed Files vs Lead Time**: {files_lead_correlation:.3f}\n")
         if files_lead_correlation > 0.5:
-            f.write("- 🔴 **High Complexity**: PRs touching many files take much longer\n")
-            f.write("- **Risk**: Cross-cutting changes may indicate architectural issues\n")
+            f.write(
+                "- 🔴 **High Complexity**: PRs touching many files take much longer\n"
+            )
+            f.write(
+                "- **Risk**: Cross-cutting changes may indicate architectural issues\n"
+            )
             f.write("- **Action**: Consider refactoring to reduce file coupling\n\n")
         elif files_lead_correlation > 0.3:
-            f.write("- 🟡 **Some Complexity**: Multi-file changes increase review time moderately\n")
+            f.write(
+                "- 🟡 **Some Complexity**: Multi-file changes increase review time moderately\n"
+            )
             f.write("- **Expected**: Normal relationship, but monitor scope creep\n\n")
         else:
-            f.write("- 🟢 **Well Scoped**: File count doesn't significantly impact review time\n")
-            f.write("- **Good Practice**: PRs are well-focused and scoped appropriately\n\n")
-        
+            f.write(
+                "- 🟢 **Well Scoped**: File count doesn't significantly impact review time\n"
+            )
+            f.write(
+                "- **Good Practice**: PRs are well-focused and scoped appropriately\n\n"
+            )
+
         f.write("### 🎯 What These Correlations Mean for Your Team\n\n")
-        
+
         # Provide actionable insights based on correlation patterns
         high_correlations = [k for k, v in strong_correlations.items() if abs(v) > 0.5]
-        
+
         if len(high_correlations) > 2:
             f.write("**⚠️ Multiple Strong Correlations Detected**\n")
-            f.write("Your team is experiencing predictable bottlenecks. The review process has clear patterns that can be optimized:\n\n")
+            f.write(
+                "Your team is experiencing predictable bottlenecks. The review process has clear patterns that can be optimized:\n\n"
+            )
             f.write("**Immediate Actions**:\n")
             f.write("1. Set up automated PR size warnings\n")
             f.write("2. Create review time SLA based on PR characteristics\n")
@@ -1997,17 +2496,23 @@ class PrWorkloadAnalysisService:
             f.write("4. Implement pre-review checklists to reduce iterations\n\n")
         elif len(high_correlations) > 0:
             f.write("**📊 Some Process Patterns Identified**\n")
-            f.write("Your review process shows some predictable relationships that can be optimized.\n\n")
+            f.write(
+                "Your review process shows some predictable relationships that can be optimized.\n\n"
+            )
         else:
             f.write("**✅ Efficient Review Process**\n")
-            f.write("Your team maintains consistent review times regardless of PR characteristics. This indicates a mature, efficient process.\n\n")
+            f.write(
+                "Your team maintains consistent review times regardless of PR characteristics. This indicates a mature, efficient process.\n\n"
+            )
 
     def _get_analysis_period(self, df: pd.DataFrame) -> str:
         """Get analysis period from dataframe."""
         if "created_at" in df.columns:
             start_date = pd.to_datetime(df["created_at"]).min()
             end_date = pd.to_datetime(df["created_at"]).max()
-            return f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+            return (
+                f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+            )
         return "Unknown period"
 
     def _generate_html_dashboard(

@@ -7,7 +7,7 @@ over time, providing insights into team productivity and backlog trends.
 Key functionalities:
 - Fetch issues created and resolved within specified time periods
 - Calculate monthly/quarterly velocity metrics
-- Analyze team productivity trends and backlog impact  
+- Analyze team productivity trends and backlog impact
 - Support flexible filtering by team, issue types, and labels
 - Export results to JSON/CSV formats
 """
@@ -92,7 +92,9 @@ class IssueVelocityService:
             cached_result = self.cache_manager.load(cache_key, expiration_minutes=60)
             if cached_result is not None:
                 self.logger.info("Using cached velocity data")
-                return self._finalize_result(cached_result, output_file, export, include_summary)
+                return self._finalize_result(
+                    cached_result, output_file, export, include_summary
+                )
 
             # Fetch created and resolved issues
             self.logger.info("Fetching created issues...")
@@ -118,7 +120,9 @@ class IssueVelocityService:
             # Calculate summary statistics
             summary_stats = None
             if include_summary:
-                summary_stats = self._calculate_summary_statistics(velocity_data, aggregation)
+                summary_stats = self._calculate_summary_statistics(
+                    velocity_data, aggregation
+                )
 
             # Build result
             # Prepare team label for display
@@ -222,7 +226,7 @@ class IssueVelocityService:
         issues = self.jira_processor.jira_assistant.fetch_issues(
             jql_query=jql,
             fields="key,summary,issuetype,status,priority,assignee,created,resolutiondate,labels,customfield_10851",
-            max_results=100  # Use 100 to work with JIRA limitation on custom fields
+            max_results=100,  # Use 100 to work with JIRA limitation on custom fields
         )
         return self._process_issues_data(issues, "created")
 
@@ -233,8 +237,8 @@ class IssueVelocityService:
 
         issues = self.jira_processor.jira_assistant.fetch_issues(
             jql_query=jql,
-            fields="key,summary,issuetype,status,priority,assignee,created,resolutiondate,labels,customfield_10851", 
-            max_results=100  # Use 100 to work with JIRA limitation on custom fields
+            fields="key,summary,issuetype,status,priority,assignee,created,resolutiondate,labels,customfield_10851",
+            max_results=100,  # Use 100 to work with JIRA limitation on custom fields
         )
         return self._process_issues_data(issues, "resolved")
 
@@ -330,28 +334,36 @@ class IssueVelocityService:
                 issue_data = {
                     "key": issue.get("key"),
                     "summary": issue.get("fields", {}).get("summary"),
-                    "issue_type": issue.get("fields", {}).get("issuetype", {}).get("name"),
+                    "issue_type": issue.get("fields", {})
+                    .get("issuetype", {})
+                    .get("name"),
                     "status": issue.get("fields", {}).get("status", {}).get("name"),
                     "priority": (
                         issue.get("fields", {}).get("priority", {}).get("name")
                         if issue.get("fields", {}).get("priority")
                         else "None"
                     ),
-                    "assignee": self._get_assignee_name(issue.get("fields", {}).get("assignee")),
+                    "assignee": self._get_assignee_name(
+                        issue.get("fields", {}).get("assignee")
+                    ),
                     "created": issue.get("fields", {}).get("created"),
                     "resolved": issue.get("fields", {}).get("resolutiondate"),
                     "labels": issue.get("fields", {}).get("labels", []),
                 }
 
                 # Add team info if available
-                squad_field = issue.get("fields", {}).get("customfield_10851")  # Squad[Dropdown]
+                squad_field = issue.get("fields", {}).get(
+                    "customfield_10851"
+                )  # Squad[Dropdown]
                 if squad_field:
                     issue_data["team"] = squad_field.get("value", "Unknown")
 
                 processed_issues.append(issue_data)
 
             except Exception as e:
-                self.logger.warning(f"Error processing issue {issue.get('key', 'unknown')}: {e}")
+                self.logger.warning(
+                    f"Error processing issue {issue.get('key', 'unknown')}: {e}"
+                )
                 continue
 
         return processed_issues
@@ -367,13 +379,17 @@ class IssueVelocityService:
     ) -> List[Dict]:
         """Generate list of time periods for analysis."""
         periods = []
-        current_date = start_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        current_date = start_date.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
 
         while current_date <= end_date:
             if aggregation == "monthly":
                 # Calculate month end
                 if current_date.month == 12:
-                    next_month = current_date.replace(year=current_date.year + 1, month=1)
+                    next_month = current_date.replace(
+                        year=current_date.year + 1, month=1
+                    )
                 else:
                     next_month = current_date.replace(month=current_date.month + 1)
 
@@ -404,7 +420,9 @@ class IssueVelocityService:
                         month=12, day=31, hour=23, minute=59, second=59
                     )
                 else:
-                    next_quarter_start = current_date.replace(month=quarter_end_month + 1, day=1)
+                    next_quarter_start = current_date.replace(
+                        month=quarter_end_month + 1, day=1
+                    )
                     quarter_end = next_quarter_start - timedelta(days=1)
                     quarter_end = quarter_end.replace(hour=23, minute=59, second=59)
 
@@ -419,7 +437,9 @@ class IssueVelocityService:
 
                 # Move to next quarter
                 if quarter == 4:
-                    current_date = current_date.replace(year=current_date.year + 1, month=1)
+                    current_date = current_date.replace(
+                        year=current_date.year + 1, month=1
+                    )
                 else:
                     current_date = current_date.replace(month=quarter_end_month + 1)
 
@@ -451,7 +471,9 @@ class IssueVelocityService:
 
             # Calculate metrics
             net_velocity = resolved_count - created_count
-            efficiency = (resolved_count / created_count * 100) if created_count > 0 else 0
+            efficiency = (
+                (resolved_count / created_count * 100) if created_count > 0 else 0
+            )
 
             velocity_data.append(
                 {
@@ -464,7 +486,11 @@ class IssueVelocityService:
                     "net_velocity": net_velocity,
                     "efficiency_percentage": efficiency,
                     "by_issue_type": self._calculate_period_breakdown_by_type(
-                        created_issues, resolved_issues, period_start, period_end, issue_types
+                        created_issues,
+                        resolved_issues,
+                        period_start,
+                        period_end,
+                        issue_types,
                     ),
                 }
             )
@@ -472,7 +498,11 @@ class IssueVelocityService:
         return velocity_data
 
     def _count_issues_in_period(
-        self, issues: List[Dict], period_start: datetime, period_end: datetime, date_field: str
+        self,
+        issues: List[Dict],
+        period_start: datetime,
+        period_end: datetime,
+        date_field: str,
     ) -> int:
         """Count issues within a specific time period."""
         count = 0
@@ -484,7 +514,9 @@ class IssueVelocityService:
 
             try:
                 # Parse JIRA datetime format
-                issue_date = datetime.fromisoformat(issue_date_str.replace("Z", "+00:00"))
+                issue_date = datetime.fromisoformat(
+                    issue_date_str.replace("Z", "+00:00")
+                )
                 # Convert to local time (remove timezone for comparison)
                 issue_date = issue_date.replace(tzinfo=None)
 
@@ -543,7 +575,9 @@ class IssueVelocityService:
                 continue
 
             try:
-                issue_date = datetime.fromisoformat(issue_date_str.replace("Z", "+00:00"))
+                issue_date = datetime.fromisoformat(
+                    issue_date_str.replace("Z", "+00:00")
+                )
                 issue_date = issue_date.replace(tzinfo=None)
 
                 if period_start <= issue_date <= period_end:
@@ -555,14 +589,21 @@ class IssueVelocityService:
         return count
 
     def _calculate_breakdown_by_type(
-        self, created_issues: List[Dict], resolved_issues: List[Dict], issue_types: List[str]
+        self,
+        created_issues: List[Dict],
+        resolved_issues: List[Dict],
+        issue_types: List[str],
     ) -> Dict:
         """Calculate overall breakdown by issue type."""
         breakdown = {}
 
         for issue_type in issue_types:
-            created_count = len([i for i in created_issues if i.get("issue_type") == issue_type])
-            resolved_count = len([i for i in resolved_issues if i.get("issue_type") == issue_type])
+            created_count = len(
+                [i for i in created_issues if i.get("issue_type") == issue_type]
+            )
+            resolved_count = len(
+                [i for i in resolved_issues if i.get("issue_type") == issue_type]
+            )
 
             breakdown[issue_type] = {
                 "total_created": created_count,
@@ -572,7 +613,9 @@ class IssueVelocityService:
 
         return breakdown
 
-    def _calculate_summary_statistics(self, velocity_data: List[Dict], _aggregation: str) -> Dict:
+    def _calculate_summary_statistics(
+        self, velocity_data: List[Dict], _aggregation: str
+    ) -> Dict:
         """Calculate summary statistics from velocity data."""
         if not velocity_data:
             return {}
@@ -584,7 +627,9 @@ class IssueVelocityService:
         # Calculate averages
         avg_created = total_created / len(velocity_data) if velocity_data else 0
         avg_resolved = total_resolved / len(velocity_data) if velocity_data else 0
-        overall_efficiency = (total_resolved / total_created * 100) if total_created > 0 else 0
+        overall_efficiency = (
+            (total_resolved / total_created * 100) if total_created > 0 else 0
+        )
 
         # Find best and worst periods
         best_period = max(velocity_data, key=lambda x: x["efficiency_percentage"])
@@ -593,10 +638,12 @@ class IssueVelocityService:
         # Calculate trend
         if len(velocity_data) >= 2:
             first_half_avg = sum(
-                p["efficiency_percentage"] for p in velocity_data[: len(velocity_data) // 2]
+                p["efficiency_percentage"]
+                for p in velocity_data[: len(velocity_data) // 2]
             ) / (len(velocity_data) // 2)
             second_half_avg = sum(
-                p["efficiency_percentage"] for p in velocity_data[len(velocity_data) // 2 :]
+                p["efficiency_percentage"]
+                for p in velocity_data[len(velocity_data) // 2 :]
             ) / (len(velocity_data) - len(velocity_data) // 2)
 
             if second_half_avg > first_half_avg + 5:
@@ -647,7 +694,9 @@ class IssueVelocityService:
             # Determine output file if not provided
             if export and not output_file:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                project_key = result.get("analysis_metadata", {}).get("project_key", "unknown")
+                project_key = result.get("analysis_metadata", {}).get(
+                    "project_key", "unknown"
+                )
                 extension = "csv" if export == "csv" else "json"
                 output_file = OutputManager.get_output_path(
                     "issue-velocity", f"velocity_{project_key}_{timestamp}.{extension}"
@@ -655,7 +704,9 @@ class IssueVelocityService:
             elif not output_file and not export:
                 # Always create a JSON output file for reference
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                project_key = result.get("analysis_metadata", {}).get("project_key", "unknown")
+                project_key = result.get("analysis_metadata", {}).get(
+                    "project_key", "unknown"
+                )
                 output_file = OutputManager.get_output_path(
                     "issue-velocity", f"velocity_{project_key}_{timestamp}.json"
                 )
@@ -692,14 +743,23 @@ class IssueVelocityService:
                 return
 
             # Prepare CSV headers
-            headers = ["period", "created", "resolved", "net_velocity", "efficiency_percentage"]
+            headers = [
+                "period",
+                "created",
+                "resolved",
+                "net_velocity",
+                "efficiency_percentage",
+            ]
 
             # Add issue type columns if multiple types
             issue_types = result.get("analysis_metadata", {}).get("issue_types", [])
             if len(issue_types) > 1:
                 for issue_type in issue_types:
                     headers.extend(
-                        [f"{issue_type.lower()}_created", f"{issue_type.lower()}_resolved"]
+                        [
+                            f"{issue_type.lower()}_created",
+                            f"{issue_type.lower()}_resolved",
+                        ]
                     )
 
             # Write CSV
@@ -713,7 +773,9 @@ class IssueVelocityService:
                         "created": period_data["created"],
                         "resolved": period_data["resolved"],
                         "net_velocity": period_data["net_velocity"],
-                        "efficiency_percentage": round(period_data["efficiency_percentage"], 2),
+                        "efficiency_percentage": round(
+                            period_data["efficiency_percentage"], 2
+                        ),
                     }
 
                     # Add issue type breakdown if available
@@ -721,8 +783,12 @@ class IssueVelocityService:
                         by_type = period_data.get("by_issue_type", {})
                         for issue_type in issue_types:
                             type_data = by_type.get(issue_type, {})
-                            row[f"{issue_type.lower()}_created"] = type_data.get("created", 0)
-                            row[f"{issue_type.lower()}_resolved"] = type_data.get("resolved", 0)
+                            row[f"{issue_type.lower()}_created"] = type_data.get(
+                                "created", 0
+                            )
+                            row[f"{issue_type.lower()}_resolved"] = type_data.get(
+                                "resolved", 0
+                            )
 
                     writer.writerow(row)
 

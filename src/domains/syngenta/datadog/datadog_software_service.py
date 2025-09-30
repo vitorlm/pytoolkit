@@ -76,7 +76,9 @@ class DatadogSoftwareService:
             self.logger.warning(f"Team validation failed for '{handle}': {e}")
             return None
 
-    def list_services_for_team(self, handle: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    def list_services_for_team(
+        self, handle: str
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Return a tuple: (services, meta) where services are normalized service entities
         and meta captures details like fallbacks used.
@@ -85,7 +87,9 @@ class DatadogSoftwareService:
             prefix="dd_software_services_for_team", site=self.site, team=handle
         )
         if self.use_cache:
-            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
+            cached = self.cache.load(
+                cache_key, expiration_minutes=self.cache_ttl_minutes
+            )
             if cached is not None:
                 return cached, {"cache": True}
 
@@ -111,10 +115,14 @@ class DatadogSoftwareService:
                 )
                 meta["fallback"] = f"client_filtering_http_{status}"
             else:
-                self.logger.warning(f"Owner filter request failed: {e}. Falling back to client-side filtering.")
+                self.logger.warning(
+                    f"Owner filter request failed: {e}. Falling back to client-side filtering."
+                )
                 meta["fallback"] = "client_filtering_error"
         except Exception as e:
-            self.logger.warning(f"Owner filter path errored: {e}. Falling back to client-side filtering.")
+            self.logger.warning(
+                f"Owner filter path errored: {e}. Falling back to client-side filtering."
+            )
             meta["fallback"] = "client_filtering_error"
 
         # 2) Fallback: fetch all service entities and filter by owner attributes client-side
@@ -136,14 +144,22 @@ class DatadogSoftwareService:
                 or attrs.get("team")
                 or (attrs.get("annotations") or {}).get("owner")
             )
-            if isinstance(candidate, str) and candidate.strip().lower() == handle.lower():
+            if (
+                isinstance(candidate, str)
+                and candidate.strip().lower() == handle.lower()
+            ):
                 filtered.append(norm)
                 continue
 
-            tags = (attrs.get("tags") or []) if isinstance(attrs.get("tags"), list) else []
+            tags = (
+                (attrs.get("tags") or []) if isinstance(attrs.get("tags"), list) else []
+            )
             if any(
                 isinstance(t, str)
-                and (t.lower() == f"dd_team:{handle}".lower() or t.lower() == f"team:{handle}".lower())
+                and (
+                    t.lower() == f"dd_team:{handle}".lower()
+                    or t.lower() == f"team:{handle}".lower()
+                )
                 for t in tags
             ):
                 filtered.append(norm)
@@ -167,7 +183,9 @@ class DatadogSoftwareService:
             "DD-APPLICATION-KEY": self.app_key,
         }
 
-    def _list_entities(self, *, kind: str, owner: Optional[str]) -> Tuple[List[Dict[str, Any]], int]:
+    def _list_entities(
+        self, *, kind: str, owner: Optional[str]
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """
         Page through /api/v2/catalog/entity with optional server-side filters.
         Returns (entities, total_pages_visited).
@@ -200,7 +218,9 @@ class DatadogSoftwareService:
                     raise
 
             data = resp.json() or {}
-            items = (data.get("data") or []) if isinstance(data.get("data"), list) else []
+            items = (
+                (data.get("data") or []) if isinstance(data.get("data"), list) else []
+            )
             total_pages += 1
             if not items:
                 break
@@ -212,7 +232,9 @@ class DatadogSoftwareService:
 
             # Safety cap to avoid infinite loops
             if page_number > 1000:
-                self.logger.warning("Pagination safety cap reached (1000 pages) for /catalog/entity")
+                self.logger.warning(
+                    "Pagination safety cap reached (1000 pages) for /catalog/entity"
+                )
                 break
 
         return all_items, total_pages
@@ -268,7 +290,9 @@ class DatadogSoftwareService:
             for item in raw:
                 if not isinstance(item, dict):
                     continue
-                title = item.get("name") or item.get("title") or item.get("type") or "link"
+                title = (
+                    item.get("name") or item.get("title") or item.get("type") or "link"
+                )
                 url = item.get("url") or item.get("href")
                 if isinstance(url, str) and url:
                     key = title.lower().strip()

@@ -41,7 +41,9 @@ class FileCacheBackend(CacheBackend):
             cache_data = JSONManager.read_json(file_path, default={})
             if expiration_minutes:
                 cached_time = datetime.fromisoformat(cache_data["_cached_at"])
-                if (datetime.now() - cached_time).total_seconds() > expiration_minutes * 60:
+                if (
+                    datetime.now() - cached_time
+                ).total_seconds() > expiration_minutes * 60:
                     self.invalidate(key)
                     return None
 
@@ -99,7 +101,9 @@ class FileCacheBackend(CacheBackend):
                         os.remove(file_path)
                         self._logger.debug(f"Deleted cache file: {filename}")
                     except Exception as e:
-                        self._logger.warning(f"Failed to delete cache file '{filename}': {e}")
+                        self._logger.warning(
+                            f"Failed to delete cache file '{filename}': {e}"
+                        )
 
             self._logger.info("All cache files have been cleared.")
         except Exception as e:

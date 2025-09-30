@@ -19,7 +19,8 @@ class CycleInfoCommand(BaseCommand):
     @staticmethod
     def get_help() -> str:
         return (
-            "This command shows current cycle information and allows " "testing cycle calculations."
+            "This command shows current cycle information and allows "
+            "testing cycle calculations."
         )
 
     @staticmethod
@@ -37,7 +38,9 @@ class CycleInfoCommand(BaseCommand):
             type=str,
             help="Test what cycle a specific date falls into (YYYY-MM-DD format)",
         )
-        parser.add_argument("--show-all", action="store_true", help="Show all cycles for the year")
+        parser.add_argument(
+            "--show-all", action="store_true", help="Show all cycles for the year"
+        )
 
     @staticmethod
     def main(args: Namespace):

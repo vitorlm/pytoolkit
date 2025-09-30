@@ -33,7 +33,9 @@ class IssueAdherenceResult:
     assignee: Optional[str]
     team: Optional[str]
     adherence_status: str  # 'early', 'on_time', 'late', 'overdue', 'no_due_date'
-    days_difference: Optional[int]  # positive = late, negative = early, None = no due date or not resolved
+    days_difference: Optional[
+        int
+    ]  # positive = late, negative = early, None = no due date or not resolved
 
 
 class TimePeriodParser:
@@ -102,7 +104,9 @@ class TimePeriodParser:
             return start_date, end_date
         except ValueError as e:
             if "time data" in str(e):
-                raise ValueError(f"Invalid date format in range '{time_period}'. Use YYYY-MM-DD format.")
+                raise ValueError(
+                    f"Invalid date format in range '{time_period}'. Use YYYY-MM-DD format."
+                )
             raise
 
     @staticmethod
@@ -114,7 +118,9 @@ class TimePeriodParser:
             end_date = single_date.replace(hour=23, minute=59, second=59)
             return start_date, end_date
         except ValueError:
-            raise ValueError(f"Invalid date format '{time_period}'. Use YYYY-MM-DD format.")
+            raise ValueError(
+                f"Invalid date format '{time_period}'. Use YYYY-MM-DD format."
+            )
 
 
 class IssueAdherenceService:
@@ -191,13 +197,17 @@ class IssueAdherenceService:
             Dict: Analysis results with metrics and issue details
         """
         try:
-            self.logger.info(f"Starting issue adherence analysis for project {project_key}")
+            self.logger.info(
+                f"Starting issue adherence analysis for project {project_key}"
+            )
 
             # Parse time period
             start_date, end_date = self.time_parser.parse_time_period(time_period)
 
             # Build JQL query
-            jql_query = self._build_jql_query(project_key, start_date, end_date, issue_types, teams, status)
+            jql_query = self._build_jql_query(
+                project_key, start_date, end_date, issue_types, teams, status
+            )
 
             self.logger.info(f"Executing JQL query: {jql_query}")
 
@@ -236,21 +246,33 @@ class IssueAdherenceService:
 
             # Logging context depending on inclusion of no-due-date issues
             if include_no_due_date:
-                self.logger.info(f"Analyzing {len(adherence_results)} issues (including 'no due date' when applicable)")
+                self.logger.info(
+                    f"Analyzing {len(adherence_results)} issues (including 'no due date' when applicable)"
+                )
             else:
-                self.logger.info(f"Analyzing {len(adherence_results)} issues with due dates")
+                self.logger.info(
+                    f"Analyzing {len(adherence_results)} issues with due dates"
+                )
 
             # Calculate metrics (legacy adherence; DO NOT CHANGE)
             metrics = self._calculate_metrics(adherence_results)
 
             # Calculate statistical insights (only in extended mode)
-            statistical_insights = self._calculate_statistical_insights(adherence_results) if enable_extended else None
+            statistical_insights = (
+                self._calculate_statistical_insights(adherence_results)
+                if enable_extended
+                else None
+            )
 
             # Calculate segmentation analysis
-            segmentation_analysis = self._calculate_segmentation_analysis(adherence_results)
+            segmentation_analysis = self._calculate_segmentation_analysis(
+                adherence_results
+            )
 
             # Calculate due date coverage analysis
-            due_date_coverage = self._calculate_due_date_coverage_analysis(issues, adherence_results)
+            due_date_coverage = self._calculate_due_date_coverage_analysis(
+                issues, adherence_results
+            )
 
             # Prepare results with schema version for backward compatibility
             # Prepare team label for display
@@ -279,10 +301,16 @@ class IssueAdherenceService:
                     "analysis_date": datetime.now().isoformat(),
                 },
                 "metrics": metrics,
-                **({"statistical_insights": statistical_insights} if statistical_insights else {}),
+                **(
+                    {"statistical_insights": statistical_insights}
+                    if statistical_insights
+                    else {}
+                ),
                 "segmentation_analysis": segmentation_analysis,
                 "due_date_coverage": due_date_coverage,
-                "issues": [self._result_to_dict(result) for result in adherence_results],
+                "issues": [
+                    self._result_to_dict(result) for result in adherence_results
+                ],
             }
 
             # Delivery time distribution (based on absolute deviation from due date for completed items)
@@ -323,24 +351,37 @@ class IssueAdherenceService:
                     # Use the specified format
                     if output_format == "md":
                         # Remove extension if present and let the method add .md
-                        base_path = output_file.replace('.json', '').replace('.md', '')
-                        output_path = self._save_results_with_format(results, base_path, "md")
+                        base_path = output_file.replace(".json", "").replace(".md", "")
+                        output_path = self._save_results_with_format(
+                            results, base_path, "md"
+                        )
                     else:
                         # For JSON, keep original logic
-                        output_path = self._save_results_with_format(results, output_file, "json")
+                        output_path = self._save_results_with_format(
+                            results, output_file, "json"
+                        )
                 else:
                     # Infer format from file extension or default to JSON
-                    if output_file.endswith('.md'):
-                        base_path = output_file.replace('.md', '')
-                        output_path = self._save_results_with_format(results, base_path, "md")
+                    if output_file.endswith(".md"):
+                        base_path = output_file.replace(".md", "")
+                        output_path = self._save_results_with_format(
+                            results, base_path, "md"
+                        )
                     else:
-                        output_path = self._save_results_with_format(results, output_file, "json")
+                        output_path = self._save_results_with_format(
+                            results, output_file, "json"
+                        )
             elif output_format in ["json", "md"]:
                 # Generate default output file in organized structure (per-day folder)
                 from datetime import datetime as _dt
+
                 sub_dir = f"issue-adherence_{_dt.now().strftime('%Y%m%d')}"
-                base_path = OutputManager.get_output_path(sub_dir, f"adherence_{project_key}")
-                output_path = self._save_results_with_format(results, base_path, output_format)
+                base_path = OutputManager.get_output_path(
+                    sub_dir, f"adherence_{project_key}"
+                )
+                output_path = self._save_results_with_format(
+                    results, base_path, output_format
+                )
 
             # Add output file path to results for command feedback
             if output_path:
@@ -356,27 +397,40 @@ class IssueAdherenceService:
             # Check if this is a JQL error and provide helpful suggestions
             error_str = str(e)
             if "400" in error_str and (
-                "does not exist for the field 'type'" in error_str or "invalid issue type" in error_str.lower()
+                "does not exist for the field 'type'" in error_str
+                or "invalid issue type" in error_str.lower()
             ):
                 self.logger.error("JQL Query Error (400): Invalid issue type detected.")
                 self.logger.error(f"Original query: {jql_query}")
 
                 # Try to fetch available issue types for the project
                 try:
-                    available_types = self.jira_assistant.fetch_project_issue_types(project_key)
+                    available_types = self.jira_assistant.fetch_project_issue_types(
+                        project_key
+                    )
                     type_names = [t.get("name") for t in available_types]
-                    self.logger.error(f"Available issue types for project {project_key}: {type_names}")
+                    self.logger.error(
+                        f"Available issue types for project {project_key}: {type_names}"
+                    )
 
                     # Check which provided types are not available
                     invalid_types = [t for t in issue_types if t not in type_names]
                     if invalid_types:
-                        self.logger.error(f"Invalid issue types provided: {invalid_types}")
+                        self.logger.error(
+                            f"Invalid issue types provided: {invalid_types}"
+                        )
                         self.logger.error("Suggested command with valid types:")
                         valid_types = [t for t in issue_types if t in type_names]
-                        suggested_types = ",".join(valid_types) if valid_types else ",".join(type_names[:5])
+                        suggested_types = (
+                            ",".join(valid_types)
+                            if valid_types
+                            else ",".join(type_names[:5])
+                        )
                         self.logger.error(f"--issue-types '{suggested_types}'")
                 except Exception as metadata_error:
-                    self.logger.warning(f"Could not fetch project metadata: {metadata_error}")
+                    self.logger.warning(
+                        f"Could not fetch project metadata: {metadata_error}"
+                    )
 
             self.logger.error(f"Error in issue adherence analysis: {e}")
             raise
@@ -403,7 +457,9 @@ class IssueAdherenceService:
         # Time period - using resolution date to capture issues resolved in the period
         start_date_str = start_date.strftime("%Y-%m-%d")
         end_date_str = end_date.strftime("%Y-%m-%d")
-        jql_parts.append(f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'")
+        jql_parts.append(
+            f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'"
+        )
 
         # Team filter (supports multiple teams)
         if teams:
@@ -438,14 +494,26 @@ class IssueAdherenceService:
         summary = fields.get("summary", "")
         issue_type = fields.get("issuetype", {}).get("name", "")
         status = fields.get("status", {}).get("name", "")
-        status_category = fields.get("status", {}).get("statusCategory", {}).get("name", "")
+        status_category = (
+            fields.get("status", {}).get("statusCategory", {}).get("name", "")
+        )
         due_date = fields.get("duedate")
         resolution_date = fields.get("resolutiondate")
-        assignee = fields.get("assignee", {}).get("displayName") if fields.get("assignee") else None
-        team = fields.get("customfield_10265", {}).get("value") if fields.get("customfield_10265") else None
+        assignee = (
+            fields.get("assignee", {}).get("displayName")
+            if fields.get("assignee")
+            else None
+        )
+        team = (
+            fields.get("customfield_10265", {}).get("value")
+            if fields.get("customfield_10265")
+            else None
+        )
 
         # Determine adherence status
-        adherence_status, days_difference = self._determine_adherence_status(due_date, resolution_date, status_category)
+        adherence_status, days_difference = self._determine_adherence_status(
+            due_date, resolution_date, status_category
+        )
 
         return IssueAdherenceResult(
             issue_key=issue_key,
@@ -509,7 +577,9 @@ class IssueAdherenceService:
             # Handle different timezone formats from JIRA
             if date_string.endswith("Z"):
                 # UTC format: 2025-07-18T18:43:31.570Z
-                return datetime.fromisoformat(date_string.replace("Z", "+00:00")).replace(tzinfo=None)
+                return datetime.fromisoformat(
+                    date_string.replace("Z", "+00:00")
+                ).replace(tzinfo=None)
             elif "+" in date_string or date_string.count("-") > 2:
                 # Timezone offset format: 2025-07-18T18:43:31.570-0300 or +0000
                 # Need to add colon to make it ISO compatible: -0300 -> -03:00
@@ -523,7 +593,9 @@ class IssueAdherenceService:
                     # Convert -0300 to -03:00 format
                     tz_formatted = f"{tz_offset[:3]}:{tz_offset[3:]}"
                     date_string_fixed = date_string.replace(tz_offset, tz_formatted)
-                    return datetime.fromisoformat(date_string_fixed).replace(tzinfo=None)
+                    return datetime.fromisoformat(date_string_fixed).replace(
+                        tzinfo=None
+                    )
                 else:
                     # Already has colon or other format
                     return datetime.fromisoformat(date_string).replace(tzinfo=None)
@@ -576,11 +648,17 @@ class IssueAdherenceService:
         early_percentage = (early / total_issues * 100) if total_issues > 0 else 0
         on_time_percentage = (on_time / total_issues * 100) if total_issues > 0 else 0
         late_percentage = (late / total_issues * 100) if total_issues > 0 else 0
-        no_due_date_percentage = (no_due_date / total_issues * 100) if total_issues > 0 else 0
-        in_progress_percentage = (in_progress / total_issues * 100) if total_issues > 0 else 0
+        no_due_date_percentage = (
+            (no_due_date / total_issues * 100) if total_issues > 0 else 0
+        )
+        in_progress_percentage = (
+            (in_progress / total_issues * 100) if total_issues > 0 else 0
+        )
 
         # Calculate adherence rate (early + on-time completion out of completed issues)
-        adherence_rate = ((early + on_time) / completed_issues * 100) if completed_issues > 0 else 0
+        adherence_rate = (
+            ((early + on_time) / completed_issues * 100) if completed_issues > 0 else 0
+        )
 
         return {
             "total_issues": total_issues,
@@ -636,7 +714,12 @@ class IssueAdherenceService:
         """
         scores: List[float] = []
         individual_scores: List[Dict] = []
-        counted_by_category: Dict[str, int] = {"early": 0, "on_time": 0, "late": 0, "no_due_date": 0}
+        counted_by_category: Dict[str, int] = {
+            "early": 0,
+            "on_time": 0,
+            "late": 0,
+            "no_due_date": 0,
+        }
         early_penalty_total = 0.0
         late_penalty_total = 0.0
         ndd_penalty_total = 0.0
@@ -660,7 +743,9 @@ class IssueAdherenceService:
 
                 # Progressive penalty for severe lateness (exponential scaling after 7 days)
                 if lateness_beyond > 7:
-                    severe_multiplier = 1 + (lateness_beyond - 7) * 0.2  # 20% additional penalty per day after 7
+                    severe_multiplier = (
+                        1 + (lateness_beyond - 7) * 0.2
+                    )  # 20% additional penalty per day after 7
                     late_penalty_multiplier = min(3.0, severe_multiplier)  # Cap at 3x
                 else:
                     late_penalty_multiplier = 1.0
@@ -673,16 +758,18 @@ class IssueAdherenceService:
                 scores.append(score)
 
                 # Track individual scores for detailed analysis
-                individual_scores.append({
-                    "issue_key": r.issue_key,
-                    "days_difference": d,
-                    "penalty_raw": round(penalty_raw, 2),
-                    "penalty_capped": round(penalty_capped, 2),
-                    "score": round(score, 2),
-                    "status": status,
-                    "team": r.team,
-                    "assignee": r.assignee
-                })
+                individual_scores.append(
+                    {
+                        "issue_key": r.issue_key,
+                        "days_difference": d,
+                        "penalty_raw": round(penalty_raw, 2),
+                        "penalty_capped": round(penalty_capped, 2),
+                        "score": round(score, 2),
+                        "status": status,
+                        "team": r.team,
+                        "assignee": r.assignee,
+                    }
+                )
 
                 counted_by_category[status] += 1
                 early_penalty_total += early_p
@@ -708,16 +795,18 @@ class IssueAdherenceService:
                     score = 100.0 - penalty_capped
                     scores.append(score)
 
-                    individual_scores.append({
-                        "issue_key": r.issue_key,
-                        "days_difference": None,
-                        "penalty_raw": round(penalty_raw, 2),
-                        "penalty_capped": round(penalty_capped, 2),
-                        "score": round(score, 2),
-                        "status": status,
-                        "team": r.team,
-                        "assignee": r.assignee
-                    })
+                    individual_scores.append(
+                        {
+                            "issue_key": r.issue_key,
+                            "days_difference": None,
+                            "penalty_raw": round(penalty_raw, 2),
+                            "penalty_capped": round(penalty_capped, 2),
+                            "score": round(score, 2),
+                            "status": status,
+                            "team": r.team,
+                            "assignee": r.assignee,
+                        }
+                    )
 
                     counted_by_category[status] += 1
                     ndd_penalty_total += penalty_raw
@@ -727,7 +816,9 @@ class IssueAdherenceService:
 
         weighted_adherence = (sum(scores) / len(scores)) if scores else 0.0
         total_items = len(scores)
-        avg_penalty_capped = (total_penalty_capped / total_items) if total_items > 0 else 0.0
+        avg_penalty_capped = (
+            (total_penalty_capped / total_items) if total_items > 0 else 0.0
+        )
         avg_penalty_raw = (total_penalty_raw / total_items) if total_items > 0 else 0.0
 
         # Calculate score distribution statistics
@@ -736,9 +827,11 @@ class IssueAdherenceService:
             score_stats = {
                 "mean": round(statistics.mean(scores), 2),
                 "median": round(statistics.median(scores), 2),
-                "std_dev": round(statistics.stdev(scores), 2) if len(scores) > 1 else 0.0,
+                "std_dev": round(statistics.stdev(scores), 2)
+                if len(scores) > 1
+                else 0.0,
                 "min": round(min(scores), 2),
-                "max": round(max(scores), 2)
+                "max": round(max(scores), 2),
             }
 
         return {
@@ -749,7 +842,7 @@ class IssueAdherenceService:
                 "late_weight": late_weight,
                 "no_due_penalty": no_due_penalty,
                 "progressive_scaling_enabled": True,
-                "severe_lateness_threshold": 7
+                "severe_lateness_threshold": 7,
             },
             "included_items": total_items,
             "included_breakdown": counted_by_category,
@@ -770,7 +863,9 @@ class IssueAdherenceService:
             },
         }
 
-    def _save_results_with_format(self, results: Dict, base_path: str, output_format: str) -> str:
+    def _save_results_with_format(
+        self, results: Dict, base_path: str, output_format: str
+    ) -> str:
         """
         Save results in the specified format.
 
@@ -789,6 +884,7 @@ class IssueAdherenceService:
 
                 # Use OutputManager to save markdown (per-day folder)
                 from datetime import datetime as _dt
+
                 sub_dir = f"issue-adherence_{_dt.now().strftime('%Y%m%d')}"
                 output_path = OutputManager.save_markdown_report(
                     content=markdown_content,
@@ -802,6 +898,7 @@ class IssueAdherenceService:
             else:  # Default to JSON
                 # Use OutputManager to save JSON (per-day folder)
                 from datetime import datetime as _dt
+
                 sub_dir = f"issue-adherence_{_dt.now().strftime('%Y%m%d')}"
                 output_path = OutputManager.save_json_report(
                     data=results,
@@ -845,12 +942,16 @@ class IssueAdherenceService:
         # Find the last path separator (works for both / and \)
         last_sep_pos = max(file_path.rfind("/"), file_path.rfind("\\"))
 
-        if last_sep_pos > 0:  # > 0 to ensure we don't return empty string for paths like "file.json"
+        if (
+            last_sep_pos > 0
+        ):  # > 0 to ensure we don't return empty string for paths like "file.json"
             return file_path[:last_sep_pos]
 
         return None
 
-    def _print_verbose_results(self, results: List[IssueAdherenceResult], _metrics: Dict):
+    def _print_verbose_results(
+        self, results: List[IssueAdherenceResult], _metrics: Dict
+    ):
         """Print verbose results to console."""
         print("\n" + "=" * 80)
         print("DETAILED ISSUE ADHERENCE ANALYSIS")
@@ -926,7 +1027,9 @@ class IssueAdherenceService:
         md_content.append(f"**Issue Types:** {', '.join(issue_types)}")
         if team:
             md_content.append(f"**Team Filter:** {team}")
-        md_content.append(f"**Generated:** {analysis_date[:19] if analysis_date else 'Unknown'}")
+        md_content.append(
+            f"**Generated:** {analysis_date[:19] if analysis_date else 'Unknown'}"
+        )
         md_content.append("")
 
         # Executive Summary
@@ -936,10 +1039,16 @@ class IssueAdherenceService:
         md_content.append(f"**Risk Assessment:** {risk_assessment}")
         weighted = results.get("weighted_metrics")
         if weighted:
-            md_content.append(f"**Weighted Adherence:** {weighted.get('weighted_adherence', 0):.1f}%")
+            md_content.append(
+                f"**Weighted Adherence:** {weighted.get('weighted_adherence', 0):.1f}%"
+            )
         md_content.append("")
-        md_content.append(f"- **Total Issues Analyzed:** {metrics.get('total_issues', 0)}")
-        md_content.append(f"- **Issues with Due Dates:** {metrics.get('issues_with_due_dates', 0)}")
+        md_content.append(
+            f"- **Total Issues Analyzed:** {metrics.get('total_issues', 0)}"
+        )
+        md_content.append(
+            f"- **Issues with Due Dates:** {metrics.get('issues_with_due_dates', 0)}"
+        )
         md_content.append(
             f"- **Completed Issues:** {metrics.get('early', 0) + metrics.get('on_time', 0) + metrics.get('late', 0)}"
         )
@@ -950,20 +1059,31 @@ class IssueAdherenceService:
             params = weighted.get("parameters", {})
             md_content.append("## 📐 Adherence Metrics")
             md_content.append("")
-            md_content.append("- Legacy Adherence: Computed as (early + on-time) / completed")
+            md_content.append(
+                "- Legacy Adherence: Computed as (early + on-time) / completed"
+            )
             md_content.append(
                 "- Weighted Adherence: Averages per-issue scores with asymmetric penalties (lateness weighted more, early has small tolerance; completed issues without due date get a fixed penalty)"
             )
             md_content.append("- Parameters used:")
-            md_content.append(f"  - Early tolerance (days): {params.get('early_tolerance_days')}")
-            md_content.append(f"  - Early weight (pt/day): {params.get('early_weight')}")
+            md_content.append(
+                f"  - Early tolerance (days): {params.get('early_tolerance_days')}"
+            )
+            md_content.append(
+                f"  - Early weight (pt/day): {params.get('early_weight')}"
+            )
             md_content.append(f"  - Late weight (pt/day): {params.get('late_weight')}")
-            md_content.append(f"  - No-due penalty (pts): {params.get('no_due_penalty')}")
+            md_content.append(
+                f"  - No-due penalty (pts): {params.get('no_due_penalty')}"
+            )
             md_content.append("")
 
         # Statistical Insights
         statistical_insights = results.get("statistical_insights")
-        if statistical_insights and statistical_insights.get("total_completed_with_due_dates", 0) > 0:
+        if (
+            statistical_insights
+            and statistical_insights.get("total_completed_with_due_dates", 0) > 0
+        ):
             md_content.append("## 📊 Statistical Insights")
             md_content.append("")
             md_content.append(
@@ -980,9 +1100,15 @@ class IssueAdherenceService:
             md_content.append("| Metric | Value |")
             md_content.append("|--------|-------|")
             md_content.append(f"| Mean | {delivery_stats.get('mean', 0):.1f} days |")
-            md_content.append(f"| Median | {delivery_stats.get('median', 0):.1f} days |")
-            md_content.append(f"| Standard Deviation | {delivery_stats.get('std_dev', 0):.1f} days |")
-            md_content.append(f"| Range | {delivery_stats.get('min', 0)} to {delivery_stats.get('max', 0)} days |")
+            md_content.append(
+                f"| Median | {delivery_stats.get('median', 0):.1f} days |"
+            )
+            md_content.append(
+                f"| Standard Deviation | {delivery_stats.get('std_dev', 0):.1f} days |"
+            )
+            md_content.append(
+                f"| Range | {delivery_stats.get('min', 0)} to {delivery_stats.get('max', 0)} days |"
+            )
             md_content.append("")
 
             md_content.append("### Percentile Analysis")
@@ -997,14 +1123,20 @@ class IssueAdherenceService:
             if outliers.get("outlier_count", 0) > 0:
                 md_content.append("### Outlier Analysis")
                 md_content.append("")
-                md_content.append(f"**{outliers.get('outlier_count', 0)} outliers detected** ({outliers.get('outlier_percentage', 0):.1f}% of completed issues)")
+                md_content.append(
+                    f"**{outliers.get('outlier_count', 0)} outliers detected** ({outliers.get('outlier_percentage', 0):.1f}% of completed issues)"
+                )
                 md_content.append("")
                 extreme_late = outliers.get("extreme_late", [])
                 extreme_early = outliers.get("extreme_early", [])
                 if extreme_late:
-                    md_content.append(f"- **Extremely Late:** {len(extreme_late)} issues (worst: {max(extreme_late)} days)")
+                    md_content.append(
+                        f"- **Extremely Late:** {len(extreme_late)} issues (worst: {max(extreme_late)} days)"
+                    )
                 if extreme_early:
-                    md_content.append(f"- **Extremely Early:** {len(extreme_early)} issues (earliest: {min(extreme_early)} days)")
+                    md_content.append(
+                        f"- **Extremely Early:** {len(extreme_early)} issues (earliest: {min(extreme_early)} days)"
+                    )
                 md_content.append("")
 
         # Segmentation Analysis
@@ -1018,14 +1150,22 @@ class IssueAdherenceService:
             if len(by_team) > 1:
                 md_content.append("### By Team")
                 md_content.append("")
-                md_content.append("| Team | Adherence Rate | Completed Issues | Early | On-Time | Late |")
-                md_content.append("|------|----------------|------------------|-------|---------|------|")
+                md_content.append(
+                    "| Team | Adherence Rate | Completed Issues | Early | On-Time | Late |"
+                )
+                md_content.append(
+                    "|------|----------------|------------------|-------|---------|------|"
+                )
                 for team, team_metrics in by_team.items():
                     adherence = team_metrics.get("adherence_rate", 0)
                     counts = team_metrics.get("counts", {})
                     total = team_metrics.get("total_completed", 0)
-                    risk_emoji = "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
-                    md_content.append(f"| {team} | {adherence:.1f}% {risk_emoji} | {total} | {counts.get('early', 0)} | {counts.get('on_time', 0)} | {counts.get('late', 0)} |")
+                    risk_emoji = (
+                        "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
+                    )
+                    md_content.append(
+                        f"| {team} | {adherence:.1f}% {risk_emoji} | {total} | {counts.get('early', 0)} | {counts.get('on_time', 0)} | {counts.get('late', 0)} |"
+                    )
                 md_content.append("")
 
             # Issue type analysis
@@ -1033,14 +1173,22 @@ class IssueAdherenceService:
             if len(by_type) > 1:
                 md_content.append("### By Issue Type")
                 md_content.append("")
-                md_content.append("| Issue Type | Adherence Rate | Completed Issues | Early | On-Time | Late |")
-                md_content.append("|------------|----------------|------------------|-------|---------|------|")
+                md_content.append(
+                    "| Issue Type | Adherence Rate | Completed Issues | Early | On-Time | Late |"
+                )
+                md_content.append(
+                    "|------------|----------------|------------------|-------|---------|------|"
+                )
                 for issue_type, type_metrics in by_type.items():
                     adherence = type_metrics.get("adherence_rate", 0)
                     counts = type_metrics.get("counts", {})
                     total = type_metrics.get("total_completed", 0)
-                    risk_emoji = "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
-                    md_content.append(f"| {issue_type} | {adherence:.1f}% {risk_emoji} | {total} | {counts.get('early', 0)} | {counts.get('on_time', 0)} | {counts.get('late', 0)} |")
+                    risk_emoji = (
+                        "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
+                    )
+                    md_content.append(
+                        f"| {issue_type} | {adherence:.1f}% {risk_emoji} | {total} | {counts.get('early', 0)} | {counts.get('on_time', 0)} | {counts.get('late', 0)} |"
+                    )
                 md_content.append("")
 
         # Due Date Coverage Analysis
@@ -1059,29 +1207,46 @@ class IssueAdherenceService:
             md_content.append("")
             md_content.append("| Metric | Count |")
             md_content.append("|--------|-------|")
-            md_content.append(f"| Issues with Due Dates | {overall.get('issues_with_due_dates', 0)} |")
-            md_content.append(f"| Issues without Due Dates | {overall.get('issues_without_due_dates', 0)} |")
+            md_content.append(
+                f"| Issues with Due Dates | {overall.get('issues_with_due_dates', 0)} |"
+            )
+            md_content.append(
+                f"| Issues without Due Dates | {overall.get('issues_without_due_dates', 0)} |"
+            )
             md_content.append(f"| Total Issues | {overall.get('total_issues', 0)} |")
             md_content.append("")
 
             if coverage_pct < 80:
-                md_content.append("⚠️ **Coverage below 80% - consider enforcing due date requirements**")
+                md_content.append(
+                    "⚠️ **Coverage below 80% - consider enforcing due date requirements**"
+                )
                 md_content.append("")
 
                 # Show teams with worst coverage
                 by_team_coverage = due_date_coverage.get("by_team", {})
-                worst_teams = [(team, metrics) for team, metrics in by_team_coverage.items()
-                              if metrics.get("coverage_rate", 0) < 80]
+                worst_teams = [
+                    (team, metrics)
+                    for team, metrics in by_team_coverage.items()
+                    if metrics.get("coverage_rate", 0) < 80
+                ]
                 if worst_teams:
                     md_content.append("### Teams Needing Due Date Coverage Improvement")
                     md_content.append("")
-                    md_content.append("| Team | Coverage Rate | With Due Date | Without Due Date |")
-                    md_content.append("|------|---------------|---------------|------------------|")
-                    for team, team_coverage_metrics in worst_teams[:5]:  # Show top 5 worst
+                    md_content.append(
+                        "| Team | Coverage Rate | With Due Date | Without Due Date |"
+                    )
+                    md_content.append(
+                        "|------|---------------|---------------|------------------|"
+                    )
+                    for team, team_coverage_metrics in worst_teams[
+                        :5
+                    ]:  # Show top 5 worst
                         rate = team_coverage_metrics.get("coverage_rate", 0)
                         with_due = team_coverage_metrics.get("with_due_date", 0)
                         without_due = team_coverage_metrics.get("without_due_date", 0)
-                        md_content.append(f"| {team} | {rate:.1f}% | {with_due} | {without_due} |")
+                        md_content.append(
+                            f"| {team} | {rate:.1f}% | {with_due} | {without_due} |"
+                        )
                     md_content.append("")
 
         # Adherence Metrics Breakdown
@@ -1100,15 +1265,19 @@ class IssueAdherenceService:
 
         for status_key, status_label in status_metrics:
             # Check if metrics has direct fields or is nested in 'counts'
-            if 'counts' in metrics:
-                count = metrics['counts'].get(status_key, 0)
+            if "counts" in metrics:
+                count = metrics["counts"].get(status_key, 0)
                 percentage = metrics.get(f"{status_key}_percentage", 0)
             else:
                 count = metrics.get(status_key, 0)
                 percentage = metrics.get(f"{status_key}_percentage", 0)
 
             # Only show rows with data
-            if count > 0 or status_key in ["early", "on_time", "late"]:  # Always show main categories
+            if count > 0 or status_key in [
+                "early",
+                "on_time",
+                "late",
+            ]:  # Always show main categories
                 md_content.append(f"| {status_label} | {count} | {percentage:.1f}% |")
 
         md_content.append("")
@@ -1138,8 +1307,12 @@ class IssueAdherenceService:
                 md_content.append("| Metric | Value |")
                 md_content.append("|--------|-------|")
                 md_content.append(f"| Mean Score | {score_stats.get('mean', 0):.1f}% |")
-                md_content.append(f"| Median Score | {score_stats.get('median', 0):.1f}% |")
-                md_content.append(f"| Score Std Dev | {score_stats.get('std_dev', 0):.1f} |")
+                md_content.append(
+                    f"| Median Score | {score_stats.get('median', 0):.1f}% |"
+                )
+                md_content.append(
+                    f"| Score Std Dev | {score_stats.get('std_dev', 0):.1f} |"
+                )
                 md_content.append(f"| Min Score | {score_stats.get('min', 0):.1f}% |")
                 md_content.append(f"| Max Score | {score_stats.get('max', 0):.1f}% |")
                 md_content.append("")
@@ -1147,12 +1320,24 @@ class IssueAdherenceService:
             # Penalty analysis table
             md_content.append("### Penalty Analysis")
             md_content.append("")
-            md_content.append("| Penalty Type | Total (Capped) | Total (Raw) | Avg per Item |")
-            md_content.append("|--------------|----------------|-------------|--------------|")
-            md_content.append(f"| Late | {penalties.get('late_total_capped', 0.0):.1f} | {penalties.get('late_total', 0.0):.1f} | {(penalties.get('late_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |")
-            md_content.append(f"| Early | {penalties.get('early_total_capped', 0.0):.1f} | {penalties.get('early_total', 0.0):.1f} | {(penalties.get('early_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |")
-            md_content.append(f"| No Due Date | {penalties.get('no_due_total_capped', 0.0):.1f} | {penalties.get('no_due_total', 0.0):.1f} | {(penalties.get('no_due_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |")
-            md_content.append(f"| **Total** | **{penalties.get('total_capped', 0.0):.1f}** | **{penalties.get('total_raw', 0.0):.1f}** | **{penalties.get('avg_per_item_capped', 0.0):.1f}** |")
+            md_content.append(
+                "| Penalty Type | Total (Capped) | Total (Raw) | Avg per Item |"
+            )
+            md_content.append(
+                "|--------------|----------------|-------------|--------------|"
+            )
+            md_content.append(
+                f"| Late | {penalties.get('late_total_capped', 0.0):.1f} | {penalties.get('late_total', 0.0):.1f} | {(penalties.get('late_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |"
+            )
+            md_content.append(
+                f"| Early | {penalties.get('early_total_capped', 0.0):.1f} | {penalties.get('early_total', 0.0):.1f} | {(penalties.get('early_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |"
+            )
+            md_content.append(
+                f"| No Due Date | {penalties.get('no_due_total_capped', 0.0):.1f} | {penalties.get('no_due_total', 0.0):.1f} | {(penalties.get('no_due_total_capped', 0.0) / max(1, weighted_perf.get('included_items', 1))):.1f} |"
+            )
+            md_content.append(
+                f"| **Total** | **{penalties.get('total_capped', 0.0):.1f}** | **{penalties.get('total_raw', 0.0):.1f}** | **{penalties.get('avg_per_item_capped', 0.0):.1f}** |"
+            )
             md_content.append("")
 
             # Enhanced parameters info
@@ -1161,21 +1346,37 @@ class IssueAdherenceService:
             md_content.append("")
             md_content.append("| Parameter | Value | Description |")
             md_content.append("|-----------|-------|-------------|")
-            md_content.append(f"| Early Tolerance | {params.get('early_tolerance_days', 0)} days | Grace period for early completion |")
-            md_content.append(f"| Early Weight | {params.get('early_weight', 0):.1f} pts/day | Penalty for early beyond tolerance |")
-            md_content.append(f"| Late Weight | {params.get('late_weight', 0):.1f} pts/day | Penalty for late completion |")
-            md_content.append(f"| No Due Penalty | {params.get('no_due_penalty', 0):.1f} pts | Fixed penalty for missing due date |")
-            if params.get('progressive_scaling_enabled'):
-                md_content.append(f"| Severe Late Threshold | {params.get('severe_lateness_threshold', 7)} days | Progressive penalty starts after this |")
+            md_content.append(
+                f"| Early Tolerance | {params.get('early_tolerance_days', 0)} days | Grace period for early completion |"
+            )
+            md_content.append(
+                f"| Early Weight | {params.get('early_weight', 0):.1f} pts/day | Penalty for early beyond tolerance |"
+            )
+            md_content.append(
+                f"| Late Weight | {params.get('late_weight', 0):.1f} pts/day | Penalty for late completion |"
+            )
+            md_content.append(
+                f"| No Due Penalty | {params.get('no_due_penalty', 0):.1f} pts | Fixed penalty for missing due date |"
+            )
+            if params.get("progressive_scaling_enabled"):
+                md_content.append(
+                    f"| Severe Late Threshold | {params.get('severe_lateness_threshold', 7)} days | Progressive penalty starts after this |"
+                )
             md_content.append("")
 
             # Estimated deviation days and affected items for leadership view
             lw = float(params.get("late_weight", 0) or 0)
             ew = float(params.get("early_weight", 0) or 0)
             ndp = float(params.get("no_due_penalty", 0) or 0)
-            late_total_c = float(penalties.get('late_total_capped', penalties.get('late_total', 0.0)))
-            early_total_c = float(penalties.get('early_total_capped', penalties.get('early_total', 0.0)))
-            ndd_total_c = float(penalties.get('no_due_total_capped', penalties.get('no_due_total', 0.0)))
+            late_total_c = float(
+                penalties.get("late_total_capped", penalties.get("late_total", 0.0))
+            )
+            early_total_c = float(
+                penalties.get("early_total_capped", penalties.get("early_total", 0.0))
+            )
+            ndd_total_c = float(
+                penalties.get("no_due_total_capped", penalties.get("no_due_total", 0.0))
+            )
             late_days = (late_total_c / lw) if lw > 0 else 0.0
             early_days = (early_total_c / ew) if ew > 0 else 0.0
             ndd_items = (ndd_total_c / ndp) if ndp > 0 else 0.0
@@ -1183,19 +1384,25 @@ class IssueAdherenceService:
             md_content.append("### Impact Analysis")
             md_content.append("")
             md_content.append(f"- **Late days total:** {late_days:.1f} days")
-            md_content.append(f"- **Early days beyond tolerance:** {early_days:.1f} days")
+            md_content.append(
+                f"- **Early days beyond tolerance:** {early_days:.1f} days"
+            )
             md_content.append(f"- **Items without due date:** {ndd_items:.1f}")
             md_content.append("")
 
             # Impact on score versus no-penalty baseline (100%)
             avg_capped = float(penalties.get("avg_per_item_capped", 0.0) or 0.0)
-            md_content.append(f"**Score Impact:** Potential 100.0% → Achieved {wa:.1f}% (impact: −{avg_capped:.1f} pts)")
+            md_content.append(
+                f"**Score Impact:** Potential 100.0% → Achieved {wa:.1f}% (impact: −{avg_capped:.1f} pts)"
+            )
             md_content.append("")
         else:
             if total_completed > 0:
                 successful_completion = early_count + on_time_count
                 success_rate = (successful_completion / total_completed) * 100
-                md_content.append(f"**✅ Completion Success Rate:** {success_rate:.1f}%")
+                md_content.append(
+                    f"**✅ Completion Success Rate:** {success_rate:.1f}%"
+                )
                 md_content.append(
                     f"- Successfully completed on or before due date: {successful_completion}/{total_completed} issues"
                 )
@@ -1262,23 +1469,39 @@ class IssueAdherenceService:
                 # Sort issues by days_difference for better readability
                 if status == "late":
                     # Late issues: worst (most late) first
-                    status_issues = sorted(status_issues, key=lambda x: x.get("days_difference", 0), reverse=True)
+                    status_issues = sorted(
+                        status_issues,
+                        key=lambda x: x.get("days_difference", 0),
+                        reverse=True,
+                    )
                 elif status == "early":
                     # Early issues: most early first
-                    status_issues = sorted(status_issues, key=lambda x: abs(x.get("days_difference", 0)), reverse=True)
+                    status_issues = sorted(
+                        status_issues,
+                        key=lambda x: abs(x.get("days_difference", 0)),
+                        reverse=True,
+                    )
                 elif status == "on_time":
                     # On-time: keep original order or sort by issue key
-                    status_issues = sorted(status_issues, key=lambda x: x.get("issue_key", ""))
+                    status_issues = sorted(
+                        status_issues, key=lambda x: x.get("issue_key", "")
+                    )
 
                 emoji = self._get_adherence_status_emoji(status)
                 status_label = status.replace("_", " ").title()
 
-                md_content.append(f"### {emoji} {status_label} Issues ({len(status_issues)})")
+                md_content.append(
+                    f"### {emoji} {status_label} Issues ({len(status_issues)})"
+                )
                 md_content.append("")
 
                 if len(status_issues) <= 10:  # Show all if 10 or fewer
-                    md_content.append("| Issue Key | Summary | Type | Assignee | Days Difference |")
-                    md_content.append("|-----------|---------|------|-----------|-----------------|")
+                    md_content.append(
+                        "| Issue Key | Summary | Type | Assignee | Days Difference |"
+                    )
+                    md_content.append(
+                        "|-----------|---------|------|-----------|-----------------|"
+                    )
 
                     for issue in status_issues:
                         issue_key = issue.get("issue_key", "N/A")
@@ -1301,13 +1524,21 @@ class IssueAdherenceService:
                         else:
                             days_text = "N/A"
 
-                        md_content.append(f"| {issue_key} | {summary} | {issue_type} | {assignee} | {days_text} |")
+                        md_content.append(
+                            f"| {issue_key} | {summary} | {issue_type} | {assignee} | {days_text} |"
+                        )
                 else:
                     # Show summary for large lists
-                    md_content.append(f"**{len(status_issues)} issues** in this category. Top 5 by impact:")
+                    md_content.append(
+                        f"**{len(status_issues)} issues** in this category. Top 5 by impact:"
+                    )
                     md_content.append("")
-                    md_content.append("| Issue Key | Summary | Type | Days Difference |")
-                    md_content.append("|-----------|---------|------|-----------------|")
+                    md_content.append(
+                        "| Issue Key | Summary | Type | Days Difference |"
+                    )
+                    md_content.append(
+                        "|-----------|---------|------|-----------------|"
+                    )
 
                     # Use already sorted issues (top 5 by impact)
                     for issue in status_issues[:5]:
@@ -1328,7 +1559,9 @@ class IssueAdherenceService:
                         else:
                             days_text = "N/A"
 
-                        md_content.append(f"| {issue_key} | {summary} | {issue_type} | {days_text} |")
+                        md_content.append(
+                            f"| {issue_key} | {summary} | {issue_type} | {days_text} |"
+                        )
 
                 md_content.append("")
 
@@ -1358,15 +1591,30 @@ class IssueAdherenceService:
         specific_recommendations = []
 
         # Due date coverage recommendations
-        if due_date_coverage and due_date_coverage.get("overall", {}).get("coverage_percentage", 0) < 80:
-            specific_recommendations.append("**Due Date Coverage:** Enforce due date requirements - only {:.1f}% of issues have due dates set".format(
-                due_date_coverage.get("overall", {}).get("coverage_percentage", 0)
-            ))
+        if (
+            due_date_coverage
+            and due_date_coverage.get("overall", {}).get("coverage_percentage", 0) < 80
+        ):
+            specific_recommendations.append(
+                "**Due Date Coverage:** Enforce due date requirements - only {:.1f}% of issues have due dates set".format(
+                    due_date_coverage.get("overall", {}).get("coverage_percentage", 0)
+                )
+            )
 
         # Statistical outlier recommendations
-        if statistical_insights and statistical_insights.get("outlier_analysis", {}).get("outlier_percentage", 0) > 10:
-            outlier_pct = statistical_insights.get("outlier_analysis", {}).get("outlier_percentage", 0)
-            specific_recommendations.append(f"**Outlier Management:** {outlier_pct:.1f}% of issues are outliers - investigate extreme cases for process improvements")
+        if (
+            statistical_insights
+            and statistical_insights.get("outlier_analysis", {}).get(
+                "outlier_percentage", 0
+            )
+            > 10
+        ):
+            outlier_pct = statistical_insights.get("outlier_analysis", {}).get(
+                "outlier_percentage", 0
+            )
+            specific_recommendations.append(
+                f"**Outlier Management:** {outlier_pct:.1f}% of issues are outliers - investigate extreme cases for process improvements"
+            )
 
         # Segmentation-based recommendations
         if segmentation:
@@ -1374,25 +1622,46 @@ class IssueAdherenceService:
             by_team = segmentation.get("by_team", {})
             # Only show team recommendations if we're analyzing multiple teams
             if len(by_team) > 1:
-                worst_teams = [(team, metrics) for team, metrics in by_team.items()
-                              if metrics.get("adherence_rate", 0) < 60 and metrics.get("total_completed", 0) >= 3]
+                worst_teams = [
+                    (team, metrics)
+                    for team, metrics in by_team.items()
+                    if metrics.get("adherence_rate", 0) < 60
+                    and metrics.get("total_completed", 0) >= 3
+                ]
                 if worst_teams:
                     team_names = [team for team, _ in worst_teams[:2]]
-                    specific_recommendations.append(f"**Team Focus:** Teams requiring immediate support: {', '.join(team_names)}")
+                    specific_recommendations.append(
+                        f"**Team Focus:** Teams requiring immediate support: {', '.join(team_names)}"
+                    )
 
         # Weighted scoring recommendations
         if weighted_perf:
             penalties = weighted_perf.get("penalties", {})
-            late_share = (penalties.get('late_total_capped', 0.0) / max(1, penalties.get('total_capped', 1))) * 100
-            early_share = (penalties.get('early_total_capped', 0.0) / max(1, penalties.get('total_capped', 1))) * 100
-            ndd_share = (penalties.get('no_due_total_capped', 0.0) / max(1, penalties.get('total_capped', 1))) * 100
+            late_share = (
+                penalties.get("late_total_capped", 0.0)
+                / max(1, penalties.get("total_capped", 1))
+            ) * 100
+            early_share = (
+                penalties.get("early_total_capped", 0.0)
+                / max(1, penalties.get("total_capped", 1))
+            ) * 100
+            ndd_share = (
+                penalties.get("no_due_total_capped", 0.0)
+                / max(1, penalties.get("total_capped", 1))
+            ) * 100
 
             if late_share > 50:
-                specific_recommendations.append(f"**Lateness Focus:** {late_share:.0f}% of penalties from late delivery - strengthen deadline management")
+                specific_recommendations.append(
+                    f"**Lateness Focus:** {late_share:.0f}% of penalties from late delivery - strengthen deadline management"
+                )
             if ndd_share > 30:
-                specific_recommendations.append(f"**Due Date Governance:** {ndd_share:.0f}% of penalties from missing due dates - enforce planning standards")
+                specific_recommendations.append(
+                    f"**Due Date Governance:** {ndd_share:.0f}% of penalties from missing due dates - enforce planning standards"
+                )
             if early_share > 30:
-                specific_recommendations.append(f"**Estimation Accuracy:** {early_share:.0f}% of penalties from early delivery - improve estimation and milestone alignment")
+                specific_recommendations.append(
+                    f"**Estimation Accuracy:** {early_share:.0f}% of penalties from early delivery - improve estimation and milestone alignment"
+                )
 
         if specific_recommendations:
             md_content.append("### 🎯 Specific Action Items")
@@ -1406,23 +1675,43 @@ class IssueAdherenceService:
         md_content.append("")
 
         md_content.append("### Data Scope")
-        md_content.append(f"- **Analysis Period:** {metadata.get('time_period', 'Unknown')}")
-        md_content.append(f"- **Date Range:** {start_date[:10] if start_date else 'Unknown'} to {end_date[:10] if end_date else 'Unknown'}")
+        md_content.append(
+            f"- **Analysis Period:** {metadata.get('time_period', 'Unknown')}"
+        )
+        md_content.append(
+            f"- **Date Range:** {start_date[:10] if start_date else 'Unknown'} to {end_date[:10] if end_date else 'Unknown'}"
+        )
         md_content.append(f"- **Issue Types:** {', '.join(issue_types)}")
         if team:
             md_content.append(f"- **Team Filter:** {team}")
-        md_content.append(f"- **Schema Version:** {results.get('schema_version', '1.0')}")
+        md_content.append(
+            f"- **Schema Version:** {results.get('schema_version', '1.0')}"
+        )
         md_content.append("")
 
         md_content.append("### Methodology")
-        md_content.append("- **Legacy Adherence:** (Early + On-time) / Completed issues")
-        md_content.append("- **Weighted Adherence:** Averages per-issue scores (0-100%) with asymmetric penalties")
+        md_content.append(
+            "- **Legacy Adherence:** (Early + On-time) / Completed issues"
+        )
+        md_content.append(
+            "- **Weighted Adherence:** Averages per-issue scores (0-100%) with asymmetric penalties"
+        )
         md_content.append("  - Late completion: Higher penalty weight, no tolerance")
-        md_content.append("  - Early completion: Lower penalty weight, tolerance period applied")
-        md_content.append("  - Progressive penalties: Severe lateness (>7 days) gets escalating penalties")
-        md_content.append("  - Missing due dates: Fixed penalty when included in analysis")
-        md_content.append("- **Statistical Analysis:** Uses IQR method for outlier detection (1.5×IQR)")
-        md_content.append("- **Timestamps:** Based on JIRA resolution dates and due dates (timezone-normalized)")
+        md_content.append(
+            "  - Early completion: Lower penalty weight, tolerance period applied"
+        )
+        md_content.append(
+            "  - Progressive penalties: Severe lateness (>7 days) gets escalating penalties"
+        )
+        md_content.append(
+            "  - Missing due dates: Fixed penalty when included in analysis"
+        )
+        md_content.append(
+            "- **Statistical Analysis:** Uses IQR method for outlier detection (1.5×IQR)"
+        )
+        md_content.append(
+            "- **Timestamps:** Based on JIRA resolution dates and due dates (timezone-normalized)"
+        )
         md_content.append("")
 
         # Explicit list of issues without due date at the end if present
@@ -1437,13 +1726,21 @@ class IssueAdherenceService:
                 team_name = item.get("team") or "Not set"
                 assignee = item.get("assignee") or "Unassigned"
                 summary = (item.get("summary") or "").strip()
-                summary_short = (summary[:50] + ("..." if len(summary) > 50 else "")) if summary else ""
-                md_content.append(f"| {issue_key} | {team_name} | {assignee} | {summary_short} |")
+                summary_short = (
+                    (summary[:50] + ("..." if len(summary) > 50 else ""))
+                    if summary
+                    else ""
+                )
+                md_content.append(
+                    f"| {issue_key} | {team_name} | {assignee} | {summary_short} |"
+                )
             md_content.append("")
         elif len(no_due_list) > 20:
             md_content.append("## 📎 Issues Without Due Date")
             md_content.append("")
-            md_content.append(f"**{len(no_due_list)} issues without due dates** (showing summary by team)")
+            md_content.append(
+                f"**{len(no_due_list)} issues without due dates** (showing summary by team)"
+            )
             md_content.append("")
 
             # Group by team and show summary
@@ -1454,22 +1751,29 @@ class IssueAdherenceService:
 
             md_content.append("| Team | Count |")
             md_content.append("|------|-------|")
-            for team_name, count in sorted(team_counts.items(), key=lambda x: x[1], reverse=True):
+            for team_name, count in sorted(
+                team_counts.items(), key=lambda x: x[1], reverse=True
+            ):
                 md_content.append(f"| {team_name} | {count} |")
             md_content.append("")
 
         # Footer with generation info
         md_content.append("---")
         md_content.append("")
-        md_content.append(f"*Report generated on {analysis_date[:19] if analysis_date else datetime.now().isoformat()[:19]} using PyToolkit JIRA Adherence Analysis*")
+        md_content.append(
+            f"*Report generated on {analysis_date[:19] if analysis_date else datetime.now().isoformat()[:19]} using PyToolkit JIRA Adherence Analysis*"
+        )
         md_content.append("")
 
         return "\n".join(md_content)
 
-    def _calculate_statistical_insights(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_statistical_insights(
+        self, results: List[IssueAdherenceResult]
+    ) -> Dict:
         """Calculate statistical insights for completion times."""
         completed_with_due_dates = [
-            r for r in results
+            r
+            for r in results
             if r.adherence_status in ("early", "on_time", "late")
             and r.days_difference is not None
         ]
@@ -1479,7 +1783,7 @@ class IssueAdherenceService:
                 "total_completed_with_due_dates": 0,
                 "delivery_time_stats": {},
                 "percentile_analysis": {},
-                "outlier_analysis": {}
+                "outlier_analysis": {},
             }
 
         days_differences = [r.days_difference for r in completed_with_due_dates]
@@ -1488,10 +1792,12 @@ class IssueAdherenceService:
         delivery_stats = {
             "mean": round(statistics.mean(days_differences), 2),
             "median": round(statistics.median(days_differences), 2),
-            "std_dev": round(statistics.stdev(days_differences), 2) if len(days_differences) > 1 else 0.0,
+            "std_dev": round(statistics.stdev(days_differences), 2)
+            if len(days_differences) > 1
+            else 0.0,
             "min": min(days_differences),
             "max": max(days_differences),
-            "range": max(days_differences) - min(days_differences)
+            "range": max(days_differences) - min(days_differences),
         }
 
         # Percentile analysis
@@ -1499,10 +1805,16 @@ class IssueAdherenceService:
         percentile_analysis = {}
         for p in percentiles:
             try:
-                value = statistics.quantiles(days_differences, n=100)[p-1] if len(days_differences) >= 2 else days_differences[0]
+                value = (
+                    statistics.quantiles(days_differences, n=100)[p - 1]
+                    if len(days_differences) >= 2
+                    else days_differences[0]
+                )
                 percentile_analysis[f"p{p}"] = round(value, 2)
             except (IndexError, statistics.StatisticsError):
-                percentile_analysis[f"p{p}"] = days_differences[0] if days_differences else 0
+                percentile_analysis[f"p{p}"] = (
+                    days_differences[0] if days_differences else 0
+                )
 
         # Outlier analysis (using IQR method)
         if len(days_differences) >= 4:
@@ -1512,15 +1824,19 @@ class IssueAdherenceService:
             lower_bound = q1 - 1.5 * iqr
             upper_bound = q3 + 1.5 * iqr
 
-            outliers = [d for d in days_differences if d < lower_bound or d > upper_bound]
+            outliers = [
+                d for d in days_differences if d < lower_bound or d > upper_bound
+            ]
             outlier_analysis = {
                 "outlier_count": len(outliers),
-                "outlier_percentage": round(len(outliers) / len(days_differences) * 100, 1),
+                "outlier_percentage": round(
+                    len(outliers) / len(days_differences) * 100, 1
+                ),
                 "extreme_early": [d for d in outliers if d < lower_bound],
                 "extreme_late": [d for d in outliers if d > upper_bound],
                 "iqr": round(iqr, 2),
                 "lower_bound": round(lower_bound, 2),
-                "upper_bound": round(upper_bound, 2)
+                "upper_bound": round(upper_bound, 2),
             }
         else:
             outlier_analysis = {
@@ -1530,22 +1846,48 @@ class IssueAdherenceService:
                 "extreme_late": [],
                 "iqr": 0.0,
                 "lower_bound": 0.0,
-                "upper_bound": 0.0
+                "upper_bound": 0.0,
             }
 
         return {
             "total_completed_with_due_dates": len(completed_with_due_dates),
             "delivery_time_stats": delivery_stats,
             "percentile_analysis": percentile_analysis,
-            "outlier_analysis": outlier_analysis
+            "outlier_analysis": outlier_analysis,
         }
 
-    def _calculate_segmentation_analysis(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_segmentation_analysis(
+        self, results: List[IssueAdherenceResult]
+    ) -> Dict:
         """Calculate adherence metrics segmented by team, issue type, and assignee."""
         segments = {
-            "by_team": defaultdict(lambda: {"early": 0, "on_time": 0, "late": 0, "no_due_date": 0, "in_progress": 0}),
-            "by_issue_type": defaultdict(lambda: {"early": 0, "on_time": 0, "late": 0, "no_due_date": 0, "in_progress": 0}),
-            "by_assignee": defaultdict(lambda: {"early": 0, "on_time": 0, "late": 0, "no_due_date": 0, "in_progress": 0})
+            "by_team": defaultdict(
+                lambda: {
+                    "early": 0,
+                    "on_time": 0,
+                    "late": 0,
+                    "no_due_date": 0,
+                    "in_progress": 0,
+                }
+            ),
+            "by_issue_type": defaultdict(
+                lambda: {
+                    "early": 0,
+                    "on_time": 0,
+                    "late": 0,
+                    "no_due_date": 0,
+                    "in_progress": 0,
+                }
+            ),
+            "by_assignee": defaultdict(
+                lambda: {
+                    "early": 0,
+                    "on_time": 0,
+                    "late": 0,
+                    "no_due_date": 0,
+                    "in_progress": 0,
+                }
+            ),
         }
 
         for result in results:
@@ -1581,7 +1923,7 @@ class IssueAdherenceService:
                     "counts": dict(counts),
                     "total_completed": total_completed,
                     "total_issues": sum(counts.values()),
-                    "adherence_rate": round(adherence_rate, 1)
+                    "adherence_rate": round(adherence_rate, 1),
                 }
 
             # Sort by adherence rate (worst first) for actionable insights
@@ -1590,10 +1932,12 @@ class IssueAdherenceService:
         return {
             "by_team": calculate_segment_metrics(segments["by_team"]),
             "by_issue_type": calculate_segment_metrics(segments["by_issue_type"]),
-            "by_assignee": calculate_segment_metrics(segments["by_assignee"])
+            "by_assignee": calculate_segment_metrics(segments["by_assignee"]),
         }
 
-    def _calculate_due_date_coverage_analysis(self, all_issues: List[Dict], analyzed_results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_due_date_coverage_analysis(
+        self, all_issues: List[Dict], analyzed_results: List[IssueAdherenceResult]
+    ) -> Dict:
         """Analyze due date coverage across the dataset."""
         total_issues = len(all_issues)
 
@@ -1610,7 +1954,9 @@ class IssueAdherenceService:
                 issues_without_due_dates += 1
 
         # Calculate coverage percentage
-        due_date_coverage_percentage = (issues_with_due_dates / total_issues * 100) if total_issues > 0 else 0.0
+        due_date_coverage_percentage = (
+            (issues_with_due_dates / total_issues * 100) if total_issues > 0 else 0.0
+        )
 
         # Analyze by team and issue type
         team_coverage = defaultdict(lambda: {"with_due_date": 0, "without_due_date": 0})
@@ -1619,7 +1965,11 @@ class IssueAdherenceService:
         for issue in all_issues:
             fields = issue.get("fields", {})
             due_date = fields.get("duedate")
-            team = fields.get("customfield_10265", {}).get("value") if fields.get("customfield_10265") else "Unassigned"
+            team = (
+                fields.get("customfield_10265", {}).get("value")
+                if fields.get("customfield_10265")
+                else "Unassigned"
+            )
             issue_type = fields.get("issuetype", {}).get("name", "Unknown")
 
             coverage_key = "with_due_date" if due_date else "without_due_date"
@@ -1631,12 +1981,14 @@ class IssueAdherenceService:
             rates = {}
             for key, counts in coverage_data.items():
                 total = counts["with_due_date"] + counts["without_due_date"]
-                coverage_rate = (counts["with_due_date"] / total * 100) if total > 0 else 0.0
+                coverage_rate = (
+                    (counts["with_due_date"] / total * 100) if total > 0 else 0.0
+                )
                 rates[key] = {
                     "with_due_date": counts["with_due_date"],
                     "without_due_date": counts["without_due_date"],
                     "total": total,
-                    "coverage_rate": round(coverage_rate, 1)
+                    "coverage_rate": round(coverage_rate, 1),
                 }
             # Sort by coverage rate (worst first)
             return dict(sorted(rates.items(), key=lambda x: x[1]["coverage_rate"]))
@@ -1646,13 +1998,15 @@ class IssueAdherenceService:
                 "total_issues": total_issues,
                 "issues_with_due_dates": issues_with_due_dates,
                 "issues_without_due_dates": issues_without_due_dates,
-                "coverage_percentage": round(due_date_coverage_percentage, 1)
+                "coverage_percentage": round(due_date_coverage_percentage, 1),
             },
             "by_team": calculate_coverage_rates(team_coverage),
-            "by_issue_type": calculate_coverage_rates(type_coverage)
+            "by_issue_type": calculate_coverage_rates(type_coverage),
         }
 
-    def _calculate_delivery_time_distribution(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_delivery_time_distribution(
+        self, results: List[IssueAdherenceResult]
+    ) -> Dict:
         """
         Compute distribution of days early/late (integers) for completed items with due dates.
 
@@ -1712,9 +2066,16 @@ class IssueAdherenceService:
                 bins["> 10"] += 1
 
         def pct(x: int) -> float:
-            return round((x / total_considered * 100.0), 1) if total_considered > 0 else 0.0
+            return (
+                round((x / total_considered * 100.0), 1)
+                if total_considered > 0
+                else 0.0
+            )
 
         return {
             "total_considered": total_considered,
-            "bins": [{"label": key, "count": bins[key], "percentage": pct(bins[key])} for key in order],
+            "bins": [
+                {"label": key, "count": bins[key], "percentage": pct(bins[key])}
+                for key in order
+            ],
         }

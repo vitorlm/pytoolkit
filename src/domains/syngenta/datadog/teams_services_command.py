@@ -129,7 +129,9 @@ class TeamsServicesCommand(BaseCommand):
             for handle in teams:
                 info = None if args.no_validate_teams else service.get_team(handle)
                 if not info and not args.no_validate_teams:
-                    logger.warning(f"Team handle not found or inaccessible: {handle}. Skipping.")
+                    logger.warning(
+                        f"Team handle not found or inaccessible: {handle}. Skipping."
+                    )
                     if args.verbose:
                         print(f"[debug] Team not resolved: {handle}")
                     continue
@@ -138,13 +140,17 @@ class TeamsServicesCommand(BaseCommand):
 
                 services = service.list_services_for_team(handle)
                 # Filter services actually belonging to the team and mark missing linkage
-                normalized, missing_count = TeamsServicesCommand._normalize_services_for_team(handle, services)
+                normalized, missing_count = (
+                    TeamsServicesCommand._normalize_services_for_team(handle, services)
+                )
                 total_services += len(normalized)
                 total_missing += missing_count
                 if args.verbose:
                     ok_count = sum(1 for s in normalized if s.get("team_link_ok"))
                     miss_count = sum(1 for s in normalized if not s.get("team_link_ok"))
-                    print(f"[debug] {handle}: services={len(normalized)}, ok={ok_count}, missing_linkage={miss_count}")
+                    print(
+                        f"[debug] {handle}: services={len(normalized)}, ok={ok_count}, missing_linkage={miss_count}"
+                    )
 
                 team_entry: Dict[str, object] = {
                     "team": handle,
@@ -175,10 +181,14 @@ class TeamsServicesCommand(BaseCommand):
                     out_path = (
                         args.output_file
                         if args.output_file
-                        else OutputManager.get_output_path(sub_dir, output_basename, "json")
+                        else OutputManager.get_output_path(
+                            sub_dir, output_basename, "json"
+                        )
                     )
                     print(f"\nOutput file:\n- {out_path}")
-                    OutputManager.save_json_report(result, sub_dir, output_basename, output_path=out_path)
+                    OutputManager.save_json_report(
+                        result, sub_dir, output_basename, output_path=out_path
+                    )
                     result["output_file"] = out_path
                     print("✅ Detailed report saved in JSON format")
                 else:
@@ -186,10 +196,14 @@ class TeamsServicesCommand(BaseCommand):
                     out_path = (
                         args.output_file
                         if args.output_file
-                        else OutputManager.get_output_path(sub_dir, output_basename, "md")
+                        else OutputManager.get_output_path(
+                            sub_dir, output_basename, "md"
+                        )
                     )
                     print(f"\nOutput file:\n- {out_path}")
-                    OutputManager.save_markdown_report(md_content, sub_dir, output_basename, output_path=out_path)
+                    OutputManager.save_markdown_report(
+                        md_content, sub_dir, output_basename, output_path=out_path
+                    )
                     result["output_file"] = out_path
                     print("📄 Detailed report saved in MD format")
 
@@ -222,7 +236,9 @@ class TeamsServicesCommand(BaseCommand):
         return [t.strip() for t in (raw or "").split(",") if t and t.strip()]
 
     @staticmethod
-    def _normalize_services_for_team(team_handle: str, services: List[Dict]) -> tuple[List[Dict], int]:
+    def _normalize_services_for_team(
+        team_handle: str, services: List[Dict]
+    ) -> tuple[List[Dict], int]:
         normalized: List[Dict] = []
         missing = 0
         for svc in services or []:
@@ -231,7 +247,8 @@ class TeamsServicesCommand(BaseCommand):
             links = svc.get("links") or {}
             contacts = svc.get("contacts") or []
             ok = bool(svc.get("team_link_ok")) and (
-                str(svc.get("team") or "").lower() == team_handle.lower() or svc.get("team_link_ok") is True
+                str(svc.get("team") or "").lower() == team_handle.lower()
+                or svc.get("team_link_ok") is True
             )
             if not ok:
                 missing += 1

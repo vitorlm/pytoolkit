@@ -21,7 +21,9 @@ class Member(BaseModel):
 
     name: str
     last_name: Optional[str] = None
-    feedback: Optional[dict[str, dict[str, list[Indicator]]]] = Field(default_factory=lambda: {})
+    feedback: Optional[dict[str, dict[str, list[Indicator]]]] = Field(
+        default_factory=lambda: {}
+    )
     feedback_stats: Optional[IndividualStatistics] = None  # Added this field
     tasks: Optional[list[Issue]] = Field(default_factory=lambda: [])
     health_check: Optional[MemberHealthCheck] = None

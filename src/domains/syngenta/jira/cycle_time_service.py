@@ -115,7 +115,14 @@ class CycleTimeService:
 
     def _get_priority_emoji(self, priority: str) -> str:
         """Get emoji for priority level."""
-        priority_map = {"critical": "🔥", "highest": "🔥", "high": "🔴", "medium": "🟡", "low": "🟢", "lowest": "🟢"}
+        priority_map = {
+            "critical": "🔥",
+            "highest": "🔥",
+            "high": "🔴",
+            "medium": "🟡",
+            "low": "🟢",
+            "lowest": "🟢",
+        }
         return priority_map.get(priority.lower(), "⚪") if priority else "⚪"
 
     def analyze_cycle_time(
@@ -249,7 +256,7 @@ class CycleTimeService:
                     "team": team_label,
                     "teams": teams,
                     "priorities": priorities,
-                "analysis_date": datetime.now().isoformat(),
+                    "analysis_date": datetime.now().isoformat(),
                     "include_subtasks": include_subtasks,
                 },
                 "metrics": metrics,
@@ -263,6 +270,7 @@ class CycleTimeService:
             else:
                 # Generate default output file in organized structure (per-day folder)
                 from datetime import datetime as _dt
+
                 sub_dir = f"cycle-time_{_dt.now().strftime('%Y%m%d')}"
                 output_path = OutputManager.get_output_path(sub_dir, f"cycle_time_{project_key}")
                 self._save_results(results, output_path)
@@ -398,9 +406,13 @@ class CycleTimeService:
         team = fields.get("customfield_10265", {}).get("value") if fields.get("customfield_10265") else None
 
         # Find Started and Done timestamps from changelog
-        started_date, done_date, cycle_time_hours, lead_time_hours, has_batch_pattern = (
-            self._calculate_cycle_time_from_changelog(changelog)
-        )
+        (
+            started_date,
+            done_date,
+            cycle_time_hours,
+            lead_time_hours,
+            has_batch_pattern,
+        ) = self._calculate_cycle_time_from_changelog(changelog)
 
         has_valid_cycle_time = started_date is not None and done_date is not None
 
@@ -556,7 +568,13 @@ class CycleTimeService:
             started_date = final_done_timestamp
             self.logger.debug(f"Issue resolved without WIP transition: {final_done_timestamp}")
 
-        return started_date, done_date, cycle_time_hours, lead_time_hours, has_batch_pattern
+        return (
+            started_date,
+            done_date,
+            cycle_time_hours,
+            lead_time_hours,
+            has_batch_pattern,
+        )
 
     def _issue_went_through_archived(self, issue: Dict, project_key: str) -> bool:
         """Check if an issue went through Archived status using cached config."""
@@ -630,7 +648,9 @@ class CycleTimeService:
             raise ValueError(f"Invalid datetime format: {date_string}")
 
     def _calculate_metrics(
-        self, results: List[CycleTimeResult], anomalies: Optional[List[CycleTimeResult]] = None
+        self,
+        results: List[CycleTimeResult],
+        anomalies: Optional[List[CycleTimeResult]] = None,
     ) -> Dict:
         """Calculate cycle time metrics."""
 
@@ -859,7 +879,13 @@ class CycleTimeService:
     def _analyze_anomalies(self, anomalies: List[CycleTimeResult]) -> Dict:
         """Analyze zero cycle time anomalies and provide insights."""
         if not anomalies:
-            return {"count": 0, "percentage": 0.0, "patterns": {}, "lead_time_stats": {}, "recommendations": []}
+            return {
+                "count": 0,
+                "percentage": 0.0,
+                "patterns": {},
+                "lead_time_stats": {},
+                "recommendations": [],
+            }
 
         # Count batch update patterns
         batch_update_count = sum(1 for a in anomalies if a.has_batch_update_pattern)
@@ -933,7 +959,6 @@ class CycleTimeService:
         """
         metadata = results.get("analysis_metadata", {})
         metrics = results.get("metrics", {})
-        issues = results.get("issues", [])
 
         # Extract metadata
         project_key = metadata.get("project_key", "Unknown")
@@ -958,7 +983,9 @@ class CycleTimeService:
         md_content.append(f"**Project:** {project_key}")
         md_content.append(f"**Analysis Period:** {time_period}")
         if start_date and end_date:
-            md_content.append(f"**Date Range:** {start_date if 'T' in start_date else start_date[:10]} to {end_date if 'T' in end_date else end_date[:10]}")
+            md_content.append(
+                f"**Date Range:** {start_date if 'T' in start_date else start_date[:10]} to {end_date if 'T' in end_date else end_date[:10]}"
+            )
         md_content.append(f"**Issue Types:** {', '.join(issue_types)}")
         if team:
             md_content.append(f"**Team Filter:** {team}")
@@ -1034,7 +1061,8 @@ class CycleTimeService:
 
             # Sort priorities by average cycle time (fastest first)
             sorted_priorities = sorted(
-                priority_breakdown.items(), key=lambda x: x[1].get("average_cycle_time_hours", 0)
+                priority_breakdown.items(),
+                key=lambda x: x[1].get("average_cycle_time_hours", 0),
             )
 
             for priority, p_metrics in sorted_priorities:
@@ -1105,8 +1133,12 @@ class CycleTimeService:
         if robust_cycle_stats or robust_lead_stats:
             md_content.append("## 🔍 Methodology Notes")
             md_content.append("")
-            md_content.append("- Outliers (IQR): values beyond 1.5×IQR from the 25th–75th percentiles are flagged and summarized.")
-            md_content.append("- Robust metrics: Trimmed Mean reduces the effect of extremes; MAD measures robust variability.")
+            md_content.append(
+                "- Outliers (IQR): values beyond 1.5×IQR from the 25th–75th percentiles are flagged and summarized."
+            )
+            md_content.append(
+                "- Robust metrics: Trimmed Mean reduces the effect of extremes; MAD measures robust variability."
+            )
             md_content.append("")
 
             # Merge and sort by cycle time (placing anomalies at bottom if they lack cycle time)
@@ -1140,7 +1172,7 @@ class CycleTimeService:
 
                 # Pretty formats
                 def fmt_hours(val):
-                    return f"{val:.1f}h ({val/24:.1f}d)" if isinstance(val, (int, float)) and val is not None else "-"
+                    return f"{val:.1f}h ({val / 24:.1f}d)" if isinstance(val, (int, float)) and val is not None else "-"
 
                 cycle_str = fmt_hours(cycle_time_hours)
                 lead_str = fmt_hours(lead_time_hours)
@@ -1302,7 +1334,9 @@ class CycleTimeService:
         md_content.append("### Data Scope")
         md_content.append(f"- **Analysis Period:** {time_period}")
         if start_date and end_date:
-            md_content.append(f"- **Date Range:** {start_date[:19] if 'T' in start_date else start_date[:10]} to {end_date[:19] if 'T' in end_date else end_date[:10]}")
+            md_content.append(
+                f"- **Date Range:** {start_date[:19] if 'T' in start_date else start_date[:10]} to {end_date[:19] if 'T' in end_date else end_date[:10]}"
+            )
         if team:
             md_content.append(f"- **Team Filter:** {team}")
         if priorities:
@@ -1326,7 +1360,12 @@ class CycleTimeService:
             self.logger.error(f"Failed to save results to {output_file}: {e}")
             raise
 
-    def _print_verbose_results(self, results: List[CycleTimeResult], anomalies: List[CycleTimeResult], metrics: Dict):
+    def _print_verbose_results(
+        self,
+        results: List[CycleTimeResult],
+        anomalies: List[CycleTimeResult],
+        metrics: Dict,
+    ):
         """Print verbose results to console."""
         print("\n" + "=" * 80)
         print("DETAILED CYCLE TIME ANALYSIS")

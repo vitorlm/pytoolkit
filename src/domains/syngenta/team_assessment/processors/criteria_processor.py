@@ -49,7 +49,9 @@ class CriteriaProcessor(BaseProcessor):
 
     def _extract_description_and_evidence(self, text):
         # Expressão regular para capturar a descrição e a evidência sugerida (se existir)
-        match = re.search(r"^(.*?)\s*(?:\r?\n\r?\n)?Suggested evidence:\s*(.*)", text, re.DOTALL)
+        match = re.search(
+            r"^(.*?)\s*(?:\r?\n\r?\n)?Suggested evidence:\s*(.*)", text, re.DOTALL
+        )
 
         if match:
             description = match.group(1).strip()
@@ -75,15 +77,22 @@ class CriteriaProcessor(BaseProcessor):
 
         last_criterion = None
         for row in sheet_data[1:]:
-            criterion_name = row[0] if isinstance(row[0], str) and row[0].strip() else None
-            indicator_name = row[1] if isinstance(row[1], str) and row[1].strip() else None
+            criterion_name = (
+                row[0] if isinstance(row[0], str) and row[0].strip() else None
+            )
+            indicator_name = (
+                row[1] if isinstance(row[1], str) and row[1].strip() else None
+            )
             if indicator_name is None:
                 continue
 
             if criterion_name is None:
                 criterion_name = last_criterion
 
-            levels = {i + 1: self._extract_description_and_evidence(row[i + 2]) for i in range(5)}
+            levels = {
+                i + 1: self._extract_description_and_evidence(row[i + 2])
+                for i in range(5)
+            }
 
             if pd.notna(criterion_name):
                 if criterion_name not in criterion_dict:

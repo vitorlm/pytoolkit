@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
 import statistics
-from collections import defaultdict
 from dataclasses import dataclass, asdict, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -19,6 +17,7 @@ from .enhanced_alert_cycle import WeeklyMonitorSnapshot, WeeklySummarySnapshot
 
 class TrendDirection(Enum):
     """Trend direction indicators."""
+
     IMPROVING = "IMPROVING"
     DEGRADING = "DEGRADING"
     STABLE = "STABLE"
@@ -28,6 +27,7 @@ class TrendDirection(Enum):
 @dataclass
 class TrendMetric:
     """Individual metric trend analysis."""
+
     metric_name: str
     current_value: float
     previous_value: Optional[float]
@@ -41,6 +41,7 @@ class TrendMetric:
 @dataclass
 class MonitorTrendAnalysis:
     """Trend analysis for a single monitor."""
+
     monitor_id: str
     monitor_name: Optional[str]
     current_week: str
@@ -62,6 +63,7 @@ class MonitorTrendAnalysis:
 @dataclass
 class TrendSummary:
     """Overall trend summary across all monitors."""
+
     analysis_week: str
     total_monitors: int
     weeks_available: int
@@ -90,7 +92,7 @@ class WeeklySnapshotManager:
         self,
         iso_week: str,
         monitor_snapshots: List[WeeklyMonitorSnapshot],
-        summary_snapshot: WeeklySummarySnapshot
+        summary_snapshot: WeeklySummarySnapshot,
     ) -> None:
         """Save weekly snapshots to persistent storage."""
         try:
@@ -98,36 +100,45 @@ class WeeklySnapshotManager:
             monitors_file = self.storage_dir / f"monitors_{iso_week}.json"
             monitors_data = [asdict(snapshot) for snapshot in monitor_snapshots]
 
-            with open(monitors_file, 'w') as f:
-                json.dump({
-                    "metadata": {
-                        "iso_week": iso_week,
-                        "generated_at": datetime.now(timezone.utc).isoformat(),
-                        "snapshot_count": len(monitor_snapshots)
+            with open(monitors_file, "w") as f:
+                json.dump(
+                    {
+                        "metadata": {
+                            "iso_week": iso_week,
+                            "generated_at": datetime.now(timezone.utc).isoformat(),
+                            "snapshot_count": len(monitor_snapshots),
+                        },
+                        "monitors": monitors_data,
                     },
-                    "monitors": monitors_data
-                }, f, indent=2)
+                    f,
+                    indent=2,
+                )
 
             # Save summary snapshot
             summary_file = self.storage_dir / f"summary_{iso_week}.json"
-            with open(summary_file, 'w') as f:
-                json.dump({
-                    "metadata": {
-                        "iso_week": iso_week,
-                        "generated_at": datetime.now(timezone.utc).isoformat()
+            with open(summary_file, "w") as f:
+                json.dump(
+                    {
+                        "metadata": {
+                            "iso_week": iso_week,
+                            "generated_at": datetime.now(timezone.utc).isoformat(),
+                        },
+                        "summary": asdict(summary_snapshot),
                     },
-                    "summary": asdict(summary_snapshot)
-                }, f, indent=2)
+                    f,
+                    indent=2,
+                )
 
-            self.logger.info(f"Saved weekly snapshots for {iso_week}: {len(monitor_snapshots)} monitors")
+            self.logger.info(
+                f"Saved weekly snapshots for {iso_week}: {len(monitor_snapshots)} monitors"
+            )
 
         except Exception as e:
             self.logger.error(f"Failed to save weekly snapshots for {iso_week}: {e}")
             raise
 
     def load_weekly_snapshots(
-        self,
-        iso_week: str
+        self, iso_week: str
     ) -> Tuple[List[WeeklyMonitorSnapshot], Optional[WeeklySummarySnapshot]]:
         """Load weekly snapshots from persistent storage."""
         try:
@@ -136,7 +147,7 @@ class WeeklySnapshotManager:
             if not monitors_file.exists():
                 return [], None
 
-            with open(monitors_file, 'r') as f:
+            with open(monitors_file, "r") as f:
                 monitors_data = json.load(f)
 
             monitor_snapshots = [
@@ -148,9 +159,11 @@ class WeeklySnapshotManager:
             summary_file = self.storage_dir / f"summary_{iso_week}.json"
             summary_snapshot = None
             if summary_file.exists():
-                with open(summary_file, 'r') as f:
+                with open(summary_file, "r") as f:
                     summary_data = json.load(f)
-                summary_snapshot = WeeklySummarySnapshot(**summary_data.get("summary", {}))
+                summary_snapshot = WeeklySummarySnapshot(
+                    **summary_data.get("summary", {})
+                )
 
             return monitor_snapshots, summary_snapshot
 
@@ -172,7 +185,10 @@ class WeeklySnapshotManager:
                     weeks.append(week)
 
             # Sort by year and week number
-            weeks.sort(key=lambda w: (int(w.split('-W')[0]), int(w.split('-W')[1])), reverse=True)
+            weeks.sort(
+                key=lambda w: (int(w.split("-W")[0]), int(w.split("-W")[1])),
+                reverse=True,
+            )
 
             if limit:
                 weeks = weeks[:limit]
@@ -219,21 +235,22 @@ class TrendAnalyzer:
         self.logger = LogManager.get_instance().get_logger("TrendAnalyzer")
 
     def analyze_monitor_trends(
-        self,
-        monitor_id: str,
-        current_week: str,
-        lookback_weeks: int = 8
+        self, monitor_id: str, current_week: str, lookback_weeks: int = 8
     ) -> Optional[MonitorTrendAnalysis]:
         """Analyze trends for a specific monitor."""
         # Get historical data
-        historical_data = self._get_monitor_history(monitor_id, current_week, lookback_weeks)
+        historical_data = self._get_monitor_history(
+            monitor_id, current_week, lookback_weeks
+        )
 
         if len(historical_data) < self.min_weeks:
             return None
 
         # Calculate trend metrics
         noise_trend = self._calculate_trend_metric("noise_score", historical_data)
-        self_heal_trend = self._calculate_trend_metric("self_heal_rate", historical_data)
+        self_heal_trend = self._calculate_trend_metric(
+            "self_heal_rate", historical_data
+        )
         health_trend = self._calculate_trend_metric("health_score", historical_data)
         cycles_trend = self._calculate_trend_metric("cycles_count", historical_data)
 
@@ -243,9 +260,13 @@ class TrendAnalyzer:
             total_cycles = week_data.get("cycles_count", 1)
             flapping_cycles = week_data.get("flapping_cycles", 0)
             flapping_rate = flapping_cycles / max(total_cycles, 1)
-            flapping_data.append({"week": week_data["iso_week"], "value": flapping_rate})
+            flapping_data.append(
+                {"week": week_data["iso_week"], "value": flapping_rate}
+            )
 
-        flapping_trend = self._calculate_trend_metric_from_data("flapping_rate", flapping_data)
+        flapping_trend = self._calculate_trend_metric_from_data(
+            "flapping_rate", flapping_data
+        )
 
         # Determine overall trend direction
         overall_direction, trend_confidence = self._calculate_overall_trend(
@@ -253,9 +274,9 @@ class TrendAnalyzer:
         )
 
         # Generate notable changes
-        notable_changes = self._identify_notable_changes([
-            noise_trend, self_heal_trend, health_trend, cycles_trend, flapping_trend
-        ])
+        notable_changes = self._identify_notable_changes(
+            [noise_trend, self_heal_trend, health_trend, cycles_trend, flapping_trend]
+        )
 
         current_data = historical_data[-1]  # Most recent week
         return MonitorTrendAnalysis(
@@ -270,13 +291,11 @@ class TrendAnalyzer:
             flapping_rate_trend=flapping_trend,
             overall_direction=overall_direction,
             trend_confidence=trend_confidence,
-            notable_changes=notable_changes
+            notable_changes=notable_changes,
         )
 
     def analyze_overall_trends(
-        self,
-        current_week: str,
-        lookback_weeks: int = 8
+        self, current_week: str, lookback_weeks: int = 8
     ) -> TrendSummary:
         """Analyze trends across all monitors."""
         # Get available weeks
@@ -289,7 +308,7 @@ class TrendAnalyzer:
                 monitors_improving=0,
                 monitors_degrading=0,
                 monitors_stable=0,
-                monitors_insufficient_data=0
+                monitors_insufficient_data=0,
             )
 
         # Get all monitors from current week
@@ -302,29 +321,37 @@ class TrendAnalyzer:
                 monitors_improving=0,
                 monitors_degrading=0,
                 monitors_stable=0,
-                monitors_insufficient_data=0
+                monitors_insufficient_data=0,
             )
 
         # Analyze trends for each monitor
         trend_results = []
         for monitor in current_monitors:
             trend_analysis = self.analyze_monitor_trends(
-                monitor.monitor_id,
-                current_week,
-                lookback_weeks
+                monitor.monitor_id, current_week, lookback_weeks
             )
             if trend_analysis:
                 trend_results.append(trend_analysis)
 
         # Count trend directions
-        monitors_improving = sum(1 for t in trend_results if t.overall_direction == TrendDirection.IMPROVING)
-        monitors_degrading = sum(1 for t in trend_results if t.overall_direction == TrendDirection.DEGRADING)
-        monitors_stable = sum(1 for t in trend_results if t.overall_direction == TrendDirection.STABLE)
+        monitors_improving = sum(
+            1 for t in trend_results if t.overall_direction == TrendDirection.IMPROVING
+        )
+        monitors_degrading = sum(
+            1 for t in trend_results if t.overall_direction == TrendDirection.DEGRADING
+        )
+        monitors_stable = sum(
+            1 for t in trend_results if t.overall_direction == TrendDirection.STABLE
+        )
         monitors_insufficient = len(current_monitors) - len(trend_results)
 
         # Identify top changes
-        top_improvements = self._get_top_changes(trend_results, TrendDirection.IMPROVING)
-        top_degradations = self._get_top_changes(trend_results, TrendDirection.DEGRADING)
+        top_improvements = self._get_top_changes(
+            trend_results, TrendDirection.IMPROVING
+        )
+        top_degradations = self._get_top_changes(
+            trend_results, TrendDirection.DEGRADING
+        )
         significant_changes = self._get_significant_changes(trend_results)
 
         return TrendSummary(
@@ -337,14 +364,11 @@ class TrendAnalyzer:
             monitors_insufficient_data=monitors_insufficient,
             top_improvements=top_improvements,
             top_degradations=top_degradations,
-            significant_changes=significant_changes
+            significant_changes=significant_changes,
         )
 
     def _get_monitor_history(
-        self,
-        monitor_id: str,
-        current_week: str,
-        lookback_weeks: int
+        self, monitor_id: str, current_week: str, lookback_weeks: int
     ) -> List[Dict[str, any]]:
         """Get historical data for a monitor."""
         available_weeks = self.snapshot_manager.get_available_weeks(lookback_weeks + 1)
@@ -354,36 +378,38 @@ class TrendAnalyzer:
             available_weeks = [current_week] + available_weeks
 
         historical_data = []
-        for week in available_weeks[:lookback_weeks + 1]:
+        for week in available_weeks[: lookback_weeks + 1]:
             monitor_snapshots, _ = self.snapshot_manager.load_weekly_snapshots(week)
 
             for snapshot in monitor_snapshots:
                 if snapshot.monitor_id == monitor_id:
-                    historical_data.append({
-                        "iso_week": week,
-                        "monitor_name": snapshot.monitor_name,
-                        "noise_score": snapshot.noise_score,
-                        "self_heal_rate": snapshot.self_heal_rate,
-                        "health_score": snapshot.health_score,
-                        "cycles_count": snapshot.cycles_count,
-                        "flapping_cycles": snapshot.flapping_cycles,
-                        "benign_transient_cycles": snapshot.benign_transient_cycles,
-                        "actionable_cycles": snapshot.actionable_cycles
-                    })
+                    historical_data.append(
+                        {
+                            "iso_week": week,
+                            "monitor_name": snapshot.monitor_name,
+                            "noise_score": snapshot.noise_score,
+                            "self_heal_rate": snapshot.self_heal_rate,
+                            "health_score": snapshot.health_score,
+                            "cycles_count": snapshot.cycles_count,
+                            "flapping_cycles": snapshot.flapping_cycles,
+                            "benign_transient_cycles": snapshot.benign_transient_cycles,
+                            "actionable_cycles": snapshot.actionable_cycles,
+                        }
+                    )
                     break
 
         # Sort by week (oldest first for trend calculation)
-        historical_data.sort(key=lambda x: (
-            int(x["iso_week"].split('-W')[0]),
-            int(x["iso_week"].split('-W')[1])
-        ))
+        historical_data.sort(
+            key=lambda x: (
+                int(x["iso_week"].split("-W")[0]),
+                int(x["iso_week"].split("-W")[1]),
+            )
+        )
 
         return historical_data
 
     def _calculate_trend_metric(
-        self,
-        metric_name: str,
-        historical_data: List[Dict[str, any]]
+        self, metric_name: str, historical_data: List[Dict[str, any]]
     ) -> TrendMetric:
         """Calculate trend metric from historical data."""
         values = []
@@ -396,14 +422,11 @@ class TrendAnalyzer:
                 weeks.append(data["iso_week"])
 
         return self._calculate_trend_metric_from_data(
-            metric_name,
-            [{"week": w, "value": v} for w, v in zip(weeks, values)]
+            metric_name, [{"week": w, "value": v} for w, v in zip(weeks, values)]
         )
 
     def _calculate_trend_metric_from_data(
-        self,
-        metric_name: str,
-        data_points: List[Dict[str, any]]
+        self, metric_name: str, data_points: List[Dict[str, any]]
     ) -> TrendMetric:
         """Calculate trend metric from data points."""
         if len(data_points) < 2:
@@ -415,7 +438,7 @@ class TrendAnalyzer:
                 delta_percentage=None,
                 four_week_avg=None,
                 direction=TrendDirection.INSUFFICIENT_DATA,
-                significance=0.0
+                significance=0.0,
             )
 
         values = [dp["value"] for dp in data_points]
@@ -446,13 +469,11 @@ class TrendAnalyzer:
             delta_percentage=delta_percentage,
             four_week_avg=four_week_avg,
             direction=direction,
-            significance=significance
+            significance=significance,
         )
 
     def _calculate_trend_direction(
-        self,
-        values: List[float],
-        metric_name: str
+        self, values: List[float], metric_name: str
     ) -> Tuple[TrendDirection, float]:
         """Calculate trend direction and statistical significance."""
         if len(values) < self.min_weeks:
@@ -485,8 +506,16 @@ class TrendAnalyzer:
         # For metrics where higher is better (health_score, self_heal_rate)
         # For metrics where lower is better (noise_score, flapping_rate)
 
-        better_when_higher = metric_name in ["health_score", "self_heal_rate", "actionable_rate"]
-        better_when_lower = metric_name in ["noise_score", "flapping_rate", "cycles_count"]
+        better_when_higher = metric_name in [
+            "health_score",
+            "self_heal_rate",
+            "actionable_rate",
+        ]
+        better_when_lower = metric_name in [
+            "noise_score",
+            "flapping_rate",
+            "cycles_count",
+        ]
 
         # Threshold for considering change significant
         slope_threshold = 0.01  # Adjust based on metric scale
@@ -510,27 +539,31 @@ class TrendAnalyzer:
                 return TrendDirection.STABLE, significance
 
     def _calculate_overall_trend(
-        self,
-        metrics: List[TrendMetric]
+        self, metrics: List[TrendMetric]
     ) -> Tuple[TrendDirection, float]:
         """Calculate overall trend direction from individual metrics."""
         # Filter out metrics with insufficient data
-        valid_metrics = [m for m in metrics if m.direction != TrendDirection.INSUFFICIENT_DATA]
+        valid_metrics = [
+            m for m in metrics if m.direction != TrendDirection.INSUFFICIENT_DATA
+        ]
 
         if not valid_metrics:
             return TrendDirection.INSUFFICIENT_DATA, 0.0
 
         # Weight metrics by significance
         improving_score = sum(
-            m.significance for m in valid_metrics
+            m.significance
+            for m in valid_metrics
             if m.direction == TrendDirection.IMPROVING
         )
         degrading_score = sum(
-            m.significance for m in valid_metrics
+            m.significance
+            for m in valid_metrics
             if m.direction == TrendDirection.DEGRADING
         )
         stable_score = sum(
-            m.significance for m in valid_metrics
+            m.significance
+            for m in valid_metrics
             if m.direction == TrendDirection.STABLE
         )
 
@@ -559,7 +592,9 @@ class TrendAnalyzer:
 
             # Large percentage changes
             if metric.delta_percentage and abs(metric.delta_percentage) > 20:
-                direction_word = "increased" if metric.delta_percentage > 0 else "decreased"
+                direction_word = (
+                    "increased" if metric.delta_percentage > 0 else "decreased"
+                )
                 notable.append(
                     f"{metric.metric_name} {direction_word} by {abs(metric.delta_percentage):.1f}% week-over-week"
                 )
@@ -567,9 +602,13 @@ class TrendAnalyzer:
             # High significance changes
             elif metric.significance > 0.7:
                 if metric.direction == TrendDirection.IMPROVING:
-                    notable.append(f"{metric.metric_name} showing strong improvement trend")
+                    notable.append(
+                        f"{metric.metric_name} showing strong improvement trend"
+                    )
                 elif metric.direction == TrendDirection.DEGRADING:
-                    notable.append(f"{metric.metric_name} showing concerning degradation trend")
+                    notable.append(
+                        f"{metric.metric_name} showing concerning degradation trend"
+                    )
 
         return notable
 
@@ -577,11 +616,12 @@ class TrendAnalyzer:
         self,
         trend_results: List[MonitorTrendAnalysis],
         direction: TrendDirection,
-        limit: int = 5
+        limit: int = 5,
     ) -> List[str]:
         """Get top monitors with specified trend direction."""
         filtered_monitors = [
-            t for t in trend_results
+            t
+            for t in trend_results
             if t.overall_direction == direction and t.trend_confidence > 0.5
         ]
 
@@ -594,9 +634,7 @@ class TrendAnalyzer:
         ]
 
     def _get_significant_changes(
-        self,
-        trend_results: List[MonitorTrendAnalysis],
-        min_confidence: float = 0.8
+        self, trend_results: List[MonitorTrendAnalysis], min_confidence: float = 0.8
     ) -> List[str]:
         """Get monitors with significant changes."""
         significant = []
@@ -609,13 +647,17 @@ class TrendAnalyzer:
             for metric in [
                 trend.noise_score_trend,
                 trend.health_score_trend,
-                trend.flapping_rate_trend
+                trend.flapping_rate_trend,
             ]:
                 if not metric or not metric.delta_percentage:
                     continue
 
                 if abs(metric.delta_percentage) > 30:
-                    change_type = "improvement" if metric.direction == TrendDirection.IMPROVING else "degradation"
+                    change_type = (
+                        "improvement"
+                        if metric.direction == TrendDirection.IMPROVING
+                        else "degradation"
+                    )
                     significant.append(
                         f"{trend.monitor_name or trend.monitor_id}: "
                         f"{metric.metric_name} {change_type} of {abs(metric.delta_percentage):.1f}%"

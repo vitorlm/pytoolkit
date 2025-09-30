@@ -155,8 +155,12 @@ class NFCeDataExtractor:
             # Check if this is an empty/expired NFCe page
             if self._is_empty_nfce_page(soup, invoice_data):
                 invoice_data.scraping_success = False
-                invoice_data.add_error("NFCe appears to be expired or invalid - all data fields are empty")
-                self.logger.warning(f"NFCe page appears to be expired or invalid: {url}")
+                invoice_data.add_error(
+                    "NFCe appears to be expired or invalid - all data fields are empty"
+                )
+                self.logger.warning(
+                    f"NFCe page appears to be expired or invalid: {url}"
+                )
                 return invoice_data
 
             # Mark as successful if we got basic data
@@ -171,7 +175,7 @@ class NFCeDataExtractor:
             else:
                 self.logger.warning(f"No meaningful data extracted from {url}")
                 invoice_data.add_error("No meaningful data found in NFCe page")
-            
+
             return invoice_data
 
         except Exception as e:
@@ -229,7 +233,6 @@ class NFCeDataExtractor:
                         and "Número" in header_texts
                         and "Data Emissão" in header_texts
                     ):
-
                         # Find the indices of our target columns
                         modelo_idx = (
                             header_texts.index("Modelo")
@@ -304,45 +307,58 @@ class NFCeDataExtractor:
             main_table = soup.find("table", class_="table text-center")
             if not main_table:
                 return None
-            
+
             # Find the business name (in <b> tag within <th>)
-            business_name_th = main_table.find("th", class_="text-center text-uppercase")
+            business_name_th = main_table.find(
+                "th", class_="text-center text-uppercase"
+            )
             business_name = None
             if business_name_th:
                 business_name_b = business_name_th.find("b")
                 if business_name_b:
                     business_name = business_name_b.get_text().strip()
-            
+
             # Find CNPJ and address in tbody td elements
             tbody = main_table.find("tbody")
             if not tbody:
                 return None
-            
+
             tds = tbody.find_all("td")
             cnpj = None
             address = None
             city = None
             state = None
-            
+
             for td in tds:
                 text = td.get_text().strip()
-                
+
                 # Extract CNPJ from text like "CNPJ: 65.124.307/0016-26, Inscrição Estadual: 062705396.16-12"
                 if "CNPJ:" in text:
-                    cnpj_match = re.search(r'CNPJ:\s*([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})', text)
+                    cnpj_match = re.search(
+                        r"CNPJ:\s*([0-9]{2}\.?[0-9]{3}\.?[0-9]{3}/?[0-9]{4}-?[0-9]{2})",
+                        text,
+                    )
                     if cnpj_match:
                         cnpj = self._clean_cnpj(cnpj_match.group(1))
-                
+
                 # Extract address from text like "Rua do Ouro, 195, Serra, 3106200 - Belo Horizonte, MG"
-                if any(keyword in text.lower() for keyword in ['rua', 'av', 'avenida', 'estrada', 'rodovia']) and ',' in text:
+                if (
+                    any(
+                        keyword in text.lower()
+                        for keyword in ["rua", "av", "avenida", "estrada", "rodovia"]
+                    )
+                    and "," in text
+                ):
                     address = text.strip()
                     # Try to extract city and state from the end of address
                     # Pattern: "... - CIDADE, UF" or "... CIDADE, UF"
-                    city_state_match = re.search(r'[-,]\s*([^,]+),\s*([A-Z]{2})\s*$', text)
+                    city_state_match = re.search(
+                        r"[-,]\s*([^,]+),\s*([A-Z]{2})\s*$", text
+                    )
                     if city_state_match:
                         city = city_state_match.group(1).strip()
                         state = city_state_match.group(2).strip()
-            
+
             # Return extracted data if we found at least business name and CNPJ
             if business_name and cnpj:
                 return {
@@ -350,11 +366,11 @@ class NFCeDataExtractor:
                     "cnpj": cnpj,
                     "address": address,
                     "city": city,
-                    "state": state
+                    "state": state,
                 }
-            
+
             return None
-            
+
         except Exception as e:
             self.logger.warning(f"Error extracting from page header: {e}")
             return None
@@ -403,7 +419,6 @@ class NFCeDataExtractor:
                 and "Inscrição Estadual" in header_texts
                 and "UF" in header_texts
             ):
-
                 # Find the indices of our target columns
                 nome_idx = header_texts.index("Nome / Razão Social")
                 cnpj_idx = header_texts.index("CNPJ")
@@ -489,7 +504,6 @@ class NFCeDataExtractor:
                     and "Base de Cálculo ICMS" in header_texts
                     and "Valor ICMS" in header_texts
                 ):
-
                     # Find the indices of our target columns
                     total_idx = header_texts.index("Valor total do serviço")
                     base_icms_idx = header_texts.index("Base de Cálculo ICMS")
@@ -547,7 +561,6 @@ class NFCeDataExtractor:
             for panel in panels:
                 panel_title = panel.find("h4", class_="panel-title")
                 if panel_title and "Consumidor" in panel_title.get_text():
-
                     # Find the table in this panel
                     table = panel.find("table", class_="table table-hover")
                     if not table:
@@ -558,7 +571,6 @@ class NFCeDataExtractor:
                     header_texts = [th.get_text().strip() for th in headers]
 
                     if "Nome / Razão Social" in header_texts and "UF" in header_texts:
-
                         # Find the indices of our target columns
                         nome_idx = header_texts.index("Nome / Razão Social")
                         uf_idx = header_texts.index("UF")
@@ -692,13 +704,17 @@ class NFCeDataExtractor:
                 establishment.address = header_establishment.get("address")
                 establishment.city = header_establishment.get("city")
                 establishment.state = header_establishment.get("state")
-                self.logger.info(f"Extracted establishment from header: {establishment.business_name}, CNPJ: {establishment.cnpj}")
-            
+                self.logger.info(
+                    f"Extracted establishment from header: {establishment.business_name}, CNPJ: {establishment.cnpj}"
+                )
+
             # Fallback: try to extract from the specific "Emitente" table in "Informações gerais da Nota"
             if not establishment.cnpj:
                 establishment_data = self._extract_from_establishment_table(soup)
                 if establishment_data:
-                    establishment.business_name = establishment_data.get("business_name")
+                    establishment.business_name = establishment_data.get(
+                        "business_name"
+                    )
                     establishment.cnpj = establishment_data.get("cnpj")
                     establishment.state_registration = establishment_data.get(
                         "state_registration"
@@ -1526,45 +1542,56 @@ class NFCeDataExtractor:
 
         return None
 
-    def _is_empty_nfce_page(self, soup: BeautifulSoup, invoice_data: InvoiceData) -> bool:
+    def _is_empty_nfce_page(
+        self, soup: BeautifulSoup, invoice_data: InvoiceData
+    ) -> bool:
         """
         Check if the NFCe page has valid structure but empty data (expired/invalid NFCe)
-        
+
         Args:
             soup: BeautifulSoup object of the page
             invoice_data: Partially extracted invoice data
-            
+
         Returns:
             True if page appears to be empty/expired NFCe
         """
         try:
             # Check if we have the NFCe page structure but empty data
             has_nfce_structure = (
-                soup.find(string=lambda text: text and "Nota Fiscal de Consumidor Eletrônica" in text) is not None
-                or soup.find("title", string=lambda text: text and "SEF" in text) is not None
+                soup.find(
+                    string=lambda text: text
+                    and "Nota Fiscal de Consumidor Eletrônica" in text
+                )
+                is not None
+                or soup.find("title", string=lambda text: text and "SEF" in text)
+                is not None
                 or soup.find("form", id="formPrincipal") is not None
             )
-            
+
             if not has_nfce_structure:
                 return False
-            
+
             # Check if critical data fields are all empty
             critical_fields_empty = (
-                not invoice_data.invoice_number or invoice_data.invoice_number.strip() == ""
-            ) and (
-                not invoice_data.series or invoice_data.series.strip() == ""
-            ) and (
-                invoice_data.total_amount is None or invoice_data.total_amount == 0
-            ) and (
-                not invoice_data.establishment or not invoice_data.establishment.business_name
-            ) and (
-                not invoice_data.items or len(invoice_data.items) == 0
+                (
+                    not invoice_data.invoice_number
+                    or invoice_data.invoice_number.strip() == ""
+                )
+                and (not invoice_data.series or invoice_data.series.strip() == "")
+                and (
+                    invoice_data.total_amount is None or invoice_data.total_amount == 0
+                )
+                and (
+                    not invoice_data.establishment
+                    or not invoice_data.establishment.business_name
+                )
+                and (not invoice_data.items or len(invoice_data.items) == 0)
             )
-            
+
             # Additional check: look for empty table cells in the main data table
             main_data_tables = soup.find_all("table", class_="table table-hover")
             has_empty_data_tables = False
-            
+
             for table in main_data_tables:
                 tbody = table.find("tbody")
                 if tbody:
@@ -1577,9 +1604,9 @@ class NFCeDataExtractor:
                             break
                     if has_empty_data_tables:
                         break
-            
+
             return critical_fields_empty and has_empty_data_tables
-            
+
         except Exception as e:
             self.logger.warning(f"Error checking for empty NFCe page: {e}")
             return False

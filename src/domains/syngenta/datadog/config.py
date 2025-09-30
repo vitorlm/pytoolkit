@@ -124,7 +124,7 @@ class ThresholdConfig:
 
     # Self-healing rate thresholds
     self_heal_high_threshold: float = 0.8  # 80%
-    self_heal_low_threshold: float = 0.2   # 20%
+    self_heal_low_threshold: float = 0.2  # 20%
 
     # Health score thresholds for grades
     health_score_a_threshold: float = 80.0  # Grade A
@@ -147,12 +147,12 @@ class HysteresisConfig:
     enable_hysteresis: bool = False
 
     # Multipliers for hysteresis thresholds
-    up_threshold_multiplier: float = 1.05    # 5% higher for alerts
+    up_threshold_multiplier: float = 1.05  # 5% higher for alerts
     down_threshold_multiplier: float = 0.95  # 5% lower for recovery
 
     # Default debounce window recommendations
-    default_debounce_seconds: float = 60.0   # 1 minute
-    max_debounce_seconds: float = 300.0      # 5 minutes
+    default_debounce_seconds: float = 60.0  # 1 minute
+    max_debounce_seconds: float = 300.0  # 5 minutes
 
     # Enable debounce recommendations
     enable_debounce_recommendations: bool = True
@@ -185,7 +185,7 @@ class ObservabilityConfig:
     max_recommendations_per_type: int = 10
 
     @classmethod
-    def load_from_file(cls, config_path: str) -> 'ObservabilityConfig':
+    def load_from_file(cls, config_path: str) -> "ObservabilityConfig":
         """Load configuration from YAML file."""
         config_file = Path(config_path)
 
@@ -195,7 +195,7 @@ class ObservabilityConfig:
             return cls()
 
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 config_data = yaml.safe_load(f) or {}
 
             return cls._from_dict(config_data)
@@ -207,24 +207,60 @@ class ObservabilityConfig:
             return cls()
 
     @classmethod
-    def load_from_env(cls) -> 'ObservabilityConfig':
+    def load_from_env(cls) -> "ObservabilityConfig":
         """Load configuration from environment variables."""
         config = cls()
 
         # Load from environment with OBSERVABILITY_ prefix
         env_mappings = {
-            'OBSERVABILITY_FLAP_WINDOW_MINUTES': ('flapping', 'flap_window_minutes', int),
-            'OBSERVABILITY_FLAP_MIN_CYCLES': ('flapping', 'flap_min_cycles', int),
-            'OBSERVABILITY_TRANSIENT_MAX_DURATION': ('transient', 'transient_max_duration_seconds', float),
-            'OBSERVABILITY_ACTIONABLE_MIN_DURATION': ('actionable', 'actionable_min_duration_seconds', float),
-            'OBSERVABILITY_BUSINESS_HOURS_START': ('business_hours', 'start_hour', int),
-            'OBSERVABILITY_BUSINESS_HOURS_END': ('business_hours', 'end_hour', int),
-            'OBSERVABILITY_MIN_WEEKS_FOR_TRENDS': ('trend_analysis', 'min_weeks_for_trends', int),
-            'OBSERVABILITY_LOOKBACK_WEEKS': ('trend_analysis', 'default_lookback_weeks', int),
-            'OBSERVABILITY_NOISE_HIGH_THRESHOLD': ('thresholds', 'noise_score_high_threshold', float),
-            'OBSERVABILITY_SELF_HEAL_HIGH_THRESHOLD': ('thresholds', 'self_heal_high_threshold', float),
-            'OBSERVABILITY_ENABLE_HYSTERESIS': ('hysteresis', 'enable_hysteresis', bool),
-            'OBSERVABILITY_DEBOUNCE_SECONDS': ('hysteresis', 'default_debounce_seconds', float),
+            "OBSERVABILITY_FLAP_WINDOW_MINUTES": (
+                "flapping",
+                "flap_window_minutes",
+                int,
+            ),
+            "OBSERVABILITY_FLAP_MIN_CYCLES": ("flapping", "flap_min_cycles", int),
+            "OBSERVABILITY_TRANSIENT_MAX_DURATION": (
+                "transient",
+                "transient_max_duration_seconds",
+                float,
+            ),
+            "OBSERVABILITY_ACTIONABLE_MIN_DURATION": (
+                "actionable",
+                "actionable_min_duration_seconds",
+                float,
+            ),
+            "OBSERVABILITY_BUSINESS_HOURS_START": ("business_hours", "start_hour", int),
+            "OBSERVABILITY_BUSINESS_HOURS_END": ("business_hours", "end_hour", int),
+            "OBSERVABILITY_MIN_WEEKS_FOR_TRENDS": (
+                "trend_analysis",
+                "min_weeks_for_trends",
+                int,
+            ),
+            "OBSERVABILITY_LOOKBACK_WEEKS": (
+                "trend_analysis",
+                "default_lookback_weeks",
+                int,
+            ),
+            "OBSERVABILITY_NOISE_HIGH_THRESHOLD": (
+                "thresholds",
+                "noise_score_high_threshold",
+                float,
+            ),
+            "OBSERVABILITY_SELF_HEAL_HIGH_THRESHOLD": (
+                "thresholds",
+                "self_heal_high_threshold",
+                float,
+            ),
+            "OBSERVABILITY_ENABLE_HYSTERESIS": (
+                "hysteresis",
+                "enable_hysteresis",
+                bool,
+            ),
+            "OBSERVABILITY_DEBOUNCE_SECONDS": (
+                "hysteresis",
+                "default_debounce_seconds",
+                float,
+            ),
         }
 
         for env_var, (section, key, type_func) in env_mappings.items():
@@ -241,64 +277,68 @@ class ObservabilityConfig:
         return config
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> 'ObservabilityConfig':
+    def _from_dict(cls, data: Dict[str, Any]) -> "ObservabilityConfig":
         """Create configuration from dictionary."""
         config = cls()
 
         # Update flapping config
-        if 'flapping' in data:
-            flapping_data = data['flapping']
+        if "flapping" in data:
+            flapping_data = data["flapping"]
             for key, value in flapping_data.items():
                 if hasattr(config.flapping, key):
                     setattr(config.flapping, key, value)
 
         # Update transient config
-        if 'transient' in data:
-            transient_data = data['transient']
+        if "transient" in data:
+            transient_data = data["transient"]
             for key, value in transient_data.items():
                 if hasattr(config.transient, key):
                     setattr(config.transient, key, value)
 
         # Update actionable config
-        if 'actionable' in data:
-            actionable_data = data['actionable']
+        if "actionable" in data:
+            actionable_data = data["actionable"]
             for key, value in actionable_data.items():
                 if hasattr(config.actionable, key):
                     setattr(config.actionable, key, value)
 
         # Update business hours config
-        if 'business_hours' in data:
-            bh_data = data['business_hours']
+        if "business_hours" in data:
+            bh_data = data["business_hours"]
             for key, value in bh_data.items():
                 if hasattr(config.business_hours, key):
                     setattr(config.business_hours, key, value)
 
         # Update trend analysis config
-        if 'trend_analysis' in data:
-            trend_data = data['trend_analysis']
+        if "trend_analysis" in data:
+            trend_data = data["trend_analysis"]
             for key, value in trend_data.items():
                 if hasattr(config.trend_analysis, key):
                     setattr(config.trend_analysis, key, value)
 
         # Update thresholds config
-        if 'thresholds' in data:
-            threshold_data = data['thresholds']
+        if "thresholds" in data:
+            threshold_data = data["thresholds"]
             for key, value in threshold_data.items():
                 if hasattr(config.thresholds, key):
                     setattr(config.thresholds, key, value)
 
         # Update hysteresis config
-        if 'hysteresis' in data:
-            hysteresis_data = data['hysteresis']
+        if "hysteresis" in data:
+            hysteresis_data = data["hysteresis"]
             for key, value in hysteresis_data.items():
                 if hasattr(config.hysteresis, key):
                     setattr(config.hysteresis, key, value)
 
         # Update global settings
         global_keys = [
-            'analysis_period_days', 'enable_advanced_analysis', 'enable_trend_analysis',
-            'snapshots_dir', 'enable_snapshot_cleanup', 'include_recommendations',
-            'max_recommendations_per_type'
+            "analysis_period_days",
+            "enable_advanced_analysis",
+            "enable_trend_analysis",
+            "snapshots_dir",
+            "enable_snapshot_cleanup",
+            "include_recommendations",
+            "max_recommendations_per_type",
         ]
 
         for key in global_keys:
@@ -314,7 +354,7 @@ class ObservabilityConfig:
 
         try:
             config_dict = asdict(self)
-            with open(config_file, 'w') as f:
+            with open(config_file, "w") as f:
                 yaml.dump(config_dict, f, default_flow_style=False, indent=2)
 
             logger = LogManager.get_instance().get_logger("ObservabilityConfig")
@@ -358,8 +398,13 @@ class ObservabilityConfig:
         # Validate trend analysis
         if self.trend_analysis.min_weeks_for_trends < 2:
             errors.append("trend_analysis.min_weeks_for_trends must be at least 2")
-        if self.trend_analysis.default_lookback_weeks < self.trend_analysis.min_weeks_for_trends:
-            errors.append("trend_analysis.default_lookback_weeks must be >= min_weeks_for_trends")
+        if (
+            self.trend_analysis.default_lookback_weeks
+            < self.trend_analysis.min_weeks_for_trends
+        ):
+            errors.append(
+                "trend_analysis.default_lookback_weeks must be >= min_weeks_for_trends"
+            )
 
         # Validate thresholds
         if not (0 <= self.thresholds.self_heal_high_threshold <= 1):
@@ -385,7 +430,7 @@ def load_config(config_path: Optional[str] = None) -> ObservabilityConfig:
         "src/domains/syngenta/datadog/config.yml",
         "src/domains/syngenta/datadog/config.yaml",
         "observability.yml",
-        "observability.yaml"
+        "observability.yaml",
     ]
 
     for path in standard_paths:
@@ -485,7 +530,7 @@ def create_example_config(output_path: str = "config/observability.yml") -> None
     config_file = Path(output_path)
     config_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(config_file, 'w') as f:
+    with open(config_file, "w") as f:
         f.write(EXAMPLE_CONFIG_YAML)
 
     logger = LogManager.get_instance().get_logger("ObservabilityConfig")

@@ -19,7 +19,13 @@ class CreditCardProcessor:
         self.output_path = output_path
         self.categories = {
             "Supermercado": ["SUPERMERCADOS", "SACOLAO", "PADARIA", "CONFEIT"],
-            "Restaurante": ["RESTAURANT", "LANCHES", "PIZZARIA", "CHURRASQUINHO", "COFFEE"],
+            "Restaurante": [
+                "RESTAURANT",
+                "LANCHES",
+                "PIZZARIA",
+                "CHURRASQUINHO",
+                "COFFEE",
+            ],
             "Farmácia": ["DROGARIA", "FARMACIA"],
             "Transporte": ["CONECTCAR", "ESTAPAR", "CONTAPARK", "METRO"],
             "Entretenimento": ["CINEMARK", "EVENTIM", "CLUBE ATLETIC"],
@@ -56,7 +62,9 @@ class CreditCardProcessor:
                     # Convert date to standard format
                     date = datetime.strptime(row["Data"], "%d/%m/%Y").isoformat()
                     # Convert value to float (removing R$ and converting comma to dot)
-                    value = float(row["Valor"].replace("R$", "").replace(",", ".").strip())
+                    value = float(
+                        row["Valor"].replace("R$", "").replace(",", ".").strip()
+                    )
 
                     transactions.append(
                         {

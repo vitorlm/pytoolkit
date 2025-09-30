@@ -263,7 +263,9 @@ class CalculateResolutionTimeCommand(BaseCommand):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             # Create parameter hash for uniqueness
-            param_string = "_".join([f"{k}={v}" for k, v in run_params.items() if v is not None])
+            param_string = "_".join(
+                [f"{k}={v}" for k, v in run_params.items() if v is not None]
+            )
             param_hash = hashlib.md5(param_string.encode()).hexdigest()[:8]
 
             # Create unique run identifier
@@ -310,7 +312,9 @@ class CalculateResolutionTimeCommand(BaseCommand):
                 CalculateResolutionTimeCommand._generate_charts(result, args, run_id)
 
             # Print summary results after charts (or immediately if no charts)
-            CalculateResolutionTimeCommand._print_summary_results(result, args, issue_types)
+            CalculateResolutionTimeCommand._print_summary_results(
+                result, args, issue_types
+            )
 
         except Exception as e:
             logger.error(f"Failed to analyze resolution time: {e}")
@@ -455,7 +459,9 @@ class CalculateResolutionTimeCommand(BaseCommand):
             FileManager.create_folder(chart_output_path)
 
             # Initialize chart service
-            chart_service = IssueResolutionTimeChartService(output_path=chart_output_path)
+            chart_service = IssueResolutionTimeChartService(
+                output_path=chart_output_path
+            )
 
             # Parse chart types if specified
             chart_types = None

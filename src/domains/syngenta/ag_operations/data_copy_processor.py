@@ -9,7 +9,9 @@ logger = LogManager.get_instance().get_logger("DataCopyProcessor")
 
 
 class DataCopyProcessor:
-    def __init__(self, dynamodb_manager: DynamoDBManager, duckdb_manager: DuckDBManager):
+    def __init__(
+        self, dynamodb_manager: DynamoDBManager, duckdb_manager: DuckDBManager
+    ):
         self._dynamodb_manager = dynamodb_manager
         self._duckdb_manager = duckdb_manager
 
@@ -27,7 +29,9 @@ class DataCopyProcessor:
         """
         if not self._dynamodb_manager.table_exists(table_name, "target"):
             logger.info(f"Table {table_name} does not exist. Creating...")
-            self._dynamodb_manager.copy_table_structure("source", table_name, "target", table_name)
+            self._dynamodb_manager.copy_table_structure(
+                "source", table_name, "target", table_name
+            )
 
     def process_and_insert_operations(
         self, table_name: str, org_ids: Optional[List[str]] = None
@@ -74,7 +78,9 @@ class DataCopyProcessor:
         works_schema = self._duckdb_manager.create_table(
             "ag_operations_db", "works", sample_data=works
         )
-        self._duckdb_manager.insert_records("ag_operations_db", "works", works_schema, works)
+        self._duckdb_manager.insert_records(
+            "ag_operations_db", "works", works_schema, works
+        )
         logger.info(f"Inserted {len(works)} work orders and records.")
         logger.info("Data copy and processing complete.")
 
@@ -152,5 +158,7 @@ class DataCopyProcessor:
         works_schema = self._duckdb_manager.create_table(
             "ag_operations_db", "works", sample_data=works
         )
-        self._duckdb_manager.insert_records("ag_operations_db", "works", works_schema, works)
+        self._duckdb_manager.insert_records(
+            "ag_operations_db", "works", works_schema, works
+        )
         logger.info(f"Inserted {len(works)} work orders and records into DuckDB.")

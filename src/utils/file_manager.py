@@ -121,7 +121,9 @@ class FileManager:
             raise ValueError("Extension must start with a dot.")
         parts = [
             module.replace(" ", "_") if module else None,
-            datetime.datetime.now().strftime(timestamp_format) if include_timestamp else None,
+            datetime.datetime.now().strftime(timestamp_format)
+            if include_timestamp
+            else None,
             suffix.replace(" ", "_") if suffix else None,
         ]
         return "_".join(filter(None, parts)) + extension
@@ -164,7 +166,9 @@ class FileManager:
         os.makedirs(folder_path, exist_ok=exist_ok)
 
     @staticmethod
-    def validate_file(file_path: str, allowed_extensions: Optional[List[str]] = None) -> None:
+    def validate_file(
+        file_path: str, allowed_extensions: Optional[List[str]] = None
+    ) -> None:
         """
         Validates file existence and extension.
 
@@ -181,7 +185,9 @@ class FileManager:
         if allowed_extensions:
             _, ext = os.path.splitext(file_path)
             if ext.lower() not in allowed_extensions:
-                raise ValueError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
+                raise ValueError(
+                    f"Invalid file extension: {ext}. Allowed: {allowed_extensions}"
+                )
 
     @staticmethod
     def is_folder(path: str) -> bool:
@@ -277,7 +283,9 @@ class FileManager:
             destination_path = os.path.join(destination_path, filename)
 
         try:
-            response = requests.get(url, headers=headers or {}, timeout=timeout, stream=True)
+            response = requests.get(
+                url, headers=headers or {}, timeout=timeout, stream=True
+            )
             response.raise_for_status()
 
             with open(destination_path, "wb") as file:
@@ -288,6 +296,8 @@ class FileManager:
             return destination_path
 
         except requests.exceptions.RequestException as e:
-            raise requests.exceptions.RequestException(f"Failed to download file from {url}: {e}")
+            raise requests.exceptions.RequestException(
+                f"Failed to download file from {url}: {e}"
+            )
         except OSError as e:
             raise OSError(f"Failed to save file to {destination_path}: {e}")

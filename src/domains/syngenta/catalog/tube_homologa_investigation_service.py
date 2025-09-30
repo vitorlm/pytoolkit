@@ -20,7 +20,9 @@ class TubeHomologaInvestigationService:
     """Service for investigating deleted TUBE_HOMOLOGA products."""
 
     def __init__(self):
-        self.logger = LogManager.get_instance().get_logger("TubeHomologaInvestigationService")
+        self.logger = LogManager.get_instance().get_logger(
+            "TubeHomologaInvestigationService"
+        )
 
     def _validate_and_format_uuid(self, uuid_str: str) -> Optional[str]:
         """
@@ -169,7 +171,9 @@ class TubeHomologaInvestigationService:
                 "valid_products": len(deleted_products),
                 "invalid_uuids": len(invalid_uuids),
                 "skipped_rows": skipped_rows,
-                "invalid_uuid_details": invalid_uuids[:10],  # Keep first 10 for reference
+                "invalid_uuid_details": invalid_uuids[
+                    :10
+                ],  # Keep first 10 for reference
             },
         }
 
@@ -284,11 +288,17 @@ class TubeHomologaInvestigationService:
         }
 
         # Process batches by country
-        unique_countries = list({product["country_code"] for product in deleted_products})
+        unique_countries = list(
+            {product["country_code"] for product in deleted_products}
+        )
         total_batches = len(unique_countries)
 
         for batch_idx, country in enumerate(unique_countries):
-            batch = [product for product in deleted_products if product["country_code"] == country]
+            batch = [
+                product
+                for product in deleted_products
+                if product["country_code"] == country
+            ]
 
             self.logger.info(
                 f"Processing country batch {batch_idx + 1}/{total_batches} "
@@ -314,7 +324,8 @@ class TubeHomologaInvestigationService:
         """Process a batch of deleted products."""
         # Create a list of PKs for batch query
         pk_list = [
-            product["pk"] for product in batch
+            product["pk"]
+            for product in batch
             if self._validate_and_format_uuid(product["pk"]) is not None
         ]
         pk_placeholders = ",".join(["?" for _ in pk_list])
@@ -352,9 +363,17 @@ class TubeHomologaInvestigationService:
 
             # Initialize counters
             if country not in results["by_country"]:
-                results["by_country"][country] = {"total": 0, "found": 0, "match_rate": 0.0}
+                results["by_country"][country] = {
+                    "total": 0,
+                    "found": 0,
+                    "match_rate": 0.0,
+                }
             if entity_type not in results["by_entity_type"]:
-                results["by_entity_type"][entity_type] = {"total": 0, "found": 0, "match_rate": 0.0}
+                results["by_entity_type"][entity_type] = {
+                    "total": 0,
+                    "found": 0,
+                    "match_rate": 0.0,
+                }
 
             results["by_country"][country]["total"] += 1
             results["by_entity_type"][entity_type]["total"] += 1
@@ -534,7 +553,12 @@ class TubeHomologaInvestigationService:
             writer.writerow(["Country", "Total", "Found", "Match Rate (%)"])
             for country, stats in results["by_country"].items():
                 writer.writerow(
-                    [country, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"]
+                    [
+                        country,
+                        stats["total"],
+                        stats["found"],
+                        f"{stats['match_rate']:.2f}",
+                    ]
                 )
             writer.writerow([])
 
@@ -543,7 +567,12 @@ class TubeHomologaInvestigationService:
             writer.writerow(["Entity Type", "Total", "Found", "Match Rate (%)"])
             for entity_type, stats in results["by_entity_type"].items():
                 writer.writerow(
-                    [entity_type, stats["total"], stats["found"], f"{stats['match_rate']:.2f}"]
+                    [
+                        entity_type,
+                        stats["total"],
+                        stats["found"],
+                        f"{stats['match_rate']:.2f}",
+                    ]
                 )
 
         self.logger.info("CSV summary saved successfully")

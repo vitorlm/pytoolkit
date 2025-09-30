@@ -2,7 +2,10 @@ import os
 import pandas as pd
 from typing import Optional, Dict, List, Tuple
 
-from domains.syngenta.team_assessment.core.statistics import IndividualStatistics, TeamStatistics
+from domains.syngenta.team_assessment.core.statistics import (
+    IndividualStatistics,
+    TeamStatistics,
+)
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 from domains.syngenta.team_assessment.services.chart_mixin import ChartMixin
@@ -72,7 +75,9 @@ class MemberAnalyzer(ChartMixin):
             rows.append(row)
         return pd.DataFrame(rows)
 
-    def plot_comparison_bar_chart(self, title: str = "Individual vs Team Comparison") -> None:
+    def plot_comparison_bar_chart(
+        self, title: str = "Individual vs Team Comparison"
+    ) -> None:
         """
         Generates a grouped bar chart comparing the individual's average with team statistics for
         each criterion by using the generic grouped bar chart method.
@@ -121,7 +126,9 @@ class MemberAnalyzer(ChartMixin):
         for criterion, criterion_stats in self.individual_data.criteria_stats.items():
             labels.append(criterion)
             individual_values.append(criterion_stats.get("average", 0))
-            team_values.append(self.team_data.criteria_stats.get(criterion, {}).get("average", 0))
+            team_values.append(
+                self.team_data.criteria_stats.get(criterion, {}).get("average", 0)
+            )
 
         data = {
             "Individual": individual_values,
@@ -130,12 +137,13 @@ class MemberAnalyzer(ChartMixin):
         return labels, data
 
     def _get_indicators_radar_data(self) -> Dict[str, List[float]]:
-
         labels = []
         individual_values = []
 
         for _, criterion_stats in self.individual_data.criteria_stats.items():
-            for indicator, indicator_stats in criterion_stats["indicator_stats"].items():
+            for indicator, indicator_stats in criterion_stats[
+                "indicator_stats"
+            ].items():
                 labels.append(indicator)
                 individual_values.append(indicator_stats.get("average", 0))
 
@@ -165,7 +173,6 @@ class MemberAnalyzer(ChartMixin):
     def plot_member_strengths_weaknesses_radar_chart(
         self, title: str = "Individual Indicator Strengths and Weaknesses"
     ) -> None:
-
         labels, data = self._get_indicators_radar_data()
         super().plot_radar_chart(
             labels,

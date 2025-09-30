@@ -89,7 +89,11 @@ For each failed job (verbose mode):
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         """Configure command line arguments"""
-        parser.add_argument("--token", type=str, help="CircleCI API token (or set CIRCLECI_TOKEN env var)")
+        parser.add_argument(
+            "--token",
+            type=str,
+            help="CircleCI API token (or set CIRCLECI_TOKEN env var)",
+        )
         parser.add_argument(
             "--project-slug",
             type=str,
@@ -97,12 +101,20 @@ For each failed job (verbose mode):
             help="Project slug (e.g., gh/syngenta-digital/package-react-cropwise-elements)",
         )
         parser.add_argument("--pipeline-id", type=str, help="Pipeline ID (UUID format)")
-        parser.add_argument("--pipeline-number", type=int, help="Pipeline number (from URL or pipeline list)")
         parser.add_argument(
-            "--output-file", type=str, help="Output file path for JSON results (default: console output)"
+            "--pipeline-number",
+            type=int,
+            help="Pipeline number (from URL or pipeline list)",
         )
         parser.add_argument(
-            "--verbose", action="store_true", help="Show detailed output including job logs and error details"
+            "--output-file",
+            type=str,
+            help="Output file path for JSON results (default: console output)",
+        )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            help="Show detailed output including job logs and error details",
         )
         parser.add_argument(
             "--analyze-config",
@@ -121,7 +133,9 @@ For each failed job (verbose mode):
             # Get CircleCI token
             token = args.token or os.getenv("CIRCLECI_TOKEN")
             if not token:
-                logger.error("❌ CircleCI token is required. Set CIRCLECI_TOKEN env var or use --token")
+                logger.error(
+                    "❌ CircleCI token is required. Set CIRCLECI_TOKEN env var or use --token"
+                )
                 exit(1)
 
             # Validate pipeline identifier
@@ -133,10 +147,14 @@ For each failed job (verbose mode):
             service = PipelineDetailsService(token, args.project_slug)
 
             # Extract pipeline details
-            logger.info(f"🔍 Extracting details for pipeline in project: {args.project_slug}")
+            logger.info(
+                f"🔍 Extracting details for pipeline in project: {args.project_slug}"
+            )
 
             pipeline_data = service.get_pipeline_details(
-                pipeline_id=args.pipeline_id, pipeline_number=args.pipeline_number, verbose=args.verbose
+                pipeline_id=args.pipeline_id,
+                pipeline_number=args.pipeline_number,
+                verbose=args.verbose,
             )
 
             if not pipeline_data:

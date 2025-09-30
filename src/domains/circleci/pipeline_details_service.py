@@ -28,7 +28,9 @@ class PipelineDetailsService:
         self.project_slug = project_slug
         self.base_url = "https://circleci.com/api/v2"
         self.session = requests.Session()
-        self.session.headers.update({"Circle-Token": token, "Accept": "application/json"})
+        self.session.headers.update(
+            {"Circle-Token": token, "Accept": "application/json"}
+        )
         self.logger = LogManager.get_instance().get_logger("PipelineDetailsService")
         self.cache = CacheManager.get_instance()
 
@@ -63,7 +65,9 @@ class PipelineDetailsService:
 
                 for pipeline in data.get("items", []):
                     if pipeline.get("number") == pipeline_number:
-                        self.logger.info(f"✅ Found pipeline {pipeline_number}: {pipeline.get('id')}")
+                        self.logger.info(
+                            f"✅ Found pipeline {pipeline_number}: {pipeline.get('id')}"
+                        )
                         return pipeline
 
                 # Check for next page
@@ -72,7 +76,9 @@ class PipelineDetailsService:
                     break
                 params["page-token"] = next_page_token
 
-            self.logger.warning(f"⚠️  Pipeline number {pipeline_number} not found in recent pipelines")
+            self.logger.warning(
+                f"⚠️  Pipeline number {pipeline_number} not found in recent pipelines"
+            )
             return None
 
         except Exception as e:
@@ -80,7 +86,10 @@ class PipelineDetailsService:
             return None
 
     def get_pipeline_details(
-        self, pipeline_id: Optional[str] = None, pipeline_number: Optional[int] = None, verbose: bool = False
+        self,
+        pipeline_id: Optional[str] = None,
+        pipeline_number: Optional[int] = None,
+        verbose: bool = False,
     ) -> Optional[Dict]:
         """
         Get comprehensive details for a specific pipeline
@@ -126,7 +135,9 @@ class PipelineDetailsService:
             detailed_pipeline["flaky_tests_analysis"] = self.get_flaky_tests_analysis()
 
             # Generate intelligent failure summary
-            detailed_pipeline["failure_summary"] = self._generate_failure_summary(detailed_pipeline)
+            detailed_pipeline["failure_summary"] = self._generate_failure_summary(
+                detailed_pipeline
+            )
 
             self.logger.info("✅ Pipeline details extracted successfully")
             return detailed_pipeline
@@ -135,7 +146,9 @@ class PipelineDetailsService:
             self.logger.error(f"❌ Error getting pipeline details: {e}")
             return None
 
-    def _get_pipeline_workflows(self, pipeline_id: str, verbose: bool = False) -> List[Dict]:
+    def _get_pipeline_workflows(
+        self, pipeline_id: str, verbose: bool = False
+    ) -> List[Dict]:
         """Get all workflows for a pipeline with detailed information"""
         try:
             self.logger.info(f"🔄 Getting workflows for pipeline: {pipeline_id}")
@@ -156,12 +169,20 @@ class PipelineDetailsService:
 
                 # Calculate duration
                 if workflow.get("stopped_at") and workflow.get("created_at"):
-                    start = datetime.fromisoformat(workflow["created_at"].replace("Z", "+00:00"))
-                    stop = datetime.fromisoformat(workflow["stopped_at"].replace("Z", "+00:00"))
-                    workflow_detail["duration_seconds"] = int((stop - start).total_seconds())
+                    start = datetime.fromisoformat(
+                        workflow["created_at"].replace("Z", "+00:00")
+                    )
+                    stop = datetime.fromisoformat(
+                        workflow["stopped_at"].replace("Z", "+00:00")
+                    )
+                    workflow_detail["duration_seconds"] = int(
+                        (stop - start).total_seconds()
+                    )
 
                 # Get jobs for this workflow
-                workflow_detail["jobs"] = self._get_workflow_jobs(workflow["id"], verbose)
+                workflow_detail["jobs"] = self._get_workflow_jobs(
+                    workflow["id"], verbose
+                )
 
                 workflows.append(workflow_detail)
 
@@ -194,8 +215,12 @@ class PipelineDetailsService:
 
                 # Calculate duration
                 if job.get("stopped_at") and job.get("started_at"):
-                    start = datetime.fromisoformat(job["started_at"].replace("Z", "+00:00"))
-                    stop = datetime.fromisoformat(job["stopped_at"].replace("Z", "+00:00"))
+                    start = datetime.fromisoformat(
+                        job["started_at"].replace("Z", "+00:00")
+                    )
+                    stop = datetime.fromisoformat(
+                        job["stopped_at"].replace("Z", "+00:00")
+                    )
                     job_detail["duration_seconds"] = int((stop - start).total_seconds())
 
                 # Get detailed job information if verbose
@@ -203,7 +228,9 @@ class PipelineDetailsService:
                     try:
                         job_detail["details"] = self._get_job_details(job["job_number"])
                     except Exception as e:
-                        self.logger.warning(f"⚠️  Could not get details for job {job['job_number']}: {e}")
+                        self.logger.warning(
+                            f"⚠️  Could not get details for job {job['job_number']}: {e}"
+                        )
                         job_detail["details"] = {}
 
                 jobs.append(job_detail)
@@ -220,7 +247,9 @@ class PipelineDetailsService:
     def _get_job_details(self, job_number: int) -> Dict:
         """Get detailed job information including steps and logs"""
         try:
-            job_detail = self._make_request(f"/project/{self.project_slug}/job/{job_number}")
+            job_detail = self._make_request(
+                f"/project/{self.project_slug}/job/{job_number}"
+            )
 
             # Simplify the response to include key information
             basic_details = {
@@ -236,7 +265,9 @@ class PipelineDetailsService:
 
             # Add detailed failure analysis for failed jobs
             if job_detail.get("status") == "failed":
-                basic_details["failure_analysis"] = self._get_job_failure_analysis(job_number, job_detail)
+                basic_details["failure_analysis"] = self._get_job_failure_analysis(
+                    job_number, job_detail
+                )
 
             return basic_details
 
@@ -260,7 +291,9 @@ class PipelineDetailsService:
                 "tag": vcs_info.get("tag"),
                 "commit_url": vcs_info.get("commit", {}).get("url"),
                 "commit_subject": vcs_info.get("commit", {}).get("subject"),
-                "commit_author": vcs_info.get("commit", {}).get("author", {}).get("name"),
+                "commit_author": vcs_info.get("commit", {})
+                .get("author", {})
+                .get("name"),
             },
             "trigger_info": trigger_info,
         }
@@ -281,7 +314,8 @@ class PipelineDetailsService:
             "is_tag_trigger": bool(vcs.get("tag")),
             "is_main_branch": vcs.get("branch") in ["main", "master", "develop"],
             "commit_message": vcs.get("commit", {}).get("subject", ""),
-            "actor": trigger.get("actor", {}).get("login") or trigger.get("actor", {}).get("name"),
+            "actor": trigger.get("actor", {}).get("login")
+            or trigger.get("actor", {}).get("name"),
         }
 
         # Determine likely trigger reason
@@ -292,7 +326,9 @@ class PipelineDetailsService:
         elif analysis["trigger_type"] == "api":
             analysis["likely_reason"] = "Manual API trigger or scheduled pipeline"
         else:
-            analysis["likely_reason"] = f"Unknown trigger type: {analysis['trigger_type']}"
+            analysis["likely_reason"] = (
+                f"Unknown trigger type: {analysis['trigger_type']}"
+            )
 
         return analysis
 
@@ -309,7 +345,9 @@ class PipelineDetailsService:
             analysis["artifacts"] = self._get_job_artifacts(job_number)
 
             # Get detailed steps with failure points
-            analysis["failed_steps"] = self._identify_failed_steps(job_detail.get("steps", []))
+            analysis["failed_steps"] = self._identify_failed_steps(
+                job_detail.get("steps", [])
+            )
 
             # Calculate failure timing
             analysis["failure_timing"] = self._analyze_failure_timing(job_detail)
@@ -317,13 +355,17 @@ class PipelineDetailsService:
             return analysis
 
         except Exception as e:
-            self.logger.warning(f"⚠️  Could not analyze failure for job {job_number}: {e}")
+            self.logger.warning(
+                f"⚠️  Could not analyze failure for job {job_number}: {e}"
+            )
             return {}
 
     def _get_job_test_metadata(self, job_number: int) -> Dict:
         """Get test results and analyze failed tests"""
         try:
-            test_data = self._make_request(f"/project/{self.project_slug}/job/{job_number}/test-metadata")
+            test_data = self._make_request(
+                f"/project/{self.project_slug}/job/{job_number}/test-metadata"
+            )
             return self._analyze_test_failures(test_data)
         except Exception as e:
             self.logger.debug(f"No test metadata available for job {job_number}: {e}")
@@ -368,7 +410,12 @@ class PipelineDetailsService:
 
     def _identify_test_failure_patterns(self, failed_tests: List[Dict]) -> Dict:
         """Identify common patterns in test failures"""
-        patterns: Dict[str, List[str]] = {"timeout_failures": [], "assertion_failures": [], "connection_failures": [], "other_failures": []}
+        patterns: Dict[str, List[str]] = {
+            "timeout_failures": [],
+            "assertion_failures": [],
+            "connection_failures": [],
+            "other_failures": [],
+        }
 
         for test in failed_tests:
             message = test.get("message", "").lower()
@@ -376,7 +423,11 @@ class PipelineDetailsService:
                 patterns["timeout_failures"].append(test["name"])
             elif "assert" in message or "expected" in message:
                 patterns["assertion_failures"].append(test["name"])
-            elif "connection" in message or "network" in message or "unreachable" in message:
+            elif (
+                "connection" in message
+                or "network" in message
+                or "unreachable" in message
+            ):
                 patterns["connection_failures"].append(test["name"])
             else:
                 patterns["other_failures"].append(test["name"])
@@ -386,7 +437,9 @@ class PipelineDetailsService:
     def _get_job_artifacts(self, job_number: int) -> Dict:
         """Get and categorize job artifacts for failure investigation"""
         try:
-            artifacts_data = self._make_request(f"/project/{self.project_slug}/job/{job_number}/artifacts")
+            artifacts_data = self._make_request(
+                f"/project/{self.project_slug}/job/{job_number}/artifacts"
+            )
             return self._categorize_artifacts(artifacts_data)
         except Exception as e:
             self.logger.debug(f"No artifacts available for job {job_number}: {e}")
@@ -415,7 +468,10 @@ class PipelineDetailsService:
 
             if any(pattern in path for pattern in [".log", ".txt", "stdout", "stderr"]):
                 categorized["logs"].append(artifact_info)
-            elif any(pattern in path for pattern in [".xml", ".json", ".html"]) and "test" in path:
+            elif (
+                any(pattern in path for pattern in [".xml", ".json", ".html"])
+                and "test" in path
+            ):
                 categorized["test_reports"].append(artifact_info)
             elif "coverage" in path:
                 categorized["coverage_reports"].append(artifact_info)
@@ -454,7 +510,11 @@ class PipelineDetailsService:
 
     def _analyze_failure_timing(self, job_detail: Dict) -> Dict:
         """Analyze when the failure occurred in the job lifecycle"""
-        timing = {"job_duration_seconds": 0, "time_to_failure": 0, "failure_stage": "unknown"}
+        timing = {
+            "job_duration_seconds": 0,
+            "time_to_failure": 0,
+            "failure_stage": "unknown",
+        }
 
         started_at = job_detail.get("started_at")
         stopped_at = job_detail.get("stopped_at")
@@ -491,8 +551,12 @@ class PipelineDetailsService:
     def get_flaky_tests_analysis(self) -> Dict:
         """Get flaky tests that might be causing intermittent failures"""
         try:
-            self.logger.debug(f"🔍 Getting flaky tests for project: {self.project_slug}")
-            flaky_data = self._make_request(f"/insights/{self.project_slug}/flaky-tests")
+            self.logger.debug(
+                f"🔍 Getting flaky tests for project: {self.project_slug}"
+            )
+            flaky_data = self._make_request(
+                f"/insights/{self.project_slug}/flaky-tests"
+            )
 
             flaky_tests = flaky_data.get("flaky-tests", [])
             return {
@@ -514,10 +578,18 @@ class PipelineDetailsService:
             analysis = {
                 "total_workflows": len(workflows),
                 "workflow_names": [w.get("name") for w in workflows],
-                "workflow_statuses": {w.get("name"): w.get("status") for w in workflows},
-                "triggered_workflows": [w.get("name") for w in workflows if w.get("status") != "not_run"],
-                "failed_workflows": [w.get("name") for w in workflows if w.get("status") == "failed"],
-                "successful_workflows": [w.get("name") for w in workflows if w.get("status") == "success"],
+                "workflow_statuses": {
+                    w.get("name"): w.get("status") for w in workflows
+                },
+                "triggered_workflows": [
+                    w.get("name") for w in workflows if w.get("status") != "not_run"
+                ],
+                "failed_workflows": [
+                    w.get("name") for w in workflows if w.get("status") == "failed"
+                ],
+                "successful_workflows": [
+                    w.get("name") for w in workflows if w.get("status") == "success"
+                ],
             }
 
             # Analyze job patterns
@@ -535,9 +607,13 @@ class PipelineDetailsService:
 
             analysis["job_analysis"] = {
                 "total_jobs": len(all_jobs),
-                "jobs_by_workflow": {w.get("name"): len(w.get("jobs", [])) for w in workflows},
+                "jobs_by_workflow": {
+                    w.get("name"): len(w.get("jobs", [])) for w in workflows
+                },
                 "job_statuses": {job["job_name"]: job["status"] for job in all_jobs},
-                "failed_jobs": [job["job_name"] for job in all_jobs if job["status"] == "failed"],
+                "failed_jobs": [
+                    job["job_name"] for job in all_jobs if job["status"] == "failed"
+                ],
             }
 
             return analysis
@@ -573,24 +649,34 @@ class PipelineDetailsService:
                     summary["failed_jobs_count"] += 1
 
                     # Analyze job failure details
-                    failure_analysis = job.get("details", {}).get("failure_analysis", {})
+                    failure_analysis = job.get("details", {}).get(
+                        "failure_analysis", {}
+                    )
                     if failure_analysis:
                         # Test failures
                         test_results = failure_analysis.get("test_results", {})
                         if test_results.get("failed_tests"):
                             summary["has_test_failures"] = True
-                            summary["total_failed_tests"] += len(test_results["failed_tests"])
+                            summary["total_failed_tests"] += len(
+                                test_results["failed_tests"]
+                            )
 
                             # Collect failure patterns
                             patterns = test_results.get("failure_patterns", {})
                             for pattern_type, tests in patterns.items():
                                 if tests:
-                                    all_failure_patterns.extend([pattern_type] * len(tests))
+                                    all_failure_patterns.extend(
+                                        [pattern_type] * len(tests)
+                                    )
 
                         # Infrastructure failures
                         failed_steps = failure_analysis.get("failed_steps", [])
                         for step in failed_steps:
-                            if step.get("exit_code") in [125, 126, 127]:  # Common infrastructure exit codes
+                            if step.get("exit_code") in [
+                                125,
+                                126,
+                                127,
+                            ]:  # Common infrastructure exit codes
                                 summary["has_infrastructure_failures"] = True
 
                             # Check for timeout in step names/commands
@@ -623,35 +709,53 @@ class PipelineDetailsService:
 
         # Generate likely causes based on analysis
         if summary["has_test_failures"]:
-            summary["likely_causes"].append(f"{summary['total_failed_tests']} test(s) failed")
+            summary["likely_causes"].append(
+                f"{summary['total_failed_tests']} test(s) failed"
+            )
             if summary["most_common_failure_pattern"] != "unknown":
                 summary["likely_causes"].append(
                     f"Most common pattern: {summary['most_common_failure_pattern'].replace('_', ' ')}"
                 )
 
         if summary["has_infrastructure_failures"]:
-            summary["likely_causes"].append("Infrastructure or resource allocation issues")
+            summary["likely_causes"].append(
+                "Infrastructure or resource allocation issues"
+            )
 
         if summary["has_timeout_failures"]:
-            summary["likely_causes"].append("Timeout issues - jobs or tests taking too long")
+            summary["likely_causes"].append(
+                "Timeout issues - jobs or tests taking too long"
+            )
 
         # Generate recommendations
         if summary["failed_jobs_count"] > 0:
-            summary["recommendations"].append(f"Check detailed logs for {summary['failed_jobs_count']} failed job(s)")
+            summary["recommendations"].append(
+                f"Check detailed logs for {summary['failed_jobs_count']} failed job(s)"
+            )
 
         if summary["has_test_failures"]:
-            summary["recommendations"].append("Review failed test results and fix failing assertions")
+            summary["recommendations"].append(
+                "Review failed test results and fix failing assertions"
+            )
             if "timeout_failures" in [summary["most_common_failure_pattern"]]:
-                summary["recommendations"].append("Consider increasing test timeouts or optimizing slow tests")
+                summary["recommendations"].append(
+                    "Consider increasing test timeouts or optimizing slow tests"
+                )
 
         if summary["has_infrastructure_failures"]:
-            summary["recommendations"].append("Check resource class allocation and CircleCI service status")
+            summary["recommendations"].append(
+                "Check resource class allocation and CircleCI service status"
+            )
 
         # Add flaky tests info if available
         flaky_tests = pipeline_data.get("flaky_tests_analysis", {})
         if flaky_tests.get("has_flaky_tests"):
-            summary["likely_causes"].append(f"{flaky_tests.get('flaky_tests_count', 0)} flaky test(s) detected")
-            summary["recommendations"].append("Consider stabilizing flaky tests to reduce intermittent failures")
+            summary["likely_causes"].append(
+                f"{flaky_tests.get('flaky_tests_count', 0)} flaky test(s) detected"
+            )
+            summary["recommendations"].append(
+                "Consider stabilizing flaky tests to reduce intermittent failures"
+            )
 
         return summary
 
@@ -680,12 +784,18 @@ class PipelineDetailsService:
         # Show failure summary at the top if there are failures
         if failure_summary.get("failure_type") != "none":
             print("\n🚨 FAILURE SUMMARY:")
-            print(f"   Failure Type: {failure_summary.get('failure_type', 'unknown').replace('_', ' ').title()}")
-            print(f"   Failed Workflows: {failure_summary.get('failed_workflows_count', 0)}")
+            print(
+                f"   Failure Type: {failure_summary.get('failure_type', 'unknown').replace('_', ' ').title()}"
+            )
+            print(
+                f"   Failed Workflows: {failure_summary.get('failed_workflows_count', 0)}"
+            )
             print(f"   Failed Jobs: {failure_summary.get('failed_jobs_count', 0)}")
 
             if failure_summary.get("total_failed_tests", 0) > 0:
-                print(f"   Failed Tests: {failure_summary.get('total_failed_tests', 0)}")
+                print(
+                    f"   Failed Tests: {failure_summary.get('total_failed_tests', 0)}"
+                )
 
             if failure_summary.get("likely_causes"):
                 print("   Likely Causes:")
@@ -758,7 +868,9 @@ class PipelineDetailsService:
                 print(f"      Jobs ({len(jobs)}):")
 
                 if not jobs:
-                    print("        ⚠️  No jobs found (workflow may have been canceled before jobs started)")
+                    print(
+                        "        ⚠️  No jobs found (workflow may have been canceled before jobs started)"
+                    )
                 else:
                     for j, job in enumerate(jobs, 1):
                         try:
@@ -777,7 +889,9 @@ class PipelineDetailsService:
                                 d = job["duration_seconds"]
                                 job_duration = f" ({d // 60}m {d % 60}s)"
 
-                            print(f"        {job_emoji} {job.get('name')}: {job.get('status')}{job_duration}")
+                            print(
+                                f"        {job_emoji} {job.get('name')}: {job.get('status')}{job_duration}"
+                            )
                             print(f"           Job Number: {job.get('job_number')}")
                             print(f"           Type: {job.get('type', 'build')}")
 
@@ -791,15 +905,25 @@ class PipelineDetailsService:
                                 details = job["details"]
                                 print("           Details:")
                                 if details.get("executor"):
-                                    print(f"             Executor: {details['executor']}")
+                                    print(
+                                        f"             Executor: {details['executor']}"
+                                    )
                                 if details.get("resource_class"):
-                                    print(f"             Resource Class: {details['resource_class']}")
+                                    print(
+                                        f"             Resource Class: {details['resource_class']}"
+                                    )
                                 if details.get("parallelism"):
-                                    print(f"             Parallelism: {details['parallelism']}")
+                                    print(
+                                        f"             Parallelism: {details['parallelism']}"
+                                    )
                                 if details.get("steps_count"):
-                                    print(f"             Steps: {details['steps_count']}")
+                                    print(
+                                        f"             Steps: {details['steps_count']}"
+                                    )
                                 if details.get("has_artifacts"):
-                                    print(f"             Has Artifacts: {details['has_artifacts']}")
+                                    print(
+                                        f"             Has Artifacts: {details['has_artifacts']}"
+                                    )
                                 if details.get("contexts"):
                                     # Handle contexts properly - they might be dicts or strings
                                     contexts = details["contexts"]
@@ -807,10 +931,14 @@ class PipelineDetailsService:
                                         context_names = []
                                         for ctx in contexts:
                                             if isinstance(ctx, dict):
-                                                context_names.append(ctx.get("name", str(ctx)))
+                                                context_names.append(
+                                                    ctx.get("name", str(ctx))
+                                                )
                                             else:
                                                 context_names.append(str(ctx))
-                                        print(f"             Contexts: {', '.join(context_names)}")
+                                        print(
+                                            f"             Contexts: {', '.join(context_names)}"
+                                        )
                                     else:
                                         print(f"             Contexts: {contexts}")
                                 if details.get("web_url"):
@@ -822,7 +950,9 @@ class PipelineDetailsService:
                                     print("           🔍 Failure Analysis:")
 
                                     # Test results
-                                    test_results = failure_analysis.get("test_results", {})
+                                    test_results = failure_analysis.get(
+                                        "test_results", {}
+                                    )
                                     if test_results.get("summary"):
                                         summary = test_results["summary"]
                                         print(
@@ -831,55 +961,83 @@ class PipelineDetailsService:
 
                                         if test_results.get("failed_tests"):
                                             print("             Failed Tests:")
-                                            for test in test_results["failed_tests"][:3]:  # Show first 3
-                                                print(f"               • {test.get('name', 'Unknown')}")
+                                            for test in test_results["failed_tests"][
+                                                :3
+                                            ]:  # Show first 3
+                                                print(
+                                                    f"               • {test.get('name', 'Unknown')}"
+                                                )
                                                 if test.get("message"):
                                                     msg = (
                                                         test["message"][:100] + "..."
                                                         if len(test["message"]) > 100
                                                         else test["message"]
                                                     )
-                                                    print(f"                 Error: {msg}")
+                                                    print(
+                                                        f"                 Error: {msg}"
+                                                    )
                                             if len(test_results["failed_tests"]) > 3:
                                                 print(
                                                     f"               ... and {len(test_results['failed_tests']) - 3} more"
                                                 )
 
                                     # Failed steps
-                                    failed_steps = failure_analysis.get("failed_steps", [])
+                                    failed_steps = failure_analysis.get(
+                                        "failed_steps", []
+                                    )
                                     if failed_steps:
-                                        print(f"             Failed Steps: {len(failed_steps)}")
-                                        for step in failed_steps[:2]:  # Show first 2 steps
+                                        print(
+                                            f"             Failed Steps: {len(failed_steps)}"
+                                        )
+                                        for step in failed_steps[
+                                            :2
+                                        ]:  # Show first 2 steps
                                             print(
                                                 f"               • Step {step.get('step_number', '?')}: {step.get('name', 'Unknown')}"
                                             )
                                             if step.get("exit_code"):
-                                                print(f"                 Exit Code: {step['exit_code']}")
+                                                print(
+                                                    f"                 Exit Code: {step['exit_code']}"
+                                                )
                                             if step.get("command"):
                                                 cmd = (
                                                     step["command"][:80] + "..."
                                                     if len(step["command"]) > 80
                                                     else step["command"]
                                                 )
-                                                print(f"                 Command: {cmd}")
+                                                print(
+                                                    f"                 Command: {cmd}"
+                                                )
                                         if len(failed_steps) > 2:
-                                            print(f"               ... and {len(failed_steps) - 2} more steps")
+                                            print(
+                                                f"               ... and {len(failed_steps) - 2} more steps"
+                                            )
 
                                     # Artifacts
                                     artifacts = failure_analysis.get("artifacts", {})
                                     if artifacts.get("total_count", 0) > 0:
-                                        print(f"             Artifacts: {artifacts['total_count']} total")
+                                        print(
+                                            f"             Artifacts: {artifacts['total_count']} total"
+                                        )
                                         if artifacts.get("logs"):
-                                            print(f"               Logs: {len(artifacts['logs'])}")
+                                            print(
+                                                f"               Logs: {len(artifacts['logs'])}"
+                                            )
                                         if artifacts.get("test_reports"):
-                                            print(f"               Test Reports: {len(artifacts['test_reports'])}")
+                                            print(
+                                                f"               Test Reports: {len(artifacts['test_reports'])}"
+                                            )
                                         if artifacts.get("screenshots"):
-                                            print(f"               Screenshots: {len(artifacts['screenshots'])}")
+                                            print(
+                                                f"               Screenshots: {len(artifacts['screenshots'])}"
+                                            )
 
                                     # Failure timing
                                     timing = failure_analysis.get("failure_timing", {})
                                     if timing.get("failure_stage") != "unknown":
-                                        print(f"             Failure Stage: {timing['failure_stage']} in job lifecycle")
+                                        print(
+                                            f"             Failure Stage: {timing['failure_stage']} in job lifecycle"
+                                        )
                         except Exception as e:
                             print(f"        ❌ Error displaying job {j}: {e}")
                             self.logger.error(f"Error displaying job {j}: {e}")
@@ -892,7 +1050,9 @@ class PipelineDetailsService:
         config_analysis = pipeline_data.get("config_analysis", {})
         if config_analysis:
             print("\n🔧 CONFIGURATION ANALYSIS:")
-            print(f"   Triggered Workflows: {', '.join(config_analysis.get('triggered_workflows', []))}")
+            print(
+                f"   Triggered Workflows: {', '.join(config_analysis.get('triggered_workflows', []))}"
+            )
             print(
                 f"   Not Triggered: {', '.join(config_analysis.get('workflow_names', [])) if set(config_analysis.get('workflow_names', [])) - set(config_analysis.get('triggered_workflows', [])) else 'None'}"
             )
@@ -902,10 +1062,14 @@ class PipelineDetailsService:
             print(
                 f"   Successful Workflows: {', '.join(config_analysis.get('successful_workflows', []))} {'' if config_analysis.get('successful_workflows') else '(None)'}"
             )
-            print(f"   Total Jobs: {config_analysis.get('job_analysis', {}).get('total_jobs', 0)}")
+            print(
+                f"   Total Jobs: {config_analysis.get('job_analysis', {}).get('total_jobs', 0)}"
+            )
 
             # Jobs by workflow breakdown
-            jobs_by_workflow = config_analysis.get("job_analysis", {}).get("jobs_by_workflow", {})
+            jobs_by_workflow = config_analysis.get("job_analysis", {}).get(
+                "jobs_by_workflow", {}
+            )
             if jobs_by_workflow:
                 print("   Jobs per Workflow:")
                 for wf_name, job_count in jobs_by_workflow.items():
@@ -932,13 +1096,17 @@ class PipelineDetailsService:
             print("   🌿 Branch: -")
 
         print(f"   ⚡ Trigger Actor: {trigger_analysis.get('actor', 'Unknown')}")
-        print(f"   🕐 Trigger Time: {trigger_analysis.get('trigger_received_at', 'Unknown')}")
+        print(
+            f"   🕐 Trigger Time: {trigger_analysis.get('trigger_received_at', 'Unknown')}"
+        )
 
         # Flaky Tests Analysis
         if flaky_tests.get("has_flaky_tests"):
             print("\n🔄 FLAKY TESTS ANALYSIS:")
             print(f"   Total Flaky Tests: {flaky_tests.get('flaky_tests_count', 0)}")
-            print("   ⚠️  These tests have inconsistent pass/fail results and may cause intermittent pipeline failures")
+            print(
+                "   ⚠️  These tests have inconsistent pass/fail results and may cause intermittent pipeline failures"
+            )
 
             if verbose and flaky_tests.get("tests"):
                 print("   Most Flaky Tests:")

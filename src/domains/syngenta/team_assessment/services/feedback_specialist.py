@@ -15,7 +15,9 @@ class FeedbackSpecialist(OllamaAssistant):
     Focuses on competency matrices and provides structured feedback with actionable insights.
     """
 
-    def __init__(self, host: Optional[str] = None, model: Optional[str] = None, **kwargs):
+    def __init__(
+        self, host: Optional[str] = None, model: Optional[str] = None, **kwargs
+    ):
         """
         Initialize the FeedbackSpecialist with customizable OllamaAssistant configurations.
 
@@ -51,7 +53,9 @@ class FeedbackSpecialist(OllamaAssistant):
             if not isinstance(key, str):
                 raise ValueError(f"Key '{key}' in competency_data must be a string.")
             if not isinstance(value, list):
-                raise ValueError(f"Value for key '{key}' in competency_data must be a list.")
+                raise ValueError(
+                    f"Value for key '{key}' in competency_data must be a list."
+                )
 
     def _create_feedback_prompt(
         self,
@@ -77,9 +81,7 @@ class FeedbackSpecialist(OllamaAssistant):
 
         team_summary = f"Team average level: {team_stats.average_level:.2f}\n"
         for category, details in team_stats.criteria_stats.items():
-            team_summary += (
-                f"- {category}: Average {details['average']:.2f}, Max {details['highest']}\n"
-            )
+            team_summary += f"- {category}: Average {details['average']:.2f}, Max {details['highest']}\n"
 
         competency_summary = "Competency matrix details:\n"
         for criterion, indicators in competency_matrix:
@@ -87,10 +89,14 @@ class FeedbackSpecialist(OllamaAssistant):
             for indicator, levels in indicators[1].items():
                 competency_summary += f"  {indicator}:\n"
                 for level, details in levels["levels"].items():
-                    competency_summary += f"    Level {level}: {details['description']}\n"
+                    competency_summary += (
+                        f"    Level {level}: {details['description']}\n"
+                    )
                     suggested_evidence = details.get("suggested_evidence")
                     if suggested_evidence:
-                        competency_summary += f"      Suggested Evidence: {suggested_evidence}\n"
+                        competency_summary += (
+                            f"      Suggested Evidence: {suggested_evidence}\n"
+                        )
 
         prompt = f"""
 **System Directive**
@@ -168,7 +174,9 @@ void markdown formatting beyond section headers.
             self.logger.debug(f"Generated feedback: {feedback}")
             return {"feedback": feedback}
         except Exception as e:
-            self.logger.error(f"Error generating feedback for {member_name}: {e}", exc_info=True)
+            self.logger.error(
+                f"Error generating feedback for {member_name}: {e}", exc_info=True
+            )
             return {"error": str(e)}
 
     def summarize_evidence(
@@ -221,7 +229,8 @@ void markdown formatting beyond section headers.
         team_comparison = data.get("team_comparison")
 
         if not isinstance(evidence_list, list) or not all(
-            isinstance(item, dict) and "level" in item and "text" in item for item in evidence_list
+            isinstance(item, dict) and "level" in item and "text" in item
+            for item in evidence_list
         ):
             raise ValueError(
                 "evidence_list must be a list of dictionaries containing 'level' and 'text'."
@@ -290,7 +299,9 @@ void markdown formatting beyond section headers.
         try:
             # Generating summary using the assistant
             summary = self.generate_text(summary_messages)
-            self.logger.debug(f"Evidence summary for {evaluatee_name} on {indicator}: {summary}")
+            self.logger.debug(
+                f"Evidence summary for {evaluatee_name} on {indicator}: {summary}"
+            )
             return summary
         except Exception as e:
             self.logger.error(
@@ -320,14 +331,18 @@ void markdown formatting beyond section headers.
         results = {}
         for member_name, data in competency_matrix.items():
             if not isinstance(member_name, str):
-                raise ValueError("Each member_name in competency_matrix must be a string.")
+                raise ValueError(
+                    "Each member_name in competency_matrix must be a string."
+                )
 
             self.logger.info(f"Processing feedback for {member_name}.")
             results[member_name] = self.generate_feedback(member_name, data)
         self.logger.info("Analysis of competency matrix completed.")
         return results
 
-    def translate_evidence(self, evidence: str, expected_language_code: str = "en") -> str:
+    def translate_evidence(
+        self, evidence: str, expected_language_code: str = "en"
+    ) -> str:
         """
         Translates the given evidence to the expected language if necessary.
 
@@ -352,7 +367,9 @@ void markdown formatting beyond section headers.
         if not isinstance(evidence, str):
             raise ValueError("evidence must be a string.")
 
-        if not isinstance(expected_language_code, str) and expected_language_code not in (
+        if not isinstance(
+            expected_language_code, str
+        ) and expected_language_code not in (
             "en",
             "es",
             "pt",

@@ -39,7 +39,9 @@ class OutputManager:
         return os.path.join(target_dir, full_file_name)
 
     @staticmethod
-    def save_json_report(data: Dict, sub_dir: str, file_basename: str, output_path: Optional[str] = None) -> str:
+    def save_json_report(
+        data: Dict, sub_dir: str, file_basename: str, output_path: Optional[str] = None
+    ) -> str:
         """
         Saves a dictionary as a JSON report.
 
@@ -64,7 +66,12 @@ class OutputManager:
         return path
 
     @staticmethod
-    def save_markdown_report(content: str, sub_dir: str, file_basename: str, output_path: Optional[str] = None) -> str:
+    def save_markdown_report(
+        content: str,
+        sub_dir: str,
+        file_basename: str,
+        output_path: Optional[str] = None,
+    ) -> str:
         """
         Saves a string as a Markdown report.
 

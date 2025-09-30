@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import os
 from argparse import ArgumentParser, Namespace
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded, ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
-from utils.summary_helpers import _has_value, _isoz
+from domains.syngenta.datadog.summary.datadog_summary_manager import (
+    DatadogSummaryManager,
+)
 
 from domains.syngenta.datadog.datadog_events_service import (
     DatadogEventsAuthError,
@@ -159,13 +159,15 @@ class EventsCommand(BaseCommand):
             }
 
             # Add monitors analysis if requested
-            if getattr(args, "include_monitors", False) or getattr(args, "unused_only", False):
+            if getattr(args, "include_monitors", False) or getattr(
+                args, "unused_only", False
+            ):
                 monitors_data = service.find_unused_monitors(
                     teams=teams,
                     days=days,
                     env=env,
                     include_all=not getattr(args, "unused_only", False),
-                    detailed=False
+                    detailed=False,
                 )
                 payload["monitors"] = monitors_data
 
@@ -177,11 +179,7 @@ class EventsCommand(BaseCommand):
 
                 # Get current monitors to detect deleted ones
                 current_monitors_data = service.find_unused_monitors(
-                    teams=teams,
-                    days=days,
-                    env=env,
-                    include_all=True,
-                    detailed=False
+                    teams=teams, days=days, env=env, include_all=True, detailed=False
                 )
 
                 advanced_results = service.analyze_events_advanced(
@@ -189,7 +187,7 @@ class EventsCommand(BaseCommand):
                     analysis_period_days=analysis_period,
                     min_confidence=min_confidence,
                     include_detailed_stats=include_detailed_stats,
-                    existing_monitors=current_monitors_data.get("all_monitors", [])
+                    existing_monitors=current_monitors_data.get("all_monitors", []),
                 )
                 payload["advanced_analysis"] = advanced_results
 
@@ -206,17 +204,17 @@ class EventsCommand(BaseCommand):
             if getattr(args, "verbose", False):
                 EventsCommand._print_verbose_snapshot(payload)
 
-            output_file_path = EventsCommand._handle_output(payload, output_format=args.output_format, args=args)
+            output_file_path = EventsCommand._handle_output(
+                payload, output_format=args.output_format, args=args
+            )
             if output_file_path:
                 payload["output_file"] = output_file_path
 
             try:
                 summary_mode = getattr(args, "summary_output", "auto")
-                summary_path = EventsCommand._emit_summary(
-                    payload,
-                    summary_mode,
-                    payload.get("output_file"),
-                    teams,
+                manager = DatadogSummaryManager()
+                summary_path = manager.emit_summary_compatible(
+                    payload, summary_mode, payload.get("output_file"), teams
                 )
                 if summary_path:
                     print(f"[summary] wrote: {summary_path}")
@@ -255,7 +253,9 @@ class EventsCommand(BaseCommand):
     # ------------------------------------------------------------------
     @staticmethod
     def _parse_teams(raw: str) -> List[str]:
-        return [team.strip() for team in (raw or "").split(",") if team and team.strip()]
+        return [
+            team.strip() for team in (raw or "").split(",") if team and team.strip()
+        ]
 
     @staticmethod
     def _validate_days(days: int) -> int:
@@ -264,11 +264,15 @@ class EventsCommand(BaseCommand):
         if days <= 0:
             raise ValueError("--days must be a positive integer.")
         if days > 30:
-            raise ValueError("--days lookback above 30 is not supported for this command.")
+            raise ValueError(
+                "--days lookback above 30 is not supported for this command."
+            )
         return days
 
     @staticmethod
-    def _print_executive_summary(summary: Dict[str, object], metadata: Dict[str, object]) -> None:
+    def _print_executive_summary(
+        summary: Dict[str, object], metadata: Dict[str, object]
+    ) -> None:
         period = summary.get("time_period", {}) if isinstance(summary, dict) else {}
         label = period.get("label", "recent period")
         header = f"🚨 DATADOG EVENTS - Teams Alert Summary ({label})"
@@ -279,7 +283,9 @@ class EventsCommand(BaseCommand):
         total_events = totals.get("events", 0)
         teams_with_alerts = totals.get("teams_with_alerts", 0)
         total_teams = totals.get("total_teams", 0)
-        most_active = summary.get("most_active_team", {}) if isinstance(summary, dict) else {}
+        most_active = (
+            summary.get("most_active_team", {}) if isinstance(summary, dict) else {}
+        )
         most_active_team = most_active.get("team")
         most_active_count = most_active.get("event_count", 0)
         relative_label = period.get("relative_label", "") or period.get("relative", "")
@@ -300,28 +306,33 @@ class EventsCommand(BaseCommand):
             print(f"Environment: {env}")
 
     @staticmethod
-    def _clean_monitor_name_for_markdown(monitor_name: str, max_length: int = 30) -> str:
+    def _clean_monitor_name_for_markdown(
+        monitor_name: str, max_length: int = 30
+    ) -> str:
         """Clean monitor name for safe use in Markdown tables and links."""
         if not monitor_name:
             return "Unknown"
 
         # Replace problematic Markdown characters
-        clean_name = (monitor_name
-                     .replace("|", "│")          # Replace pipe with similar Unicode character
-                     .replace("[", "⟨")          # Replace left bracket with similar Unicode character
-                     .replace("]", "⟩")          # Replace right bracket with similar Unicode character
-                     .replace("(", "❨")          # Replace left paren with similar Unicode character
-                     .replace(")", "❩")          # Replace right paren with similar Unicode character
-                     .replace("#", "＃")         # Replace hash with full-width character
-                     .replace("*", "✱")          # Replace asterisk with similar Unicode character
-                     .replace("_", "‿")          # Replace underscore with similar Unicode character
-                     .replace("`", "ˋ")          # Replace backtick with similar Unicode character
-                     .replace("~", "∼")          # Replace tilde with similar Unicode character
-                     .replace("\\", "⧵")        # Replace backslash with similar Unicode character
-                     .replace("\n", " ")          # Replace newlines with spaces
-                     .replace("\r", " ")          # Replace carriage returns with spaces
-                     .replace("\t", " ")          # Replace tabs with spaces
-                     .strip())                    # Remove leading/trailing whitespace
+        clean_name = (
+            monitor_name.replace(
+                "|", "│"
+            )  # Replace pipe with similar Unicode character
+            .replace("[", "⟨")  # Replace left bracket with similar Unicode character
+            .replace("]", "⟩")  # Replace right bracket with similar Unicode character
+            .replace("(", "❨")  # Replace left paren with similar Unicode character
+            .replace(")", "❩")  # Replace right paren with similar Unicode character
+            .replace("#", "＃")  # Replace hash with full-width character
+            .replace("*", "✱")  # Replace asterisk with similar Unicode character
+            .replace("_", "‿")  # Replace underscore with similar Unicode character
+            .replace("`", "ˋ")  # Replace backtick with similar Unicode character
+            .replace("~", "∼")  # Replace tilde with similar Unicode character
+            .replace("\\", "⧵")  # Replace backslash with similar Unicode character
+            .replace("\n", " ")  # Replace newlines with spaces
+            .replace("\r", " ")  # Replace carriage returns with spaces
+            .replace("\t", " ")  # Replace tabs with spaces
+            .strip()
+        )  # Remove leading/trailing whitespace
 
         # Collapse multiple spaces into single spaces
         clean_name = " ".join(clean_name.split())
@@ -333,7 +344,13 @@ class EventsCommand(BaseCommand):
         return clean_name
 
     @staticmethod
-    def _create_monitor_link(monitor_name: str, monitor_id: str = None, max_length: int = 40, is_deleted: bool = False, deleted_monitors: set = None) -> str:
+    def _create_monitor_link(
+        monitor_name: str,
+        monitor_id: str = None,
+        max_length: int = 40,
+        is_deleted: bool = False,
+        deleted_monitors: set = None,
+    ) -> str:
         """Create a markdown link for a monitor.
 
         Args:
@@ -349,7 +366,9 @@ class EventsCommand(BaseCommand):
         import os
 
         # Clean the name for display
-        clean_name = EventsCommand._clean_monitor_name_for_markdown(monitor_name, max_length)
+        clean_name = EventsCommand._clean_monitor_name_for_markdown(
+            monitor_name, max_length
+        )
 
         # Check if monitor is deleted (from parameter or from deleted_monitors set)
         is_monitor_deleted = is_deleted
@@ -407,16 +426,24 @@ class EventsCommand(BaseCommand):
             print(f"  • Estimated Noise Reduction: {estimated_reduction:.1%}")
 
         # Top Removal Candidates
-        candidates_list = removal_candidates.get("items", []) if isinstance(removal_candidates, dict) else []
+        candidates_list = (
+            removal_candidates.get("items", [])
+            if isinstance(removal_candidates, dict)
+            else []
+        )
         if candidates_list and isinstance(candidates_list, list):
             print("\nTop Removal Candidates:")
             for i, candidate in enumerate(candidates_list[:3]):
                 if isinstance(candidate, dict):
-                    monitor_name = candidate.get("monitor_name") or candidate.get("monitor_id", "Unknown")
+                    monitor_name = candidate.get("monitor_name") or candidate.get(
+                        "monitor_id", "Unknown"
+                    )
                     confidence = candidate.get("confidence_score", 0)
                     noise_score = candidate.get("noise_score", 0)
-                    print(f"  {i+1}. {monitor_name}")
-                    print(f"     Confidence: {confidence:.2f}, Noise: {noise_score:.1f}/100")
+                    print(f"  {i + 1}. {monitor_name}")
+                    print(
+                        f"     Confidence: {confidence:.2f}, Noise: {noise_score:.1f}/100"
+                    )
 
         # Temporal Metrics
         temporal = advanced_analysis.get("temporal_metrics", {})
@@ -437,7 +464,9 @@ class EventsCommand(BaseCommand):
             if isinstance(overall_insights, dict):
                 total_monitors = overall_insights.get("total_monitors_analyzed", 0)
                 avg_health = overall_insights.get("average_health_score")
-                needing_attention = overall_insights.get("monitors_needing_attention", 0)
+                needing_attention = overall_insights.get(
+                    "monitors_needing_attention", 0
+                )
 
                 if total_monitors > 0:
                     print("\nMonitor Health Overview:")
@@ -449,7 +478,9 @@ class EventsCommand(BaseCommand):
                     # Grade distribution
                     grades = overall_insights.get("grade_distribution", {})
                     if grades:
-                        grade_summary = ", ".join([f"{grade}: {count}" for grade, count in grades.items()])
+                        grade_summary = ", ".join(
+                            [f"{grade}: {count}" for grade, count in grades.items()]
+                        )
                         print(f"  • Health Grades: {grade_summary}")
 
             # Enhanced recommendations summary
@@ -463,7 +494,9 @@ class EventsCommand(BaseCommand):
                     print(f"  • High-Priority Removals: {len(high_priority)} monitors")
 
                 if automation_candidates:
-                    print(f"  • Automation Opportunities: {len(automation_candidates)} monitors")
+                    print(
+                        f"  • Automation Opportunities: {len(automation_candidates)} monitors"
+                    )
 
     @staticmethod
     def _print_monitors_summary(monitors_data: Dict[str, Any], args: Namespace) -> None:
@@ -496,7 +529,11 @@ class EventsCommand(BaseCommand):
 
         # Process unused monitors
         for monitor in unused_monitors:
-            team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+            team_tags = [
+                tag.split("team:", 1)[1]
+                for tag in monitor.get("tags", [])
+                if tag.startswith("team:")
+            ]
             for team in team_tags:
                 if team not in monitors_by_team:
                     monitors_by_team[team] = {"active": [], "unused": []}
@@ -505,7 +542,11 @@ class EventsCommand(BaseCommand):
         # Process active monitors (if included)
         if active_monitors:
             for monitor in active_monitors:
-                team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+                team_tags = [
+                    tag.split("team:", 1)[1]
+                    for tag in monitor.get("tags", [])
+                    if tag.startswith("team:")
+                ]
                 for team in team_tags:
                     if team not in monitors_by_team:
                         monitors_by_team[team] = {"active": [], "unused": []}
@@ -527,7 +568,9 @@ class EventsCommand(BaseCommand):
                     days_ago = monitor.get("last_triggered_days_ago")
                     days_text = f"{days_ago}d ago" if days_ago else "Never"
                     status_icon = "🔇" if monitor.get("muted") else "📵"
-                    print(f"     {status_icon} {monitor.get('name', 'Unknown')[:60]} (Last: {days_text})")
+                    print(
+                        f"     {status_icon} {monitor.get('name', 'Unknown')[:60]} (Last: {days_text})"
+                    )
 
                 if team_unused > 10:
                     print(f"     ... and {team_unused - 10} more unused monitors")
@@ -538,12 +581,18 @@ class EventsCommand(BaseCommand):
                 for monitor in team_data["active"][:5]:  # Show first 5
                     days_ago = monitor.get("last_triggered_days_ago", 999)
                     days_text = f"{days_ago}d ago" if days_ago < 999 else "Today"
-                    print(f"     ✅ {monitor.get('name', 'Unknown')[:60]} (Last: {days_text})")
+                    print(
+                        f"     ✅ {monitor.get('name', 'Unknown')[:60]} (Last: {days_text})"
+                    )
 
         if unused_count == 0:
-            print(f"\n🎉 Excellent! All monitors have been active in the last {analysis_days} days.")
+            print(
+                f"\n🎉 Excellent! All monitors have been active in the last {analysis_days} days."
+            )
         elif unused_count > 0:
-            print(f"\n💡 Consider reviewing the {unused_count} unused monitors for potential removal or threshold adjustment.")
+            print(
+                f"\n💡 Consider reviewing the {unused_count} unused monitors for potential removal or threshold adjustment."
+            )
 
     @staticmethod
     def _print_verbose_snapshot(payload: Dict[str, object]) -> None:
@@ -561,7 +610,9 @@ class EventsCommand(BaseCommand):
             summary = monitors_data.get("summary", {})
             print("\n🔍 Data Processing Summary:")
             print("  • Total API Calls: Monitor Search + Events Fetch")
-            print(f"  • Monitors Discovery: {summary.get('total_monitors', 0)} monitors found")
+            print(
+                f"  • Monitors Discovery: {summary.get('total_monitors', 0)} monitors found"
+            )
             print("  • Events Analysis: Processing events to identify active monitors")
             print("  • Classification: Active vs. Unused monitor determination")
             print(f"  • Environment: {summary.get('env', 'N/A')}")
@@ -575,7 +626,11 @@ class EventsCommand(BaseCommand):
 
             # Group unused monitors by team
             for monitor in unused_monitors:
-                team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+                team_tags = [
+                    tag.split("team:", 1)[1]
+                    for tag in monitor.get("tags", [])
+                    if tag.startswith("team:")
+                ]
                 for team in team_tags:
                     if team not in monitors_by_team:
                         monitors_by_team[team] = {"active": 0, "unused": 0}
@@ -583,7 +638,11 @@ class EventsCommand(BaseCommand):
 
             # Group active monitors by team
             for monitor in active_monitors:
-                team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+                team_tags = [
+                    tag.split("team:", 1)[1]
+                    for tag in monitor.get("tags", [])
+                    if tag.startswith("team:")
+                ]
                 for team in team_tags:
                     if team not in monitors_by_team:
                         monitors_by_team[team] = {"active": 0, "unused": 0}
@@ -595,7 +654,9 @@ class EventsCommand(BaseCommand):
                     team_data = monitors_by_team[team]
                     total = team_data["active"] + team_data["unused"]
                     unused_pct = (team_data["unused"] / max(total, 1)) * 100
-                    print(f"  • {team}: {total} total ({team_data['active']} active, {team_data['unused']} unused - {unused_pct:.1f}% unused)")
+                    print(
+                        f"  • {team}: {total} total ({team_data['active']} active, {team_data['unused']} unused - {unused_pct:.1f}% unused)"
+                    )
 
         # Show events processing details
         if not teams:
@@ -639,7 +700,9 @@ class EventsCommand(BaseCommand):
         print("\n" + "=" * 60)
 
     @staticmethod
-    def _handle_output(payload: Dict[str, object], *, output_format: str, args: Namespace) -> Optional[str]:
+    def _handle_output(
+        payload: Dict[str, object], *, output_format: str, args: Namespace
+    ) -> Optional[str]:
         if output_format == "console":
             return None
 
@@ -663,258 +726,22 @@ class EventsCommand(BaseCommand):
         return output_path
 
     @staticmethod
-    def _emit_summary(
-        payload: Dict[str, object],
-        summary_mode: str,
-        existing_output_path: Optional[str],
-        teams: List[str],
-    ) -> Optional[str]:
-        if summary_mode == "none":
-            return None
-
-        raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
-        metrics_payload = EventsCommand._build_summary_metrics(payload, raw_data_path, teams)
-        if not metrics_payload:
-            return None
-
-        sub_dir, base_name = EventsCommand._summary_output_defaults(payload, teams)
-        summary_path: Optional[str] = None
-
-        if existing_output_path:
-            target_path = EventsCommand._summary_path_for_existing(existing_output_path)
-            summary_path = OutputManager.save_summary_report(
-                metrics_payload,
-                sub_dir,
-                base_name,
-                output_path=target_path,
-            )
-            summary_path = os.path.abspath(summary_path)
-
-        if summary_mode == "auto":
-            return summary_path
-
-        if summary_path and summary_mode == "json":
-            return summary_path
-
-        if summary_mode == "json":
-            summary_path = OutputManager.save_summary_report(
-                metrics_payload,
-                sub_dir,
-                base_name,
-            )
-            return os.path.abspath(summary_path)
-
-        return None
-
-    @staticmethod
-    def _build_summary_metrics(
-        payload: Dict[str, object], raw_data_path: Optional[str], teams: List[str]
-    ) -> List[Dict[str, Any]]:
-        summary = payload.get("summary") or {}
-        time_period = summary.get("time_period") or {}
-        period_start = _isoz(time_period.get("start"))
-        period_end = _isoz(time_period.get("end"))
-        if not period_start or not period_end:
-            return []
-
-        period = {"start_date": period_start, "end_date": period_end}
-        base_dimensions = EventsCommand._base_dimensions(summary, teams)
-        metrics: List[Dict[str, Any]] = []
-        command_name = EventsCommand.get_name()
-
-        advanced = payload.get("advanced_analysis") if isinstance(payload, dict) else None
-        if isinstance(advanced, dict):
-            alert_quality = advanced.get("alert_quality")
-            overall_quality = alert_quality.get("overall") if isinstance(alert_quality, dict) else {}
-            EventsCommand._append_metric(
-                metrics,
-                "datadog.events.quality.overall_noise_score",
-                overall_quality.get("overall_noise_score"),
-                "score",
-                period,
-                base_dimensions,
-                command_name,
-                raw_data_path,
-            )
-            EventsCommand._append_metric(
-                metrics,
-                "datadog.events.quality.self_healing_rate",
-                EventsCommand._percent_value(overall_quality.get("self_healing_rate")),
-                "percent",
-                period,
-                base_dimensions,
-                command_name,
-                raw_data_path,
-            )
-            EventsCommand._append_metric(
-                metrics,
-                "datadog.events.quality.actionable_alerts_percent",
-                EventsCommand._percent_value(overall_quality.get("actionable_alerts_percentage")),
-                "percent",
-                period,
-                base_dimensions,
-                command_name,
-                raw_data_path,
-            )
-
-            temporal_metrics = advanced.get("temporal_metrics") if isinstance(advanced, dict) else {}
-            if isinstance(temporal_metrics, dict):
-                EventsCommand._append_metric(
-                    metrics,
-                    "datadog.events.temporal.avg_ttr_minutes",
-                    temporal_metrics.get("avg_time_to_resolution_minutes"),
-                    "minutes",
-                    period,
-                    base_dimensions,
-                    command_name,
-                    raw_data_path,
-                )
-                EventsCommand._append_metric(
-                    metrics,
-                    "datadog.events.temporal.mtbf_hours",
-                    temporal_metrics.get("mtbf_hours"),
-                    "hours",
-                    period,
-                    base_dimensions,
-                    command_name,
-                    raw_data_path,
-                )
-
-            detailed_stats = advanced.get("detailed_monitor_statistics") if isinstance(advanced, dict) else {}
-            overall_insights = (
-                detailed_stats.get("overall_insights")
-                if isinstance(detailed_stats, dict)
-                else {}
-            )
-            EventsCommand._append_metric(
-                metrics,
-                "datadog.events.health.average_score",
-                overall_insights.get("average_health_score"),
-                "score",
-                period,
-                base_dimensions,
-                command_name,
-                raw_data_path,
-            )
-            EventsCommand._append_metric(
-                metrics,
-                "datadog.events.health.monitors_needing_attention",
-                overall_insights.get("monitors_needing_attention"),
-                "monitors",
-                period,
-                base_dimensions,
-                command_name,
-                raw_data_path,
-            )
-
-        return metrics
-
-    @staticmethod
-    def _summary_output_defaults(payload: Dict[str, object], teams: List[str]) -> Tuple[str, str]:
-        summary = payload.get("summary") or {}
-        env = summary.get("env") if isinstance(summary, dict) else None
-        env_label = env or "all"
-        date_str = datetime.now().strftime("%Y%m%d")
-        sub_dir = f"datadog-events_{date_str}"
-        base_name = f"datadog_events_summary_{env_label}"
-        if teams:
-            base_name += f"_{len(teams)}teams"
-        return sub_dir, base_name
-
-    @staticmethod
-    def _summary_path_for_existing(existing_output_path: str) -> str:
-        output_path = Path(existing_output_path)
-        summary_filename = f"{output_path.stem}_summary.json"
-        return str(output_path.with_name(summary_filename))
-
-    @staticmethod
-    def _append_metric(
-        container: List[Dict[str, Any]],
-        metric_name: str,
-        value: Any,
-        unit: str,
-        period: Dict[str, str],
-        dimensions: Dict[str, Any],
-        source_command: str,
-        raw_data_path: Optional[str],
-    ) -> None:
-        if not _has_value(value):
-            return
-
-        try:
-            numeric_value = float(value)
-        except (TypeError, ValueError):
-            return
-
-        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
-        container.append(
-            {
-                "metric_name": metric_name,
-                "value": numeric_value,
-                "unit": unit,
-                "period": period,
-                "dimensions": cleaned_dimensions,
-                "source_command": source_command,
-                "raw_data_path": raw_data_path,
-            }
-        )
-
-    @staticmethod
-    def _base_dimensions(summary: Dict[str, Any], teams: List[str]) -> Dict[str, Any]:
-        dimensions: Dict[str, Any] = {}
-        env = summary.get("env") if isinstance(summary, dict) else None
-        if env:
-            dimensions["env"] = env
-
-        team_dimension = EventsCommand._format_team_dimension(summary, teams)
-        dimensions["team"] = team_dimension or "overall"
-        return dimensions
-
-    @staticmethod
-    def _format_team_dimension(summary: Dict[str, Any], teams: List[str]) -> Optional[str]:
-        candidates: List[str] = []
-        requested = summary.get("requested_teams") if isinstance(summary, dict) else None
-        if isinstance(requested, list):
-            candidates.extend(str(team).strip() for team in requested if str(team).strip())
-
-        candidates.extend(str(team).strip() for team in teams if str(team).strip())
-
-        unique: List[str] = []
-        seen = set()
-        for team in candidates:
-            if team not in seen:
-                seen.add(team)
-                unique.append(team)
-
-        if unique:
-            return ",".join(unique)
-        return None
-
-    @staticmethod
-    def _percent_value(value: Any) -> Optional[float]:
-        if not _has_value(value):
-            return None
-
-        try:
-            numeric_value = float(value)
-        except (TypeError, ValueError):
-            return None
-
-        scaled_value = numeric_value * 100 if numeric_value <= 1.0 else numeric_value
-        return round(scaled_value, 2)
+    # Summary helpers moved to DatadogSummaryManager
 
     @staticmethod
     def _to_markdown(payload: Dict[str, object], args: Namespace) -> str:
         summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
         metadata = payload.get("metadata", {}) if isinstance(payload, dict) else {}
         teams = payload.get("teams", {}) if isinstance(payload, dict) else {}
-        advanced_analysis = payload.get("advanced_analysis", {}) if isinstance(payload, dict) else {}
+        advanced_analysis = (
+            payload.get("advanced_analysis", {}) if isinstance(payload, dict) else {}
+        )
 
         # Extract deleted monitors from advanced analysis if available
         deleted_monitors = set()
         if isinstance(advanced_analysis, dict):
             analyzer_instance = advanced_analysis.get("_analyzer")
-            if hasattr(analyzer_instance, 'deleted_monitors'):
+            if hasattr(analyzer_instance, "deleted_monitors"):
                 deleted_monitors = analyzer_instance.deleted_monitors
             # Fallback: extract from detailed stats
             elif "detailed_monitor_statistics" in advanced_analysis:
@@ -923,7 +750,9 @@ class EventsCommand(BaseCommand):
                     per_monitor = detailed_stats["per_monitor"]
                     if isinstance(per_monitor, dict):
                         for monitor_id, stats in per_monitor.items():
-                            if isinstance(stats, dict) and stats.get("is_deleted", False):
+                            if isinstance(stats, dict) and stats.get(
+                                "is_deleted", False
+                            ):
                                 deleted_monitors.add(str(monitor_id))
 
         totals = summary.get("totals", {}) if isinstance(summary, dict) else {}
@@ -955,7 +784,9 @@ class EventsCommand(BaseCommand):
         lines.append(
             f"- Teams with Alerts: {totals.get('teams_with_alerts', 0)}/{totals.get('total_teams', 0)}"
         )
-        most_active = summary.get("most_active_team", {}) if isinstance(summary, dict) else {}
+        most_active = (
+            summary.get("most_active_team", {}) if isinstance(summary, dict) else {}
+        )
         if most_active.get("team"):
             lines.append(
                 f"- Most Active: {most_active.get('team')} ({most_active.get('event_count', 0)} events)"
@@ -968,7 +799,9 @@ class EventsCommand(BaseCommand):
         if isinstance(advanced_analysis, dict) and advanced_analysis:
             lines.append("### Advanced Analysis")
             lines.append("")
-            lines.append("This section provides comprehensive insights into alert quality, monitor behavior, and actionable recommendations for optimizing your monitoring strategy.")
+            lines.append(
+                "This section provides comprehensive insights into alert quality, monitor behavior, and actionable recommendations for optimizing your monitoring strategy."
+            )
             lines.append("")
 
             # Alert Quality Metrics
@@ -978,79 +811,166 @@ class EventsCommand(BaseCommand):
                 if isinstance(overall, dict):
                     lines.append("#### Alert Quality Metrics")
                     lines.append("")
-                    lines.append("**Quality metrics help identify the overall health of your monitoring system:**")
+                    lines.append(
+                        "**Quality metrics help identify the overall health of your monitoring system:**"
+                    )
                     lines.append("")
-                    lines.append(f"- **Overall Noise Score**: {overall.get('overall_noise_score', 0):.1f}/100")
-                    lines.append("  - *Lower scores indicate cleaner, more actionable alerts*")
-                    lines.append(f"- **Self-Healing Rate**: {overall.get('self_healing_rate', 0):.1%}")
-                    lines.append("  - *Percentage of alerts that resolve automatically without manual intervention*")
-                    lines.append(f"- **Total Monitors Analyzed**: {overall.get('total_monitors', 0)}")
-                    lines.append(f"- **Actionable Alerts**: {overall.get('actionable_alerts_percentage', 0):.1%}")
-                    lines.append("  - *Percentage of alerts that typically require human action*")
+                    lines.append(
+                        f"- **Overall Noise Score**: {overall.get('overall_noise_score', 0):.1f}/100"
+                    )
+                    lines.append(
+                        "  - *Lower scores indicate cleaner, more actionable alerts*"
+                    )
+                    lines.append(
+                        f"- **Self-Healing Rate**: {overall.get('self_healing_rate', 0):.1%}"
+                    )
+                    lines.append(
+                        "  - *Percentage of alerts that resolve automatically without manual intervention*"
+                    )
+                    lines.append(
+                        f"- **Total Monitors Analyzed**: {overall.get('total_monitors', 0)}"
+                    )
+                    lines.append(
+                        f"- **Actionable Alerts**: {overall.get('actionable_alerts_percentage', 0):.1%}"
+                    )
+                    lines.append(
+                        "  - *Percentage of alerts that typically require human action*"
+                    )
 
                     # Add enhanced classification metrics if available
                     enhanced_analysis = advanced_analysis.get("enhanced_analysis", {})
                     if isinstance(enhanced_analysis, dict):
-                        classification_summary = enhanced_analysis.get("classification_summary", {})
-                        if isinstance(classification_summary, dict) and classification_summary.get("total_cycles", 0) > 0:
+                        classification_summary = enhanced_analysis.get(
+                            "classification_summary", {}
+                        )
+                        if (
+                            isinstance(classification_summary, dict)
+                            and classification_summary.get("total_cycles", 0) > 0
+                        ):
                             total_cycles = classification_summary.get("total_cycles", 0)
                             flapping = classification_summary.get("flapping_cycles", 0)
-                            benign = classification_summary.get("benign_transient_cycles", 0)
-                            actionable = classification_summary.get("actionable_cycles", 0)
+                            benign = classification_summary.get(
+                                "benign_transient_cycles", 0
+                            )
+                            actionable = classification_summary.get(
+                                "actionable_cycles", 0
+                            )
                             confidence = classification_summary.get("avg_confidence", 0)
 
                             lines.append("")
                             lines.append("**🔬 Alert Behavior Classification:**")
-                            lines.append(f"- **🔄 Flapping Alerts**: {flapping} ({flapping/max(total_cycles,1)*100:.1f}%)")
-                            lines.append("  - *Rapid state oscillations indicating threshold issues*")
-                            lines.append(f"- **⚡ Benign Transients**: {benign} ({benign/max(total_cycles,1)*100:.1f}%)")
-                            lines.append("  - *Short-lived, self-resolving issues requiring no action*")
-                            lines.append(f"- **🎯 Actionable Alerts**: {actionable} ({actionable/max(total_cycles,1)*100:.1f}%)")
-                            lines.append("  - *Legitimate alerts requiring human intervention*")
-                            lines.append(f"- **Classification Confidence**: {confidence:.1%}")
+                            lines.append(
+                                f"- **🔄 Flapping Alerts**: {flapping} ({flapping / max(total_cycles, 1) * 100:.1f}%)"
+                            )
+                            lines.append(
+                                "  - *Rapid state oscillations indicating threshold issues*"
+                            )
+                            lines.append(
+                                f"- **⚡ Benign Transients**: {benign} ({benign / max(total_cycles, 1) * 100:.1f}%)"
+                            )
+                            lines.append(
+                                "  - *Short-lived, self-resolving issues requiring no action*"
+                            )
+                            lines.append(
+                                f"- **🎯 Actionable Alerts**: {actionable} ({actionable / max(total_cycles, 1) * 100:.1f}%)"
+                            )
+                            lines.append(
+                                "  - *Legitimate alerts requiring human intervention*"
+                            )
+                            lines.append(
+                                f"- **Classification Confidence**: {confidence:.1%}"
+                            )
 
                             if confidence >= 0.8:
-                                lines.append("  - 🟢 *High confidence - classifications are reliable*")
+                                lines.append(
+                                    "  - 🟢 *High confidence - classifications are reliable*"
+                                )
                             elif confidence >= 0.6:
-                                lines.append("  - 🟡 *Medium confidence - review edge cases*")
+                                lines.append(
+                                    "  - 🟡 *Medium confidence - review edge cases*"
+                                )
                             else:
-                                lines.append("  - 🔴 *Low confidence - may need threshold tuning*")
+                                lines.append(
+                                    "  - 🔴 *Low confidence - may need threshold tuning*"
+                                )
 
                             # Add explanation about Events vs Cycles
-                            total_events = totals.get('events', 0)
+                            total_events = totals.get("events", 0)
                             lines.append("")
                             lines.append("📊 **Events vs Cycles Breakdown:**")
-                            lines.append(f"- **Total Events**: {total_events} individual Datadog events")
-                            lines.append(f"- **Alert Cycles**: {total_cycles} complete alert→recovery sequences")
+                            lines.append(
+                                f"- **Total Events**: {total_events} individual Datadog events"
+                            )
+                            lines.append(
+                                f"- **Alert Cycles**: {total_cycles} complete alert→recovery sequences"
+                            )
                             if total_events > total_cycles:
                                 events_per_cycle = total_events / max(total_cycles, 1)
-                                lines.append(f"- **Events per Cycle**: {events_per_cycle:.1f} average")
-                                lines.append("- *Note: Multiple events can form one cycle (alert start, recovery, notifications)*")
+                                lines.append(
+                                    f"- **Events per Cycle**: {events_per_cycle:.1f} average"
+                                )
+                                lines.append(
+                                    "- *Note: Multiple events can form one cycle (alert start, recovery, notifications)*"
+                                )
 
                             lines.append("")
                             lines.append("**📖 Classification Methodology:**")
                             lines.append("")
-                            lines.append("*Our system automatically analyzes alert cycles and classifies them based on behavior patterns:*")
+                            lines.append(
+                                "*Our system automatically analyzes alert cycles and classifies them based on behavior patterns:*"
+                            )
                             lines.append("")
-                            lines.append("- **🔄 FLAPPING**: Alerts that rapidly oscillate between states")
-                            lines.append("  - Detected when: ≥3 cycles within 60min OR ≥4 state transitions in one cycle")
-                            lines.append("  - Root cause: Usually threshold too sensitive or system instability")
-                            lines.append("  - Fix: Increase debounce window, add hysteresis, or adjust thresholds")
-                            lines.append("  - *Example*: CPU alert toggles OK→ALERT→OK every 2 minutes for 1 hour")
+                            lines.append(
+                                "- **🔄 FLAPPING**: Alerts that rapidly oscillate between states"
+                            )
+                            lines.append(
+                                "  - Detected when: ≥3 cycles within 60min OR ≥4 state transitions in one cycle"
+                            )
+                            lines.append(
+                                "  - Root cause: Usually threshold too sensitive or system instability"
+                            )
+                            lines.append(
+                                "  - Fix: Increase debounce window, add hysteresis, or adjust thresholds"
+                            )
+                            lines.append(
+                                "  - *Example*: CPU alert toggles OK→ALERT→OK every 2 minutes for 1 hour"
+                            )
                             lines.append("")
-                            lines.append("- **⚡ BENIGN_TRANSIENT**: Short-lived issues that resolve automatically")
-                            lines.append("  - Detected when: Duration ≤5min AND simple alert→recovery AND no manual action")
-                            lines.append("  - Root cause: Temporary upstream blips, brief network issues, transient load spikes")
-                            lines.append("  - Fix: Route to dashboard-only, increase alert duration threshold, or add context")
-                            lines.append("  - *Example*: 502 errors spike for 3 minutes during AWS deployment, then auto-recover")
+                            lines.append(
+                                "- **⚡ BENIGN_TRANSIENT**: Short-lived issues that resolve automatically"
+                            )
+                            lines.append(
+                                "  - Detected when: Duration ≤5min AND simple alert→recovery AND no manual action"
+                            )
+                            lines.append(
+                                "  - Root cause: Temporary upstream blips, brief network issues, transient load spikes"
+                            )
+                            lines.append(
+                                "  - Fix: Route to dashboard-only, increase alert duration threshold, or add context"
+                            )
+                            lines.append(
+                                "  - *Example*: 502 errors spike for 3 minutes during AWS deployment, then auto-recover"
+                            )
                             lines.append("")
-                            lines.append("- **🎯 ACTIONABLE**: Legitimate alerts requiring human attention")
-                            lines.append("  - Detected when: Duration ≥10min OR evidence of manual intervention OR complex patterns")
-                            lines.append("  - Root cause: Real system issues, performance problems, or service outages")
-                            lines.append("  - Action: Keep as-is, optimize response procedures, improve runbooks")
-                            lines.append("  - *Example*: Database connection pool exhausted for 45 minutes until DBA increases pool size")
+                            lines.append(
+                                "- **🎯 ACTIONABLE**: Legitimate alerts requiring human attention"
+                            )
+                            lines.append(
+                                "  - Detected when: Duration ≥10min OR evidence of manual intervention OR complex patterns"
+                            )
+                            lines.append(
+                                "  - Root cause: Real system issues, performance problems, or service outages"
+                            )
+                            lines.append(
+                                "  - Action: Keep as-is, optimize response procedures, improve runbooks"
+                            )
+                            lines.append(
+                                "  - *Example*: Database connection pool exhausted for 45 minutes until DBA increases pool size"
+                            )
                             lines.append("")
-                            lines.append("*Classification uses Brazilian business hours (9 AM - 5 PM BRT/BRST) for context and considers alert correlation patterns.*")
+                            lines.append(
+                                "*Classification uses Brazilian business hours (9 AM - 5 PM BRT/BRST) for context and considers alert correlation patterns.*"
+                            )
 
                     lines.append("")
 
@@ -1061,31 +981,52 @@ class EventsCommand(BaseCommand):
                 if isinstance(candidates_list, list) and candidates_list:
                     lines.append("#### Top Removal Candidates")
                     lines.append("")
-                    lines.append("**Monitors identified as potential candidates for removal or silencing based on data analysis:**")
+                    lines.append(
+                        "**Monitors identified as potential candidates for removal or silencing based on data analysis:**"
+                    )
                     lines.append("")
-                    lines.append("- **Confidence Score**: How certain we are about the recommendation (0.0-1.0)")
-                    lines.append("- **Noise Score**: Composite score indicating alert noisiness (higher = noisier)")
-                    lines.append("- **Reasons**: Data-driven factors supporting the recommendation")
+                    lines.append(
+                        "- **Confidence Score**: How certain we are about the recommendation (0.0-1.0)"
+                    )
+                    lines.append(
+                        "- **Noise Score**: Composite score indicating alert noisiness (higher = noisier)"
+                    )
+                    lines.append(
+                        "- **Reasons**: Data-driven factors supporting the recommendation"
+                    )
                     lines.append("")
                     lines.append("| Monitor | Confidence | Noise Score | Reasons |")
                     lines.append("|---------|------------|-------------|---------|")
                     for candidate in candidates_list[:5]:
                         if isinstance(candidate, dict):
-                            monitor_name = candidate.get("monitor_name") or candidate.get("monitor_id", "Unknown")
+                            monitor_name = candidate.get(
+                                "monitor_name"
+                            ) or candidate.get("monitor_id", "Unknown")
                             monitor_id = candidate.get("monitor_id")
                             confidence = candidate.get("confidence_score", 0)
                             noise_score = candidate.get("noise_score", 0)
                             reasons = candidate.get("reasons", [])
-                            reason_text = "; ".join(reasons) if isinstance(reasons, list) else ""
+                            reason_text = (
+                                "; ".join(reasons) if isinstance(reasons, list) else ""
+                            )
 
                             # Create monitor link with deletion check
-                            monitor_display = EventsCommand._create_monitor_link(monitor_name, monitor_id, 25, deleted_monitors=deleted_monitors)
+                            monitor_display = EventsCommand._create_monitor_link(
+                                monitor_name,
+                                monitor_id,
+                                25,
+                                deleted_monitors=deleted_monitors,
+                            )
 
                             # Also clean reason text
                             clean_reason_text = reason_text.replace("|", "│")
-                            lines.append(f"| {monitor_display} | {confidence:.2f} | {noise_score:.1f} | {clean_reason_text} |")
+                            lines.append(
+                                f"| {monitor_display} | {confidence:.2f} | {noise_score:.1f} | {clean_reason_text} |"
+                            )
                     lines.append("")
-                    lines.append("💡 **Tip**: Start with monitors having confidence > 0.85 for safe removal candidates.")
+                    lines.append(
+                        "💡 **Tip**: Start with monitors having confidence > 0.85 for safe removal candidates."
+                    )
                     lines.append("")
 
             # Temporal Metrics
@@ -1098,25 +1039,41 @@ class EventsCommand(BaseCommand):
                 if any(x is not None for x in [ttr, alert_dur, mtbf]):
                     lines.append("#### Temporal Metrics")
                     lines.append("")
-                    lines.append("**Time-based analysis reveals patterns in alert lifecycle and system stability:**")
+                    lines.append(
+                        "**Time-based analysis reveals patterns in alert lifecycle and system stability:**"
+                    )
                     lines.append("")
                     if ttr is not None:
-                        lines.append(f"- **Average Time to Resolution**: {ttr:.1f} minutes")
-                        lines.append("  - *How long it takes from first alert to final recovery*")
+                        lines.append(
+                            f"- **Average Time to Resolution**: {ttr:.1f} minutes"
+                        )
+                        lines.append(
+                            "  - *How long it takes from first alert to final recovery*"
+                        )
                     if alert_dur is not None:
-                        lines.append(f"- **Average Alert Duration**: {alert_dur:.1f} minutes")
+                        lines.append(
+                            f"- **Average Alert Duration**: {alert_dur:.1f} minutes"
+                        )
                         lines.append("  - *Time spent in critical alert state*")
                     if mtbf is not None:
-                        lines.append(f"- **Mean Time Between Failures**: {mtbf:.1f} hours")
-                        lines.append("  - *Average time between separate alert cycles (higher is better)*")
+                        lines.append(
+                            f"- **Mean Time Between Failures**: {mtbf:.1f} hours"
+                        )
+                        lines.append(
+                            "  - *Average time between separate alert cycles (higher is better)*"
+                        )
                     lines.append("")
 
                     # Add interpretation guidance
                     if ttr is not None:
                         if ttr < 5:
-                            lines.append("🟢 **Quick resolution times** suggest either effective response or potentially noisy alerts")
+                            lines.append(
+                                "🟢 **Quick resolution times** suggest either effective response or potentially noisy alerts"
+                            )
                         elif ttr > 60:
-                            lines.append("🟡 **Long resolution times** may indicate complex issues or delayed responses")
+                            lines.append(
+                                "🟡 **Long resolution times** may indicate complex issues or delayed responses"
+                            )
 
                     # Add trend analysis if available
                     trends = advanced_analysis.get("trends")
@@ -1126,7 +1083,9 @@ class EventsCommand(BaseCommand):
                             analysis_week = trend_summary.get("analysis_week")
                             weeks_available = trend_summary.get("weeks_available", 0)
 
-                            if weeks_available >= 3:  # Only show if we have sufficient data
+                            if (
+                                weeks_available >= 3
+                            ):  # Only show if we have sufficient data
                                 lines.append("")
                                 lines.append("**📈 Week-over-Week Trends:**")
 
@@ -1136,20 +1095,34 @@ class EventsCommand(BaseCommand):
                                 total_trend_monitors = improving + degrading + stable
 
                                 if total_trend_monitors > 0:
-                                    lines.append(f"- 🟢 **Improving**: {improving} monitors ({improving/total_trend_monitors*100:.1f}%)")
-                                    lines.append(f"- 🔴 **Degrading**: {degrading} monitors ({degrading/total_trend_monitors*100:.1f}%)")
-                                    lines.append(f"- ⚪ **Stable**: {stable} monitors ({stable/total_trend_monitors*100:.1f}%)")
-                                    lines.append(f"- 📊 **Analysis Period**: Week {analysis_week} ({weeks_available} weeks of data)")
+                                    lines.append(
+                                        f"- 🟢 **Improving**: {improving} monitors ({improving / total_trend_monitors * 100:.1f}%)"
+                                    )
+                                    lines.append(
+                                        f"- 🔴 **Degrading**: {degrading} monitors ({degrading / total_trend_monitors * 100:.1f}%)"
+                                    )
+                                    lines.append(
+                                        f"- ⚪ **Stable**: {stable} monitors ({stable / total_trend_monitors * 100:.1f}%)"
+                                    )
+                                    lines.append(
+                                        f"- 📊 **Analysis Period**: Week {analysis_week} ({weeks_available} weeks of data)"
+                                    )
 
                                 # Add significant changes
-                                significant_changes = trend_summary.get("significant_changes", [])
-                                if significant_changes and isinstance(significant_changes, list):
+                                significant_changes = trend_summary.get(
+                                    "significant_changes", []
+                                )
+                                if significant_changes and isinstance(
+                                    significant_changes, list
+                                ):
                                     lines.append("- **Notable Changes This Week:**")
                                     for change in significant_changes[:3]:  # Top 3
                                         lines.append(f"  - {change}")
                             elif weeks_available > 0:
                                 lines.append("")
-                                lines.append(f"📊 **Trend Analysis**: Building historical data ({weeks_available} weeks collected, need 3+ for reliable trends)")
+                                lines.append(
+                                    f"📊 **Trend Analysis**: Building historical data ({weeks_available} weeks collected, need 3+ for reliable trends)"
+                                )
 
                     lines.append("")
 
@@ -1158,7 +1131,9 @@ class EventsCommand(BaseCommand):
             if isinstance(detailed_stats, dict) and detailed_stats:
                 lines.append("#### Detailed Monitor Analysis")
                 lines.append("")
-                lines.append("**Comprehensive per-monitor statistics with health scoring and business impact analysis:**")
+                lines.append(
+                    "**Comprehensive per-monitor statistics with health scoring and business impact analysis:**"
+                )
                 lines.append("")
 
                 # Overall insights
@@ -1166,27 +1141,43 @@ class EventsCommand(BaseCommand):
                 if isinstance(overall_insights, dict):
                     total_monitors = overall_insights.get("total_monitors_analyzed", 0)
                     avg_health = overall_insights.get("average_health_score")
-                    needing_attention = overall_insights.get("monitors_needing_attention", 0)
+                    needing_attention = overall_insights.get(
+                        "monitors_needing_attention", 0
+                    )
 
                     if total_monitors > 0:
                         lines.append("##### Monitor Health Overview")
                         lines.append("")
                         lines.append(f"- **Total Monitors Analyzed**: {total_monitors}")
                         if avg_health is not None:
-                            lines.append(f"- **Average Health Score**: {avg_health:.1f}/100")
+                            lines.append(
+                                f"- **Average Health Score**: {avg_health:.1f}/100"
+                            )
 
                             # Health score interpretation
                             if avg_health >= 80:
-                                lines.append("  - 🟢 *Excellent overall health - most monitors are performing well*")
+                                lines.append(
+                                    "  - 🟢 *Excellent overall health - most monitors are performing well*"
+                                )
                             elif avg_health >= 60:
-                                lines.append("  - 🟡 *Good health with room for improvement*")
+                                lines.append(
+                                    "  - 🟡 *Good health with room for improvement*"
+                                )
                             else:
-                                lines.append("  - 🔴 *Poor health - many monitors need attention*")
+                                lines.append(
+                                    "  - 🔴 *Poor health - many monitors need attention*"
+                                )
 
-                        lines.append(f"- **Monitors Needing Attention**: {needing_attention}")
+                        lines.append(
+                            f"- **Monitors Needing Attention**: {needing_attention}"
+                        )
                         if needing_attention > 0:
-                            percentage_needing_attention = (needing_attention / total_monitors) * 100
-                            lines.append(f"  - *{percentage_needing_attention:.1f}% of monitors have health scores below 60*")
+                            percentage_needing_attention = (
+                                needing_attention / total_monitors
+                            ) * 100
+                            lines.append(
+                                f"  - *{percentage_needing_attention:.1f}% of monitors have health scores below 60*"
+                            )
 
                         # Grade distribution is shown in the detailed analysis section below
                         lines.append("")
@@ -1202,18 +1193,29 @@ class EventsCommand(BaseCommand):
                     if high_priority and isinstance(high_priority, list):
                         lines.append("**🔴 High-Priority Removal Candidates:**")
                         lines.append("")
-                        lines.append("*These monitors show strong indicators for removal based on poor health scores and high event volume:*")
+                        lines.append(
+                            "*These monitors show strong indicators for removal based on poor health scores and high event volume:*"
+                        )
                         lines.append("")
                         for removal in high_priority[:3]:  # Top 3
                             if isinstance(removal, dict):
-                                monitor_name = removal.get("monitor_name") or removal.get("monitor_id", "Unknown")
+                                monitor_name = removal.get(
+                                    "monitor_name"
+                                ) or removal.get("monitor_id", "Unknown")
                                 monitor_id = removal.get("monitor_id")
-                                monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, deleted_monitors=deleted_monitors)
+                                monitor_link = EventsCommand._create_monitor_link(
+                                    monitor_name,
+                                    monitor_id,
+                                    50,
+                                    deleted_monitors=deleted_monitors,
+                                )
                                 health_score = removal.get("health_score", 0)
                                 total_events = removal.get("total_events", 0)
                                 reason = removal.get("reason", "")
                                 lines.append(f"- **{monitor_link}**")
-                                lines.append(f"  - Health Score: {health_score:.1f}/100")
+                                lines.append(
+                                    f"  - Health Score: {health_score:.1f}/100"
+                                )
                                 lines.append(f"  - Total Events: {total_events}")
                                 lines.append(f"  - Reason: *{reason}*")
                         lines.append("")
@@ -1223,17 +1225,32 @@ class EventsCommand(BaseCommand):
                     if automation and isinstance(automation, list):
                         lines.append("**🤖 Automation Opportunities:**")
                         lines.append("")
-                        lines.append("*Monitors with high rates of quick recovery - consider automating the resolution:*")
+                        lines.append(
+                            "*Monitors with high rates of quick recovery - consider automating the resolution:*"
+                        )
                         lines.append("")
                         for auto_candidate in automation[:3]:  # Top 3
                             if isinstance(auto_candidate, dict):
-                                monitor_name = auto_candidate.get("monitor_name") or auto_candidate.get("monitor_id", "Unknown")
+                                monitor_name = auto_candidate.get(
+                                    "monitor_name"
+                                ) or auto_candidate.get("monitor_id", "Unknown")
                                 monitor_id = auto_candidate.get("monitor_id")
-                                monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, deleted_monitors=deleted_monitors)
-                                quick_rate = auto_candidate.get("quick_recovery_rate", 0)
+                                monitor_link = EventsCommand._create_monitor_link(
+                                    monitor_name,
+                                    monitor_id,
+                                    50,
+                                    deleted_monitors=deleted_monitors,
+                                )
+                                quick_rate = auto_candidate.get(
+                                    "quick_recovery_rate", 0
+                                )
                                 lines.append(f"- **{monitor_link}**")
-                                lines.append(f"  - Quick Recovery Rate: {quick_rate:.1%}")
-                                lines.append(f"  - Suggestion: *{auto_candidate.get('suggestion', '')}*")
+                                lines.append(
+                                    f"  - Quick Recovery Rate: {quick_rate:.1%}"
+                                )
+                                lines.append(
+                                    f"  - Suggestion: *{auto_candidate.get('suggestion', '')}*"
+                                )
                         lines.append("")
 
                     # Threshold adjustments
@@ -1241,36 +1258,64 @@ class EventsCommand(BaseCommand):
                     if threshold_adj and isinstance(threshold_adj, list):
                         lines.append("**⚙️ Threshold Adjustment Candidates:**")
                         lines.append("")
-                        lines.append("*Monitors that may benefit from threshold tuning to reduce noise:*")
+                        lines.append(
+                            "*Monitors that may benefit from threshold tuning to reduce noise:*"
+                        )
                         lines.append("")
                         for threshold in threshold_adj[:3]:  # Top 3
                             if isinstance(threshold, dict):
-                                monitor_name = threshold.get("monitor_name") or threshold.get("monitor_id", "Unknown")
+                                monitor_name = threshold.get(
+                                    "monitor_name"
+                                ) or threshold.get("monitor_id", "Unknown")
                                 monitor_id = threshold.get("monitor_id")
-                                monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, deleted_monitors=deleted_monitors)
+                                monitor_link = EventsCommand._create_monitor_link(
+                                    monitor_name,
+                                    monitor_id,
+                                    50,
+                                    deleted_monitors=deleted_monitors,
+                                )
                                 health_score = threshold.get("health_score", 0)
                                 cycles_week = threshold.get("cycles_per_week", 0)
                                 lines.append(f"- **{monitor_link}**")
-                                lines.append(f"  - Health Score: {health_score:.1f}/100")
-                                lines.append(f"  - Alert Cycles per Week: {cycles_week:.1f}")
-                                lines.append(f"  - Suggestion: *{threshold.get('suggestion', '')}*")
+                                lines.append(
+                                    f"  - Health Score: {health_score:.1f}/100"
+                                )
+                                lines.append(
+                                    f"  - Alert Cycles per Week: {cycles_week:.1f}"
+                                )
+                                lines.append(
+                                    f"  - Suggestion: *{threshold.get('suggestion', '')}*"
+                                )
                         lines.append("")
 
                     # Enhanced recommendations from classification
-                    enhanced_recommendations = advanced_analysis.get("recommendations", {})
+                    enhanced_recommendations = advanced_analysis.get(
+                        "recommendations", {}
+                    )
                     if isinstance(enhanced_recommendations, dict):
                         # Flapping mitigation recommendations
-                        threshold_adjustments = enhanced_recommendations.get("threshold_adjustments", [])
-                        if threshold_adjustments and isinstance(threshold_adjustments, list):
+                        threshold_adjustments = enhanced_recommendations.get(
+                            "threshold_adjustments", []
+                        )
+                        if threshold_adjustments and isinstance(
+                            threshold_adjustments, list
+                        ):
                             lines.append("**🔄 Flapping Alert Mitigation:**")
                             lines.append("")
-                            lines.append("*Monitors showing rapid state oscillations - implement threshold tuning:*")
+                            lines.append(
+                                "*Monitors showing rapid state oscillations - implement threshold tuning:*"
+                            )
                             lines.append("")
                             for rec in threshold_adjustments[:3]:  # Top 3
                                 if isinstance(rec, dict):
                                     monitor_name = rec.get("monitor_name", "Unknown")
                                     monitor_id = rec.get("monitor_id")
-                                    monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 40, deleted_monitors=deleted_monitors)
+                                    monitor_link = EventsCommand._create_monitor_link(
+                                        monitor_name,
+                                        monitor_id,
+                                        40,
+                                        deleted_monitors=deleted_monitors,
+                                    )
                                     action = rec.get("action", "")
                                     reason = rec.get("reason", "")
                                     lines.append(f"- **{monitor_link}**")
@@ -1279,23 +1324,36 @@ class EventsCommand(BaseCommand):
                                     details = rec.get("details", {})
                                     if isinstance(details, dict):
                                         if "suggested_debounce_seconds" in details:
-                                            lines.append(f"  - Suggested Debounce: {details['suggested_debounce_seconds']:.0f} seconds")
+                                            lines.append(
+                                                f"  - Suggested Debounce: {details['suggested_debounce_seconds']:.0f} seconds"
+                                            )
                                         if details.get("suggested_hysteresis"):
-                                            lines.append("  - Consider Hysteresis: Use separate up/down thresholds")
+                                            lines.append(
+                                                "  - Consider Hysteresis: Use separate up/down thresholds"
+                                            )
                             lines.append("")
 
                         # Benign transient policy recommendations
-                        benign_policies = enhanced_recommendations.get("benign_transient_policies", [])
+                        benign_policies = enhanced_recommendations.get(
+                            "benign_transient_policies", []
+                        )
                         if benign_policies and isinstance(benign_policies, list):
                             lines.append("**⚡ Benign Transient Policy Changes:**")
                             lines.append("")
-                            lines.append("*Monitors with high rates of self-resolving transients - consider routing changes:*")
+                            lines.append(
+                                "*Monitors with high rates of self-resolving transients - consider routing changes:*"
+                            )
                             lines.append("")
                             for rec in benign_policies[:3]:  # Top 3
                                 if isinstance(rec, dict):
                                     monitor_name = rec.get("monitor_name", "Unknown")
                                     monitor_id = rec.get("monitor_id")
-                                    monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 40, deleted_monitors=deleted_monitors)
+                                    monitor_link = EventsCommand._create_monitor_link(
+                                        monitor_name,
+                                        monitor_id,
+                                        40,
+                                        deleted_monitors=deleted_monitors,
+                                    )
                                     action = rec.get("action", "")
                                     reason = rec.get("reason", "")
                                     lines.append(f"- **{monitor_link}**")
@@ -1304,9 +1362,13 @@ class EventsCommand(BaseCommand):
                                     details = rec.get("details", {})
                                     if isinstance(details, dict):
                                         if details.get("consider_dashboard_only"):
-                                            lines.append("  - Notification Change: Route to dashboard instead of alerting")
+                                            lines.append(
+                                                "  - Notification Change: Route to dashboard instead of alerting"
+                                            )
                                         if "suggested_notification_level" in details:
-                                            lines.append(f"  - Severity Adjustment: Change to '{details['suggested_notification_level']}' level")
+                                            lines.append(
+                                                f"  - Severity Adjustment: Change to '{details['suggested_notification_level']}' level"
+                                            )
                             lines.append("")
 
                 # Individual Monitor Statistics
@@ -1314,25 +1376,41 @@ class EventsCommand(BaseCommand):
                 if isinstance(per_monitor, dict) and per_monitor:
                     lines.append("##### Individual Monitor Statistics")
                     lines.append("")
-                    lines.append("**Detailed breakdown of each monitor's performance metrics:**")
+                    lines.append(
+                        "**Detailed breakdown of each monitor's performance metrics:**"
+                    )
                     lines.append("")
 
                     # Create comprehensive table with full monitor details
-                    lines.append("| Monitor Name | Service | Monitor ID | Status | Grade | Health Score | Events | Events/Day | Cycles/Week | Self-Heal Rate | Noise Score | Confidence | TTR (min) | Median Cycle (min) | Business Hours % |")
-                    lines.append("|--------------|---------|------------|--------|-------|--------------|--------|------------|-------------|----------------|-------------|------------|-----------|-------------------|------------------|")
+                    lines.append(
+                        "| Monitor Name | Service | Monitor ID | Status | Grade | Health Score | Events | Events/Day | Cycles/Week | Self-Heal Rate | Noise Score | Confidence | TTR (min) | Median Cycle (min) | Business Hours % |"
+                    )
+                    lines.append(
+                        "|--------------|---------|------------|--------|-------|--------------|--------|------------|-------------|----------------|-------------|------------|-----------|-------------------|------------------|"
+                    )
 
                     # Sort monitors by health score (worst first for attention)
                     monitor_items = []
                     for monitor_id, stats in per_monitor.items():
                         if isinstance(stats, dict):
-                            health_score = stats.get("health_score", {}).get("score", 0) if isinstance(stats.get("health_score"), dict) else 0
+                            health_score = (
+                                stats.get("health_score", {}).get("score", 0)
+                                if isinstance(stats.get("health_score"), dict)
+                                else 0
+                            )
                             monitor_items.append((monitor_id, stats, health_score))
 
-                    monitor_items.sort(key=lambda x: x[2])  # Sort by health score ascending (worst first)
+                    monitor_items.sort(
+                        key=lambda x: x[2]
+                    )  # Sort by health score ascending (worst first)
 
                     for monitor_id, stats, health_score in monitor_items:
                         monitor_name = stats.get("monitor_name") or monitor_id
-                        health_dict = stats.get("health_score", {}) if isinstance(stats.get("health_score"), dict) else {}
+                        health_dict = (
+                            stats.get("health_score", {})
+                            if isinstance(stats.get("health_score"), dict)
+                            else {}
+                        )
                         grade = health_dict.get("grade", "N/A")
                         total_events = stats.get("total_events", 0)
                         events_per_day = stats.get("events_per_day", 0)
@@ -1346,18 +1424,26 @@ class EventsCommand(BaseCommand):
                         # Try to find this monitor in the quality metrics
                         if isinstance(alert_quality, dict):
                             quality_per_monitor = alert_quality.get("per_monitor", {})
-                            if isinstance(quality_per_monitor, dict) and monitor_id in quality_per_monitor:
+                            if (
+                                isinstance(quality_per_monitor, dict)
+                                and monitor_id in quality_per_monitor
+                            ):
                                 monitor_quality = quality_per_monitor[monitor_id]
                                 if isinstance(monitor_quality, dict):
                                     self_heal_rate = f"{monitor_quality.get('self_healing_rate', 0):.1%}"
-                                    noise_score = f"{monitor_quality.get('noise_score', 0):.1f}"
+                                    noise_score = (
+                                        f"{monitor_quality.get('noise_score', 0):.1f}"
+                                    )
 
                         # Check removal candidates for confidence
                         if isinstance(removal_candidates, dict):
                             candidates_list = removal_candidates.get("items", [])
                             if isinstance(candidates_list, list):
                                 for candidate in candidates_list:
-                                    if isinstance(candidate, dict) and candidate.get("monitor_id") == monitor_id:
+                                    if (
+                                        isinstance(candidate, dict)
+                                        and candidate.get("monitor_id") == monitor_id
+                                    ):
                                         confidence = f"{candidate.get('confidence_score', 0):.2f}"
                                         break
 
@@ -1366,7 +1452,9 @@ class EventsCommand(BaseCommand):
                         median_cycle = stats.get("median_cycle_duration_minutes")
 
                         ttr = f"{ttr_value:.1f}" if ttr_value is not None else "N/A"
-                        median_cycle_str = f"{median_cycle:.1f}" if median_cycle is not None else "N/A"
+                        median_cycle_str = (
+                            f"{median_cycle:.1f}" if median_cycle is not None else "N/A"
+                        )
 
                         business_hours_pct = stats.get("business_hours_percentage", 0)
 
@@ -1375,49 +1463,93 @@ class EventsCommand(BaseCommand):
                         if monitor_name and isinstance(monitor_name, str):
                             # Try to extract service from patterns like "[CORE SERVICES CATALOG] [TF] servicename-..."
                             import re
-                            service_match = re.search(r'\[TF\]\s*([a-zA-Z0-9\-_]+)', monitor_name)
+
+                            service_match = re.search(
+                                r"\[TF\]\s*([a-zA-Z0-9\-_]+)", monitor_name
+                            )
                             if service_match:
                                 service_name = service_match.group(1)
                             elif "api" in monitor_name.lower():
                                 # Fallback: try to extract service name containing 'api'
-                                api_match = re.search(r'([a-zA-Z0-9\-_]*api[a-zA-Z0-9\-_]*)', monitor_name.lower())
+                                api_match = re.search(
+                                    r"([a-zA-Z0-9\-_]*api[a-zA-Z0-9\-_]*)",
+                                    monitor_name.lower(),
+                                )
                                 if api_match:
                                     service_name = api_match.group(1)
 
                         # Create clickable link for monitor name with deletion check
                         is_deleted = stats.get("is_deleted", False)
-                        monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, is_deleted=is_deleted, deleted_monitors=deleted_monitors)
+                        monitor_link = EventsCommand._create_monitor_link(
+                            monitor_name,
+                            monitor_id,
+                            50,
+                            is_deleted=is_deleted,
+                            deleted_monitors=deleted_monitors,
+                        )
 
                         # Clean service name for markdown
-                        clean_service = EventsCommand._clean_monitor_name_for_markdown(service_name, 20)
+                        clean_service = EventsCommand._clean_monitor_name_for_markdown(
+                            service_name, 20
+                        )
 
                         # Set status based on deletion
                         status = "🗑️ DELETED" if is_deleted else "✅ Active"
 
-                        lines.append(f"| {monitor_link} | {clean_service} | `{monitor_id}` | {status} | {grade} | {health_score:.1f} | {total_events} | {events_per_day:.1f} | {cycles_per_week:.1f} | {self_heal_rate} | {noise_score} | {confidence} | {ttr} | {median_cycle_str} | {business_hours_pct:.1f}% |")
+                        lines.append(
+                            f"| {monitor_link} | {clean_service} | `{monitor_id}` | {status} | {grade} | {health_score:.1f} | {total_events} | {events_per_day:.1f} | {cycles_per_week:.1f} | {self_heal_rate} | {noise_score} | {confidence} | {ttr} | {median_cycle_str} | {business_hours_pct:.1f}% |"
+                        )
 
                     lines.append("")
 
                     # Add explanation of the table columns
                     lines.append("**Column Explanations:**")
                     lines.append("")
-                    lines.append("- **Monitor Name**: Full monitor name (clickable link to Datadog monitor page)")
-                    lines.append("- **Service**: Extracted service name from monitor configuration")
+                    lines.append(
+                        "- **Monitor Name**: Full monitor name (clickable link to Datadog monitor page)"
+                    )
+                    lines.append(
+                        "- **Service**: Extracted service name from monitor configuration"
+                    )
                     lines.append("- **Monitor ID**: Unique Datadog monitor identifier")
-                    lines.append("- **Status**: Monitor status (✅ Active = exists in Datadog, 🗑️ DELETED = no longer exists)")
-                    lines.append("- **Grade**: Overall business value grade (A=Excellent, B=Good, C=Fair, D=Poor, F=Critical)")
-                    lines.append("- **Health Score**: Composite business value score 0-100 (higher is better)")
-                    lines.append("- **Events**: Total number of alert events in the analysis period")
+                    lines.append(
+                        "- **Status**: Monitor status (✅ Active = exists in Datadog, 🗑️ DELETED = no longer exists)"
+                    )
+                    lines.append(
+                        "- **Grade**: Overall business value grade (A=Excellent, B=Good, C=Fair, D=Poor, F=Critical)"
+                    )
+                    lines.append(
+                        "- **Health Score**: Composite business value score 0-100 (higher is better)"
+                    )
+                    lines.append(
+                        "- **Events**: Total number of alert events in the analysis period"
+                    )
                     lines.append("- **Events/Day**: Average daily event volume")
-                    lines.append("- **Cycles/Week**: Alert cycles per week (complete alert → recovery cycles)")
-                    lines.append("- **Self-Heal Rate**: Percentage of alerts that resolve automatically")
-                    lines.append("- **Noise Score**: Noisiness indicator 0-100 (higher = noisier)")
-                    lines.append("- **Confidence**: Removal recommendation confidence score (if applicable)")
-                    lines.append("- **TTR**: Individual monitor's Average Time To Resolution in minutes")
-                    lines.append("- **Median Cycle**: Median duration of alert cycles for this monitor")
-                    lines.append("- **Business Hours %**: Percentage of events during Brazilian business hours (9 AM - 5 PM BRT/BRST)")
+                    lines.append(
+                        "- **Cycles/Week**: Alert cycles per week (complete alert → recovery cycles)"
+                    )
+                    lines.append(
+                        "- **Self-Heal Rate**: Percentage of alerts that resolve automatically"
+                    )
+                    lines.append(
+                        "- **Noise Score**: Noisiness indicator 0-100 (higher = noisier)"
+                    )
+                    lines.append(
+                        "- **Confidence**: Removal recommendation confidence score (if applicable)"
+                    )
+                    lines.append(
+                        "- **TTR**: Individual monitor's Average Time To Resolution in minutes"
+                    )
+                    lines.append(
+                        "- **Median Cycle**: Median duration of alert cycles for this monitor"
+                    )
+                    lines.append(
+                        "- **Business Hours %**: Percentage of events during Brazilian business hours (9 AM - 5 PM BRT/BRST)"
+                    )
                     lines.append("")
-                    lines.append("💡 **Tip**: Click on any monitor name to open it directly in Datadog for detailed configuration and history.")
+                    lines.append(
+                        "💡 **Tip**: Click on any monitor name to open it directly in Datadog for detailed configuration and history."
+                    )
                     lines.append("")
 
                     # Add insights section
@@ -1425,9 +1557,21 @@ class EventsCommand(BaseCommand):
                     lines.append("")
 
                     # Find monitors with different characteristics
-                    high_volume = [item for item in monitor_items if item[1].get("total_events", 0) > 50]
-                    low_grades = [item for item in monitor_items if item[1].get("health_score", {}).get("grade") in ["D", "F"]]
-                    high_business_impact = [item for item in monitor_items if item[1].get("business_hours_percentage", 0) > 80]
+                    high_volume = [
+                        item
+                        for item in monitor_items
+                        if item[1].get("total_events", 0) > 50
+                    ]
+                    low_grades = [
+                        item
+                        for item in monitor_items
+                        if item[1].get("health_score", {}).get("grade") in ["D", "F"]
+                    ]
+                    high_business_impact = [
+                        item
+                        for item in monitor_items
+                        if item[1].get("business_hours_percentage", 0) > 80
+                    ]
 
                     # Grade distribution analysis
                     grade_counts = {}
@@ -1439,84 +1583,192 @@ class EventsCommand(BaseCommand):
                     total_monitors = len(monitor_items)
                     for grade in ["A", "B", "C", "D", "F"]:
                         count = grade_counts.get(grade, 0)
-                        percentage = (count / total_monitors) * 100 if total_monitors > 0 else 0
+                        percentage = (
+                            (count / total_monitors) * 100 if total_monitors > 0 else 0
+                        )
                         if count > 0:
-                            lines.append(f"- **Grade {grade}**: {count} monitors ({percentage:.1f}%)")
+                            lines.append(
+                                f"- **Grade {grade}**: {count} monitors ({percentage:.1f}%)"
+                            )
                     lines.append("")
 
                     # Volume analysis
                     if high_volume:
-                        lines.append(f"**📊 High-Volume Monitors**: {len(high_volume)} monitors generate >50 events each")
-                        top_volume = max(high_volume, key=lambda x: x[1].get("total_events", 0))
-                        monitor_name = top_volume[1].get("monitor_name") or top_volume[0]
-                        monitor_id = top_volume[0] if top_volume[0] != monitor_name else None
-                        monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, deleted_monitors=deleted_monitors)
+                        lines.append(
+                            f"**📊 High-Volume Monitors**: {len(high_volume)} monitors generate >50 events each"
+                        )
+                        top_volume = max(
+                            high_volume, key=lambda x: x[1].get("total_events", 0)
+                        )
+                        monitor_name = (
+                            top_volume[1].get("monitor_name") or top_volume[0]
+                        )
+                        monitor_id = (
+                            top_volume[0] if top_volume[0] != monitor_name else None
+                        )
+                        monitor_link = EventsCommand._create_monitor_link(
+                            monitor_name,
+                            monitor_id,
+                            50,
+                            deleted_monitors=deleted_monitors,
+                        )
                         event_count = top_volume[1].get("total_events", 0)
                         events_per_day = top_volume[1].get("events_per_day", 0)
-                        lines.append(f"- *Highest Volume*: **{monitor_link}** with {event_count} events ({events_per_day:.1f}/day)")
+                        lines.append(
+                            f"- *Highest Volume*: **{monitor_link}** with {event_count} events ({events_per_day:.1f}/day)"
+                        )
 
                         # Calculate total events from high volume monitors
-                        total_high_volume_events = sum(item[1].get("total_events", 0) for item in high_volume)
-                        total_all_events = sum(item[1].get("total_events", 0) for item in monitor_items)
-                        high_volume_percentage = (total_high_volume_events / max(total_all_events, 1)) * 100
-                        lines.append(f"- These {len(high_volume)} monitors account for {high_volume_percentage:.1f}% of all events")
+                        total_high_volume_events = sum(
+                            item[1].get("total_events", 0) for item in high_volume
+                        )
+                        total_all_events = sum(
+                            item[1].get("total_events", 0) for item in monitor_items
+                        )
+                        high_volume_percentage = (
+                            total_high_volume_events / max(total_all_events, 1)
+                        ) * 100
+                        lines.append(
+                            f"- These {len(high_volume)} monitors account for {high_volume_percentage:.1f}% of all events"
+                        )
                         lines.append("")
 
                     # Poor health analysis
                     if low_grades:
-                        lines.append(f"**🔴 Poor Health Monitors**: {len(low_grades)} monitors have grades D or F")
+                        lines.append(
+                            f"**🔴 Poor Health Monitors**: {len(low_grades)} monitors have grades D or F"
+                        )
                         worst = low_grades[0]  # Already sorted by health score
                         monitor_name = worst[1].get("monitor_name") or worst[0]
                         monitor_id = worst[0] if worst[0] != monitor_name else None
-                        monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 50, deleted_monitors=deleted_monitors)
+                        monitor_link = EventsCommand._create_monitor_link(
+                            monitor_name,
+                            monitor_id,
+                            50,
+                            deleted_monitors=deleted_monitors,
+                        )
                         health_score = worst[2]
-                        lines.append(f"- *Worst Health*: **{monitor_link}** with health score {health_score:.1f}/100")
+                        lines.append(
+                            f"- *Worst Health*: **{monitor_link}** with health score {health_score:.1f}/100"
+                        )
 
                         # Show total events from poor health monitors
-                        poor_health_events = sum(item[1].get("total_events", 0) for item in low_grades)
-                        total_all_events = sum(item[1].get("total_events", 0) for item in monitor_items)
-                        poor_health_percentage = (poor_health_events / max(total_all_events, 1)) * 100
-                        lines.append(f"- Poor health monitors generate {poor_health_percentage:.1f}% of all events")
+                        poor_health_events = sum(
+                            item[1].get("total_events", 0) for item in low_grades
+                        )
+                        total_all_events = sum(
+                            item[1].get("total_events", 0) for item in monitor_items
+                        )
+                        poor_health_percentage = (
+                            poor_health_events / max(total_all_events, 1)
+                        ) * 100
+                        lines.append(
+                            f"- Poor health monitors generate {poor_health_percentage:.1f}% of all events"
+                        )
                         lines.append("")
 
                     # Business impact analysis
                     if high_business_impact:
-                        lines.append(f"**⏰ Business-Critical Timing**: {len(high_business_impact)} monitors alert primarily during Brazilian business hours (>80%)")
-                        lines.append("- These require immediate attention when they fire during working hours")
+                        lines.append(
+                            f"**⏰ Business-Critical Timing**: {len(high_business_impact)} monitors alert primarily during Brazilian business hours (>80%)"
+                        )
+                        lines.append(
+                            "- These require immediate attention when they fire during working hours"
+                        )
 
                         # Find the most business-critical
-                        most_critical = max(high_business_impact, key=lambda x: x[1].get("business_hours_percentage", 0))
-                        critical_name = most_critical[1].get("monitor_name") or most_critical[0]
-                        monitor_id = most_critical[0] if most_critical[0] != critical_name else None
-                        critical_link = EventsCommand._create_monitor_link(critical_name, monitor_id, 50, deleted_monitors=deleted_monitors)
-                        critical_pct = most_critical[1].get("business_hours_percentage", 0)
-                        lines.append(f"- *Most Business-Critical*: **{critical_link}** ({critical_pct:.1f}% business hours)")
+                        most_critical = max(
+                            high_business_impact,
+                            key=lambda x: x[1].get("business_hours_percentage", 0),
+                        )
+                        critical_name = (
+                            most_critical[1].get("monitor_name") or most_critical[0]
+                        )
+                        monitor_id = (
+                            most_critical[0]
+                            if most_critical[0] != critical_name
+                            else None
+                        )
+                        critical_link = EventsCommand._create_monitor_link(
+                            critical_name,
+                            monitor_id,
+                            50,
+                            deleted_monitors=deleted_monitors,
+                        )
+                        critical_pct = most_critical[1].get(
+                            "business_hours_percentage", 0
+                        )
+                        lines.append(
+                            f"- *Most Business-Critical*: **{critical_link}** ({critical_pct:.1f}% business hours)"
+                        )
                         lines.append("")
 
                     # TTR Analysis
-                    monitors_with_ttr = [(item[0], item[1]) for item in monitor_items
-                                       if item[1].get("avg_time_to_resolution_minutes") is not None]
+                    monitors_with_ttr = [
+                        (item[0], item[1])
+                        for item in monitor_items
+                        if item[1].get("avg_time_to_resolution_minutes") is not None
+                    ]
 
                     if monitors_with_ttr:
-                        ttrs = [stats.get("avg_time_to_resolution_minutes") for _, stats in monitors_with_ttr]
-                        fastest_ttr = min(monitors_with_ttr, key=lambda x: x[1].get("avg_time_to_resolution_minutes", float('inf')))
-                        slowest_ttr = max(monitors_with_ttr, key=lambda x: x[1].get("avg_time_to_resolution_minutes", 0))
+                        ttrs = [
+                            stats.get("avg_time_to_resolution_minutes")
+                            for _, stats in monitors_with_ttr
+                        ]
+                        fastest_ttr = min(
+                            monitors_with_ttr,
+                            key=lambda x: x[1].get(
+                                "avg_time_to_resolution_minutes", float("inf")
+                            ),
+                        )
+                        slowest_ttr = max(
+                            monitors_with_ttr,
+                            key=lambda x: x[1].get("avg_time_to_resolution_minutes", 0),
+                        )
 
                         lines.append("**⏱️ Resolution Time Analysis:**")
                         avg_ttr = sum(ttrs) / len(ttrs)
-                        lines.append(f"- *Average TTR across all monitors*: {avg_ttr:.1f} minutes")
+                        lines.append(
+                            f"- *Average TTR across all monitors*: {avg_ttr:.1f} minutes"
+                        )
 
-                        fastest_name = fastest_ttr[1].get("monitor_name") or fastest_ttr[0]
-                        fastest_id = fastest_ttr[0] if fastest_ttr[0] != fastest_name else None
-                        fastest_link = EventsCommand._create_monitor_link(fastest_name, fastest_id, 50, deleted_monitors=deleted_monitors)
-                        fastest_time = fastest_ttr[1].get("avg_time_to_resolution_minutes", 0)
-                        lines.append(f"- *Fastest Resolution*: **{fastest_link}** ({fastest_time:.1f} min)")
+                        fastest_name = (
+                            fastest_ttr[1].get("monitor_name") or fastest_ttr[0]
+                        )
+                        fastest_id = (
+                            fastest_ttr[0] if fastest_ttr[0] != fastest_name else None
+                        )
+                        fastest_link = EventsCommand._create_monitor_link(
+                            fastest_name,
+                            fastest_id,
+                            50,
+                            deleted_monitors=deleted_monitors,
+                        )
+                        fastest_time = fastest_ttr[1].get(
+                            "avg_time_to_resolution_minutes", 0
+                        )
+                        lines.append(
+                            f"- *Fastest Resolution*: **{fastest_link}** ({fastest_time:.1f} min)"
+                        )
 
-                        slowest_name = slowest_ttr[1].get("monitor_name") or slowest_ttr[0]
-                        slowest_id = slowest_ttr[0] if slowest_ttr[0] != slowest_name else None
-                        slowest_link = EventsCommand._create_monitor_link(slowest_name, slowest_id, 50, deleted_monitors=deleted_monitors)
-                        slowest_time = slowest_ttr[1].get("avg_time_to_resolution_minutes", 0)
-                        lines.append(f"- *Slowest Resolution*: **{slowest_link}** ({slowest_time:.1f} min)")
+                        slowest_name = (
+                            slowest_ttr[1].get("monitor_name") or slowest_ttr[0]
+                        )
+                        slowest_id = (
+                            slowest_ttr[0] if slowest_ttr[0] != slowest_name else None
+                        )
+                        slowest_link = EventsCommand._create_monitor_link(
+                            slowest_name,
+                            slowest_id,
+                            50,
+                            deleted_monitors=deleted_monitors,
+                        )
+                        slowest_time = slowest_ttr[1].get(
+                            "avg_time_to_resolution_minutes", 0
+                        )
+                        lines.append(
+                            f"- *Slowest Resolution*: **{slowest_link}** ({slowest_time:.1f} min)"
+                        )
                         lines.append("")
 
                     # Self-healing analysis
@@ -1528,26 +1780,48 @@ class EventsCommand(BaseCommand):
                         # Get self-healing data from quality metrics
                         if isinstance(alert_quality, dict):
                             quality_per_monitor = alert_quality.get("per_monitor", {})
-                            if isinstance(quality_per_monitor, dict) and monitor_id in quality_per_monitor:
+                            if (
+                                isinstance(quality_per_monitor, dict)
+                                and monitor_id in quality_per_monitor
+                            ):
                                 monitor_quality = quality_per_monitor[monitor_id]
                                 if isinstance(monitor_quality, dict):
-                                    self_heal = monitor_quality.get('self_healing_rate', 0)
-                                    monitor_name = stats.get("monitor_name") or monitor_id
-                                    monitor_link = EventsCommand._create_monitor_link(monitor_name, monitor_id, 40, deleted_monitors=deleted_monitors)
+                                    self_heal = monitor_quality.get(
+                                        "self_healing_rate", 0
+                                    )
+                                    monitor_name = (
+                                        stats.get("monitor_name") or monitor_id
+                                    )
+                                    monitor_link = EventsCommand._create_monitor_link(
+                                        monitor_name,
+                                        monitor_id,
+                                        40,
+                                        deleted_monitors=deleted_monitors,
+                                    )
                                     if self_heal >= 0.8:
-                                        excellent_healers.append((monitor_link, self_heal))
+                                        excellent_healers.append(
+                                            (monitor_link, self_heal)
+                                        )
                                     elif self_heal <= 0.2:
                                         poor_healers.append((monitor_link, self_heal))
 
                     if excellent_healers:
-                        lines.append(f"- **Excellent Self-Healers** (≥80%): {len(excellent_healers)} monitors")
+                        lines.append(
+                            f"- **Excellent Self-Healers** (≥80%): {len(excellent_healers)} monitors"
+                        )
                         best_healer = max(excellent_healers, key=lambda x: x[1])
-                        lines.append(f"  - Best: *{best_healer[0]}* ({best_healer[1]:.1%} self-healing)")
+                        lines.append(
+                            f"  - Best: *{best_healer[0]}* ({best_healer[1]:.1%} self-healing)"
+                        )
 
                     if poor_healers:
-                        lines.append(f"- **Poor Self-Healers** (≤20%): {len(poor_healers)} monitors")
+                        lines.append(
+                            f"- **Poor Self-Healers** (≤20%): {len(poor_healers)} monitors"
+                        )
                         worst_healer = min(poor_healers, key=lambda x: x[1])
-                        lines.append(f"  - Worst: *{worst_healer[0]}* ({worst_healer[1]:.1%} self-healing)")
+                        lines.append(
+                            f"  - Worst: *{worst_healer[0]}* ({worst_healer[1]:.1%} self-healing)"
+                        )
 
                     lines.append("")
 
@@ -1556,22 +1830,46 @@ class EventsCommand(BaseCommand):
                 lines.append("")
                 lines.append("**Business Value Score Calculation (0-100):**")
                 lines.append("")
-                lines.append("*Our scoring prioritizes alerts that provide real business value over noisy, self-resolving alerts.*")
+                lines.append(
+                    "*Our scoring prioritizes alerts that provide real business value over noisy, self-resolving alerts.*"
+                )
                 lines.append("")
-                lines.append("- **Alert Relevance (35%)**: Does this alert represent a real problem?")
-                lines.append("  - *Penalizes alerts that resolve too quickly (< 5min) as likely noise*")
-                lines.append("  - *Rewards alerts that give time to investigate and act*")
-                lines.append("- **Response Necessity (30%)**: Does this alert require human action?")
-                lines.append("  - *High scores for alerts that consistently need intervention*")
-                lines.append("  - *Penalties for excessive self-healing (> 80% quick recovery)*")
-                lines.append("- **Business Impact (20%)**: Does this alert affect business operations?")
-                lines.append("  - *Factors in event volume and potential service impact*")
+                lines.append(
+                    "- **Alert Relevance (35%)**: Does this alert represent a real problem?"
+                )
+                lines.append(
+                    "  - *Penalizes alerts that resolve too quickly (< 5min) as likely noise*"
+                )
+                lines.append(
+                    "  - *Rewards alerts that give time to investigate and act*"
+                )
+                lines.append(
+                    "- **Response Necessity (30%)**: Does this alert require human action?"
+                )
+                lines.append(
+                    "  - *High scores for alerts that consistently need intervention*"
+                )
+                lines.append(
+                    "  - *Penalties for excessive self-healing (> 80% quick recovery)*"
+                )
+                lines.append(
+                    "- **Business Impact (20%)**: Does this alert affect business operations?"
+                )
+                lines.append(
+                    "  - *Factors in event volume and potential service impact*"
+                )
                 lines.append("  - *Higher scores for alerts from critical services*")
-                lines.append("- **Timing Quality (15%)**: Does this alert fire at the right time?")
-                lines.append("  - *Optimal duration: 5-60 minutes (time to investigate)*")
+                lines.append(
+                    "- **Timing Quality (15%)**: Does this alert fire at the right time?"
+                )
+                lines.append(
+                    "  - *Optimal duration: 5-60 minutes (time to investigate)*"
+                )
                 lines.append("  - *Penalties for incomplete alert cycles*")
                 lines.append("")
-                lines.append("**Key Insight**: *Self-healing is GOOD only when it gives teams time to act. Quick self-healing (< 5min) usually indicates noise.*")
+                lines.append(
+                    "**Key Insight**: *Self-healing is GOOD only when it gives teams time to act. Quick self-healing (< 5min) usually indicates noise.*"
+                )
                 lines.append("")
                 lines.append("**Business Impact Factors:**")
                 lines.append("- Business hours events (9 AM - 5 PM Brazilian time)")
@@ -1579,8 +1877,6 @@ class EventsCommand(BaseCommand):
                 lines.append("- High-priority event distribution")
                 lines.append("- Estimated manual response requirements")
                 lines.append("")
-
-
 
         # Add monitors analysis section if available (moved before Team Alerts)
         monitors_data = payload.get("monitors", {}) if isinstance(payload, dict) else {}
@@ -1611,7 +1907,11 @@ class EventsCommand(BaseCommand):
 
             # Process unused monitors
             for monitor in unused_monitors:
-                team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+                team_tags = [
+                    tag.split("team:", 1)[1]
+                    for tag in monitor.get("tags", [])
+                    if tag.startswith("team:")
+                ]
                 for team in team_tags:
                     if team not in monitors_by_team:
                         monitors_by_team[team] = {"active": [], "unused": []}
@@ -1620,7 +1920,11 @@ class EventsCommand(BaseCommand):
             # Process active monitors (if included)
             if active_monitors:
                 for monitor in active_monitors:
-                    team_tags = [tag.split("team:", 1)[1] for tag in monitor.get("tags", []) if tag.startswith("team:")]
+                    team_tags = [
+                        tag.split("team:", 1)[1]
+                        for tag in monitor.get("tags", [])
+                        if tag.startswith("team:")
+                    ]
                     for team in team_tags:
                         if team not in monitors_by_team:
                             monitors_by_team[team] = {"active": [], "unused": []}
@@ -1630,7 +1934,9 @@ class EventsCommand(BaseCommand):
             if unused_count > 0:
                 lines.append("#### 📵 Unused Monitors by Team")
                 lines.append("")
-                lines.append("*Monitors that haven't triggered events in the analysis period:*")
+                lines.append(
+                    "*Monitors that haven't triggered events in the analysis period:*"
+                )
                 lines.append("")
 
                 # Get DD_SITE for links
@@ -1641,13 +1947,23 @@ class EventsCommand(BaseCommand):
                     team_unused = len(team_data["unused"])
 
                     if team_unused > 0:
-                        lines.append(f"**Team: {team}** ({team_unused} unused monitors)")
+                        lines.append(
+                            f"**Team: {team}** ({team_unused} unused monitors)"
+                        )
                         lines.append("")
-                        lines.append("| Monitor | Type | Status | Last Triggered | Muted |")
-                        lines.append("|---------|------|--------|----------------|-------|")
+                        lines.append(
+                            "| Monitor | Type | Status | Last Triggered | Muted |"
+                        )
+                        lines.append(
+                            "|---------|------|--------|----------------|-------|"
+                        )
 
-                        for monitor in team_data["unused"][:20]:  # Show up to 20 per team
-                            name = EventsCommand._clean_monitor_name_for_markdown(monitor.get("name", "Unknown"), 40)
+                        for monitor in team_data["unused"][
+                            :20
+                        ]:  # Show up to 20 per team
+                            name = EventsCommand._clean_monitor_name_for_markdown(
+                                monitor.get("name", "Unknown"), 40
+                            )
                             monitor_id = monitor.get("id", "N/A")
                             monitor_url = f"https://app.{dd_site}/monitors/{monitor_id}"
 
@@ -1657,10 +1973,14 @@ class EventsCommand(BaseCommand):
                             status_icon = "🔇" if monitor.get("muted") else ""
                             muted_text = "Yes" if monitor.get("muted") else "No"
 
-                            lines.append(f"| [{name}]({monitor_url}) | {monitor.get('classification', 'N/A')} | {monitor.get('status', 'N/A')} {status_icon} | {days_text} | {muted_text} |")
+                            lines.append(
+                                f"| [{name}]({monitor_url}) | {monitor.get('classification', 'N/A')} | {monitor.get('status', 'N/A')} {status_icon} | {days_text} | {muted_text} |"
+                            )
 
                         if team_unused > 20:
-                            lines.append(f"| ... and {team_unused - 20} more monitors | | | | |")
+                            lines.append(
+                                f"| ... and {team_unused - 20} more monitors | | | | |"
+                            )
 
                         lines.append("")
 
@@ -1696,19 +2016,25 @@ class EventsCommand(BaseCommand):
 
             # Insights and recommendations
             if unused_count == 0:
-                lines.append("🎉 **Excellent!** All monitors have been active in the analysis period.")
+                lines.append(
+                    "🎉 **Excellent!** All monitors have been active in the analysis period."
+                )
             else:
-                lines.append(f"💡 **Recommendation**: Review the {unused_count} unused monitors for potential:")
+                lines.append(
+                    f"💡 **Recommendation**: Review the {unused_count} unused monitors for potential:"
+                )
                 lines.append("")
                 lines.append("- **Removal**: If no longer needed")
                 lines.append("- **Threshold adjustment**: If too sensitive")
                 lines.append("- **Scope revision**: If monitoring wrong metrics")
-                lines.append("- **Environment verification**: If environment tags are incorrect")
+                lines.append(
+                    "- **Environment verification**: If environment tags are incorrect"
+                )
 
             lines.append("")
 
         # Add Team Alerts section only if requested
-        if getattr(args, 'show_team_alerts', False):
+        if getattr(args, "show_team_alerts", False):
             lines.append("### Team Alerts")
             lines.append("")
             if not teams:
@@ -1730,10 +2056,14 @@ class EventsCommand(BaseCommand):
                     lines.append("")
                     events = data.get("events", [])
                     if not events:
-                        lines.append("No monitor alerts for this team within the selected window.")
+                        lines.append(
+                            "No monitor alerts for this team within the selected window."
+                        )
                         lines.append("")
                         continue
-                    lines.append("| Timestamp | Alert Type | Title | Monitor | Source |")
+                    lines.append(
+                        "| Timestamp | Alert Type | Title | Monitor | Source |"
+                    )
                     lines.append("|---|---|---|---|---|")
                     for event in events:
                         title = (event.get("title") or "").replace("|", "\\|")
@@ -1741,7 +2071,16 @@ class EventsCommand(BaseCommand):
                         monitor = event.get("monitor") or {}
                         monitor_name = monitor.get("name") or "Unknown"
                         monitor_id = monitor.get("id")
-                        monitor_label = EventsCommand._create_monitor_link(monitor_name, monitor_id, 30, deleted_monitors=deleted_monitors) if monitor_name != "Unknown" else "-"
+                        monitor_label = (
+                            EventsCommand._create_monitor_link(
+                                monitor_name,
+                                monitor_id,
+                                30,
+                                deleted_monitors=deleted_monitors,
+                            )
+                            if monitor_name != "Unknown"
+                            else "-"
+                        )
                         timestamp = event.get("timestamp") or "-"
                         source = event.get("source") or "-"
                         lines.append(
@@ -1758,27 +2097,51 @@ class EventsCommand(BaseCommand):
             lines.append("")
             lines.append("**About This Analysis:**")
             lines.append("")
-            lines.append("This report uses advanced data analysis to identify monitoring optimization opportunities:")
+            lines.append(
+                "This report uses advanced data analysis to identify monitoring optimization opportunities:"
+            )
             lines.append("")
-            lines.append("- **Alert Quality Metrics**: Composite scores based on self-healing rates, noise patterns, and operational efficiency")
-            lines.append("- **Removal Candidates**: Data-driven recommendations using machine learning-like scoring algorithms")
-            lines.append("- **Health Scores**: Multi-factor analysis considering business impact, temporal patterns, and response requirements")
-            lines.append("- **Actionability Analysis**: Prioritization based on confidence levels and potential noise reduction")
+            lines.append(
+                "- **Alert Quality Metrics**: Composite scores based on self-healing rates, noise patterns, and operational efficiency"
+            )
+            lines.append(
+                "- **Removal Candidates**: Data-driven recommendations using machine learning-like scoring algorithms"
+            )
+            lines.append(
+                "- **Health Scores**: Multi-factor analysis considering business impact, temporal patterns, and response requirements"
+            )
+            lines.append(
+                "- **Actionability Analysis**: Prioritization based on confidence levels and potential noise reduction"
+            )
             lines.append("")
             lines.append("**How to Use These Insights:**")
             lines.append("")
-            lines.append("1. 🔴 **Start with high-confidence removal candidates** (confidence > 0.85)")
-            lines.append("2. 🤖 **Consider automation** for monitors with >70% quick recovery rates")
-            lines.append("3. ⚙️ **Adjust thresholds** for monitors with poor health scores but high business value")
-            lines.append("4. 📊 **Monitor trends over time** by running this analysis regularly")
+            lines.append(
+                "1. 🔴 **Start with high-confidence removal candidates** (confidence > 0.85)"
+            )
+            lines.append(
+                "2. 🤖 **Consider automation** for monitors with >70% quick recovery rates"
+            )
+            lines.append(
+                "3. ⚙️ **Adjust thresholds** for monitors with poor health scores but high business value"
+            )
+            lines.append(
+                "4. 📊 **Monitor trends over time** by running this analysis regularly"
+            )
             lines.append("")
             lines.append("**Safety Guidelines:**")
             lines.append("")
-            lines.append("- Always review recommendations with domain experts before acting")
-            lines.append("- Test threshold adjustments in non-production environments first")
+            lines.append(
+                "- Always review recommendations with domain experts before acting"
+            )
+            lines.append(
+                "- Test threshold adjustments in non-production environments first"
+            )
             lines.append("- Keep backup configurations before making monitor changes")
             lines.append("- Monitor the impact of changes for at least one week")
             lines.append("")
-            lines.append("*Report generated by PyToolkit Advanced Datadog Events Analysis*")
+            lines.append(
+                "*Report generated by PyToolkit Advanced Datadog Events Analysis*"
+            )
 
         return "\n".join(lines)

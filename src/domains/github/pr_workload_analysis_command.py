@@ -95,10 +95,14 @@ class PrWorkloadAnalysisCommand(BaseCommand):
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         """Define command line arguments."""
-        parser.add_argument("--file", required=True, help="Path to JSON or CSV file containing PR data")
+        parser.add_argument(
+            "--file", required=True, help="Path to JSON or CSV file containing PR data"
+        )
 
         parser.add_argument(
-            "--output", default="output", help="Output directory for analysis results (default: output)"
+            "--output",
+            default="output",
+            help="Output directory for analysis results (default: output)",
         )
 
         parser.add_argument(
@@ -108,7 +112,9 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         )
 
         parser.add_argument(
-            "--generate-charts", action="store_true", help="Generate visualization charts for trends and correlations"
+            "--generate-charts",
+            action="store_true",
+            help="Generate visualization charts for trends and correlations",
         )
 
         parser.add_argument(
@@ -118,11 +124,15 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         )
 
         parser.add_argument(
-            "--min-records", type=int, default=10, help="Minimum number of records required for analysis (default: 10)"
+            "--min-records",
+            type=int,
+            default=10,
+            help="Minimum number of records required for analysis (default: 10)",
         )
 
         parser.add_argument(
-            "--start-date", help="Filter PRs created on or after this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
+            "--start-date",
+            help="Filter PRs created on or after this date (format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
         )
 
         parser.add_argument(
@@ -131,7 +141,10 @@ class PrWorkloadAnalysisCommand(BaseCommand):
         )
 
         parser.add_argument(
-            "--team-size", type=int, default=6, help="Number of engineers on the team who can review PRs (default: 6)"
+            "--team-size",
+            type=int,
+            default=6,
+            help="Number of engineers on the team who can review PRs (default: 6)",
         )
 
         # New flags for enhanced approver analysis compatibility
@@ -183,7 +196,9 @@ class PrWorkloadAnalysisCommand(BaseCommand):
             logger.info(f"Total PRs analyzed: {results.get('total_prs', 0)}")
             logger.info(f"External author PRs: {results.get('external_prs', 0)}")
             logger.info(f"Analysis period: {results.get('analysis_period', 'N/A')}")
-            logger.info(f"Output files generated: {len(results.get('output_files', []))}")
+            logger.info(
+                f"Output files generated: {len(results.get('output_files', []))}"
+            )
 
             # Print key insights
             if "key_insights" in results:

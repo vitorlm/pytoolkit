@@ -10,8 +10,9 @@ import requests
 from utils.cache_manager.cache_manager import CacheManager
 from utils.logging.logging_manager import LogManager
 
-from domains.syngenta.datadog.events_analyzer import DatadogEventsAnalyzer
-from domains.syngenta.datadog.enhanced_events_analyzer import EnhancedDatadogEventsAnalyzer
+from domains.syngenta.datadog.enhanced_events_analyzer import (
+    EnhancedDatadogEventsAnalyzer,
+)
 from domains.syngenta.datadog.config import load_config
 
 
@@ -66,7 +67,9 @@ class DatadogEventsService:
     # ---------------------------------------------------------------------
     # Public API
     # ---------------------------------------------------------------------
-    def fetch_events_for_teams(self, *, teams: List[str], env: str, days: int) -> Dict[str, Any]:
+    def fetch_events_for_teams(
+        self, *, teams: List[str], env: str, days: int
+    ) -> Dict[str, Any]:
         """
         Retrieve Datadog monitor alert events for the provided teams.
 
@@ -84,15 +87,21 @@ class DatadogEventsService:
         for team in teams:
             try:
                 raw_events = self._fetch_team_events(team=team, env=env, days=days)
-                parsed_events = self.parse_event_data(raw_events, default_team=team, default_env=env)
+                parsed_events = self.parse_event_data(
+                    raw_events, default_team=team, default_env=env
+                )
                 per_team[team] = {
                     "events": parsed_events,
                     "event_count": len(parsed_events),
-                    "last_event_timestamp": self._extract_latest_timestamp(parsed_events),
+                    "last_event_timestamp": self._extract_latest_timestamp(
+                        parsed_events
+                    ),
                 }
             except DatadogEventsAuthError:
                 raise
-            except DatadogEventsServiceError as exc:  # pragma: no cover - defensive path
+            except (
+                DatadogEventsServiceError
+            ) as exc:  # pragma: no cover - defensive path
                 self.logger.error("Failed to fetch events for team '%s': %s", team, exc)
                 errors[team] = str(exc)
                 per_team[team] = {
@@ -138,13 +147,17 @@ class DatadogEventsService:
         for event in events or []:
             attributes = event.get("attributes") or {}
             inner_attributes = attributes.get("attributes")
-            event_attributes = inner_attributes if isinstance(inner_attributes, dict) else {}
+            event_attributes = (
+                inner_attributes if isinstance(inner_attributes, dict) else {}
+            )
 
             tags = attributes.get("tags") or event_attributes.get("tags") or []
             tag_team = self._extract_team_from_tags(tags)
             tag_env = self._extract_env_from_tags(tags)
 
-            monitor_source = attributes.get("monitor") or event_attributes.get("monitor")
+            monitor_source = attributes.get("monitor") or event_attributes.get(
+                "monitor"
+            )
             monitor_payload = self._safe_monitor_payload(monitor_source)
             lifecycle = self._extract_lifecycle(attributes, monitor_payload)
 
@@ -155,12 +168,21 @@ class DatadogEventsService:
                     or attributes.get("text")
                     or event_attributes.get("title")
                     or "",
-                    "message": attributes.get("text") or event_attributes.get("message") or "",
-                    "timestamp": self._ensure_iso_timestamp(attributes.get("timestamp")),
-                    "timestamp_epoch": self._ensure_epoch_timestamp(attributes.get("timestamp")),
-                    "alert_type": attributes.get("alert_type") or event_attributes.get("alert_type"),
-                    "source": attributes.get("source") or event_attributes.get("source"),
-                    "status": attributes.get("status") or event_attributes.get("status"),
+                    "message": attributes.get("text")
+                    or event_attributes.get("message")
+                    or "",
+                    "timestamp": self._ensure_iso_timestamp(
+                        attributes.get("timestamp")
+                    ),
+                    "timestamp_epoch": self._ensure_epoch_timestamp(
+                        attributes.get("timestamp")
+                    ),
+                    "alert_type": attributes.get("alert_type")
+                    or event_attributes.get("alert_type"),
+                    "source": attributes.get("source")
+                    or event_attributes.get("source"),
+                    "status": attributes.get("status")
+                    or event_attributes.get("status"),
                     "url": attributes.get("url") or event_attributes.get("url"),
                     "monitor": monitor_payload,
                     "tags": tags,
@@ -172,7 +194,8 @@ class DatadogEventsService:
                     "duration_seconds": self._nanoseconds_to_seconds(
                         event_attributes.get("duration")
                     ),
-                    "priority": event_attributes.get("priority") or monitor_payload.get("priority"),
+                    "priority": event_attributes.get("priority")
+                    or monitor_payload.get("priority"),
                 }
             )
         return normalized
@@ -207,7 +230,9 @@ class DatadogEventsService:
             total_events += team_events
             if team_events > 0:
                 active_team_count += 1
-            if team_events > 0 and (most_active is None or team_events > most_active[1]):
+            if team_events > 0 and (
+                most_active is None or team_events > most_active[1]
+            ):
                 most_active = (team, team_events)
 
         period = self._compute_period(days=days)
@@ -239,7 +264,7 @@ class DatadogEventsService:
         analysis_period_days: int = 30,
         min_confidence: float = 0.8,
         include_detailed_stats: bool = False,
-        existing_monitors: List[Dict[str, Any]] = None
+        existing_monitors: List[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Generate advanced alert quality metrics and removal recommendations.
@@ -267,7 +292,9 @@ class DatadogEventsService:
             return self._empty_advanced_analysis()
 
         # Detect deleted monitors by comparing event monitors with existing monitors
-        deleted_monitors = self._detect_deleted_monitors(all_events, existing_monitors or [])
+        deleted_monitors = self._detect_deleted_monitors(
+            all_events, existing_monitors or []
+        )
 
         # Load configuration for enhanced analysis
         config = load_config()
@@ -277,7 +304,7 @@ class DatadogEventsService:
             events_data=all_events,
             analysis_period_days=analysis_period_days,
             deleted_monitors=deleted_monitors,
-            config=config
+            config=config,
         )
 
         # Generate comprehensive enhanced analysis
@@ -291,19 +318,25 @@ class DatadogEventsService:
 
         # Extract components for backward compatibility
         result = {
-            "alert_quality": comprehensive_report.get("enhanced_quality", comprehensive_report.get("base_quality", {})),
-            "removal_candidates": comprehensive_report.get("base_quality", {}).get("per_monitor", {}),
+            "alert_quality": comprehensive_report.get(
+                "enhanced_quality", comprehensive_report.get("base_quality", {})
+            ),
+            "removal_candidates": comprehensive_report.get("base_quality", {}).get(
+                "per_monitor", {}
+            ),
             "temporal_metrics": comprehensive_report.get("temporal_metrics", {}),
             "behavioral_patterns": comprehensive_report.get("base_quality", {}),
             "actionability_scores": comprehensive_report.get("base_quality", {}),
             "recommendations": comprehensive_report.get("recommendations", {}),
             "enhanced_analysis": comprehensive_report.get("enhanced_quality", {}),
-            "trends": comprehensive_report.get("trends")
+            "trends": comprehensive_report.get("trends"),
         }
 
         # Add detailed monitor statistics if requested
         if include_detailed_stats:
-            result["detailed_monitor_statistics"] = comprehensive_report.get("detailed_statistics", {})
+            result["detailed_monitor_statistics"] = comprehensive_report.get(
+                "detailed_statistics", {}
+            )
 
         return result
 
@@ -318,7 +351,7 @@ class DatadogEventsService:
                     "average_flapping_incidents": 0.0,
                     "actionable_alerts_percentage": 0.0,
                 },
-                "per_monitor": {}
+                "per_monitor": {},
             },
             "removal_candidates": {
                 "items": [],
@@ -335,7 +368,17 @@ class DatadogEventsService:
                 "samples": {"ttr_samples": 0, "cycle_samples": 0},
             },
             "behavioral_patterns": {
-                "overall": {name: 0 for name in ["healthy", "escalated", "direct_critical", "stuck_warning", "chronic", "unknown"]},
+                "overall": {
+                    name: 0
+                    for name in [
+                        "healthy",
+                        "escalated",
+                        "direct_critical",
+                        "stuck_warning",
+                        "chronic",
+                        "unknown",
+                    ]
+                },
                 "per_monitor": {},
                 "examples": {},
             },
@@ -350,9 +393,7 @@ class DatadogEventsService:
         }
 
     def _generate_recommendations(
-        self,
-        removal_candidates: Dict[str, Any],
-        alert_quality: Dict[str, Any]
+        self, removal_candidates: Dict[str, Any], alert_quality: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Generate actionable recommendations based on analysis results."""
         immediate_actions = []
@@ -362,14 +403,19 @@ class DatadogEventsService:
         candidates = removal_candidates.get("items", [])
         for candidate in candidates[:5]:  # Top 5 candidates
             if candidate.get("confidence_score", 0) >= 0.85:
-                immediate_actions.append({
-                    "action": "remove",
-                    "monitor_id": candidate.get("monitor_id"),
-                    "monitor_name": candidate.get("monitor_name"),
-                    "priority": "high" if candidate.get("confidence_score", 0) >= 0.9 else "medium",
-                    "estimated_noise_reduction": candidate.get("noise_score", 0) / 100.0,
-                    "reason": f"High confidence removal candidate ({candidate.get('confidence_score', 0):.2f})"
-                })
+                immediate_actions.append(
+                    {
+                        "action": "remove",
+                        "monitor_id": candidate.get("monitor_id"),
+                        "monitor_name": candidate.get("monitor_name"),
+                        "priority": "high"
+                        if candidate.get("confidence_score", 0) >= 0.9
+                        else "medium",
+                        "estimated_noise_reduction": candidate.get("noise_score", 0)
+                        / 100.0,
+                        "reason": f"High confidence removal candidate ({candidate.get('confidence_score', 0):.2f})",
+                    }
+                )
 
         # Generate threshold adjustment recommendations
         per_monitor = alert_quality.get("per_monitor", {})
@@ -378,13 +424,15 @@ class DatadogEventsService:
                 noise_score = metrics.get("noise_score", 0)
                 flapping = metrics.get("flapping", {})
                 if noise_score > 60 and flapping.get("flapping_incidents", 0) > 3:
-                    threshold_adjustments.append({
-                        "action": "adjust_thresholds",
-                        "monitor_id": monitor_id,
-                        "monitor_name": metrics.get("monitor_name"),
-                        "current_noise_score": noise_score,
-                        "reason": f"High noise with {flapping.get('flapping_incidents', 0)} flapping incidents"
-                    })
+                    threshold_adjustments.append(
+                        {
+                            "action": "adjust_thresholds",
+                            "monitor_id": monitor_id,
+                            "monitor_name": metrics.get("monitor_name"),
+                            "current_noise_score": noise_score,
+                            "reason": f"High noise with {flapping.get('flapping_incidents', 0)} flapping incidents",
+                        }
+                    )
 
         return {
             "immediate_actions": immediate_actions,
@@ -394,7 +442,9 @@ class DatadogEventsService:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _fetch_team_events(self, *, team: str, env: str, days: int) -> List[Dict[str, Any]]:
+    def _fetch_team_events(
+        self, *, team: str, env: str, days: int
+    ) -> List[Dict[str, Any]]:
         cache_key = self.cache.generate_cache_key(
             prefix="datadog_events",
             site=self.site,
@@ -403,12 +453,18 @@ class DatadogEventsService:
             days=days,
         )
         if self.use_cache:
-            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
+            cached = self.cache.load(
+                cache_key, expiration_minutes=self.cache_ttl_minutes
+            )
             if cached is not None:
-                self.logger.info(f"Using cached events for team '{team}' (cache hit): {len(cached)} events")
+                self.logger.info(
+                    f"Using cached events for team '{team}' (cache hit): {len(cached)} events"
+                )
                 return cached
 
-        self.logger.info(f"Fetching events from Datadog API for team '{team}' (last {days} days, env: {env})")
+        self.logger.info(
+            f"Fetching events from Datadog API for team '{team}' (last {days} days, env: {env})"
+        )
 
         events: List[Dict[str, Any]] = []
         cursor: Optional[str] = None
@@ -433,7 +489,10 @@ class DatadogEventsService:
             if cursor:
                 payload["page"]["cursor"] = cursor
 
-            self.logger.debug(f"Fetching events page {page_count} for team '{team}'" + (f" (cursor: {cursor[:20]}...)" if cursor else " (first page)"))
+            self.logger.debug(
+                f"Fetching events page {page_count} for team '{team}'"
+                + (f" (cursor: {cursor[:20]}...)" if cursor else " (first page)")
+            )
 
             try:
                 response = requests.post(
@@ -444,25 +503,35 @@ class DatadogEventsService:
                 )
                 response.raise_for_status()
             except requests.HTTPError as exc:
-                status_code = exc.response.status_code if exc.response is not None else None
+                status_code = (
+                    exc.response.status_code if exc.response is not None else None
+                )
                 if status_code in (401, 403):
                     raise DatadogEventsAuthError(
                         "Datadog authentication failed. Check DD_API_KEY/DD_APP_KEY permissions."
                     ) from exc
                 error_msg = self._extract_error_message(exc.response)
-                raise DatadogEventsServiceError(f"Datadog Events API returned HTTP {status_code}: {error_msg}") from exc
+                raise DatadogEventsServiceError(
+                    f"Datadog Events API returned HTTP {status_code}: {error_msg}"
+                ) from exc
             except requests.RequestException as exc:
-                raise DatadogEventsServiceError(f"Network error while contacting Datadog Events API: {exc}") from exc
+                raise DatadogEventsServiceError(
+                    f"Network error while contacting Datadog Events API: {exc}"
+                ) from exc
 
             data = response.json() if response.content else {}
             chunk = data.get("data") or []
             events.extend(chunk)
 
-            self.logger.debug(f"Events page {page_count} complete: got {len(chunk)} events (total so far: {len(events)})")
+            self.logger.debug(
+                f"Events page {page_count} complete: got {len(chunk)} events (total so far: {len(events)})"
+            )
 
             cursor = self._next_cursor(data)
             if not cursor:
-                self.logger.info(f"Events fetch complete for team '{team}': {len(events)} events fetched across {page_count} pages")
+                self.logger.info(
+                    f"Events fetch complete for team '{team}': {len(events)} events fetched across {page_count} pages"
+                )
                 break
 
         if self.use_cache:
@@ -523,7 +592,11 @@ class DatadogEventsService:
             return "; ".join(str(e) for e in errors)
         if isinstance(errors, dict):
             return str(errors)
-        return payload.get("error", "Unknown error") if isinstance(payload, dict) else "Unknown error"
+        return (
+            payload.get("error", "Unknown error")
+            if isinstance(payload, dict)
+            else "Unknown error"
+        )
 
     @staticmethod
     def _ensure_iso_timestamp(value: Any) -> Optional[str]:
@@ -543,10 +616,22 @@ class DatadogEventsService:
         if not isinstance(monitor, dict):
             return {}
 
-        transition = monitor.get("transition") if isinstance(monitor.get("transition"), dict) else {}
-        options = monitor.get("options") if isinstance(monitor.get("options"), dict) else {}
-        thresholds = options.get("thresholds") if isinstance(options.get("thresholds"), dict) else {}
-        result_payload = monitor.get("result") if isinstance(monitor.get("result"), dict) else {}
+        transition = (
+            monitor.get("transition")
+            if isinstance(monitor.get("transition"), dict)
+            else {}
+        )
+        options = (
+            monitor.get("options") if isinstance(monitor.get("options"), dict) else {}
+        )
+        thresholds = (
+            options.get("thresholds")
+            if isinstance(options.get("thresholds"), dict)
+            else {}
+        )
+        result_payload = (
+            monitor.get("result") if isinstance(monitor.get("result"), dict) else {}
+        )
 
         alert_cycle_key = (
             monitor.get("alert_cycle_key")
@@ -585,7 +670,9 @@ class DatadogEventsService:
         }
 
     @staticmethod
-    def _extract_lifecycle(attributes: Dict[str, Any], monitor_payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _extract_lifecycle(
+        attributes: Dict[str, Any], monitor_payload: Dict[str, Any]
+    ) -> Dict[str, Any]:
         lifecycle = monitor_payload.get("transition") or {}
         if lifecycle:
             return {
@@ -619,7 +706,11 @@ class DatadogEventsService:
             return None
         if isinstance(value, (int, float)):
             try:
-                return float(value) / 1000 if float(value) > 9_999_999_999 else float(value)
+                return (
+                    float(value) / 1000
+                    if float(value) > 9_999_999_999
+                    else float(value)
+                )
             except (TypeError, ValueError):
                 return None
         if isinstance(value, str):
@@ -668,7 +759,7 @@ class DatadogEventsService:
         days: int = 30,
         env: str = "prod",
         include_all: bool = False,
-        detailed: bool = False
+        detailed: bool = False,
     ) -> Dict[str, Any]:
         """
         Find monitors that haven't triggered events in the specified time period.
@@ -684,17 +775,23 @@ class DatadogEventsService:
             Dictionary containing unused monitors analysis
         """
         start_time = time.time()
-        self.logger.info(f"Finding unused monitors for teams: {teams}, lookback: {days} days, env: {env}")
+        self.logger.info(
+            f"Finding unused monitors for teams: {teams}, lookback: {days} days, env: {env}"
+        )
 
         # Get all monitors for the teams
         self.logger.info("Starting monitor discovery across teams...")
         monitor_start = time.time()
         all_monitors = self._fetch_all_monitors(teams=teams, env=env)
         monitor_duration = time.time() - monitor_start
-        self.logger.info(f"Monitor discovery complete: found {len(all_monitors)} unique monitors across {len(teams)} teams ({monitor_duration:.2f}s)")
+        self.logger.info(
+            f"Monitor discovery complete: found {len(all_monitors)} unique monitors across {len(teams)} teams ({monitor_duration:.2f}s)"
+        )
 
         # Get events for the same period to check monitor activity
-        self.logger.info(f"Fetching events for {len(teams)} teams to determine monitor activity...")
+        self.logger.info(
+            f"Fetching events for {len(teams)} teams to determine monitor activity..."
+        )
         events_start = time.time()
         events_by_team = {}
         for i, team in enumerate(teams, 1):
@@ -703,7 +800,9 @@ class DatadogEventsService:
             events = self._fetch_team_events(team=team, env=env, days=days)
             events_by_team[team] = events
             team_duration = time.time() - team_start
-            self.logger.info(f"Team {team}: fetched {len(events)} events ({team_duration:.2f}s)")
+            self.logger.info(
+                f"Team {team}: fetched {len(events)} events ({team_duration:.2f}s)"
+            )
 
         events_duration = time.time() - events_start
 
@@ -720,10 +819,14 @@ class DatadogEventsService:
                 if monitor_id:
                     active_monitor_ids.add(str(monitor_id))
 
-        self.logger.info(f"Events analysis complete: found {len(active_monitor_ids)} unique monitors with events from {total_events} total events ({events_duration:.2f}s)")
+        self.logger.info(
+            f"Events analysis complete: found {len(active_monitor_ids)} unique monitors with events from {total_events} total events ({events_duration:.2f}s)"
+        )
 
         # Classify monitors as used or unused
-        self.logger.info("Classifying monitors as active/unused based on event data and metadata...")
+        self.logger.info(
+            "Classifying monitors as active/unused based on event data and metadata..."
+        )
         unused_monitors = []
         active_monitors = []
         muted_count = 0
@@ -732,7 +835,10 @@ class DatadogEventsService:
 
         for monitor in all_monitors:
             monitor_id = str(monitor.get("id", ""))
-            is_muted = monitor.get("muted_until_ts") is not None and monitor.get("muted_until_ts") != 0
+            is_muted = (
+                monitor.get("muted_until_ts") is not None
+                and monitor.get("muted_until_ts") != 0
+            )
             if is_muted:
                 muted_count += 1
 
@@ -743,7 +849,9 @@ class DatadogEventsService:
             last_triggered_ts = monitor.get("last_triggered_ts")
             if last_triggered_ts and not is_active:
                 try:
-                    last_triggered = datetime.fromtimestamp(last_triggered_ts, tz=timezone.utc)
+                    last_triggered = datetime.fromtimestamp(
+                        last_triggered_ts, tz=timezone.utc
+                    )
                     if last_triggered >= cutoff_timestamp:
                         is_active = True
                         active_monitor_ids.add(monitor_id)
@@ -754,7 +862,9 @@ class DatadogEventsService:
             last_triggered_days_ago = None
             if last_triggered_ts:
                 try:
-                    last_triggered = datetime.fromtimestamp(last_triggered_ts, tz=timezone.utc)
+                    last_triggered = datetime.fromtimestamp(
+                        last_triggered_ts, tz=timezone.utc
+                    )
                     days_diff = (datetime.now(timezone.utc) - last_triggered).days
                     last_triggered_days_ago = days_diff
                 except (ValueError, OSError):
@@ -772,17 +882,19 @@ class DatadogEventsService:
                 "priority": monitor.get("priority"),
                 "created": monitor.get("created"),
                 "modified": monitor.get("modified"),
-                "tags": monitor.get("tags", [])
+                "tags": monitor.get("tags", []),
             }
 
             if detailed:
-                monitor_summary.update({
-                    "creator": monitor.get("creator", {}),
-                    "notifications": monitor.get("notifications", []),
-                    "query": monitor.get("query", ""),
-                    "scopes": monitor.get("scopes", []),
-                    "metrics": monitor.get("metrics", [])
-                })
+                monitor_summary.update(
+                    {
+                        "creator": monitor.get("creator", {}),
+                        "notifications": monitor.get("notifications", []),
+                        "query": monitor.get("query", ""),
+                        "scopes": monitor.get("scopes", []),
+                        "metrics": monitor.get("metrics", []),
+                    }
+                )
 
             if is_active:
                 active_monitors.append(monitor_summary)
@@ -791,10 +903,14 @@ class DatadogEventsService:
 
         # Sort monitors by last triggered (newest first for active, oldest first for unused)
         active_monitors.sort(key=lambda x: x.get("last_triggered_days_ago") or 999)
-        unused_monitors.sort(key=lambda x: x.get("last_triggered_days_ago") or 999, reverse=True)
+        unused_monitors.sort(
+            key=lambda x: x.get("last_triggered_days_ago") or 999, reverse=True
+        )
 
         classification_duration = time.time() - analysis_start
-        self.logger.info(f"Monitor classification complete: {len(active_monitors)} active, {len(unused_monitors)} unused, {muted_count} muted ({classification_duration:.2f}s)")
+        self.logger.info(
+            f"Monitor classification complete: {len(active_monitors)} active, {len(unused_monitors)} unused, {muted_count} muted ({classification_duration:.2f}s)"
+        )
 
         # Prepare summary
         summary = {
@@ -805,17 +921,19 @@ class DatadogEventsService:
             "unused_monitors": len(unused_monitors),
             "active_monitors": len(active_monitors),
             "muted_monitors": muted_count,
-            "analysis_timestamp": datetime.now(timezone.utc).isoformat()
+            "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         total_duration = time.time() - start_time
-        self.logger.info(f"Unused monitors analysis complete for {len(teams)} teams: {len(unused_monitors)} unused monitors identified (total time: {total_duration:.2f}s)")
+        self.logger.info(
+            f"Unused monitors analysis complete for {len(teams)} teams: {len(unused_monitors)} unused monitors identified (total time: {total_duration:.2f}s)"
+        )
 
         result = {
             "summary": summary,
             "unused_monitors": unused_monitors,
             "include_all": include_all,
-            "all_monitors": all_monitors  # Include raw monitors list for deleted monitor detection
+            "all_monitors": all_monitors,  # Include raw monitors list for deleted monitor detection
         }
 
         if include_all:
@@ -823,7 +941,9 @@ class DatadogEventsService:
 
         return result
 
-    def _fetch_all_monitors(self, *, teams: List[str], env: str) -> List[Dict[str, Any]]:
+    def _fetch_all_monitors(
+        self, *, teams: List[str], env: str
+    ) -> List[Dict[str, Any]]:
         """
         Fetch all monitors for the specified teams using the monitor search API.
         """
@@ -835,12 +955,18 @@ class DatadogEventsService:
         )
 
         if self.use_cache:
-            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
+            cached = self.cache.load(
+                cache_key, expiration_minutes=self.cache_ttl_minutes
+            )
             if cached is not None:
-                self.logger.info(f"Using cached monitor data for {len(teams)} teams (cache hit)")
+                self.logger.info(
+                    f"Using cached monitor data for {len(teams)} teams (cache hit)"
+                )
                 return cached
 
-        self.logger.info(f"No cache available, fetching monitors from Datadog API for {len(teams)} teams...")
+        self.logger.info(
+            f"No cache available, fetching monitors from Datadog API for {len(teams)} teams..."
+        )
         all_monitors = []
 
         for i, team in enumerate(teams, 1):
@@ -849,7 +975,9 @@ class DatadogEventsService:
             all_monitors.extend(monitors)
             self.logger.info(f"Team {team}: found {len(monitors)} monitors")
 
-        self.logger.info(f"Raw monitor fetch complete: {len(all_monitors)} total monitors (before deduplication)")
+        self.logger.info(
+            f"Raw monitor fetch complete: {len(all_monitors)} total monitors (before deduplication)"
+        )
 
         # Deduplicate monitors by ID (monitors can appear in multiple team searches)
         seen_ids = set()
@@ -862,12 +990,18 @@ class DatadogEventsService:
 
         duplicates_removed = len(all_monitors) - len(unique_monitors)
         if duplicates_removed > 0:
-            self.logger.info(f"Deduplication complete: removed {duplicates_removed} duplicate monitors, {len(unique_monitors)} unique monitors remain")
+            self.logger.info(
+                f"Deduplication complete: removed {duplicates_removed} duplicate monitors, {len(unique_monitors)} unique monitors remain"
+            )
         else:
-            self.logger.info(f"No duplicate monitors found, {len(unique_monitors)} unique monitors")
+            self.logger.info(
+                f"No duplicate monitors found, {len(unique_monitors)} unique monitors"
+            )
 
         if self.use_cache:
-            self.logger.info(f"Caching {len(unique_monitors)} monitors for future requests")
+            self.logger.info(
+                f"Caching {len(unique_monitors)} monitors for future requests"
+            )
             self.cache.save(cache_key, unique_monitors)
 
         return unique_monitors
@@ -880,7 +1014,9 @@ class DatadogEventsService:
         page = 0
         per_page = 100
 
-        self.logger.info(f"Starting paginated monitor search for team '{team}' in env '{env}'")
+        self.logger.info(
+            f"Starting paginated monitor search for team '{team}' in env '{env}'"
+        )
 
         while True:
             url = f"{self._api_base()}/api/v1/monitor/search"
@@ -888,10 +1024,12 @@ class DatadogEventsService:
                 "query": f"team:{team} AND env:{env}",
                 "page": page,
                 "per_page": per_page,
-                "sort": "name,asc"
+                "sort": "name,asc",
             }
 
-            self.logger.debug(f"Fetching page {page} for team '{team}' (up to {per_page} monitors per page)")
+            self.logger.debug(
+                f"Fetching page {page} for team '{team}' (up to {per_page} monitors per page)"
+            )
 
             try:
                 response = requests.get(
@@ -902,15 +1040,21 @@ class DatadogEventsService:
                 )
                 response.raise_for_status()
             except requests.HTTPError as exc:
-                status_code = exc.response.status_code if exc.response is not None else None
+                status_code = (
+                    exc.response.status_code if exc.response is not None else None
+                )
                 if status_code in (401, 403):
                     raise DatadogEventsAuthError(
                         "Datadog authentication failed. Check DD_API_KEY/DD_APP_KEY permissions."
                     ) from exc
                 error_msg = self._extract_error_message(exc.response)
-                raise DatadogEventsServiceError(f"Datadog Monitor Search API returned HTTP {status_code}: {error_msg}") from exc
+                raise DatadogEventsServiceError(
+                    f"Datadog Monitor Search API returned HTTP {status_code}: {error_msg}"
+                ) from exc
             except requests.RequestException as exc:
-                raise DatadogEventsServiceError(f"Network error while contacting Datadog Monitor Search API: {exc}") from exc
+                raise DatadogEventsServiceError(
+                    f"Network error while contacting Datadog Monitor Search API: {exc}"
+                ) from exc
 
             data = response.json() if response.content else {}
             page_monitors = data.get("monitors", [])
@@ -921,20 +1065,28 @@ class DatadogEventsService:
             total_count = metadata.get("total_count", 0)
             current_count = (page + 1) * per_page
 
-            self.logger.debug(f"Page {page} complete: got {len(page_monitors)} monitors (total so far: {len(monitors)})")
+            self.logger.debug(
+                f"Page {page} complete: got {len(page_monitors)} monitors (total so far: {len(monitors)})"
+            )
 
             if current_count >= total_count or len(page_monitors) < per_page:
                 if total_count > 0:
-                    self.logger.info(f"Monitor search complete for team '{team}': {len(monitors)}/{total_count} monitors fetched")
+                    self.logger.info(
+                        f"Monitor search complete for team '{team}': {len(monitors)}/{total_count} monitors fetched"
+                    )
                 else:
-                    self.logger.info(f"Monitor search complete for team '{team}': {len(monitors)} monitors fetched")
+                    self.logger.info(
+                        f"Monitor search complete for team '{team}': {len(monitors)} monitors fetched"
+                    )
                 break
 
             page += 1
 
         return monitors
 
-    def _detect_deleted_monitors(self, events: List[Dict[str, Any]], existing_monitors: List[Dict[str, Any]]) -> List[str]:
+    def _detect_deleted_monitors(
+        self, events: List[Dict[str, Any]], existing_monitors: List[Dict[str, Any]]
+    ) -> List[str]:
         """
         Detect monitors that appear in events but no longer exist in Datadog.
 
@@ -965,12 +1117,20 @@ class DatadogEventsService:
         deleted_monitor_ids = event_monitor_ids - existing_monitor_ids
 
         # Debug logging
-        self.logger.info(f"Monitor ID comparison - Events: {len(event_monitor_ids)}, Existing: {len(existing_monitor_ids)}, Deleted: {len(deleted_monitor_ids)}")
+        self.logger.info(
+            f"Monitor ID comparison - Events: {len(event_monitor_ids)}, Existing: {len(existing_monitor_ids)}, Deleted: {len(deleted_monitor_ids)}"
+        )
         if event_monitor_ids and existing_monitor_ids:
-            self.logger.debug(f"Sample event monitor IDs: {list(sorted(event_monitor_ids))[:5]}")
-            self.logger.debug(f"Sample existing monitor IDs: {list(sorted(existing_monitor_ids))[:5]}")
+            self.logger.debug(
+                f"Sample event monitor IDs: {list(sorted(event_monitor_ids))[:5]}"
+            )
+            self.logger.debug(
+                f"Sample existing monitor IDs: {list(sorted(existing_monitor_ids))[:5]}"
+            )
 
         if deleted_monitor_ids:
-            self.logger.info(f"Detected {len(deleted_monitor_ids)} deleted monitors: {sorted(list(deleted_monitor_ids))}")
+            self.logger.info(
+                f"Detected {len(deleted_monitor_ids)} deleted monitors: {sorted(list(deleted_monitor_ids))}"
+            )
 
         return list(deleted_monitor_ids)

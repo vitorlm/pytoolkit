@@ -29,15 +29,22 @@ class FeedbackProcessor(BaseProcessor):
             Dict[str, Any]: Processed competency data structured by evaluatee and evaluator.
         """
         competency_matrix: Dict[str, Dict] = {}
-        evaluator_name = self._extract_evaluator_name(FileManager.get_file_name(str(file_path)))
+        evaluator_name = self._extract_evaluator_name(
+            FileManager.get_file_name(str(file_path))
+        )
 
         excel_data = ExcelManager.read_excel(str(file_path))
         for sheet_name in excel_data.sheet_names[1:]:
             df = pd.read_excel(str(file_path), sheet_name=sheet_name)
             evaluatee_name = sheet_name.strip()
-            self.logger.debug(f"Processing sheet: {sheet_name} for evaluatee: {evaluatee_name}")
+            self.logger.debug(
+                f"Processing sheet: {sheet_name} for evaluatee: {evaluatee_name}"
+            )
             self.process_sheet(
-                df, evaluatee=evaluatee_name, evaluator=evaluator_name, competency_matrix=competency_matrix
+                df,
+                evaluatee=evaluatee_name,
+                evaluator=evaluator_name,
+                competency_matrix=competency_matrix,
             )
 
         ValidationHelper.validate_competency_matrix(competency_matrix)
@@ -54,15 +61,21 @@ class FeedbackProcessor(BaseProcessor):
         """
         evaluatee: Optional[str] = kwargs.get("evaluatee")
         evaluator: Optional[str] = kwargs.get("evaluator")
-        competency_matrix: Optional[Dict[str, Dict[str, Any]]] = kwargs.get("competency_matrix")
+        competency_matrix: Optional[Dict[str, Dict[str, Any]]] = kwargs.get(
+            "competency_matrix"
+        )
 
         if not evaluatee or not evaluator or competency_matrix is None:
-            raise ValueError("Missing required arguments: evaluatee, evaluator, or competency_matrix")
+            raise ValueError(
+                "Missing required arguments: evaluatee, evaluator, or competency_matrix"
+            )
 
         if evaluatee not in competency_matrix:
             competency_matrix[evaluatee] = {}
 
-        evaluator_data: Dict[str, Any] = competency_matrix[evaluatee].setdefault(evaluator, {})
+        evaluator_data: Dict[str, Any] = competency_matrix[evaluatee].setdefault(
+            evaluator, {}
+        )
         last_criterion = None
 
         for _, row in sheet_data.iterrows():
@@ -74,7 +87,9 @@ class FeedbackProcessor(BaseProcessor):
                     if indicator_data:
                         evaluator_data.setdefault(criterion, []).append(indicator_data)
 
-    def _process_row(self, row: pd.Series, last_criterion: Optional[str]) -> Optional[tuple[str, Optional[Indicator]]]:
+    def _process_row(
+        self, row: pd.Series, last_criterion: Optional[str]
+    ) -> Optional[tuple[str, Optional[Indicator]]]:
         """
         Processes a single row from a sheet.
 
@@ -100,11 +115,17 @@ class FeedbackProcessor(BaseProcessor):
         # Ensure proper types for Indicator creation
         if indicator and level is not None and isinstance(criterion, str):
             # Ensure indicator is a string
-            indicator_str = str(indicator) if not isinstance(indicator, str) else indicator
+            indicator_str = (
+                str(indicator) if not isinstance(indicator, str) else indicator
+            )
             # Ensure level is an integer
             level_int = int(level) if not isinstance(level, int) else level
             # Ensure evidence is a string or None
-            evidence_str = str(evidence) if evidence is not None and not isinstance(evidence, str) else evidence
+            evidence_str = (
+                str(evidence)
+                if evidence is not None and not isinstance(evidence, str)
+                else evidence
+            )
 
             return (
                 criterion,
@@ -128,7 +149,9 @@ class FeedbackProcessor(BaseProcessor):
         """
         return file_name.split(" - ")[1].replace(".xlsx", "").strip()
 
-    def _validate_field(self, field: Any, allow_digits: bool = False) -> Optional[Union[str, int]]:
+    def _validate_field(
+        self, field: Any, allow_digits: bool = False
+    ) -> Optional[Union[str, int]]:
         """
         Validates and processes a single field value from the Excel data.
 

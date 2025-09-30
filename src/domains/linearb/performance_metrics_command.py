@@ -137,7 +137,9 @@ Available aggregations: p75, avg, p50
             # Validate granularity and time-range relationship
             if args.granularity == "custom":
                 if not args.time_range:
-                    logger.error("--time-range is required when granularity is 'custom'")
+                    logger.error(
+                        "--time-range is required when granularity is 'custom'"
+                    )
                     logger.error(
                         "Use format: YYYY-MM-DD,YYYY-MM-DD (e.g., '2025-07-14,2025-07-20')"
                     )
@@ -145,7 +147,9 @@ Available aggregations: p75, avg, p50
 
                 # Validate custom time range format
                 if "," not in args.time_range:
-                    logger.error("Custom time range must be in format: YYYY-MM-DD,YYYY-MM-DD")
+                    logger.error(
+                        "Custom time range must be in format: YYYY-MM-DD,YYYY-MM-DD"
+                    )
                     logger.error(f"Invalid format: {args.time_range}")
                     exit(1)
 
@@ -157,18 +161,24 @@ Available aggregations: p75, avg, p50
                     datetime.strptime(start_date.strip(), "%Y-%m-%d")
                     datetime.strptime(end_date.strip(), "%Y-%m-%d")
                 except ValueError:
-                    logger.error(f"Invalid date format in time range: {args.time_range}")
+                    logger.error(
+                        f"Invalid date format in time range: {args.time_range}"
+                    )
                     logger.error("Expected format: YYYY-MM-DD,YYYY-MM-DD")
                     exit(1)
 
-                logger.info(f"Using custom granularity with time range: {args.time_range}")
+                logger.info(
+                    f"Using custom granularity with time range: {args.time_range}"
+                )
 
             else:
                 # For predefined granularities (1d, 1w, 1mo), use default time range if not provided
                 if not args.time_range:
                     # Default to last week for predefined granularities
                     args.time_range = "last-week"
-                    logger.info(f"No time range specified, using default: {args.time_range}")
+                    logger.info(
+                        f"No time range specified, using default: {args.time_range}"
+                    )
 
                 # Validate that predefined granularities don't use custom date format
                 if "," in args.time_range and len(args.time_range.split(",")) == 2:
@@ -203,7 +213,9 @@ Available aggregations: p75, avg, p50
             connection_test = service.test_connection()
 
             if connection_test["status"] != "success":
-                logger.error(f"LinearB API connection failed: {connection_test['message']}")
+                logger.error(
+                    f"LinearB API connection failed: {connection_test['message']}"
+                )
                 logger.error(f"API key prefix: {connection_test['api_key_prefix']}")
                 logger.error("Please verify your LINEARB_API_KEY in the .env file")
                 exit(1)
@@ -227,19 +239,23 @@ Available aggregations: p75, avg, p50
 
             # Save results if requested
             if args.save_results or args.output_file:
-                output_path = service.save_metrics_to_file(metrics_data, args.output_file)
+                output_path = service.save_metrics_to_file(
+                    metrics_data, args.output_file
+                )
                 logger.info(f"Results saved to: {output_path}")
 
             # Display key metrics
             total_periods = len(metrics_data.get("metrics", []))
-            logger.info(f"Successfully retrieved metrics for {total_periods} time period(s)")
+            logger.info(
+                f"Successfully retrieved metrics for {total_periods} time period(s)"
+            )
 
             for i, period in enumerate(metrics_data.get("metrics", [])):
-                period_label = (
-                    f"{period.get('after', 'Unknown')} to {period.get('before', 'Unknown')}"
-                )
+                period_label = f"{period.get('after', 'Unknown')} to {period.get('before', 'Unknown')}"
                 team_count = len(period.get("metrics", []))
-                logger.info(f"Period {i + 1} ({period_label}): {team_count} team(s)/entity(ies)")
+                logger.info(
+                    f"Period {i + 1} ({period_label}): {team_count} team(s)/entity(ies)"
+                )
 
             logger.info("Performance metrics retrieval completed successfully")
 

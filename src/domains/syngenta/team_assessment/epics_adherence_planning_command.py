@@ -52,7 +52,9 @@ class EpicsAdherencePlanningCommand(BaseCommand):
         task_processor = TeamTaskProcessor()
         if args.jira_project and args.team_name:
             task_processor.process_folder(
-                args.planningFolder, jira_project=args.jira_project, team_name=args.team_name
+                args.planningFolder,
+                jira_project=args.jira_project,
+                team_name=args.team_name,
             )
         else:
             task_processor.process_folder(args.planningFolder)

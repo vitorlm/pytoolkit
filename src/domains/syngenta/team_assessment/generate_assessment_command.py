@@ -106,7 +106,9 @@ class GenerateAssessmentCommand(BaseCommand):
             )
 
             processor.run()
-            logger.info(f"Assessment report successfully generated and saved to {args.output}")
+            logger.info(
+                f"Assessment report successfully generated and saved to {args.output}"
+            )
 
         except FileNotFoundError as fnfe:
             logger.error(f"File not found: {fnfe}", exc_info=True)

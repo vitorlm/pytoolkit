@@ -164,7 +164,9 @@ class OutlierDetector:
         )
 
     @staticmethod
-    def detect_outliers_modified_z(data: List[float], threshold: float = 3.5) -> OutlierData:
+    def detect_outliers_modified_z(
+        data: List[float], threshold: float = 3.5
+    ) -> OutlierData:
         """
         Detect outliers using Modified Z-Score method (more robust than standard Z-score).
 
@@ -179,7 +181,9 @@ class OutlierDetector:
             return OutlierData([], [], data, "MODIFIED_Z", 0, 0, 0, 0.0)
 
         median = statistics.median(data)
-        mad = statistics.median([abs(x - median) for x in data])  # Median Absolute Deviation
+        mad = statistics.median(
+            [abs(x - median) for x in data]
+        )  # Median Absolute Deviation
 
         if mad == 0:  # All values are the same
             return OutlierData([], [], data, "MODIFIED_Z", 0, 0, 0, 0.0)
@@ -208,7 +212,9 @@ class OutlierDetector:
         )
 
     @staticmethod
-    def calculate_robust_stats(data: List[float], outlier_method: str = "IQR") -> RobustStats:
+    def calculate_robust_stats(
+        data: List[float], outlier_method: str = "IQR"
+    ) -> RobustStats:
         """
         Calculate comprehensive robust statistics with outlier detection.
 
@@ -222,11 +228,22 @@ class OutlierDetector:
         if not data:
             return RobustStats(0, 0, 0, 0, 0, 0, 0, 0)
 
-        data_clean = [x for x in data if x is not None and x >= 0]  # Remove null and negative values
+        data_clean = [
+            x for x in data if x is not None and x >= 0
+        ]  # Remove null and negative values
 
         if len(data_clean) < 2:
             single_value = data_clean[0] if data_clean else 0
-            return RobustStats(single_value, single_value, single_value, single_value, single_value, single_value, 0, 0)
+            return RobustStats(
+                single_value,
+                single_value,
+                single_value,
+                single_value,
+                single_value,
+                single_value,
+                0,
+                0,
+            )
 
         # Detect outliers
         if outlier_method == "MODIFIED_Z":
@@ -235,7 +252,9 @@ class OutlierDetector:
             outlier_info = OutlierDetector.detect_outliers_iqr(data_clean)
 
         # Use cleaned data (without outliers) for robust statistics
-        robust_data = outlier_info.cleaned_data if outlier_info.cleaned_data else data_clean
+        robust_data = (
+            outlier_info.cleaned_data if outlier_info.cleaned_data else data_clean
+        )
 
         # Calculate core statistics
         mean_val = statistics.mean(robust_data)
@@ -416,7 +435,9 @@ class CycleTimeTrendService:
                 baseline_start = min_baseline_start
 
             # Handle edge cases (weekends, holidays)
-            baseline_start, baseline_end = self._adjust_for_business_days(baseline_start, baseline_end)
+            baseline_start, baseline_end = self._adjust_for_business_days(
+                baseline_start, baseline_end
+            )
 
             self.logger.info(
                 f"Calculated baseline period: {baseline_start.date()} to {baseline_end.date()} "
@@ -429,7 +450,9 @@ class CycleTimeTrendService:
             self.logger.error(f"Failed to calculate baseline period: {e}")
             raise ValueError(f"Baseline calculation error: {e}")
 
-    def calculate_trend_metrics(self, current_data: TrendData, historical_data: List[TrendData]) -> List[TrendResult]:
+    def calculate_trend_metrics(
+        self, current_data: TrendData, historical_data: List[TrendData]
+    ) -> List[TrendResult]:
         """
         Analyze trends comparing current period against historical baseline.
 
@@ -464,25 +487,43 @@ class CycleTimeTrendService:
                 )
 
             # Calculate current period duration in days for normalization
-            current_period_days = (current_data.period_end - current_data.period_start).days
+            current_period_days = (
+                current_data.period_end - current_data.period_start
+            ).days
             if current_period_days <= 0:
                 current_period_days = 1  # Fallback for same-day periods
 
             # Calculate baseline multiplier and baseline period duration
             baseline_multiplier_raw = self.config.get("baseline_multiplier", 4)
-            baseline_multiplier = float(baseline_multiplier_raw) if baseline_multiplier_raw is not None else 4.0
+            baseline_multiplier = (
+                float(baseline_multiplier_raw)
+                if baseline_multiplier_raw is not None
+                else 4.0
+            )
             baseline_period_days = current_period_days * baseline_multiplier
 
-            self.logger.info(f"Analyzing trends for {len(historical_data)} historical periods vs current period")
+            self.logger.info(
+                f"Analyzing trends for {len(historical_data)} historical periods vs current period"
+            )
             self.logger.info(
                 f"Current period: {current_period_days} days, Baseline period: {baseline_period_days} days (normalization factor: {baseline_multiplier})"
             )
 
             # Define metrics to analyze
             metrics_to_analyze = [
-                ("avg_cycle_time", "Average Cycle Time", "hours", True),  # lower is better
+                (
+                    "avg_cycle_time",
+                    "Average Cycle Time",
+                    "hours",
+                    True,
+                ),  # lower is better
                 ("median_cycle_time", "Median Cycle Time", "hours", True),
-                ("sle_compliance", "SLE Compliance Rate", "%", False),  # higher is better
+                (
+                    "sle_compliance",
+                    "SLE Compliance Rate",
+                    "%",
+                    False,
+                ),  # higher is better
                 ("throughput", "Throughput", "issues", False),
                 ("anomaly_rate", "Anomaly Rate", "%", True),
                 ("avg_lead_time", "Average Lead Time", "hours", True),
@@ -527,7 +568,10 @@ class CycleTimeTrendService:
             raise
 
     def detect_patterns_and_alerts(
-        self, trend_data: List[TrendResult], current_data: TrendData, thresholds: Optional[Dict] = None
+        self,
+        trend_data: List[TrendResult],
+        current_data: TrendData,
+        thresholds: Optional[Dict] = None,
     ) -> List[Alert]:
         """
         Detect patterns and generate early warning alerts.
@@ -554,8 +598,12 @@ class CycleTimeTrendService:
 
             # Analyze each trend metric
             for trend in trend_data:
-                thresholds_dict = alert_thresholds if isinstance(alert_thresholds, dict) else {}
-                metric_alerts = self._analyze_metric_for_alerts(trend, current_data, thresholds_dict)
+                thresholds_dict = (
+                    alert_thresholds if isinstance(alert_thresholds, dict) else {}
+                )
+                metric_alerts = self._analyze_metric_for_alerts(
+                    trend, current_data, thresholds_dict
+                )
                 alerts.extend(metric_alerts)
 
             # Add holistic pattern analysis
@@ -584,7 +632,9 @@ class CycleTimeTrendService:
         """Parse various date input formats."""
         # Handle ISO format strings
         if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}", date_input):
-            return datetime.fromisoformat(date_input.replace("Z", "+00:00")).replace(tzinfo=None)
+            return datetime.fromisoformat(date_input.replace("Z", "+00:00")).replace(
+                tzinfo=None
+            )
 
         # Handle simple date format
         if re.match(r"^\d{4}-\d{2}-\d{2}$", date_input):
@@ -617,7 +667,9 @@ class CycleTimeTrendService:
         if start_date > now or end_date > now:
             raise ValueError("Dates cannot be in the future")
 
-    def _adjust_for_business_days(self, baseline_start: datetime, baseline_end: datetime) -> Tuple[datetime, datetime]:
+    def _adjust_for_business_days(
+        self, baseline_start: datetime, baseline_end: datetime
+    ) -> Tuple[datetime, datetime]:
         """
         Adjust dates to avoid common edge cases.
 
@@ -653,7 +705,9 @@ class CycleTimeTrendService:
         """Analyze trend for a single metric."""
         # Extract current and historical values
         current_value = getattr(current_data, metric_attr, 0.0)
-        historical_values = [getattr(data, metric_attr, 0.0) for data in historical_data]
+        historical_values = [
+            getattr(data, metric_attr, 0.0) for data in historical_data
+        ]
 
         # Filter out zero/null values for meaningful analysis
         valid_historical = [v for v in historical_values if v > 0]
@@ -670,7 +724,11 @@ class CycleTimeTrendService:
 
         # Check if this metric needs period normalization
         # Only COUNT-based metrics need normalization, NOT averages/medians/rates
-        metrics_needing_normalization = ["throughput", "total_issues", "issues_with_valid_cycle_time"]
+        metrics_needing_normalization = [
+            "throughput",
+            "total_issues",
+            "issues_with_valid_cycle_time",
+        ]
 
         # NEVER normalize these metrics (they are already averages/medians/rates):
         # - avg_cycle_time, median_cycle_time (time averages)
@@ -697,7 +755,9 @@ class CycleTimeTrendService:
 
         # Calculate percentage change using normalized baseline
         if normalized_baseline > 0:
-            change_percent = ((current_value - normalized_baseline) / normalized_baseline) * 100
+            change_percent = (
+                (current_value - normalized_baseline) / normalized_baseline
+            ) * 100
         else:
             change_percent = 0.0
 
@@ -715,7 +775,9 @@ class CycleTimeTrendService:
             )
 
         # Determine trend direction
-        trend_direction = self._determine_trend_direction(change_percent, lower_is_better)
+        trend_direction = self._determine_trend_direction(
+            change_percent, lower_is_better
+        )
 
         # Calculate statistical significance using t-test
         if len(valid_historical) >= 3 and SCIPY_AVAILABLE and stats:
@@ -724,7 +786,9 @@ class CycleTimeTrendService:
                 t_stat, p_value = stats.ttest_1samp(valid_historical, current_value)
                 if isinstance(p_value, (int, float)):
                     confidence_level = 1 - p_value
-                    statistical_confidence = self.config.get("statistical_confidence", 0.95)
+                    statistical_confidence = self.config.get(
+                        "statistical_confidence", 0.95
+                    )
                     if isinstance(statistical_confidence, (int, float)):
                         significance = p_value < (1 - statistical_confidence)
                     else:
@@ -785,7 +849,9 @@ class CycleTimeTrendService:
             is_normalized=is_normalized,
         )
 
-    def _determine_trend_direction(self, change_percent: float, lower_is_better: bool) -> str:
+    def _determine_trend_direction(
+        self, change_percent: float, lower_is_better: bool
+    ) -> str:
         """Determine trend direction based on change and metric type."""
         trend_thresholds = self.config.get("trend_thresholds", {})
         if isinstance(trend_thresholds, dict):
@@ -803,7 +869,9 @@ class CycleTimeTrendService:
             # For metrics where higher is better (SLE compliance, throughput)
             return "IMPROVING" if change_percent > 0 else "DEGRADING"
 
-    def _analyze_metric_for_alerts(self, trend: TrendResult, current_data: TrendData, thresholds: Dict) -> List[Alert]:
+    def _analyze_metric_for_alerts(
+        self, trend: TrendResult, current_data: TrendData, thresholds: Dict
+    ) -> List[Alert]:
         """Analyze a single metric for alert conditions."""
         alerts = []
 
@@ -833,7 +901,9 @@ class CycleTimeTrendService:
             metric=trend.metric_name,
             message=f"{trend.metric_name} {trend.trend_direction.lower()} by {abs_change:.1f}%",
             current_value=trend.current_value,
-            threshold=warning_threshold if severity == "WARNING" else critical_threshold,
+            threshold=warning_threshold
+            if severity == "WARNING"
+            else critical_threshold,
             recommendation=recommendation,
             priority=priority,
         )
@@ -841,20 +911,28 @@ class CycleTimeTrendService:
         alerts.append(alert)
         return alerts
 
-    def _analyze_holistic_patterns(self, trend_data: List[TrendResult], current_data: TrendData) -> List[Alert]:
+    def _analyze_holistic_patterns(
+        self, trend_data: List[TrendResult], current_data: TrendData
+    ) -> List[Alert]:
         """Analyze patterns across multiple metrics."""
         alerts = []
 
         # Check SLE compliance
-        sle_trend = next((t for t in trend_data if "SLE Compliance" in t.metric_name), None)
+        sle_trend = next(
+            (t for t in trend_data if "SLE Compliance" in t.metric_name), None
+        )
         if sle_trend:
             sle_alerts = self._check_sle_compliance_alerts(sle_trend, current_data)
             alerts.extend(sle_alerts)
 
         # Check anomaly rate
-        anomaly_trend = next((t for t in trend_data if "Anomaly Rate" in t.metric_name), None)
+        anomaly_trend = next(
+            (t for t in trend_data if "Anomaly Rate" in t.metric_name), None
+        )
         if anomaly_trend:
-            anomaly_alerts = self._check_anomaly_rate_alerts(anomaly_trend, current_data)
+            anomaly_alerts = self._check_anomaly_rate_alerts(
+                anomaly_trend, current_data
+            )
             alerts.extend(anomaly_alerts)
 
         # Check for degrading performance across multiple metrics
@@ -877,15 +955,21 @@ class CycleTimeTrendService:
 
         return alerts
 
-    def _check_sle_compliance_alerts(self, sle_trend: TrendResult, current_data: TrendData) -> List[Alert]:
+    def _check_sle_compliance_alerts(
+        self, sle_trend: TrendResult, current_data: TrendData
+    ) -> List[Alert]:
         """Check SLE compliance specific alerts."""
         alerts = []
         sle_thresholds_config = self.config.get("sle_thresholds", {})
-        sle_thresholds = sle_thresholds_config if isinstance(sle_thresholds_config, dict) else {}
+        sle_thresholds = (
+            sle_thresholds_config if isinstance(sle_thresholds_config, dict) else {}
+        )
 
         compliance_rate = sle_trend.current_value
 
-        critical_threshold = sle_thresholds.get("critical", 70) if sle_thresholds else 70
+        critical_threshold = (
+            sle_thresholds.get("critical", 70) if sle_thresholds else 70
+        )
         warning_threshold = sle_thresholds.get("warning", 80) if sle_thresholds else 80
 
         if compliance_rate < critical_threshold:
@@ -915,16 +999,26 @@ class CycleTimeTrendService:
 
         return alerts
 
-    def _check_anomaly_rate_alerts(self, anomaly_trend: TrendResult, current_data: TrendData) -> List[Alert]:
+    def _check_anomaly_rate_alerts(
+        self, anomaly_trend: TrendResult, current_data: TrendData
+    ) -> List[Alert]:
         """Check anomaly rate specific alerts."""
         alerts = []
         anomaly_thresholds_config = self.config.get("anomaly_thresholds", {})
-        anomaly_thresholds = anomaly_thresholds_config if isinstance(anomaly_thresholds_config, dict) else {}
+        anomaly_thresholds = (
+            anomaly_thresholds_config
+            if isinstance(anomaly_thresholds_config, dict)
+            else {}
+        )
 
         anomaly_rate = anomaly_trend.current_value
 
-        critical_threshold = anomaly_thresholds.get("critical", 25) if anomaly_thresholds else 25
-        warning_threshold = anomaly_thresholds.get("warning", 15) if anomaly_thresholds else 15
+        critical_threshold = (
+            anomaly_thresholds.get("critical", 25) if anomaly_thresholds else 25
+        )
+        warning_threshold = (
+            anomaly_thresholds.get("warning", 15) if anomaly_thresholds else 15
+        )
 
         if anomaly_rate > critical_threshold:
             alerts.append(
@@ -957,7 +1051,10 @@ class CycleTimeTrendService:
         """Get recommendation for critical alerts."""
         if "Cycle Time" in trend.metric_name and trend.trend_direction == "DEGRADING":
             return "Immediate process review required. Identify and remove blockers urgently."
-        elif "SLE Compliance" in trend.metric_name and trend.trend_direction == "DEGRADING":
+        elif (
+            "SLE Compliance" in trend.metric_name
+            and trend.trend_direction == "DEGRADING"
+        ):
             return "Escalate to management. Review SLE targets and resource allocation."
         elif "Throughput" in trend.metric_name and trend.trend_direction == "DEGRADING":
             return "Critical capacity issue. Review workload distribution and team availability."
@@ -982,7 +1079,9 @@ class CycleTimeTrendService:
         else:
             return "Minor trend change detected. Continue monitoring."
 
-    def convert_cycle_time_data_to_trend_data(self, cycle_time_result: Dict) -> TrendData:
+    def convert_cycle_time_data_to_trend_data(
+        self, cycle_time_result: Dict
+    ) -> TrendData:
         """
         Convert CycleTimeService result to TrendData format.
 
@@ -1007,7 +1106,9 @@ class CycleTimeTrendService:
                 period_start=start_date,
                 period_end=end_date,
                 total_issues=metrics.get("total_issues", 0),
-                issues_with_valid_cycle_time=metrics.get("issues_with_valid_cycle_time", 0),
+                issues_with_valid_cycle_time=metrics.get(
+                    "issues_with_valid_cycle_time", 0
+                ),
                 avg_lead_time=metrics.get("average_lead_time_hours", 0.0),
                 median_lead_time=metrics.get("median_lead_time_hours", 0.0),
             )
@@ -1037,12 +1138,18 @@ class CycleTimeTrendService:
 
             # Filter issues to only Bug and Support types for SLE compliance
             sle_applicable_issues = [
-                issue for issue in issues if issue.get("issue_type", "").lower() in ["bug", "support"]
+                issue
+                for issue in issues
+                if issue.get("issue_type", "").lower() in ["bug", "support"]
             ]
 
             if not sle_applicable_issues:
-                self.logger.info("No Bug or Support issues found for SLE compliance calculation")
-                self.logger.info(f"Available issue types: {[issue.get('issue_type') for issue in issues[:5]]}")
+                self.logger.info(
+                    "No Bug or Support issues found for SLE compliance calculation"
+                )
+                self.logger.info(
+                    f"Available issue types: {[issue.get('issue_type') for issue in issues[:5]]}"
+                )
                 return 0.0
 
             compliant_issues = 0
