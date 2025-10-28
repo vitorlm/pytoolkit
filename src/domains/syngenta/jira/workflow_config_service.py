@@ -48,9 +48,7 @@ class WorkflowConfigService:
         """Load project to workflow mappings."""
         try:
             if not os.path.exists(self._mappings_file):
-                self.logger.warning(
-                    f"Project mappings file not found: {self._mappings_file}"
-                )
+                self.logger.warning(f"Project mappings file not found: {self._mappings_file}")
                 return {
                     "project_mappings": {},
                     "default_workflow": "default_workflow.json",
@@ -79,9 +77,7 @@ class WorkflowConfigService:
         """
         # Check cache first
         cache_key = f"workflow_config_{project_key}"
-        cached_config = self.cache.load(
-            cache_key, expiration_minutes=self.cache_expiration
-        )
+        cached_config = self.cache.load(cache_key, expiration_minutes=self.cache_expiration)
 
         if cached_config is not None:
             self.logger.info(f"Using cached workflow config for project {project_key}")
@@ -107,15 +103,11 @@ class WorkflowConfigService:
         workflow_path = os.path.join(self._config_dir, workflow_file)
 
         if not os.path.exists(workflow_path):
-            self.logger.warning(
-                f"Workflow config file not found: {workflow_path}, using default"
-            )
+            self.logger.warning(f"Workflow config file not found: {workflow_path}, using default")
             workflow_path = os.path.join(self._config_dir, "default_workflow.json")
 
         if not os.path.exists(workflow_path):
-            raise FileNotFoundError(
-                f"No workflow configuration found for project {project_key}"
-            )
+            raise FileNotFoundError(f"No workflow configuration found for project {project_key}")
 
         self.logger.info(f"Loading workflow config from {workflow_path}")
 
@@ -123,14 +115,10 @@ class WorkflowConfigService:
         config = JSONManager.read_json(workflow_path)
 
         # Apply custom field overrides if they exist
-        custom_fields = self._project_mappings.get("custom_field_overrides", {}).get(
-            project_key, {}
-        )
+        custom_fields = self._project_mappings.get("custom_field_overrides", {}).get(project_key, {})
         if custom_fields:
             config["custom_fields"].update(custom_fields)
-            self.logger.info(
-                f"Applied custom field overrides for {project_key}: {custom_fields}"
-            )
+            self.logger.info(f"Applied custom field overrides for {project_key}: {custom_fields}")
 
         return config
 
@@ -179,9 +167,7 @@ class WorkflowConfigService:
         backlog_statuses = config.get("status_mapping", {}).get("backlog", [])
         return status_name in backlog_statuses
 
-    def get_semantic_status(
-        self, project_key: str, semantic_name: str
-    ) -> Optional[str]:
+    def get_semantic_status(self, project_key: str, semantic_name: str) -> Optional[str]:
         """
         Get status name for semantic identifier.
 
@@ -210,16 +196,24 @@ class WorkflowConfigService:
 
     def get_done_statuses(self, project_key: str) -> list[str]:
         """
-        Get list of all Done status names.
+        Get list of all Done status names, excluding archived statuses.
+
+        Archived issues (e.g., '11 Archived') are excluded because they represent
+        issues that were not completed but rather removed from active workflow.
+        This ensures accurate adherence and net flow calculations.
 
         Args:
             project_key (str): JIRA project key
 
         Returns:
-            List[str]: List of Done status names
+            List[str]: List of Done status names (excluding archived)
         """
         config = self.get_workflow_config(project_key)
-        return config.get("status_mapping", {}).get("done", [])
+        done_statuses = config.get("status_mapping", {}).get("done", [])
+        archived_statuses = config.get("status_mapping", {}).get("archived", [])
+
+        # Exclude archived statuses from done statuses
+        return [status for status in done_statuses if status not in archived_statuses]
 
     def get_backlog_statuses(self, project_key: str) -> list[str]:
         """
@@ -262,14 +256,10 @@ class WorkflowConfigService:
         config = self.get_workflow_config(project_key)
         status_mapping = config.get("status_mapping", {})
         backlog_statuses = status_mapping.get("backlog", [])
-        waiting_statuses = status_mapping.get(
-            "waiting", []
-        )  # For statuses like 'Blocked'
+        waiting_statuses = status_mapping.get("waiting", [])  # For statuses like 'Blocked'
         return backlog_statuses + waiting_statuses
 
-    def get_flow_metric_config(
-        self, project_key: str, metric_name: str
-    ) -> Optional[dict]:
+    def get_flow_metric_config(self, project_key: str, metric_name: str) -> Optional[dict]:
         """
         Get flow metric configuration.
 
@@ -295,17 +285,13 @@ class WorkflowConfigService:
         """
         cycle_config = self.get_flow_metric_config(project_key, "cycle_time")
         if not cycle_config:
-            raise ValueError(
-                f"No cycle_time configuration found for project {project_key}"
-            )
+            raise ValueError(f"No cycle_time configuration found for project {project_key}")
 
         start_status = cycle_config.get("start")
         end_status = cycle_config.get("end")
 
         if not start_status or not end_status:
-            raise ValueError(
-                f"Invalid cycle_time configuration for project {project_key}"
-            )
+            raise ValueError(f"Invalid cycle_time configuration for project {project_key}")
 
         return start_status, end_status
 
@@ -321,17 +307,13 @@ class WorkflowConfigService:
         """
         lead_config = self.get_flow_metric_config(project_key, "lead_time")
         if not lead_config:
-            raise ValueError(
-                f"No lead_time configuration found for project {project_key}"
-            )
+            raise ValueError(f"No lead_time configuration found for project {project_key}")
 
         start_status = lead_config.get("start")
         end_status = lead_config.get("end")
 
         if not start_status or not end_status:
-            raise ValueError(
-                f"Invalid lead_time configuration for project {project_key}"
-            )
+            raise ValueError(f"Invalid lead_time configuration for project {project_key}")
 
         return start_status, end_status
 
@@ -381,9 +363,7 @@ class WorkflowConfigService:
             required_sections = ["status_mapping", "semantic_statuses", "flow_metrics"]
             for section in required_sections:
                 if section not in config:
-                    validation_results["errors"].append(
-                        f"Missing required section: {section}"
-                    )
+                    validation_results["errors"].append(f"Missing required section: {section}")
 
             # Check flow metrics reference valid statuses
             all_statuses = set()
@@ -413,9 +393,7 @@ class WorkflowConfigService:
                         )
 
             # Check semantic statuses reference valid statuses
-            for semantic_name, status_name in config.get(
-                "semantic_statuses", {}
-            ).items():
+            for semantic_name, status_name in config.get("semantic_statuses", {}).items():
                 if status_name not in all_statuses:
                     validation_results["warnings"].append(
                         f"Semantic status '{semantic_name}' references unknown status '{status_name}'"
@@ -473,7 +451,5 @@ class WorkflowConfigService:
             if status_name in statuses:
                 return category
 
-        self.logger.warning(
-            f"Status '{status_name}' not found in any category for project {project_key}"
-        )
+        self.logger.warning(f"Status '{status_name}' not found in any category for project {project_key}")
         return None

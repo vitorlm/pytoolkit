@@ -58,9 +58,7 @@ class IssueAdherenceCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Analyze issue adherence by checking completion status against due dates."
-        )
+        return "Analyze issue adherence by checking completion status against due dates."
 
     @staticmethod
     def get_help() -> str:
@@ -117,8 +115,19 @@ class IssueAdherenceCommand(BaseCommand):
             "--status",
             type=str,
             required=False,
-            default="10 Done",
-            help=("Comma-separated list of status to include (default: '10 Done')."),
+            default=None,
+            help=(
+                "Comma-separated list of status names to include (e.g., 'Done,Closed'). Cannot be used with --status-categories."
+            ),
+        )
+        parser.add_argument(
+            "--status-categories",
+            type=str,
+            required=False,
+            default=None,
+            help=(
+                "Comma-separated list of status categories to include (e.g., 'Done', 'In Progress'). Cannot be used with --status."
+            ),
         )
         parser.add_argument(
             "--output-file",
@@ -205,8 +214,18 @@ class IssueAdherenceCommand(BaseCommand):
             # Parse issue types
             issue_types = [t.strip() for t in args.issue_types.split(",")]
 
-            # Parse status
-            status = [s.strip() for s in args.status.split(",")]
+            # Validate mutually exclusive parameters
+            if args.status and args.status_categories:
+                logger.error("Cannot use both --status and --status-categories. Choose one.")
+                exit(1)
+
+            # Parse status or status categories
+            status = None
+            status_categories = None
+            if args.status:
+                status = [s.strip() for s in args.status.split(",")]
+            elif args.status_categories:
+                status_categories = [s.strip() for s in args.status_categories.split(",")]
 
             # Determine time window (prefer --end-date + --window-days)
             from datetime import date, datetime, timedelta
@@ -225,9 +244,7 @@ class IssueAdherenceCommand(BaseCommand):
                 window_days = int(getattr(args, "window_days", 7))
                 start = anchor - timedelta(days=max(window_days - 1, 0))
                 end = anchor
-                computed_time_period = (
-                    f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
-                )
+                computed_time_period = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
 
             # Initialize service
             service = IssueAdherenceService()
@@ -235,9 +252,7 @@ class IssueAdherenceCommand(BaseCommand):
             # Run adherence analysis
             # Parse teams
             raw_teams = getattr(args, "teams", []) or []
-            teams = [
-                t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()
-            ] or None
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
 
             result = service.analyze_issue_adherence(
                 project_key=args.project_key,
@@ -248,6 +263,7 @@ class IssueAdherenceCommand(BaseCommand):
                 issue_types=issue_types,
                 teams=teams,
                 status=status,
+                status_categories=status_categories,
                 include_no_due_date=args.include_no_due_date,
                 verbose=args.verbose,
                 output_file=args.output_file,
@@ -280,9 +296,7 @@ class IssueAdherenceCommand(BaseCommand):
 
                     # Use JiraSummaryManager for summary generation
                     summary_manager = JiraSummaryManager()
-                    args.command_name = (
-                        "issue-adherence"  # Set command name for metrics
-                    )
+                    args.command_name = "issue-adherence"  # Set command name for metrics
                     summary_path = summary_manager.emit_summary_compatible(
                         result,
                         summary_mode,
@@ -303,9 +317,7 @@ class IssueAdherenceCommand(BaseCommand):
 
             # Use ErrorHandler for consistent error messaging
             error_handler = ErrorHandler()
-            error_handler.handle_api_error(
-                e, f"project {args.project_key} with issue types {args.issue_types}"
-            )
+            error_handler.handle_api_error(e, f"project {args.project_key} with issue types {args.issue_types}")
             exit(1)
 
     @staticmethod
@@ -340,9 +352,7 @@ class IssueAdherenceCommand(BaseCommand):
         risk_assessment = get_risk_assessment(adherence_rate)
 
         # Header (standardized)
-        metadata = (
-            result.get("analysis_metadata", {}) if isinstance(result, dict) else {}
-        )
+        metadata = result.get("analysis_metadata", {}) if isinstance(result, dict) else {}
         start = (metadata.get("start_date", "") or "")[:10]
         end = (metadata.get("end_date", "") or "")[:10]
         header = f"📅 ISSUE ADHERENCE - {args.project_key} ({start} to {end})"
@@ -373,9 +383,7 @@ class IssueAdherenceCommand(BaseCommand):
         if not teams_list and isinstance(result, dict):
             meta = result.get("analysis_metadata", {}) or {}
             meta_team = meta.get("team")
-            meta_teams = (
-                meta.get("teams") if isinstance(meta.get("teams"), list) else None
-            )
+            meta_teams = meta.get("teams") if isinstance(meta.get("teams"), list) else None
             if meta_team:
                 print(f"Teams: {meta_team}")
             elif meta_teams:
@@ -403,9 +411,7 @@ class IssueAdherenceCommand(BaseCommand):
             params = weighted.get("parameters", {})
             print(f"   ⚖️ Weighted Adherence: {wa:.1f}%")
             print("   Parameters used:")
-            print(
-                f"     • Early tolerance (days): {params.get('early_tolerance_days')}"
-            )
+            print(f"     • Early tolerance (days): {params.get('early_tolerance_days')}")
             print(f"     • Early weight (pt/day): {params.get('early_weight')}")
             print(f"     • Late weight (pt/day):  {params.get('late_weight')}")
             print(f"     • No-due penalty (pts):  {params.get('no_due_penalty')}")
@@ -433,9 +439,7 @@ class IssueAdherenceCommand(BaseCommand):
             percentage = metrics.get(f"{status_key}_percentage", 0)
 
             if count > 0 or status_key in ["early", "on_time", "late"]:
-                print(
-                    f"   {emoji} {status_label:<20} {count:>3} issues ({percentage:>5.1f}%)"
-                )
+                print(f"   {emoji} {status_label:<20} {count:>3} issues ({percentage:>5.1f}%)")
 
         print()
 
@@ -454,23 +458,13 @@ class IssueAdherenceCommand(BaseCommand):
             avg_pen = penalties.get("avg_per_item_capped", 0.0)
             cap = penalties.get("cap_per_item", 100.0)
             print(f"   ✅ Weighted Completion Score: {wa:.1f}%")
-            print(
-                f"      Avg penalty per completed item (capped at {cap:.0f}): {avg_pen:.1f} pts"
-            )
+            print(f"      Avg penalty per completed item (capped at {cap:.0f}): {avg_pen:.1f} pts")
             # Penalty breakdown (capped to align with score)
-            late_total = penalties.get(
-                "late_total_capped", penalties.get("late_total", 0.0)
-            )
-            early_total = penalties.get(
-                "early_total_capped", penalties.get("early_total", 0.0)
-            )
-            ndd_total = penalties.get(
-                "no_due_total_capped", penalties.get("no_due_total", 0.0)
-            )
+            late_total = penalties.get("late_total_capped", penalties.get("late_total", 0.0))
+            early_total = penalties.get("early_total_capped", penalties.get("early_total", 0.0))
+            ndd_total = penalties.get("no_due_total_capped", penalties.get("no_due_total", 0.0))
             print("   🧮 Penalty breakdown (capped points):")
-            print(
-                f"      • Late: {late_total:.1f} | Early: {early_total:.1f} | No-due: {ndd_total:.1f}"
-            )
+            print(f"      • Late: {late_total:.1f} | Early: {early_total:.1f} | No-due: {ndd_total:.1f}")
 
             # Estimated deviation days and affected items for leadership view
             params = weighted_perf.get("parameters") or {}
@@ -501,23 +495,13 @@ class IssueAdherenceCommand(BaseCommand):
                 early_pts = early_total / total_items
                 ndd_pts = ndd_total / total_items
                 # Shares
-                late_share = (
-                    (late_total / total_capped * 100.0) if total_capped > 0 else 0.0
-                )
-                early_share = (
-                    (early_total / total_capped * 100.0) if total_capped > 0 else 0.0
-                )
-                ndd_share = (
-                    (ndd_total / total_capped * 100.0) if total_capped > 0 else 0.0
-                )
+                late_share = (late_total / total_capped * 100.0) if total_capped > 0 else 0.0
+                early_share = (early_total / total_capped * 100.0) if total_capped > 0 else 0.0
+                ndd_share = (ndd_total / total_capped * 100.0) if total_capped > 0 else 0.0
                 print("      • Impact by driver (avg pts per item):")
-                print(
-                    f"         - Late: -{late_pts:.1f} | Early: -{early_pts:.1f} | No-due: -{ndd_pts:.1f}"
-                )
+                print(f"         - Late: -{late_pts:.1f} | Early: -{early_pts:.1f} | No-due: -{ndd_pts:.1f}")
                 print("      • Share of total penalty:")
-                print(
-                    f"         - Late: {late_share:.1f}% | Early: {early_share:.1f}% | No-due: {ndd_share:.1f}%"
-                )
+                print(f"         - Late: {late_share:.1f}% | Early: {early_share:.1f}% | No-due: {ndd_share:.1f}%")
             if late_count > 0:
                 print(f"   📋 Improvement Area: {late_count} issues completed late")
         else:
@@ -525,9 +509,7 @@ class IssueAdherenceCommand(BaseCommand):
             if total_completed > 0:
                 success_rate = (successful_completion / total_completed) * 100
                 print(f"   ✅ Completion Success Rate: {success_rate:.1f}%")
-                print(
-                    f"      Successfully completed on or before due date: {successful_completion}/{total_completed}"
-                )
+                print(f"      Successfully completed on or before due date: {successful_completion}/{total_completed}")
             if late_count > 0:
                 print(f"   📋 Improvement Area: {late_count} issues completed late")
 
@@ -535,10 +517,7 @@ class IssueAdherenceCommand(BaseCommand):
 
         # Statistical Insights
         statistical_insights = result.get("statistical_insights")
-        if (
-            statistical_insights
-            and statistical_insights.get("total_completed_with_due_dates", 0) > 0
-        ):
+        if statistical_insights and statistical_insights.get("total_completed_with_due_dates", 0) > 0:
             print("📊 STATISTICAL INSIGHTS")
             delivery_stats = statistical_insights.get("delivery_time_stats", {})
             percentiles = statistical_insights.get("percentile_analysis", {})
@@ -548,9 +527,7 @@ class IssueAdherenceCommand(BaseCommand):
             print(
                 f"      • Mean: {delivery_stats.get('mean', 0):.1f} | Median: {delivery_stats.get('median', 0):.1f} | Std Dev: {delivery_stats.get('std_dev', 0):.1f}"
             )
-            print(
-                f"      • Range: {delivery_stats.get('min', 0)} to {delivery_stats.get('max', 0)} days"
-            )
+            print(f"      • Range: {delivery_stats.get('min', 0)} to {delivery_stats.get('max', 0)} days")
 
             print("   📊 Percentile Analysis:")
             print(
@@ -588,12 +565,8 @@ class IssueAdherenceCommand(BaseCommand):
                     adherence = metrics.get("adherence_rate", 0)
                     total = metrics.get("total_completed", 0)
                     if total > 0:
-                        risk_emoji = (
-                            "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
-                        )
-                        print(
-                            f"      {risk_emoji} {team}: {adherence:.1f}% ({total} completed issues)"
-                        )
+                        risk_emoji = "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
+                        print(f"      {risk_emoji} {team}: {adherence:.1f}% ({total} completed issues)")
                 print()
 
             by_type = segmentation.get("by_issue_type", {})
@@ -604,12 +577,8 @@ class IssueAdherenceCommand(BaseCommand):
                     adherence = metrics.get("adherence_rate", 0)
                     total = metrics.get("total_completed", 0)
                     if total > 0:
-                        risk_emoji = (
-                            "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
-                        )
-                        print(
-                            f"      {risk_emoji} {issue_type}: {adherence:.1f}% ({total} completed issues)"
-                        )
+                        risk_emoji = "🔴" if adherence < 60 else "🟡" if adherence < 80 else "🟢"
+                        print(f"      {risk_emoji} {issue_type}: {adherence:.1f}% ({total} completed issues)")
                 print()
 
         # Due Date Coverage Analysis
@@ -619,12 +588,8 @@ class IssueAdherenceCommand(BaseCommand):
             coverage_pct = overall.get("coverage_percentage", 0)
             print("📅 DUE DATE COVERAGE ANALYSIS")
             print(f"   📊 Overall Coverage: {coverage_pct:.1f}%")
-            print(
-                f"      • Issues with due dates: {overall.get('issues_with_due_dates', 0)}"
-            )
-            print(
-                f"      • Issues without due dates: {overall.get('issues_without_due_dates', 0)}"
-            )
+            print(f"      • Issues with due dates: {overall.get('issues_with_due_dates', 0)}")
+            print(f"      • Issues without due dates: {overall.get('issues_without_due_dates', 0)}")
 
             if coverage_pct < 80:
                 print("   ⚠️  Coverage below 80%")
@@ -671,6 +636,35 @@ class IssueAdherenceCommand(BaseCommand):
             total_percent = "100.0%".rjust(8)
             print(f" Total     | {total_considered:>6} | {total_percent} |")
             print()
+
+            # Summary ranges
+            summary = time_dist.get("summary", {})
+            if summary:
+                print("📊 DELIVERY TARGET SUMMARY")
+                print("-" * 40)
+                within = summary.get("within_range", {})
+                below = summary.get("below_range", {})
+                above = summary.get("above_range", {})
+
+                within_count = within.get("count", 0)
+                within_pct = within.get("percentage", 0.0)
+                below_count = below.get("count", 0)
+                below_pct = below.get("percentage", 0.0)
+                above_count = above.get("count", 0)
+                above_pct = above.get("percentage", 0.0)
+
+                print(f"   🎯 Within Target (-3 to 3 days): {within_count:>3} issues ({within_pct:>5.1f}%)")
+                print(f"   ⏪ Too Early (< -3 days):        {below_count:>3} issues ({below_pct:>5.1f}%)")
+                print(f"   ⏩ Too Late (> 3 days):          {above_count:>3} issues ({above_pct:>5.1f}%)")
+
+                # Add interpretation
+                if within_pct >= 80:
+                    print(f"\n   ✅ Excellent: {within_pct:.1f}% of issues delivered within target range")
+                elif within_pct >= 60:
+                    print(f"\n   ⚠️  Warning: Only {within_pct:.1f}% of issues within target range")
+                else:
+                    print(f"\n   🚨 Critical: Only {within_pct:.1f}% of issues within target range - review needed")
+                print()
 
         # Recommendations (prefer weighted if available)
         print("💡 RECOMMENDATIONS")
@@ -733,9 +727,7 @@ class IssueAdherenceCommand(BaseCommand):
 
         # Data Quality Notes
         print("📋 DATA QUALITY NOTES")
-        print(
-            "   • Analysis considers issues resolved within the specified time period"
-        )
+        print("   • Analysis considers issues resolved within the specified time period")
         print("   • Legacy adherence = (Early + On-time) / Completed issues")
         print(
             "   • Weighted adherence averages per-issue scores with asymmetric penalties: late > early; no tolerance for late; early uses tolerance-days; completed issues without due date may receive a fixed penalty when included"
@@ -744,9 +736,7 @@ class IssueAdherenceCommand(BaseCommand):
         # Explicit list of issues without due date at the end (when included in analysis)
         if args.include_no_due_date:
             issues_list = result.get("issues", [])
-            no_due_items = [
-                i for i in issues_list if i.get("adherence_status") == "no_due_date"
-            ]
+            no_due_items = [i for i in issues_list if i.get("adherence_status") == "no_due_date"]
             if no_due_items:
                 print()
                 print("📎 ISSUES WITHOUT DUE DATE")

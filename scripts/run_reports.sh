@@ -214,18 +214,7 @@ else
     echo "   📋 LinearB Team: $LINEARB_TEAM_ID"
 fi
 
-# Validate team-specific configuration
-if [ "$TRIBE_MODE" = false ] && [ -z "$SONARQUBE_PROJECT_KEYS" ]; then
-    echo "❌ Error: SONARQUBE_PROJECT_KEYS is required for team-specific reporting"
-    echo ""
-    echo "Please add SONARQUBE_PROJECT_KEYS to your configuration file:"
-    echo "   SONARQUBE_PROJECT_KEYS=\"project1,project2,project3\""
-    echo ""
-    echo "You can find your project keys by running:"
-    echo "   python src/main.py syngenta sonarqube sonarqube --operation list-projects"
-    echo ""
-    exit 1
-fi
+# Validate team-specific configuration removed - SonarQube temporarily disabled
 
 # Header
 echo ""
@@ -397,7 +386,7 @@ mkdir -p "$OUTPUT_DIR"
 
 # Create subdirectories for better organization
 mkdir -p "$OUTPUT_DIR/jira"
-mkdir -p "$OUTPUT_DIR/sonarqube"
+# mkdir -p "$OUTPUT_DIR/sonarqube"  # Temporarily disabled
 mkdir -p "$OUTPUT_DIR/linearb"
 mkdir -p "$OUTPUT_DIR/consolidated"
 
@@ -406,9 +395,9 @@ echo ""
 
 # Step counter for progress tracking
 if [ "$TRIBE_MODE" = true ]; then
-    TOTAL_STEPS=8  # Tribe mode: 5 JIRA reports + 3 cycle time reports = 8 total
+    TOTAL_STEPS=9  # Tribe mode: 5 JIRA reports + 3 cycle time + 1 net flow + 1 adherence = 10 total (SonarQube removed)
 else
-    TOTAL_STEPS=10  # Team mode: 5 JIRA reports + 3 cycle time reports + 2 others = 10 total
+    TOTAL_STEPS=13  # Team mode: 5 JIRA reports + 3 cycle time + 2 open issues + 1 wip age + 1 net flow + 1 adherence + 1 historical open = 14 total (SonarQube removed)
 fi
 STEP=1
 
@@ -458,7 +447,7 @@ if [ "$TRIBE_MODE" = true ]; then
     python src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
-      --issue-types 'Story,Task,Technical Debt,Improvement,Defect' \
+      --issue-types '    cd scripts && ./run_reports.sh --config team' \
       --status-categories 'Done' \
       --include-no-due-date \
       --output-file "$OUTPUT_DIR/jira/tribe-tasks-2weeks.json"
@@ -503,6 +492,34 @@ if [ "$TRIBE_MODE" = true ]; then
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types "Story,Task,Technical Debt,Improvement,Defect" \
       --output-file "$OUTPUT_DIR/jira/tribe-cycle-time-development-lastweek.json"
+
+    # Net Flow Analysis (Tribe)
+    echo "🌊 [$STEP/$TOTAL_STEPS] TRIBE – Net Flow Health Scorecard (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Scope: Complete tribe (CWS project)"
+    echo "   📊 Analysis: Arrival vs Throughput with 4-week trend"
+    ((STEP++))
+    python src/main.py syngenta jira net-flow-calculation \
+      --project-key "$PROJECT_KEY" \
+      --end-date "$LAST_WEEK_END" \
+      --output-format md \
+      --extended \
+      --verbose
+
+    # Issue Adherence Analysis (Tribe)
+    echo "📅 [$STEP/$TOTAL_STEPS] TRIBE – Issue Adherence Analysis (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Scope: Complete tribe (CWS project)"
+    echo "   📊 Analysis: Due date compliance with weighted metrics"
+    ((STEP++))
+    python src/main.py syngenta jira issue-adherence \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --issue-types "Story,Task,Bug,Technical Debt,Improvement,Defect" \
+      --output-format md \
+      --extended \
+      --weighted-adherence \
+      --verbose
 else
     # Team-specific reports (with team filter)
     echo "📊 [$STEP/$TOTAL_STEPS] TEAM – Bug & Support (Combined 2 Weeks)"
@@ -564,7 +581,33 @@ else
       --project-key "$PROJECT_KEY" \
       --issue-types 'Bug,Support' \
       --team "$TEAM" \
-      --output-file "$OUTPUT_DIR/jira/team-open-bugs-support.json"
+      --output-file "$OUTPUT_DIR/jira/team-open-bugs-support.json" \
+      --verbose
+
+    echo "📊 [$STEP/$TOTAL_STEPS] TEAM – Open Issues Week Before (Bugs & Support)"
+    echo "   📋 Issues that were open at end of: $WEEK_BEFORE_END"
+    echo "   📝 Logic: Created before $WEEK_BEFORE_END AND (still open OR resolved after $WEEK_BEFORE_END)"
+    ((STEP++))
+    python src/main.py syngenta jira issue-adherence \
+      --project-key "$PROJECT_KEY" \
+      --time-period "2020-01-01 to $WEEK_BEFORE_END" \
+      --issue-types 'Bug,Support' \
+      --status-categories 'To Do,In Progress,Done' \
+      --include-no-due-date \
+      --output-file "$OUTPUT_DIR/jira/team-open-bugs-support-weekbefore.json" \
+      --team "$TEAM"
+
+    echo "⏰ [$STEP/$TOTAL_STEPS] TEAM – WIP Age Tracking (Bugs & Support)"
+    echo "   📋 Oldest issues in progress for team: $TEAM"
+    ((STEP++))
+    python src/main.py syngenta jira wip-age-tracking \
+      --project-key "$PROJECT_KEY" \
+      --team "$TEAM" \
+      --issue-types 'Bug,Support' \
+      --alert-threshold 5 \
+      --output-format json \
+      --output-file "$OUTPUT_DIR/jira/team-wip-age-bugs-support.json" \
+      --verbose
 
     # JIRA Cycle Time Reports
     echo "⏱️  [$STEP/$TOTAL_STEPS] TEAM – Cycle Time Analysis - Bugs (Last Week)"
@@ -602,40 +645,70 @@ else
       --team "$TEAM" \
       --issue-types "Story,Task,Technical Debt,Improvement,Defect" \
       --output-file "$OUTPUT_DIR/jira/team-cycle-time-development-lastweek.json"
+
+    # Net Flow Analysis
+    echo "🌊 [$STEP/$TOTAL_STEPS] TEAM – Net Flow Health Scorecard (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Team: $TEAM"
+    echo "   📊 Analysis: Arrival vs Throughput with 4-week trend"
+    ((STEP++))
+    python src/main.py syngenta jira net-flow-calculation \
+      --project-key "$PROJECT_KEY" \
+      --end-date "$LAST_WEEK_END" \
+      --team "$TEAM" \
+      --output-format md \
+      --extended \
+      --verbose
+
+    # Issue Adherence Analysis
+    echo "📅 [$STEP/$TOTAL_STEPS] TEAM – Issue Adherence Analysis (Last Week)"
+    echo "   ⏳ Period: $JIRA_LAST_WEEK"
+    echo "   👥 Team: $TEAM"
+    echo "   📊 Analysis: Due date compliance with weighted metrics"
+    ((STEP++))
+    python src/main.py syngenta jira issue-adherence \
+      --project-key "$PROJECT_KEY" \
+      --time-period "$JIRA_LAST_WEEK" \
+      --team "$TEAM" \
+      --issue-types "Story,Task,Bug,Technical Debt,Improvement,Defect" \
+      --output-format md \
+      --extended \
+      --weighted-adherence \
+      --verbose
 fi
 
-# SonarQube Report
-echo ""
-if [ "$TRIBE_MODE" = true ]; then
-    echo "🔍 [$STEP/$TOTAL_STEPS] SonarQube – Code Quality Metrics (ALL PROJECTS)"
-    echo "   📊 Including all 27 Syngenta Digital projects"
-else
-    echo "� [$STEP/$TOTAL_STEPS] SonarQube – Code Quality Metrics"
-    echo "   � Team-specific projects"
-fi
-((STEP++))
-
-CLEAR_CACHE_FLAG=""
-[ "$CLEAR_CACHE" = "true" ] && CLEAR_CACHE_FLAG="--clear-cache"
-
-if [ "$TRIBE_MODE" = true ]; then
-    # Use all projects from the projects_list.json file (tribe mode)
-    python src/main.py syngenta sonarqube sonarqube \
-      --operation list-projects \
-      --organization "$SONARQUBE_ORGANIZATION" \
-      --include-measures \
-      --output-file "$OUTPUT_DIR/sonarqube/tribe-quality-metrics.json" \
-      $CLEAR_CACHE_FLAG
-else
-    # Use specific project keys (team mode)
-    python src/main.py syngenta sonarqube sonarqube \
-      --operation list-projects \
-      --organization "$SONARQUBE_ORGANIZATION" \
-      --include-measures \
-      --output-file "$OUTPUT_DIR/sonarqube/team-quality-metrics.json" \
-      $CLEAR_CACHE_FLAG \
-      --project-keys "$SONARQUBE_PROJECT_KEYS"
-fi
+# SonarQube Report - TEMPORARILY DISABLED
+# echo ""
+# if [ "$TRIBE_MODE" = true ]; then
+#     echo "🔍 [$STEP/$TOTAL_STEPS] SonarQube – Code Quality Metrics (ALL PROJECTS)"
+#     echo "   📊 Including all 27 Syngenta Digital projects"
+# else
+#     echo "🔍 [$STEP/$TOTAL_STEPS] SonarQube – Code Quality Metrics"
+#     echo "   📊 Team-specific projects"
+# fi
+# ((STEP++))
+# 
+# CLEAR_CACHE_FLAG=""
+# [ "$CLEAR_CACHE" = "true" ] && CLEAR_CACHE_FLAG="--clear-cache"
+# 
+# if [ "$TRIBE_MODE" = true ]; then
+#     # Use all projects from the projects_list.json file (tribe mode)
+#     python src/main.py syngenta sonarqube sonarqube \
+#       --operation list-projects \
+#       --organization "$SONARQUBE_ORGANIZATION" \
+#       --include-measures \
+#       --output-file "$OUTPUT_DIR/sonarqube/tribe-quality-metrics.json" \
+#       $CLEAR_CACHE_FLAG
+# else
+#     # Use specific project keys (team mode)
+#     python src/main.py syngenta sonarqube sonarqube \
+#       --operation list-projects \
+#       --organization "$SONARQUBE_ORGANIZATION" \
+#       --include-measures \
+#       --output-file "$OUTPUT_DIR/sonarqube/team-quality-metrics.json" \
+#       $CLEAR_CACHE_FLAG \
+#       --project-keys "$SONARQUBE_PROJECT_KEYS"
+# fi
 
 # LinearB Report
 if [ "$TRIBE_MODE" = true ]; then
@@ -693,12 +766,16 @@ if [ "$TRIBE_MODE" = true ]; then
 - Cycle Time Analysis - Bugs: \`jira/tribe-cycle-time-bugs-lastweek.json\`
 - Cycle Time Analysis - Support: \`jira/tribe-cycle-time-support-lastweek.json\`
 - Cycle Time Analysis - Development: \`jira/tribe-cycle-time-development-lastweek.json\`
-
-### Code Quality Analysis
-- SonarQube Metrics (27 projects): \`sonarqube/tribe-quality-metrics.json\`
+- Net Flow Health Scorecard: \`jira/net-flow-*.md\`
+- Issue Adherence Analysis: \`jira/issue-adherence-*.md\`
 
 ### Engineering Metrics
 - LinearB Metrics (tribe parent team): \`linearb/linearb_export*.csv\`
+
+<!-- SonarQube temporarily disabled
+### Code Quality Analysis
+- SonarQube Metrics (27 projects): \`sonarqube/tribe-quality-metrics.json\`
+-->
 EOF
 else
     cat >> "$SUMMARY_FILE" << EOF
@@ -707,15 +784,21 @@ else
 - Bug & Support Issues (week before): \`jira/team-bugs-support-weekbefore.json\`
 - Task Completion (2 weeks): \`jira/team-tasks-2weeks.json\`
 - Open Issues: \`jira/team-open-bugs-support.json\`
+- Open Issues (week before snapshot): \`jira/team-open-bugs-support-weekbefore.json\`
+- WIP Age Tracking: \`jira/team-wip-age-bugs-support.json\`
 - Cycle Time Analysis - Bugs: \`jira/team-cycle-time-bugs-lastweek.json\`
 - Cycle Time Analysis - Support: \`jira/team-cycle-time-support-lastweek.json\`
 - Cycle Time Analysis - Development: \`jira/team-cycle-time-development-lastweek.json\`
-
-### Code Quality Analysis
-- SonarQube Metrics (team projects): \`sonarqube/team-quality-metrics.json\`
+- Net Flow Health Scorecard: \`jira/net-flow-*.md\`
+- Issue Adherence Analysis: \`jira/issue-adherence-*.md\`
 
 ### Engineering Metrics
 - LinearB Metrics ($TEAM team): \`linearb/linearb_export*.csv\`
+
+<!-- SonarQube temporarily disabled
+### Code Quality Analysis
+- SonarQube Metrics (team projects): \`sonarqube/team-quality-metrics.json\`
+-->
 EOF
 fi
 
@@ -761,28 +844,28 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "📁 Output directory: $OUTPUT_DIR"
     echo ""
     echo "📊 Generated reports:"
-    printf "   • %-30s %s\n" "JIRA tribe reports:" "8 files (5 adherence + 3 cycle time)"
-    printf "   • %-30s %s\n" "SonarQube analysis:" "1 file (27 projects)"
+    printf "   • %-30s %s\n" "JIRA tribe reports:" "10 files (5 adherence + 3 cycle time + 2 analytics)"
     printf "   • %-30s %s\n" "LinearB metrics:" "CSV files (tribe parent team)"
     printf "   • %-30s %s\n" "Consolidated summary:" "1 markdown file"
+    # printf "   • %-30s %s\n" "SonarQube analysis:" "DISABLED (temporarily)"
 else
     echo "✅ TEAM WEEKLY REPORT GENERATION COMPLETED!"
     echo "════════════════════════════════════════════════════════════"
     echo "📁 Output directory: $OUTPUT_DIR"
     echo ""
-    echo "� Generated reports:"
-    printf "   • %-30s %s\n" "JIRA team reports:" "8 files (5 adherence + 3 cycle time)"
-    printf "   • %-30s %s\n" "SonarQube analysis:" "1 file (team projects)"
+    echo "📊 Generated reports:"
+    printf "   • %-30s %s\n" "JIRA team reports:" "12 files (5 adherence + 3 cycle time + 2 open issues + 1 wip age + 2 analytics)"
     printf "   • %-30s %s\n" "LinearB metrics:" "CSV files ($TEAM team)"
     printf "   • %-30s %s\n" "Consolidated summary:" "1 markdown file"
+    # printf "   • %-30s %s\n" "SonarQube analysis:" "DISABLED (temporarily)"
 fi
 echo ""
 echo "📂 Directory structure:"
 echo "   $OUTPUT_DIR/"
 echo "   ├── jira/                   (JIRA reports)"
-echo "   ├── sonarqube/              (Code quality metrics)"
 echo "   ├── linearb/                (Engineering metrics)"
 echo "   └── consolidated/           (Summary and analysis)"
+# echo "   ├── sonarqube/              (Code quality metrics - DISABLED)"
 echo ""
 echo "📋 Total files generated:"
 TOTAL_FILES=$(find "$OUTPUT_DIR" -type f | wc -l | tr -d ' ')
@@ -792,14 +875,14 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "🎯 Key insights available:"
     echo "   → Complete tribe performance metrics"
     echo "   → Week-over-week trend analysis"
-    echo "   → Quality metrics across all projects"
+    # echo "   → Quality metrics across all projects (SonarQube disabled)"
     echo "   → Engineering velocity patterns"
     echo "   → Comprehensive tribe health assessment"
 else
     echo "🎯 Key insights available:"
     echo "   → Team performance metrics"
     echo "   → Week-over-week trend analysis"
-    echo "   → Quality metrics for team projects"
+    # echo "   → Quality metrics for team projects (SonarQube disabled)"
     echo "   → Engineering velocity patterns"
     echo "   → Team health assessment"
 fi
