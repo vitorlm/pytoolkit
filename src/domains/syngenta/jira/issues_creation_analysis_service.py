@@ -50,9 +50,7 @@ class IssuesCreationAnalysisService:
         self.jira_assistant = JiraAssistant(cache_expiration=cache_expiration)
         self.cache_manager = CacheManager.get_instance()
         self.cache_expiration = cache_expiration
-        self.logger = LogManager.get_instance().get_logger(
-            "IssuesCreationAnalysisService"
-        )
+        self.logger = LogManager.get_instance().get_logger("IssuesCreationAnalysisService")
         self.time_parser = TimePeriodParser()
 
     def clear_cache(self):
@@ -62,72 +60,47 @@ class IssuesCreationAnalysisService:
 
     def analyze_issues_creation(
         self,
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        project_key: str,
+        start_date: date,
+        end_date: date,
         aggregation: str = "daily",
         issue_types: Optional[List[str]] = None,
-        projects: Optional[List[str]] = None,
+        teams: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         additional_jql: Optional[str] = None,
         include_summary: bool = False,
         output_file: Optional[str] = None,
-        time_period: Optional[str] = None,
+        output_format: str = "console",
         verbose: bool = False,
     ) -> Dict:
         """
         Analyze issues creation patterns over time.
 
         Args:
-            start_date: Start date for analysis (default: 30 days ago)
-            end_date: End date for analysis (default: today)
+            project_key: JIRA project key to analyze
+            start_date: Start date for analysis
+            end_date: End date for analysis
             aggregation: Aggregation level - daily, weekly, or monthly
             issue_types: List of issue types to filter
-            projects: List of project keys to filter
+            teams: List of team names to filter (Squad[Dropdown] field)
             labels: List of labels to filter
             additional_jql: Additional JQL filter
             include_summary: Whether to include summary statistics
             output_file: Output file path for results
-            time_period: Time period string (alternative to start_date/end_date)
+            output_format: Output format (json, md, console)
             verbose: Enable verbose output with date-by-date logging
 
         Returns:
             Dict containing analysis results with aggregated data
         """
         try:
-            # Parse time period if provided (following same pattern as resolution time service)
-            if time_period:
-                parsed_start, parsed_end = self.time_parser.parse_time_period(
-                    time_period
-                )
-                # Convert datetime to date if needed
-                start_date = (
-                    parsed_start.date()
-                    if isinstance(parsed_start, datetime)
-                    else parsed_start
-                )
-                end_date = (
-                    parsed_end.date()
-                    if isinstance(parsed_end, datetime)
-                    else parsed_end
-                )
-                self.logger.info(
-                    f"Parsed time period '{time_period}': {start_date} to {end_date}"
-                )
-            else:
-                # Set default dates if not provided
-                if not end_date:
-                    end_date = date.today()
-                if not start_date:
-                    start_date = end_date - timedelta(days=30)
-
             self.logger.info(
-                f"Analyzing issues creation from {start_date} to {end_date} "
-                f"with {aggregation} aggregation"
+                f"Analyzing issues creation from {start_date} to {end_date} with {aggregation} aggregation"
             )
 
             # Build JQL query
             jql_query = self._build_jql_query(
-                start_date, end_date, issue_types, projects, labels, additional_jql
+                project_key, start_date, end_date, issue_types, teams, labels, additional_jql
             )
 
             # Fetch issues with pagination to get all results
@@ -151,22 +124,14 @@ class IssuesCreationAnalysisService:
                 # Check issue types distribution
                 issue_types_count = {}
                 for issue in issues:
-                    issue_type = (
-                        issue.get("fields", {})
-                        .get("issuetype", {})
-                        .get("name", "Unknown")
-                    )
-                    issue_types_count[issue_type] = (
-                        issue_types_count.get(issue_type, 0) + 1
-                    )
+                    issue_type = issue.get("fields", {}).get("issuetype", {}).get("name", "Unknown")
+                    issue_types_count[issue_type] = issue_types_count.get(issue_type, 0) + 1
                 self.logger.info(f"Issue types distribution: {issue_types_count}")
 
                 # Check project distribution
                 project_count = {}
                 for issue in issues:
-                    project_key = (
-                        issue.get("fields", {}).get("project", {}).get("key", "Unknown")
-                    )
+                    project_key = issue.get("fields", {}).get("project", {}).get("key", "Unknown")
                     project_count[project_key] = project_count.get(project_key, 0) + 1
                 self.logger.info(f"Project distribution: {project_count}")
 
@@ -179,9 +144,7 @@ class IssuesCreationAnalysisService:
 
                 if creation_dates:
                     creation_dates.sort()
-                    self.logger.info(
-                        f"Date range: {creation_dates[0]} to {creation_dates[-1]}"
-                    )
+                    self.logger.info(f"Date range: {creation_dates[0]} to {creation_dates[-1]}")
 
             # Process issues into structured results
             creation_results = []
@@ -211,55 +174,60 @@ class IssuesCreationAnalysisService:
                 # Log date range of processed issues
                 processed_dates = [r.created_date_parsed for r in creation_results]
                 processed_dates.sort()
-                self.logger.info(
-                    f"Processed date range: {processed_dates[0]} to {processed_dates[-1]}"
-                )
+                self.logger.info(f"Processed date range: {processed_dates[0]} to {processed_dates[-1]}")
 
             # Aggregate data by time period with complete timeline
-            self.logger.info(
-                f"Aggregating data by {aggregation} from {start_date} to {end_date}"
-            )
+            self.logger.info(f"Aggregating data by {aggregation} from {start_date} to {end_date}")
             aggregated_data = self._aggregate_issues_by_time(
                 creation_results, aggregation, start_date, end_date, verbose
             )
 
             # Log aggregation results
-            periods_with_issues = len(
-                [d for d in aggregated_data if d["total_issues"] > 0]
-            )
+            periods_with_issues = len([d for d in aggregated_data if d["total_issues"] > 0])
             self.logger.info(
-                f"Generated {len(aggregated_data)} {aggregation} periods, "
-                f"{periods_with_issues} with issues"
+                f"Generated {len(aggregated_data)} {aggregation} periods, {periods_with_issues} with issues"
             )
 
             if aggregated_data:
                 issue_counts = [d["total_issues"] for d in aggregated_data]
                 max_issues = max(issue_counts)
                 avg_issues = sum(issue_counts) / len(issue_counts)
-                self.logger.info(
-                    f"Issues per period - Max: {max_issues}, Avg: {avg_issues:.1f}"
-                )
+                self.logger.info(f"Issues per period - Max: {max_issues}, Avg: {avg_issues:.1f}")
 
             # Build comprehensive result structure
             result = {
                 "query_info": {
+                    "project_key": project_key,
                     "start_date": start_date.isoformat(),
                     "end_date": end_date.isoformat(),
+                    "window_days": (end_date - start_date).days,
                     "aggregation": aggregation,
                     "issue_types": issue_types,
-                    "projects": projects,
+                    "teams": teams,
                     "labels": labels,
                     "additional_jql": additional_jql,
-                    "time_period": time_period,
                     "jql_query": jql_query,
                 },
                 "summary": {
                     "total_issues": len(creation_results),
                     "analysis_period_days": (end_date - start_date).days + 1,
                     "total_periods": len(aggregated_data),
-                    "periods_with_issues": len(
-                        [d for d in aggregated_data if d["total_issues"] > 0]
-                    ),
+                    "periods_with_issues": len([d for d in aggregated_data if d["total_issues"] > 0]),
+                },
+                # Add analysis_metadata for JiraSummaryManager compatibility
+                "analysis_metadata": {
+                    "project": project_key,
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                    "teams": teams,
+                    "aggregation": aggregation,
+                },
+                # Add metrics for JiraSummaryManager compatibility
+                "metrics": {
+                    "total_issues": len(creation_results),
+                    "analysis_period_days": (end_date - start_date).days + 1,
+                    "total_periods": len(aggregated_data),
+                    "periods_with_issues": len([d for d in aggregated_data if d["total_issues"] > 0]),
                 },
                 "data": aggregated_data,
                 "issues": [self._result_to_dict(r) for r in creation_results],
@@ -271,34 +239,50 @@ class IssuesCreationAnalysisService:
                     creation_results, aggregated_data, aggregation
                 )
 
-            # Save results - always save output file using OutputManager
-            if output_file:
-                self._save_results(result, output_file)
-                result["output_file"] = output_file
-                self.logger.info(f"Results saved to specified file: {output_file}")
+            # Save results based on output format
+            if output_format in ["json", "md"]:
+                if output_file:
+                    # Use specified output file
+                    if output_format == "md":
+                        self._save_markdown_report(result, output_file)
+                    else:
+                        self._save_results(result, output_file)
+                    result["output_file"] = output_file
+                    self.logger.info(f"Results saved to specified file: {output_file}")
+                else:
+                    # Generate default output file using OutputManager
+                    extension = "md" if output_format == "md" else "json"
+                    output_path = OutputManager.get_output_path(
+                        sub_dir="issues-creation-analysis", file_name=f"analysis_{aggregation}", extension=extension
+                    )
+                    if output_format == "md":
+                        self._save_markdown_report(result, output_path)
+                    else:
+                        self._save_results(result, output_path)
+                    result["output_file"] = output_path
+                    self.logger.info(f"Results saved to default location: {output_path}")
             else:
-                # Generate default output file using OutputManager
+                # Console output - still save JSON for summary metrics
                 output_path = OutputManager.get_output_path(
-                    "issues-creation-analysis", f"analysis_{aggregation}"
+                    sub_dir="issues-creation-analysis", file_name=f"analysis_{aggregation}"
                 )
                 self._save_results(result, output_path)
                 result["output_file"] = output_path
-                self.logger.info(f"Results saved to default location: {output_path}")
+                self.logger.info(f"Results saved for metrics: {output_path}")
 
             return result
 
         except Exception as e:
             self.logger.error(f"Error analyzing issues creation: {e}", exc_info=True)
-            raise JiraQueryError(
-                "Failed to analyze issues creation", error=str(e)
-            ) from e
+            raise JiraQueryError("Failed to analyze issues creation", error=str(e)) from e
 
     def _build_jql_query(
         self,
+        project_key: str,
         start_date: date,
         end_date: date,
         issue_types: Optional[List[str]] = None,
-        projects: Optional[List[str]] = None,
+        teams: Optional[List[str]] = None,
         labels: Optional[List[str]] = None,
         additional_jql: Optional[str] = None,
     ) -> str:
@@ -306,10 +290,11 @@ class IssuesCreationAnalysisService:
         Build JQL query with all filters.
 
         Args:
+            project_key: Project key to filter
             start_date: Start date for filtering
             end_date: End date for filtering
             issue_types: Issue types to filter
-            projects: Project keys to filter
+            teams: Team names to filter (Squad[Dropdown] field)
             labels: Labels to filter
             additional_jql: Additional JQL conditions
 
@@ -318,11 +303,15 @@ class IssuesCreationAnalysisService:
         """
         jql_parts = []
 
-        # Filter for open issues (status != Done) at the specified date
-        # We don't need date range filtering since we want current open issues
-        status_filter = "statusCategory != Done"
-        jql_parts.append(status_filter)
-        self.logger.debug(f"Status filter: {status_filter}")
+        # Project filter (required)
+        jql_parts.append(f"project = '{project_key}'")
+
+        # Date range filter for created date
+        start_str = start_date.strftime("%Y-%m-%d")
+        end_str = end_date.strftime("%Y-%m-%d")
+        date_filter = f"created >= '{start_str}' AND created <= '{end_str} 23:59'"
+        jql_parts.append(date_filter)
+        self.logger.debug(f"Date filter: {date_filter}")
 
         # Issue types filter
         if issue_types:
@@ -336,17 +325,17 @@ class IssuesCreationAnalysisService:
                 jql_parts.append(type_filter)
                 self.logger.debug(f"Issue types filter: {type_filter}")
 
-        # Projects filter
-        if projects:
-            if len(projects) == 1:
-                project_filter = f"project = '{projects[0]}'"
-                jql_parts.append(project_filter)
-                self.logger.debug(f"Project filter: {project_filter}")
+        # Teams filter (using Squad[Dropdown] field)
+        if teams:
+            if len(teams) == 1:
+                team_filter = f"'Squad[Dropdown]' = '{teams[0]}'"
+                jql_parts.append(team_filter)
+                self.logger.debug(f"Team filter: {team_filter}")
             else:
-                projects_str = "', '".join(projects)
-                project_filter = f"project IN ('{projects_str}')"
-                jql_parts.append(project_filter)
-                self.logger.debug(f"Projects filter: {project_filter}")
+                teams_str = "', '".join(teams)
+                team_filter = f"'Squad[Dropdown]' IN ('{teams_str}')"
+                jql_parts.append(team_filter)
+                self.logger.debug(f"Teams filter: {team_filter}")
 
         # Labels filter
         if labels:
@@ -406,9 +395,7 @@ class IssuesCreationAnalysisService:
                 return None
 
             # Parse created date
-            created_date_parsed = datetime.fromisoformat(
-                created_date.replace("Z", "+00:00")
-            ).date()
+            created_date_parsed = datetime.fromisoformat(created_date.replace("Z", "+00:00")).date()
 
             return IssueCreationResult(
                 issue_key=issue_key,
@@ -424,9 +411,7 @@ class IssuesCreationAnalysisService:
             )
 
         except Exception as e:
-            self.logger.warning(
-                f"Error processing issue {issue.get('key', 'unknown')}: {e}"
-            )
+            self.logger.warning(f"Error processing issue {issue.get('key', 'unknown')}: {e}")
             return None
 
     def _aggregate_issues_by_time(
@@ -473,9 +458,7 @@ class IssuesCreationAnalysisService:
             time_groups[period_key].append(issue)
 
         # Generate complete timeline with missing periods filled
-        complete_timeline = self._generate_complete_timeline(
-            start_date, end_date, aggregation
-        )
+        complete_timeline = self._generate_complete_timeline(start_date, end_date, aggregation)
 
         # Convert to sorted list of data points
         aggregated_data = []
@@ -504,12 +487,8 @@ class IssuesCreationAnalysisService:
                 if issue_count > 0:
                     # Log period with issues
                     issue_keys = [issue.issue_key for issue in issues_in_period]
-                    issue_types_str = ", ".join(
-                        f"{k}: {v}" for k, v in period_stats["issue_types"].items()
-                    )
-                    projects_str = ", ".join(
-                        f"{k}: {v}" for k, v in period_stats["projects"].items()
-                    )
+                    issue_types_str = ", ".join(f"{k}: {v}" for k, v in period_stats["issue_types"].items())
+                    projects_str = ", ".join(f"{k}: {v}" for k, v in period_stats["projects"].items())
 
                     self.logger.info(f"📅 {period_key}: {issue_count} issues")
                     self.logger.info(f"   Issue keys: {', '.join(issue_keys)}")
@@ -517,9 +496,7 @@ class IssuesCreationAnalysisService:
                     self.logger.info(f"   Projects: {projects_str}")
 
                     if period_stats["assignees"]:
-                        assignees_str = ", ".join(
-                            f"{k}: {v}" for k, v in period_stats["assignees"].items()
-                        )
+                        assignees_str = ", ".join(f"{k}: {v}" for k, v in period_stats["assignees"].items())
                         self.logger.info(f"   Assignees: {assignees_str}")
                 else:
                     # Log period with no issues
@@ -527,9 +504,7 @@ class IssuesCreationAnalysisService:
 
         return aggregated_data
 
-    def _generate_complete_timeline(
-        self, start_date: date, end_date: date, aggregation: str
-    ) -> List[str]:
+    def _generate_complete_timeline(self, start_date: date, end_date: date, aggregation: str) -> List[str]:
         """
         Generate a complete timeline with all periods between start and end dates.
 
@@ -563,9 +538,7 @@ class IssuesCreationAnalysisService:
                     timeline.append(period_key)
                 # Move to next month
                 if current_date.month == 12:
-                    current_date = current_date.replace(
-                        year=current_date.year + 1, month=1
-                    )
+                    current_date = current_date.replace(year=current_date.year + 1, month=1)
                 else:
                     current_date = current_date.replace(month=current_date.month + 1)
             else:
@@ -672,9 +645,7 @@ class IssuesCreationAnalysisService:
         return {
             "total_issues": len(issues),
             "total_periods": len(aggregated_data),
-            "periods_with_issues": len(
-                [d for d in aggregated_data if d["total_issues"] > 0]
-            ),
+            "periods_with_issues": len([d for d in aggregated_data if d["total_issues"] > 0]),
             "average_per_period": sum(issue_counts) / len(issue_counts),
             "max_per_period": max(issue_counts),
             "min_per_period": min(issue_counts),
@@ -747,20 +718,10 @@ class IssuesCreationAnalysisService:
         valleys = []
 
         for i in range(1, len(issue_counts) - 1):
-            if (
-                issue_counts[i] > issue_counts[i - 1]
-                and issue_counts[i] > issue_counts[i + 1]
-            ):
-                peaks.append(
-                    {"period": aggregated_data[i]["period"], "issues": issue_counts[i]}
-                )
-            elif (
-                issue_counts[i] < issue_counts[i - 1]
-                and issue_counts[i] < issue_counts[i + 1]
-            ):
-                valleys.append(
-                    {"period": aggregated_data[i]["period"], "issues": issue_counts[i]}
-                )
+            if issue_counts[i] > issue_counts[i - 1] and issue_counts[i] > issue_counts[i + 1]:
+                peaks.append({"period": aggregated_data[i]["period"], "issues": issue_counts[i]})
+            elif issue_counts[i] < issue_counts[i - 1] and issue_counts[i] < issue_counts[i + 1]:
+                valleys.append({"period": aggregated_data[i]["period"], "issues": issue_counts[i]})
 
         return {
             "peak_periods": peaks,
@@ -805,6 +766,46 @@ class IssuesCreationAnalysisService:
             "created_date_parsed": result.created_date_parsed.isoformat(),
         }
 
+    def _save_markdown_report(self, results: Dict, output_file: str):
+        """Save results to Markdown file with formatted report."""
+        query_info = results.get("query_info", {})
+        summary = results.get("summary", {})
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("# JIRA Issues Creation Analysis\n\n")
+            f.write("## Query Information\n\n")
+            f.write(f"- **Project**: {query_info.get('project_key', 'N/A')}\n")
+            f.write(f"- **Period**: {query_info.get('start_date')} to {query_info.get('end_date')}\n")
+            f.write(f"- **Aggregation**: {query_info.get('aggregation')}\n")
+            f.write(f"- **Issue Types**: {', '.join(query_info.get('issue_types', []))}\n")
+            if query_info.get("teams"):
+                f.write(f"- **Teams**: {', '.join(query_info.get('teams', []))}\n")
+            if query_info.get("labels"):
+                f.write(f"- **Labels**: {', '.join(query_info.get('labels', []))}\n")
+
+            f.write("\n## Summary\n\n")
+            f.write(f"- **Total Issues**: {summary.get('total_issues', 0)}\n")
+            f.write(f"- **Analysis Period**: {summary.get('analysis_period_days', 0)} days\n")
+            f.write(f"- **Total Periods**: {summary.get('total_periods', 0)}\n")
+            f.write(f"- **Periods with Issues**: {summary.get('periods_with_issues', 0)}\n")
+
+            f.write("\n## Data by Period\n\n")
+            f.write("| Period | Total Issues | Top Issue Type | Top Project |\n")
+            f.write("|--------|--------------|----------------|-------------|\n")
+
+            for data_point in results.get("data", []):
+                period = data_point.get("period", "")
+                total = data_point.get("total_issues", 0)
+                issue_types = data_point.get("issue_types", {})
+                projects = data_point.get("projects", {})
+
+                top_type = max(issue_types.items(), key=lambda x: x[1])[0] if issue_types else "N/A"
+                top_proj = max(projects.items(), key=lambda x: x[1])[0] if projects else "N/A"
+
+                f.write(f"| {period} | {total} | {top_type} | {top_proj} |\n")
+
+        self.logger.info(f"Markdown report saved to {output_file}")
+
     def _save_results(self, results: Dict, output_file: str):
         """Save results to file using the same pattern as resolution time service."""
         if output_file.endswith(".csv"):
@@ -832,9 +833,7 @@ class IssuesCreationAnalysisService:
             writer.writerow(["Start Date", query_info.get("start_date", "")])
             writer.writerow(["End Date", query_info.get("end_date", "")])
             writer.writerow(["Aggregation", query_info.get("aggregation", "")])
-            writer.writerow(
-                ["Issue Types", ", ".join(query_info.get("issue_types", []))]
-            )
+            writer.writerow(["Issue Types", ", ".join(query_info.get("issue_types", []))])
             writer.writerow(["Projects", ", ".join(query_info.get("projects", []))])
             writer.writerow(["Labels", ", ".join(query_info.get("labels", []))])
             writer.writerow([])
@@ -843,13 +842,9 @@ class IssuesCreationAnalysisService:
             summary = results.get("summary", {})
             writer.writerow(["SUMMARY STATISTICS"])
             writer.writerow(["Total Issues", summary.get("total_issues", 0)])
-            writer.writerow(
-                ["Analysis Period (Days)", summary.get("analysis_period_days", 0)]
-            )
+            writer.writerow(["Analysis Period (Days)", summary.get("analysis_period_days", 0)])
             writer.writerow(["Total Periods", summary.get("total_periods", 0)])
-            writer.writerow(
-                ["Periods with Issues", summary.get("periods_with_issues", 0)]
-            )
+            writer.writerow(["Periods with Issues", summary.get("periods_with_issues", 0)])
             writer.writerow([])
 
             # Write aggregated data
@@ -872,20 +867,10 @@ class IssuesCreationAnalysisService:
                 priorities = data_point.get("priorities", {})
                 assignees = data_point.get("assignees", {})
 
-                top_issue_type = (
-                    max(issue_types.items(), key=lambda x: x[1])[0]
-                    if issue_types
-                    else ""
-                )
-                top_project = (
-                    max(projects.items(), key=lambda x: x[1])[0] if projects else ""
-                )
-                top_priority = (
-                    max(priorities.items(), key=lambda x: x[1])[0] if priorities else ""
-                )
-                top_assignee = (
-                    max(assignees.items(), key=lambda x: x[1])[0] if assignees else ""
-                )
+                top_issue_type = max(issue_types.items(), key=lambda x: x[1])[0] if issue_types else ""
+                top_project = max(projects.items(), key=lambda x: x[1])[0] if projects else ""
+                top_priority = max(priorities.items(), key=lambda x: x[1])[0] if priorities else ""
+                top_assignee = max(assignees.items(), key=lambda x: x[1])[0] if assignees else ""
 
                 writer.writerow(
                     [
@@ -913,15 +898,9 @@ class IssuesCreationAnalysisService:
                         detailed_summary.get("average_per_period", 0),
                     ]
                 )
-                writer.writerow(
-                    ["Max per Period", detailed_summary.get("max_per_period", 0)]
-                )
-                writer.writerow(
-                    ["Min per Period", detailed_summary.get("min_per_period", 0)]
-                )
-                writer.writerow(
-                    ["Median per Period", detailed_summary.get("median_per_period", 0)]
-                )
+                writer.writerow(["Max per Period", detailed_summary.get("max_per_period", 0)])
+                writer.writerow(["Min per Period", detailed_summary.get("min_per_period", 0)])
+                writer.writerow(["Median per Period", detailed_summary.get("median_per_period", 0)])
 
                 trend = detailed_summary.get("trend_analysis", {})
                 writer.writerow(["Trend Direction", trend.get("direction", "stable")])
@@ -982,8 +961,8 @@ class IssuesCreationAnalysisService:
             aggregation = result["query_info"]["aggregation"]
             extension = f".{format}"
             output_file = OutputManager.get_output_path(
-                command_name="issues-creation-analysis",
-                filename=f"analysis_{aggregation}",
+                sub_dir="issues-creation-analysis",
+                file_name=f"analysis_{aggregation}",
                 extension=extension,
             )
 
@@ -992,9 +971,10 @@ class IssuesCreationAnalysisService:
 
             # Also create a summary file if detailed summary exists
             if format == "csv" and "detailed_summary" in result:
+                aggregation = result["query_info"]["aggregation"]
                 summary_file = OutputManager.get_output_path(
-                    command_name="issues-creation-analysis",
-                    filename=f"analysis_{aggregation}_summary",
+                    sub_dir="issues-creation-analysis",
+                    file_name=f"analysis_{aggregation}_summary",
                     extension=".csv",
                 )
                 self._save_summary_csv(result, summary_file)
@@ -1074,16 +1054,9 @@ class IssuesCreationAnalysisService:
 
             if total_issues > 0:
                 # Get top issue type
-                top_issue_type = (
-                    max(issue_types.items(), key=lambda x: x[1])
-                    if issue_types
-                    else None
-                )
+                top_issue_type = max(issue_types.items(), key=lambda x: x[1]) if issue_types else None
                 if top_issue_type:
-                    print(
-                        f"{data_point['period']}: {total_issues} issues "
-                        f"({top_issue_type[0]}: {top_issue_type[1]})"
-                    )
+                    print(f"{data_point['period']}: {total_issues} issues ({top_issue_type[0]}: {top_issue_type[1]})")
                 else:
                     print(f"{data_point['period']}: {total_issues} issues")
             else:
@@ -1091,22 +1064,16 @@ class IssuesCreationAnalysisService:
 
             # Only show detailed breakdown when verbose is enabled
             if verbose and data_point["issue_types"]:
-                types_str = ", ".join(
-                    [f"{t}: {c}" for t, c in data_point["issue_types"].items()]
-                )
+                types_str = ", ".join([f"{t}: {c}" for t, c in data_point["issue_types"].items()])
                 print(f"  Types: {types_str}")
 
                 # Show additional details in verbose mode
                 if data_point["projects"]:
-                    projects_str = ", ".join(
-                        [f"{p}: {c}" for p, c in data_point["projects"].items()]
-                    )
+                    projects_str = ", ".join([f"{p}: {c}" for p, c in data_point["projects"].items()])
                     print(f"  Projects: {projects_str}")
 
                 if data_point["assignees"]:
-                    assignees_str = ", ".join(
-                        [f"{a}: {c}" for a, c in data_point["assignees"].items()]
-                    )
+                    assignees_str = ", ".join([f"{a}: {c}" for a, c in data_point["assignees"].items()])
                     print(f"  Assignees: {assignees_str}")
 
         # Generate and display hierarchical summary
@@ -1215,16 +1182,8 @@ class IssuesCreationAnalysisService:
             total_issues = stats["total_issues"]
             if total_issues > 0:
                 # Get top issue type and project
-                top_issue_type = (
-                    max(stats["issue_types"].items(), key=lambda x: x[1])
-                    if stats["issue_types"]
-                    else None
-                )
-                top_project = (
-                    max(stats["projects"].items(), key=lambda x: x[1])
-                    if stats["projects"]
-                    else None
-                )
+                top_issue_type = max(stats["issue_types"].items(), key=lambda x: x[1]) if stats["issue_types"] else None
+                top_project = max(stats["projects"].items(), key=lambda x: x[1]) if stats["projects"] else None
 
                 print(f"{month}: {total_issues} issues", end="")
                 if top_issue_type:
@@ -1235,9 +1194,7 @@ class IssuesCreationAnalysisService:
 
                 if verbose:
                     # Show issue type breakdown
-                    types_str = ", ".join(
-                        [f"{t}: {c}" for t, c in stats["issue_types"].items()]
-                    )
+                    types_str = ", ".join([f"{t}: {c}" for t, c in stats["issue_types"].items()])
                     print(f"  Types: {types_str}")
 
                     # Show period count
@@ -1245,21 +1202,14 @@ class IssuesCreationAnalysisService:
                         [
                             p
                             for p in stats["periods"]
-                            if any(
-                                dp["period"] == p and dp["total_issues"] > 0
-                                for dp in data_points
-                            )
+                            if any(dp["period"] == p and dp["total_issues"] > 0 for dp in data_points)
                         ]
                     )
-                    print(
-                        f"  Periods: {len(stats['periods'])} ({periods_with_issues} with issues)"
-                    )
+                    print(f"  Periods: {len(stats['periods'])} ({periods_with_issues} with issues)")
             else:
                 print(f"{month}: 0 issues")
 
-    def _display_quarterly_summary(
-        self, data_points: List[Dict], verbose: bool = False
-    ):
+    def _display_quarterly_summary(self, data_points: List[Dict], verbose: bool = False):
         """Display quarterly summary for monthly data."""
         from datetime import datetime
         from collections import defaultdict
@@ -1287,9 +1237,7 @@ class IssuesCreationAnalysisService:
                     # Skip periods that can't be parsed
                     continue
 
-                quarterly_stats[quarter_key]["total_issues"] += data_point[
-                    "total_issues"
-                ]
+                quarterly_stats[quarter_key]["total_issues"] += data_point["total_issues"]
                 quarterly_stats[quarter_key]["months"].append(period_str)
 
                 # Aggregate issue types
@@ -1309,16 +1257,8 @@ class IssuesCreationAnalysisService:
             total_issues = stats["total_issues"]
             if total_issues > 0:
                 # Get top issue type and project
-                top_issue_type = (
-                    max(stats["issue_types"].items(), key=lambda x: x[1])
-                    if stats["issue_types"]
-                    else None
-                )
-                top_project = (
-                    max(stats["projects"].items(), key=lambda x: x[1])
-                    if stats["projects"]
-                    else None
-                )
+                top_issue_type = max(stats["issue_types"].items(), key=lambda x: x[1]) if stats["issue_types"] else None
+                top_project = max(stats["projects"].items(), key=lambda x: x[1]) if stats["projects"] else None
 
                 print(f"{quarter}: {total_issues} issues", end="")
                 if top_issue_type:
@@ -1329,9 +1269,7 @@ class IssuesCreationAnalysisService:
 
                 if verbose:
                     # Show issue type breakdown
-                    types_str = ", ".join(
-                        [f"{t}: {c}" for t, c in stats["issue_types"].items()]
-                    )
+                    types_str = ", ".join([f"{t}: {c}" for t, c in stats["issue_types"].items()])
                     print(f"  Types: {types_str}")
 
                     # Show month count
@@ -1339,15 +1277,10 @@ class IssuesCreationAnalysisService:
                         [
                             m
                             for m in stats["months"]
-                            if any(
-                                dp["period"] == m and dp["total_issues"] > 0
-                                for dp in data_points
-                            )
+                            if any(dp["period"] == m and dp["total_issues"] > 0 for dp in data_points)
                         ]
                     )
-                    print(
-                        f"  Months: {len(stats['months'])} ({months_with_issues} with issues)"
-                    )
+                    print(f"  Months: {len(stats['months'])} ({months_with_issues} with issues)")
             else:
                 print(f"{quarter}: 0 issues")
 
@@ -1407,33 +1340,19 @@ class IssuesCreationAnalysisService:
                 continue
 
         # Write header
-        writer.writerow(
-            ["Month", "Total Issues", "Top Issue Type", "Top Project", "Periods Count"]
-        )
+        writer.writerow(["Month", "Total Issues", "Top Issue Type", "Top Project", "Periods Count"])
 
         # Write monthly data
         for month, stats in sorted(monthly_stats.items()):
             total_issues = stats["total_issues"]
-            top_issue_type = (
-                max(stats["issue_types"].items(), key=lambda x: x[1])
-                if stats["issue_types"]
-                else ("", 0)
-            )
-            top_project = (
-                max(stats["projects"].items(), key=lambda x: x[1])
-                if stats["projects"]
-                else ("", 0)
-            )
+            top_issue_type = max(stats["issue_types"].items(), key=lambda x: x[1]) if stats["issue_types"] else ("", 0)
+            top_project = max(stats["projects"].items(), key=lambda x: x[1]) if stats["projects"] else ("", 0)
 
             writer.writerow(
                 [
                     month,
                     total_issues,
-                    (
-                        f"{top_issue_type[0]} ({top_issue_type[1]})"
-                        if top_issue_type[0]
-                        else ""
-                    ),
+                    (f"{top_issue_type[0]} ({top_issue_type[1]})" if top_issue_type[0] else ""),
                     f"{top_project[0]} ({top_project[1]})" if top_project[0] else "",
                     len(stats["periods"]),
                 ]
@@ -1464,9 +1383,7 @@ class IssuesCreationAnalysisService:
                 else:
                     continue
 
-                quarterly_stats[quarter_key]["total_issues"] += data_point[
-                    "total_issues"
-                ]
+                quarterly_stats[quarter_key]["total_issues"] += data_point["total_issues"]
                 quarterly_stats[quarter_key]["months"].append(period_str)
 
                 for issue_type, count in data_point.get("issue_types", {}).items():
@@ -1479,33 +1396,19 @@ class IssuesCreationAnalysisService:
                 continue
 
         # Write header
-        writer.writerow(
-            ["Quarter", "Total Issues", "Top Issue Type", "Top Project", "Months Count"]
-        )
+        writer.writerow(["Quarter", "Total Issues", "Top Issue Type", "Top Project", "Months Count"])
 
         # Write quarterly data
         for quarter, stats in sorted(quarterly_stats.items()):
             total_issues = stats["total_issues"]
-            top_issue_type = (
-                max(stats["issue_types"].items(), key=lambda x: x[1])
-                if stats["issue_types"]
-                else ("", 0)
-            )
-            top_project = (
-                max(stats["projects"].items(), key=lambda x: x[1])
-                if stats["projects"]
-                else ("", 0)
-            )
+            top_issue_type = max(stats["issue_types"].items(), key=lambda x: x[1]) if stats["issue_types"] else ("", 0)
+            top_project = max(stats["projects"].items(), key=lambda x: x[1]) if stats["projects"] else ("", 0)
 
             writer.writerow(
                 [
                     quarter,
                     total_issues,
-                    (
-                        f"{top_issue_type[0]} ({top_issue_type[1]})"
-                        if top_issue_type[0]
-                        else ""
-                    ),
+                    (f"{top_issue_type[0]} ({top_issue_type[1]})" if top_issue_type[0] else ""),
                     f"{top_project[0]} ({top_project[1]})" if top_project[0] else "",
                     len(stats["months"]),
                 ]
