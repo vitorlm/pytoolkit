@@ -371,7 +371,15 @@ echo ""
 # Set up output directory using the reference date (not current date)
 if [ "$USE_DATE_SUFFIX" = "true" ]; then
     # Use the reference date (configured or current) instead of current date
-    DATE_SUFFIX=$(date -jf "%Y-%m-%d" "$TODAY" +"%Y%m%d")
+    if [[ -n "$CUSTOM_PERIOD_END" ]]; then
+        # Use custom period end date for suffix
+        DATE_SUFFIX=$(date -jf "%Y-%m-%d" "$CUSTOM_PERIOD_END" +"%Y%m%d")
+    elif [[ -n "$TODAY" ]]; then
+        DATE_SUFFIX=$(date -jf "%Y-%m-%d" "$TODAY" +"%Y%m%d")
+    else
+        # Fallback to current date
+        DATE_SUFFIX=$(TZ="America/Sao_Paulo" date +"%Y%m%d")
+    fi
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/${REPORT_SCOPE}_weekly_reports_${DATE_SUFFIX}"
 else
     OUTPUT_DIR="${OUTPUT_BASE_DIR}/${REPORT_SCOPE}_weekly_reports"
@@ -408,7 +416,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   ⏳ Period: $JIRA_TWO_WEEKS"
     echo "   👥 Scope: Complete tribe (CWS project)"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
       --issue-types 'Bug,Support' \
@@ -420,7 +428,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   ⏳ Period: $JIRA_LAST_WEEK"
     echo "   👥 Scope: Complete tribe (CWS project)"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types 'Bug,Support' \
@@ -432,7 +440,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   ⏳ Period: $JIRA_WEEK_BEFORE"
     echo "   👥 Scope: Complete tribe (CWS project)"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_WEEK_BEFORE" \
       --issue-types 'Bug,Support' \
@@ -444,7 +452,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   ⏳ Period: $JIRA_TWO_WEEKS"
     echo "   👥 Scope: Complete tribe (CWS project)"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
       --issue-types '    cd scripts && ./run_reports.sh --config team' \
@@ -455,7 +463,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "🐛 [$STEP/$TOTAL_STEPS] TRIBE – Open Issues (All Types)"
     echo "   � Current open issues for entire tribe"
     ((STEP++))
-    python src/main.py syngenta jira open-issues \
+    python3 src/main.py syngenta jira open-issues \
       --project-key "$PROJECT_KEY" \
       --issue-types 'Bug,Support,Story,Task,Technical Debt,Improvement,Defect' \
       --output-file "$OUTPUT_DIR/jira/tribe-open-issues.json"
@@ -465,7 +473,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   👥 Scope: Complete tribe (CWS project)"
     echo "   🐛 Issue Types: Bug"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types "Bug" \
@@ -476,7 +484,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   👥 Scope: Complete tribe (CWS project)"
     echo "   🎧 Issue Types: Support"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types "Support" \
@@ -487,7 +495,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   👥 Scope: Complete tribe (CWS project)"
     echo "   🚀 Issue Types: Story,Task,Technical Debt,Improvement,Defect"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types "Story,Task,Technical Debt,Improvement,Defect" \
@@ -499,7 +507,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   👥 Scope: Complete tribe (CWS project)"
     echo "   📊 Analysis: Arrival vs Throughput with 4-week trend"
     ((STEP++))
-    python src/main.py syngenta jira net-flow-calculation \
+    python3 src/main.py syngenta jira net-flow-calculation \
       --project-key "$PROJECT_KEY" \
       --end-date "$LAST_WEEK_END" \
       --output-format md \
@@ -512,7 +520,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   👥 Scope: Complete tribe (CWS project)"
     echo "   📊 Analysis: Due date compliance with weighted metrics"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types "Story,Task,Bug,Technical Debt,Improvement,Defect" \
@@ -526,7 +534,7 @@ else
     echo "   ⏳ Period: $JIRA_TWO_WEEKS"
     echo "   👥 Team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
       --issue-types 'Bug,Support' \
@@ -539,7 +547,7 @@ else
     echo "   ⏳ Period: $JIRA_LAST_WEEK"
     echo "   👥 Team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --issue-types 'Bug,Support' \
@@ -552,7 +560,7 @@ else
     echo "   ⏳ Period: $JIRA_WEEK_BEFORE"
     echo "   👥 Team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_WEEK_BEFORE" \
       --issue-types 'Bug,Support' \
@@ -565,7 +573,7 @@ else
     echo "   ⏳ Period: $JIRA_TWO_WEEKS"
     echo "   👥 Team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_TWO_WEEKS" \
       --issue-types 'Story,Task,Technical Debt,Improvement,Defect' \
@@ -577,7 +585,7 @@ else
     echo "🐛 [$STEP/$TOTAL_STEPS] TEAM – Open Issues (Bugs & Support)"
     echo "   📋 Current open issues for team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira open-issues \
+    python3 src/main.py syngenta jira open-issues \
       --project-key "$PROJECT_KEY" \
       --issue-types 'Bug,Support' \
       --team "$TEAM" \
@@ -588,7 +596,7 @@ else
     echo "   📋 Issues that were open at end of: $WEEK_BEFORE_END"
     echo "   📝 Logic: Created before $WEEK_BEFORE_END AND (still open OR resolved after $WEEK_BEFORE_END)"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "2020-01-01 to $WEEK_BEFORE_END" \
       --issue-types 'Bug,Support' \
@@ -600,7 +608,7 @@ else
     echo "⏰ [$STEP/$TOTAL_STEPS] TEAM – WIP Age Tracking (Bugs & Support)"
     echo "   📋 Oldest issues in progress for team: $TEAM"
     ((STEP++))
-    python src/main.py syngenta jira wip-age-tracking \
+    python3 src/main.py syngenta jira wip-age-tracking \
       --project-key "$PROJECT_KEY" \
       --team "$TEAM" \
       --issue-types 'Bug,Support' \
@@ -615,7 +623,7 @@ else
     echo "   👥 Team: $TEAM"
     echo "   🐛 Issue Types: Bug"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --team "$TEAM" \
@@ -627,7 +635,7 @@ else
     echo "   👥 Team: $TEAM"
     echo "   🎧 Issue Types: Support"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --team "$TEAM" \
@@ -639,7 +647,7 @@ else
     echo "   👥 Team: $TEAM"
     echo "   🚀 Issue Types: Story,Task,Technical Debt,Improvement,Defect"
     ((STEP++))
-    python src/main.py syngenta jira cycle-time \
+    python3 src/main.py syngenta jira cycle-time \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --team "$TEAM" \
@@ -652,7 +660,7 @@ else
     echo "   👥 Team: $TEAM"
     echo "   📊 Analysis: Arrival vs Throughput with 4-week trend"
     ((STEP++))
-    python src/main.py syngenta jira net-flow-calculation \
+    python3 src/main.py syngenta jira net-flow-calculation \
       --project-key "$PROJECT_KEY" \
       --end-date "$LAST_WEEK_END" \
       --team "$TEAM" \
@@ -666,7 +674,7 @@ else
     echo "   👥 Team: $TEAM"
     echo "   📊 Analysis: Due date compliance with weighted metrics"
     ((STEP++))
-    python src/main.py syngenta jira issue-adherence \
+    python3 src/main.py syngenta jira issue-adherence \
       --project-key "$PROJECT_KEY" \
       --time-period "$JIRA_LAST_WEEK" \
       --team "$TEAM" \
@@ -693,7 +701,7 @@ fi
 # 
 # if [ "$TRIBE_MODE" = true ]; then
 #     # Use all projects from the projects_list.json file (tribe mode)
-#     python src/main.py syngenta sonarqube sonarqube \
+#     python3 src/main.py syngenta sonarqube sonarqube \
 #       --operation list-projects \
 #       --organization "$SONARQUBE_ORGANIZATION" \
 #       --include-measures \
@@ -701,7 +709,7 @@ fi
 #       $CLEAR_CACHE_FLAG
 # else
 #     # Use specific project keys (team mode)
-#     python src/main.py syngenta sonarqube sonarqube \
+#     python3 src/main.py syngenta sonarqube sonarqube \
 #       --operation list-projects \
 #       --organization "$SONARQUBE_ORGANIZATION" \
 #       --include-measures \
@@ -724,7 +732,7 @@ else
 fi
 ((STEP++))
 
-python src/main.py linearb export-report \
+python3 src/main.py linearb export-report \
   --team-ids "$LINEARB_TEAM_ID" \
   --time-range "$LINEARB_TIME_RANGE" \
   --format csv \
