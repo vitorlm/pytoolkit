@@ -1,5 +1,4 @@
-"""
-JIRA Workflow Configuration Service
+"""JIRA Workflow Configuration Service
 
 This service manages workflow configurations for different JIRA projects,
 allowing customizable status mappings, transitions, and flow metrics.
@@ -12,7 +11,6 @@ Follows PyToolkit patterns:
 """
 
 import os
-from typing import Optional
 
 from utils.cache_manager.cache_manager import CacheManager
 from utils.data.json_manager import JSONManager
@@ -23,8 +21,7 @@ class WorkflowConfigService:
     """Service for loading and managing workflow configurations."""
 
     def __init__(self, cache_expiration: int = 240):
-        """
-        Initialize workflow configuration service.
+        """Initialize workflow configuration service.
 
         Args:
             cache_expiration (int): Cache expiration in minutes (default: 4 hours)
@@ -66,8 +63,7 @@ class WorkflowConfigService:
             return {"project_mappings": {}, "default_workflow": "default_workflow.json"}
 
     def get_workflow_config(self, project_key: str) -> dict:
-        """
-        Get workflow configuration for a project.
+        """Get workflow configuration for a project.
 
         Args:
             project_key (str): JIRA project key
@@ -123,8 +119,7 @@ class WorkflowConfigService:
         return config
 
     def is_wip_status(self, project_key: str, status_name: str) -> bool:
-        """
-        Check if a status is considered Work In Progress.
+        """Check if a status is considered Work In Progress.
 
         Args:
             project_key (str): JIRA project key
@@ -138,8 +133,7 @@ class WorkflowConfigService:
         return status_name in wip_statuses
 
     def is_done_status(self, project_key: str, status_name: str) -> bool:
-        """
-        Check if a status is considered Done.
+        """Check if a status is considered Done.
 
         Args:
             project_key (str): JIRA project key
@@ -153,8 +147,7 @@ class WorkflowConfigService:
         return status_name in done_statuses
 
     def is_backlog_status(self, project_key: str, status_name: str) -> bool:
-        """
-        Check if a status is considered Backlog.
+        """Check if a status is considered Backlog.
 
         Args:
             project_key (str): JIRA project key
@@ -167,9 +160,8 @@ class WorkflowConfigService:
         backlog_statuses = config.get("status_mapping", {}).get("backlog", [])
         return status_name in backlog_statuses
 
-    def get_semantic_status(self, project_key: str, semantic_name: str) -> Optional[str]:
-        """
-        Get status name for semantic identifier.
+    def get_semantic_status(self, project_key: str, semantic_name: str) -> str | None:
+        """Get status name for semantic identifier.
 
         Args:
             project_key (str): JIRA project key
@@ -182,8 +174,7 @@ class WorkflowConfigService:
         return config.get("semantic_statuses", {}).get(semantic_name)
 
     def get_wip_statuses(self, project_key: str) -> list[str]:
-        """
-        Get list of all WIP status names.
+        """Get list of all WIP status names.
 
         Args:
             project_key (str): JIRA project key
@@ -195,8 +186,7 @@ class WorkflowConfigService:
         return config.get("status_mapping", {}).get("wip", [])
 
     def get_done_statuses(self, project_key: str) -> list[str]:
-        """
-        Get list of all Done status names, excluding archived statuses.
+        """Get list of all Done status names, excluding archived statuses.
 
         Archived issues (e.g., '11 Archived') are excluded because they represent
         issues that were not completed but rather removed from active workflow.
@@ -216,8 +206,7 @@ class WorkflowConfigService:
         return [status for status in done_statuses if status not in archived_statuses]
 
     def get_backlog_statuses(self, project_key: str) -> list[str]:
-        """
-        Get list of all Backlog status names.
+        """Get list of all Backlog status names.
 
         Args:
             project_key (str): JIRA project key
@@ -229,8 +218,7 @@ class WorkflowConfigService:
         return config.get("status_mapping", {}).get("backlog", [])
 
     def get_active_statuses(self, project_key: str) -> list[str]:
-        """
-        Get list of all active (work-in-progress) status names.
+        """Get list of all active (work-in-progress) status names.
         These are statuses where work is actively being done on an issue.
 
         Args:
@@ -243,8 +231,7 @@ class WorkflowConfigService:
         return config.get("status_mapping", {}).get("wip", [])
 
     def get_waiting_statuses(self, project_key: str) -> list[str]:
-        """
-        Get list of all waiting status names.
+        """Get list of all waiting status names.
         These are statuses where an issue is waiting for work to begin or resume.
 
         Args:
@@ -259,9 +246,8 @@ class WorkflowConfigService:
         waiting_statuses = status_mapping.get("waiting", [])  # For statuses like 'Blocked'
         return backlog_statuses + waiting_statuses
 
-    def get_flow_metric_config(self, project_key: str, metric_name: str) -> Optional[dict]:
-        """
-        Get flow metric configuration.
+    def get_flow_metric_config(self, project_key: str, metric_name: str) -> dict | None:
+        """Get flow metric configuration.
 
         Args:
             project_key (str): JIRA project key
@@ -274,8 +260,7 @@ class WorkflowConfigService:
         return config.get("flow_metrics", {}).get(metric_name)
 
     def get_cycle_time_statuses(self, project_key: str) -> tuple[str, str]:
-        """
-        Get cycle time start and end statuses.
+        """Get cycle time start and end statuses.
 
         Args:
             project_key (str): JIRA project key
@@ -296,8 +281,7 @@ class WorkflowConfigService:
         return start_status, end_status
 
     def get_lead_time_statuses(self, project_key: str) -> tuple[str, str]:
-        """
-        Get lead time start and end statuses.
+        """Get lead time start and end statuses.
 
         Args:
             project_key (str): JIRA project key
@@ -317,9 +301,8 @@ class WorkflowConfigService:
 
         return start_status, end_status
 
-    def get_custom_field(self, project_key: str, field_name: str) -> Optional[str]:
-        """
-        Get custom field ID for a project.
+    def get_custom_field(self, project_key: str, field_name: str) -> str | None:
+        """Get custom field ID for a project.
 
         Args:
             project_key (str): JIRA project key
@@ -332,8 +315,7 @@ class WorkflowConfigService:
         return config.get("custom_fields", {}).get(field_name)
 
     def get_quality_gates(self, project_key: str) -> dict:
-        """
-        Get quality gates configuration.
+        """Get quality gates configuration.
 
         Args:
             project_key (str): JIRA project key
@@ -345,8 +327,7 @@ class WorkflowConfigService:
         return config.get("quality_gates", {})
 
     def validate_workflow_config(self, project_key: str) -> dict[str, list[str]]:
-        """
-        Validate workflow configuration for consistency.
+        """Validate workflow configuration for consistency.
 
         Args:
             project_key (str): JIRA project key
@@ -404,22 +385,20 @@ class WorkflowConfigService:
             )
 
         except Exception as e:
-            validation_results["errors"].append(f"Failed to validate config: {str(e)}")
+            validation_results["errors"].append(f"Failed to validate config: {e!s}")
 
         return validation_results
 
     def get_available_projects(self) -> list[str]:
-        """
-        Get list of available project configurations.
+        """Get list of available project configurations.
 
         Returns:
             List[str]: List of project keys with configurations
         """
         return list(self._project_mappings.get("project_mappings", {}).keys())
 
-    def clear_cache(self, project_key: Optional[str] = None):
-        """
-        Clear workflow configuration cache.
+    def clear_cache(self, project_key: str | None = None):
+        """Clear workflow configuration cache.
 
         Args:
             project_key (Optional[str]): Project key to clear or None for all
@@ -433,9 +412,8 @@ class WorkflowConfigService:
             self.cache.clear_all()
             self.logger.info("Cleared all workflow config cache")
 
-    def get_status_category(self, project_key: str, status_name: str) -> Optional[str]:
-        """
-        Get the category (backlog, wip, done, archived) for a status.
+    def get_status_category(self, project_key: str, status_name: str) -> str | None:
+        """Get the category (backlog, wip, done, archived) for a status.
 
         Args:
             project_key (str): JIRA project key

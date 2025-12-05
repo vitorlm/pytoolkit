@@ -1,28 +1,23 @@
 #!/usr/bin/env python3
-"""
-Advanced Embedding Engine - Multi-model embedding system optimized for Brazilian Portuguese products
-"""
+"""Advanced Embedding Engine - Multi-model embedding system optimized for Brazilian Portuguese products"""
+
+from dataclasses import dataclass
 
 import numpy as np
-from typing import List, Dict, Optional
-from dataclasses import dataclass
-from utils.logging.logging_manager import LogManager
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
 
 
 @dataclass
 class EmbeddingConfig:
     """Configuration for embedding models"""
 
-    primary_model: str = (
-        "neuralmind/bert-base-portuguese-cased"  # BERTimbau for Portuguese
-    )
-    secondary_model: str = (
-        "intfloat/multilingual-e5-large"  # E5 for multilingual support
-    )
+    primary_model: str = "neuralmind/bert-base-portuguese-cased"  # BERTimbau for Portuguese
+    secondary_model: str = "intfloat/multilingual-e5-large"  # E5 for multilingual support
     fallback_model: str = "distiluse-base-multilingual-cased-v2"  # Original fallback
     cache_ttl: int = 86400  # 24 hours
-    ensemble_weights: Dict[str, float] = None
+    ensemble_weights: dict[str, float] = None
 
     def __post_init__(self):
         if self.ensemble_weights is None:
@@ -47,8 +42,7 @@ class EmbeddingResult:
 
 
 class AdvancedEmbeddingEngine:
-    """
-    Advanced embedding engine using multiple Portuguese-optimized models
+    """Advanced embedding engine using multiple Portuguese-optimized models
 
     Features:
     - Portuguese-specific BERTimbau model as primary
@@ -58,7 +52,7 @@ class AdvancedEmbeddingEngine:
     - Performance monitoring and caching
     """
 
-    def __init__(self, config: Optional[EmbeddingConfig] = None):
+    def __init__(self, config: EmbeddingConfig | None = None):
         self.logger = LogManager.get_instance().get_logger("AdvancedEmbeddingEngine")
         self.config = config or EmbeddingConfig()
         self.cache = CacheManager.get_instance()
@@ -85,9 +79,7 @@ class AdvancedEmbeddingEngine:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                self.logger.info(
-                    f"Loading primary Portuguese model: {self.config.primary_model}"
-                )
+                self.logger.info(f"Loading primary Portuguese model: {self.config.primary_model}")
                 self._primary_model = SentenceTransformer(self.config.primary_model)
                 self.logger.info("Primary Portuguese model loaded successfully")
             except Exception as e:
@@ -102,9 +94,7 @@ class AdvancedEmbeddingEngine:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                self.logger.info(
-                    f"Loading secondary multilingual model: {self.config.secondary_model}"
-                )
+                self.logger.info(f"Loading secondary multilingual model: {self.config.secondary_model}")
                 self._secondary_model = SentenceTransformer(self.config.secondary_model)
                 self.logger.info("Secondary multilingual model loaded successfully")
             except Exception as e:
@@ -119,9 +109,7 @@ class AdvancedEmbeddingEngine:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                self.logger.info(
-                    f"Loading fallback model: {self.config.fallback_model}"
-                )
+                self.logger.info(f"Loading fallback model: {self.config.fallback_model}")
                 self._fallback_model = SentenceTransformer(self.config.fallback_model)
                 self.logger.info("Fallback model loaded successfully")
             except Exception as e:
@@ -130,8 +118,7 @@ class AdvancedEmbeddingEngine:
         return self._fallback_model if self._fallback_model is not False else None
 
     def get_embedding(self, text: str, use_ensemble: bool = True) -> EmbeddingResult:
-        """
-        Get advanced embedding for text using ensemble approach
+        """Get advanced embedding for text using ensemble approach
 
         Args:
             text: Input text to embed
@@ -149,9 +136,7 @@ class AdvancedEmbeddingEngine:
 
         # Check cache first
         cache_key = f"advanced_embedding:{hash(text)}:{use_ensemble}"
-        cached_result = self.cache.load(
-            cache_key, expiration_minutes=self.config.cache_ttl // 60
-        )
+        cached_result = self.cache.load(cache_key, expiration_minutes=self.config.cache_ttl // 60)
 
         if cached_result is not None:
             self.performance_stats["cache_hits"] += 1
@@ -209,11 +194,8 @@ class AdvancedEmbeddingEngine:
 
         return result
 
-    def get_embeddings_batch(
-        self, texts: List[str], use_ensemble: bool = True
-    ) -> List[EmbeddingResult]:
-        """
-        Get embeddings for batch of texts (more efficient)
+    def get_embeddings_batch(self, texts: list[str], use_ensemble: bool = True) -> list[EmbeddingResult]:
+        """Get embeddings for batch of texts (more efficient)
 
         Args:
             texts: List of texts to embed
@@ -234,9 +216,7 @@ class AdvancedEmbeddingEngine:
         # Check cache for all texts
         for i, text in enumerate(texts):
             cache_key = f"advanced_embedding:{hash(text)}:{use_ensemble}"
-            cached_result = self.cache.load(
-                cache_key, expiration_minutes=self.config.cache_ttl // 60
-            )
+            cached_result = self.cache.load(cache_key, expiration_minutes=self.config.cache_ttl // 60)
 
             if cached_result is not None:
                 results.append(self._dict_to_embedding_result(cached_result))
@@ -261,9 +241,7 @@ class AdvancedEmbeddingEngine:
 
                 # Create ensemble or fallback
                 if primary_emb is not None and secondary_emb is not None:
-                    ensemble_emb = self._create_ensemble_embedding(
-                        primary_emb, secondary_emb
-                    )
+                    ensemble_emb = self._create_ensemble_embedding(primary_emb, secondary_emb)
                     confidence = 0.95
                     model_used = "ensemble"
                 elif primary_emb is not None:
@@ -309,7 +287,7 @@ class AdvancedEmbeddingEngine:
         self.logger.info(f"Batch processing completed: {len(results)} embeddings")
         return results
 
-    def _get_model_embedding(self, text: str, model_type: str) -> Optional[np.ndarray]:
+    def _get_model_embedding(self, text: str, model_type: str) -> np.ndarray | None:
         """Get embedding from specific model type"""
         try:
             if model_type == "primary" and self.primary_model:
@@ -328,9 +306,7 @@ class AdvancedEmbeddingEngine:
 
         return None
 
-    def _get_batch_embeddings(
-        self, texts: List[str], model_type: str
-    ) -> Optional[List[np.ndarray]]:
+    def _get_batch_embeddings(self, texts: list[str], model_type: str) -> list[np.ndarray] | None:
         """Get batch embeddings from specific model"""
         try:
             processed_texts = texts.copy()
@@ -338,30 +314,22 @@ class AdvancedEmbeddingEngine:
             if model_type == "primary" and self.primary_model:
                 if "e5" in self.config.primary_model.lower():
                     processed_texts = [f"query: {text}" for text in texts]
-                embeddings = self.primary_model.encode(
-                    processed_texts, convert_to_numpy=True
-                )
+                embeddings = self.primary_model.encode(processed_texts, convert_to_numpy=True)
                 return [emb for emb in embeddings]
             elif model_type == "secondary" and self.secondary_model:
                 if "e5" in self.config.secondary_model.lower():
                     processed_texts = [f"query: {text}" for text in texts]
-                embeddings = self.secondary_model.encode(
-                    processed_texts, convert_to_numpy=True
-                )
+                embeddings = self.secondary_model.encode(processed_texts, convert_to_numpy=True)
                 return [emb for emb in embeddings]
             elif model_type == "fallback" and self.fallback_model:
-                embeddings = self.fallback_model.encode(
-                    processed_texts, convert_to_numpy=True
-                )
+                embeddings = self.fallback_model.encode(processed_texts, convert_to_numpy=True)
                 return [emb for emb in embeddings]
         except Exception as e:
             self.logger.error(f"Error getting batch {model_type} embeddings: {e}")
 
         return None
 
-    def _create_ensemble_embedding(
-        self, emb1: np.ndarray, emb2: np.ndarray
-    ) -> np.ndarray:
+    def _create_ensemble_embedding(self, emb1: np.ndarray, emb2: np.ndarray) -> np.ndarray:
         """Create ensemble embedding from multiple embeddings"""
         # Ensure embeddings have same dimension (pad/truncate if needed)
         if emb1.shape != emb2.shape:
@@ -371,8 +339,7 @@ class AdvancedEmbeddingEngine:
 
         # Weighted average
         ensemble = (
-            emb1 * self.config.ensemble_weights["portuguese"]
-            + emb2 * self.config.ensemble_weights["multilingual"]
+            emb1 * self.config.ensemble_weights["portuguese"] + emb2 * self.config.ensemble_weights["multilingual"]
         )
 
         # Normalize
@@ -382,9 +349,7 @@ class AdvancedEmbeddingEngine:
 
         return ensemble
 
-    def _create_zero_embedding_result(
-        self, text: str, start_time: float
-    ) -> EmbeddingResult:
+    def _create_zero_embedding_result(self, text: str, start_time: float) -> EmbeddingResult:
         """Create zero embedding result for empty/invalid text"""
         processing_time = time.time() - start_time
         zero_embedding = np.zeros(768)  # Standard embedding size
@@ -409,11 +374,9 @@ class AdvancedEmbeddingEngine:
         # Update average processing time
         total = self.performance_stats["total_embeddings"]
         current_avg = self.performance_stats["avg_processing_time"]
-        self.performance_stats["avg_processing_time"] = (
-            current_avg * (total - 1) + processing_time
-        ) / total
+        self.performance_stats["avg_processing_time"] = (current_avg * (total - 1) + processing_time) / total
 
-    def _embedding_result_to_dict(self, result: EmbeddingResult) -> Dict:
+    def _embedding_result_to_dict(self, result: EmbeddingResult) -> dict:
         """Convert EmbeddingResult to dictionary for caching"""
         return {
             "product_description": result.product_description,
@@ -425,7 +388,7 @@ class AdvancedEmbeddingEngine:
             "processing_time": result.processing_time,
         }
 
-    def _dict_to_embedding_result(self, data: Dict) -> EmbeddingResult:
+    def _dict_to_embedding_result(self, data: dict) -> EmbeddingResult:
         """Convert dictionary back to EmbeddingResult"""
         return EmbeddingResult(
             product_description=data["product_description"],
@@ -437,7 +400,7 @@ class AdvancedEmbeddingEngine:
             processing_time=data["processing_time"],
         )
 
-    def get_performance_stats(self) -> Dict:
+    def get_performance_stats(self) -> dict:
         """Get performance statistics"""
         stats = self.performance_stats.copy()
 
@@ -445,9 +408,7 @@ class AdvancedEmbeddingEngine:
         total = stats["total_embeddings"]
         if total > 0:
             stats["cache_hit_rate"] = stats["cache_hits"] / total
-            stats["model_distribution"] = {
-                model: count / total for model, count in stats["model_usage"].items()
-            }
+            stats["model_distribution"] = {model: count / total for model, count in stats["model_usage"].items()}
 
         return stats
 
@@ -459,7 +420,7 @@ class AdvancedEmbeddingEngine:
         self.cache.clear_all()
         self.logger.info("Embedding cache cleared")
 
-    def warmup_models(self, sample_texts: Optional[List[str]] = None):
+    def warmup_models(self, sample_texts: list[str] | None = None):
         """Warm up models with sample texts for better initial performance"""
         if sample_texts is None:
             sample_texts = [

@@ -1,3 +1,4 @@
+import concurrent.futures
 import decimal
 import json
 import os
@@ -5,20 +6,18 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import boto3
-from boto3.dynamodb.conditions import Key
-from botocore.exceptions import ClientError
-import concurrent.futures
-
-from utils.cache_manager.cache_manager import CacheManager
-from utils.file_manager import FileManager
-from utils.data.json_manager import JSONManager
-from utils.logging.logging_manager import LogManager
-
 import pyarrow as pa
 import pyarrow.parquet as pq
+from boto3.dynamodb.conditions import Key
+from botocore.exceptions import ClientError
+
+from utils.cache_manager.cache_manager import CacheManager
+from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class CompositeKey:
@@ -27,29 +26,20 @@ class CompositeKey:
 
     @staticmethod
     def create(*entries: str, use_secondary: bool = False) -> str:
-        separator = (
-            CompositeKey.secondary_separator
-            if use_secondary
-            else CompositeKey.separator
-        )
+        separator = CompositeKey.secondary_separator if use_secondary else CompositeKey.separator
         return separator.join(entries)
 
     @staticmethod
-    def get_keys(key: str, use_secondary: bool = False) -> Tuple[str, ...]:
-        separator = (
-            CompositeKey.secondary_separator
-            if use_secondary
-            else CompositeKey.separator
-        )
+    def get_keys(key: str, use_secondary: bool = False) -> tuple[str, ...]:
+        separator = CompositeKey.secondary_separator if use_secondary else CompositeKey.separator
         return tuple(key.split(separator))
 
 
 class DynamoDBManager:
     _logger = LogManager.get_instance().get_logger("DynamoDBManager")
 
-    def __init__(self, cache_expiration: Optional[int] = 3600):
-        """
-        Initializes the DynamoDBManager without creating connections initially.
+    def __init__(self, cache_expiration: int | None = 3600):
+        """Initializes the DynamoDBManager without creating connections initially.
         Connections will be established lazily when required.
         """
         self.connections = {}
@@ -58,8 +48,7 @@ class DynamoDBManager:
         self.cache_expiration = cache_expiration
 
     def add_connection_config(self, conn_config):
-        """
-        Adds a new DynamoDB connection configuration to the manager.
+        """Adds a new DynamoDB connection configuration to the manager.
 
         Args:
             conn_config (dict): Configuration for the new DynamoDB connection.
@@ -68,17 +57,14 @@ class DynamoDBManager:
         try:
             name = conn_config["name"]
             if name in self.connection_configs:
-                raise ValueError(
-                    f"Connection configuration with name '{name}' already exists."
-                )
+                raise ValueError(f"Connection configuration with name '{name}' already exists.")
             self.connection_configs[name] = conn_config
             self._logger.info(f"Added configuration for connection '{name}'.")
         except Exception as e:
             self._logger.error(f"Error adding connection configuration '{name}': {e}")
 
     def _initialize_connection(self, name):
-        """
-        Initializes a DynamoDB connection based on the stored configuration.
+        """Initializes a DynamoDB connection based on the stored configuration.
 
         Args:
             name (str): The name of the connection to initialize.
@@ -98,8 +84,7 @@ class DynamoDBManager:
             raise
 
     def get_connection(self, name):
-        """
-        Retrieves a DynamoDB connection by its name, initializing it if necessary.
+        """Retrieves a DynamoDB connection by its name, initializing it if necessary.
 
         Args:
             name (str): The name of the connection.
@@ -119,8 +104,7 @@ class DynamoDBManager:
         target_table_name,
         limit=100,
     ):
-        """
-        Copies data from a source table to a target table in DynamoDB with pagination.
+        """Copies data from a source table to a target table in DynamoDB with pagination.
 
         Args:
             source_name (str): The name of the source connection.
@@ -129,10 +113,7 @@ class DynamoDBManager:
             target_table_name (str): The name of the target table.
             limit (int): Maximum number of items to copy.
         """
-        self._logger.info(
-            f"Copying data from table: {source_table_name} to {target_table_name}, "
-            f"limit: {limit} items"
-        )
+        self._logger.info(f"Copying data from table: {source_table_name} to {target_table_name}, limit: {limit} items")
 
         source_table = self.get_connection(source_name).Table(source_table_name)
         target_table = self.get_connection(target_name).Table(target_table_name)
@@ -153,9 +134,7 @@ class DynamoDBManager:
 
                     # Print progress using self._logger in the same line
                     log_message = f"Progress: {total_copied}/{limit} items copied"
-                    sys.stdout.write(
-                        f"\r{time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - {log_message}"
-                    )
+                    sys.stdout.write(f"\r{time.strftime('%Y-%m-%d %H:%M:%S')} - INFO - {log_message}")
                     sys.stdout.flush()
 
                     # Stop if we've reached the limit
@@ -188,8 +167,7 @@ class DynamoDBManager:
         foreign_key_value,
         index_name,
     ):
-        """
-        Copies related data from a source table to a target table based on a foreign key.
+        """Copies related data from a source table to a target table based on a foreign key.
 
         Args:
             source_name (str): The name of the source connection.
@@ -202,8 +180,7 @@ class DynamoDBManager:
             limit (int): Maximum number of items to query at a time.
         """
         self._logger.info(
-            f"Copying related data from {source_table_name} to {target_table_name} based "
-            f"on foreign key: {foreign_key}"
+            f"Copying related data from {source_table_name} to {target_table_name} based on foreign key: {foreign_key}"
         )
 
         source_table = self.get_connection(source_name).Table(source_table_name)
@@ -229,13 +206,10 @@ class DynamoDBManager:
                 ExclusiveStartKey=response["LastEvaluatedKey"],
             )
 
-        self._logger.info(
-            f"Related data copied from table {source_table_name} to {target_table_name}"
-        )
+        self._logger.info(f"Related data copied from table {source_table_name} to {target_table_name}")
 
     def _retry_put_item(self, batch, item):
-        """
-        Retries putting an item into a batch writer with exponential backoff.
+        """Retries putting an item into a batch writer with exponential backoff.
 
         Args:
             batch: The batch writer object.
@@ -249,8 +223,7 @@ class DynamoDBManager:
             raise
 
     def table_exists(self, table_name, connection_name):
-        """
-        Checks if a table exists in the specified DynamoDB connection.
+        """Checks if a table exists in the specified DynamoDB connection.
 
         Args:
             table_name (str): The name of the table to check.
@@ -267,14 +240,11 @@ class DynamoDBManager:
             if e.response["Error"]["Code"] == "ResourceNotFoundException":
                 return False
             else:
-                self._logger.error(
-                    f"Error checking table existence for {table_name}: {e}"
-                )
+                self._logger.error(f"Error checking table existence for {table_name}: {e}")
                 raise
 
     def _filter_table_structure(self, table_structure):
-        """
-        Filters the table structure to remove unnecessary attributes.
+        """Filters the table structure to remove unnecessary attributes.
 
         Args:
             table_structure (dict): The original table structure.
@@ -292,15 +262,10 @@ class DynamoDBManager:
             "LocalSecondaryIndexes",
             "StreamSpecification",
         }
-        return {
-            key: table_structure[key]
-            for key in keys_to_retain
-            if key in table_structure
-        }
+        return {key: table_structure[key] for key in keys_to_retain if key in table_structure}
 
-    def _clean_indexes(self, filtered_structure: Dict[str, Any]):
-        """
-        Cleans and normalizes the index metadata within the given table structure.
+    def _clean_indexes(self, filtered_structure: dict[str, Any]):
+        """Cleans and normalizes the index metadata within the given table structure.
 
         This method iterates through the GlobalSecondaryIndexes and LocalSecondaryIndexes
         in the provided table structure and removes unnecessary attributes that are not
@@ -323,9 +288,7 @@ class DynamoDBManager:
                         index.pop(key, None)
 
                     if "ProvisionedThroughput" in index:
-                        index["ProvisionedThroughput"].pop(
-                            "NumberOfDecreasesToday", None
-                        )
+                        index["ProvisionedThroughput"].pop("NumberOfDecreasesToday", None)
                         index["ProvisionedThroughput"]["ReadCapacityUnits"] = max(
                             1,
                             index["ProvisionedThroughput"].get("ReadCapacityUnits", 5),
@@ -335,9 +298,8 @@ class DynamoDBManager:
                             index["ProvisionedThroughput"].get("WriteCapacityUnits", 5),
                         )
 
-    def _clean_provisioned_throughput(self, structure: Dict[str, Any]) -> None:
-        """
-        Cleans the ProvisionedThroughput settings within the given table structure.
+    def _clean_provisioned_throughput(self, structure: dict[str, Any]) -> None:
+        """Cleans the ProvisionedThroughput settings within the given table structure.
 
         This method removes the NumberOfDecreasesToday attribute from the
         ProvisionedThroughput settings and ensures that the ReadCapacityUnits
@@ -357,11 +319,8 @@ class DynamoDBManager:
                 structure["ProvisionedThroughput"].get("WriteCapacityUnits", 5),
             )
 
-    def copy_table_structure(
-        self, source_name, source_table_name, target_name, target_table_name
-    ):
-        """
-        Copies the structure of a source DynamoDB table to a target DynamoDB table.
+    def copy_table_structure(self, source_name, source_table_name, target_name, target_table_name):
+        """Copies the structure of a source DynamoDB table to a target DynamoDB table.
 
         Args:
             source_name (str): The name of the source connection.
@@ -370,8 +329,7 @@ class DynamoDBManager:
             target_table_name (str): The name of the target table.
         """
         self._logger.info(
-            f"Copying table structure from: {source_name}.{source_table_name} "
-            f"to {target_name}.{target_table_name}"
+            f"Copying table structure from: {source_name}.{source_table_name} to {target_name}.{target_table_name}"
         )
 
         try:
@@ -380,9 +338,7 @@ class DynamoDBManager:
             target_connection = self.get_connection(target_name)
 
             source_table = source_connection.Table(source_table_name)
-            response = source_table.meta.client.describe_table(
-                TableName=source_table_name
-            )
+            response = source_table.meta.client.describe_table(TableName=source_table_name)
             table_structure = response["Table"]
 
             # Filter the structure
@@ -399,9 +355,7 @@ class DynamoDBManager:
 
             # Create the new table with the cleaned structure
             target_connection.create_table(**filtered_structure)
-            self._logger.info(
-                f"Table {target_table_name} created successfully in {target_name}."
-            )
+            self._logger.info(f"Table {target_table_name} created successfully in {target_name}.")
         except Exception as e:
             self._logger.error(f"Error copying table structure: {e}")
             raise
@@ -412,9 +366,8 @@ class DynamoDBManager:
         table_name: str,
         projection_expression: str,
         limit: int = 100,
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieve items from a DynamoDB table in batches.
+    ) -> list[dict[str, Any]]:
+        """Retrieve items from a DynamoDB table in batches.
 
         Args:
             connection_name (str): The name of the DynamoDB connection.
@@ -444,8 +397,7 @@ class DynamoDBManager:
         return items
 
     def query_partition_keys(self, connection_name, table_name, partition_keys):
-        """
-        Query DynamoDB using a list of partition keys.
+        """Query DynamoDB using a list of partition keys.
 
         Args:
             connection_name (str): Connection name.
@@ -472,11 +424,8 @@ class DynamoDBManager:
                 results.extend(response.get("Items", []))
         return results
 
-    def query_partition_keys_parallel(
-        self, connection_name, table_name, partition_keys
-    ):
-        """
-        Parallelized version to query DynamoDB using multiple partition keys.
+    def query_partition_keys_parallel(self, connection_name, table_name, partition_keys):
+        """Parallelized version to query DynamoDB using multiple partition keys.
 
         Args:
             connection_name (str): Connection name.
@@ -510,11 +459,8 @@ class DynamoDBManager:
 
         return results
 
-    def insert_record(
-        self, connection_name: str, table_name: str, record: Dict[str, Any]
-    ) -> None:
-        """
-        Inserts a single record into the specified DynamoDB table.
+    def insert_record(self, connection_name: str, table_name: str, record: dict[str, Any]) -> None:
+        """Inserts a single record into the specified DynamoDB table.
 
         Args:
             connection_name (str): Name of the DynamoDB connection.
@@ -533,10 +479,9 @@ class DynamoDBManager:
         self,
         connection_name: str,
         table_name: str,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
     ) -> None:
-        """
-        Inserts multiple records into a DynamoDB table in bulk, with progress updates.
+        """Inserts multiple records into a DynamoDB table in bulk, with progress updates.
 
         Args:
             connection_name (str): Name of the DynamoDB connection.
@@ -551,13 +496,9 @@ class DynamoDBManager:
                     batch.put_item(Item=record)
                     if i % 10 == 0 or i == total_records:
                         progress = (i / total_records) * 100
-                        sys.stdout.write(
-                            f"\rProgress: {i}/{total_records} records inserted ({progress:.2f}%)"
-                        )
+                        sys.stdout.write(f"\rProgress: {i}/{total_records} records inserted ({progress:.2f}%)")
                         sys.stdout.flush()
-            self._logger.info(
-                f"Successfully inserted {total_records} records into {table_name}."
-            )
+            self._logger.info(f"Successfully inserted {total_records} records into {table_name}.")
         except ClientError as e:
             self._logger.error(f"Error during bulk insert into {table_name}: {e}")
             raise
@@ -566,11 +507,10 @@ class DynamoDBManager:
         self,
         connection_name: str,
         table_name: str,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         retries: int = 3,
     ) -> None:
-        """
-        Inserts multiple records into a DynamoDB table with retries for
+        """Inserts multiple records into a DynamoDB table with retries for
         unprocessed items, with progress updates.
 
         Args:
@@ -590,21 +530,16 @@ class DynamoDBManager:
                     self.insert_records_in_bulk(connection_name, table_name, chunk)
                     progress = ((start_idx + len(chunk)) / total_records) * 100
                     sys.stdout.write(
-                        f"\rProgress: {start_idx + len(chunk)}/{total_records} "
-                        f"records processed ({progress:.2f}%)"
+                        f"\rProgress: {start_idx + len(chunk)}/{total_records} records processed ({progress:.2f}%)"
                     )
                     sys.stdout.flush()
                     break  # Exit retry loop if successful
                 except Exception as e:
                     attempt += 1
                     if attempt > retries:
-                        self._logger.error(
-                            f"Failed to insert records after {retries} retries: {chunk}"
-                        )
+                        self._logger.error(f"Failed to insert records after {retries} retries: {chunk}")
                         raise
-                    self._logger.warning(
-                        f"Retrying batch insert ({attempt}/{retries}) due to error: {e}"
-                    )
+                    self._logger.warning(f"Retrying batch insert ({attempt}/{retries}) due to error: {e}")
                     time.sleep(2**attempt)
         sys.stdout.write("\n")
 
@@ -612,12 +547,11 @@ class DynamoDBManager:
         self,
         connection_name: str,
         table_name: str,
-        filter_expression: Optional[Any] = None,
-        limit: Optional[int] = None,
+        filter_expression: Any | None = None,
+        limit: int | None = None,
         max_workers: int = 10,
-    ) -> List[Dict[str, Any]]:
-        """
-        Retrieves data from a DynamoDB table with parallel scans and threads for performance.
+    ) -> list[dict[str, Any]]:
+        """Retrieves data from a DynamoDB table with parallel scans and threads for performance.
 
         Args:
             connection_name (str): The name of the DynamoDB connection.
@@ -665,9 +599,7 @@ class DynamoDBManager:
 
                     message = f"Scanned {current_total}"
                     if limit:
-                        message += (
-                            f"/{limit} ({min(100, int(current_total / limit * 100))}%)"
-                        )
+                        message += f"/{limit} ({min(100, int(current_total / limit * 100))}%)"
                     sys.stdout.write(f"\r{message.ljust(40)}")
                     sys.stdout.flush()
 
@@ -681,9 +613,7 @@ class DynamoDBManager:
                     if filter_expression:
                         scan_kwargs["FilterExpression"] = filter_expression
                     if remaining_limit:
-                        scan_kwargs["Limit"] = min(
-                            (remaining_limit // total_segments) or 1, 100
-                        )
+                        scan_kwargs["Limit"] = min((remaining_limit // total_segments) or 1, 100)
 
                     # Primeira página
                     response = table.scan(**scan_kwargs)
@@ -692,9 +622,7 @@ class DynamoDBManager:
 
                     # Páginas subsequentes
                     while "LastEvaluatedKey" in response:
-                        if remaining_limit and len(local_items) >= (
-                            remaining_limit // total_segments
-                        ):
+                        if remaining_limit and len(local_items) >= (remaining_limit // total_segments):
                             break
 
                         scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
@@ -704,13 +632,9 @@ class DynamoDBManager:
 
                         # Log detalhado a cada 100 itens no segmento
                         if len(local_items) % 100 == 0:
-                            self._logger.debug(
-                                f"Segment {segment} progress: {len(local_items)} items"
-                            )
+                            self._logger.debug(f"Segment {segment} progress: {len(local_items)} items")
 
-                    self._logger.debug(
-                        f"Segment {segment} completed: {len(local_items)} items"
-                    )
+                    self._logger.debug(f"Segment {segment} completed: {len(local_items)} items")
                     return local_items
 
                 except Exception as e:
@@ -719,9 +643,7 @@ class DynamoDBManager:
 
             # Execução paralela
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(scan_segment, s) for s in range(total_segments)
-                ]
+                futures = [executor.submit(scan_segment, s) for s in range(total_segments)]
 
                 for future in futures:
                     segment_items = future.result()
@@ -755,9 +677,8 @@ class DynamoDBManager:
             self._logger.error(f"Error retrieving data from table: {e}")
             raise
 
-    def _load_from_cache(self, cache_key: str) -> Optional[Dict]:
-        """
-        Loads data from the cache if available and valid.
+    def _load_from_cache(self, cache_key: str) -> dict | None:
+        """Loads data from the cache if available and valid.
 
         Args:
             cache_key (str): The cache key to retrieve data for.
@@ -766,18 +687,13 @@ class DynamoDBManager:
             Optional[Dict]: Cached data if available, None otherwise.
         """
         try:
-            return self.cache_manager.load(
-                cache_key, expiration_minutes=self.cache_expiration
-            )
+            return self.cache_manager.load(cache_key, expiration_minutes=self.cache_expiration)
         except Exception as e:
-            self._logger.warning(
-                f"Cache miss or load failure for key '{cache_key}': {e}"
-            )
+            self._logger.warning(f"Cache miss or load failure for key '{cache_key}': {e}")
             return None
 
-    def _save_to_cache(self, cache_key: str, data: Dict):
-        """
-        Saves data to the cache.
+    def _save_to_cache(self, cache_key: str, data: dict):
+        """Saves data to the cache.
 
         Args:
             cache_key (str): The cache key to store data for.
@@ -791,7 +707,8 @@ class DynamoDBManager:
 
     def _get_next_part_index(self, segment: int) -> int:
         """Retorna o próximo índice de parte para o segmento, baseado nos arquivos existentes no
-        diretório atual."""
+        diretório atual.
+        """
         prefix = f"temp_segment_{segment}_part_"
         existing_parts = []
         for fname in os.listdir("."):
@@ -810,15 +727,14 @@ class DynamoDBManager:
         self,
         connection_name: str,
         table_name: str,
-        filter_expression: Optional[Any] = None,
-        limit: Optional[int] = None,
+        filter_expression: Any | None = None,
+        limit: int | None = None,
         max_workers: int = 15,
         output_parquet_path: str = "data/output.parquet",
         checkpoint_path: str = "data/dynamodb_scan_checkpoint.json",
         scan_batch_limit: int = 1000,
     ) -> None:
-        """
-        Scaneia incrementalmente uma tabela do DynamoDB utilizando segmentos paralelos, grava cada
+        """Scaneia incrementalmente uma tabela do DynamoDB utilizando segmentos paralelos, grava cada
         lote em
         um arquivo Parquet parcial (armazenando cada registro como JSON na coluna "raw_record") e
         armazena o checkpoint (LastEvaluatedKey) em um arquivo JSON.
@@ -870,13 +786,9 @@ class DynamoDBManager:
             while not progress_stop_event.is_set():
                 time.sleep(1)
                 with progress_lock:
-                    total = sum(
-                        segment_progress[str(seg)] for seg in range(max_workers)
-                    )
+                    total = sum(segment_progress[str(seg)] for seg in range(max_workers))
                     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-                    progress_line = (
-                        f"[{timestamp}][INFO][DynamoDBManager]: Progress - {total:>8}."
-                    )
+                    progress_line = f"[{timestamp}][INFO][DynamoDBManager]: Progress - {total:>8}."
 
                 sys.stdout.write("\r" + progress_line)
                 sys.stdout.flush()
@@ -915,8 +827,7 @@ class DynamoDBManager:
                         "ThrottlingException",
                     ]:
                         self._logger.warning(
-                            f"Segment {segment} throttled (error: {error_code}). "
-                            f"Sleeping {backoff}s before retrying."
+                            f"Segment {segment} throttled (error: {error_code}). Sleeping {backoff}s before retrying."
                         )
                         time.sleep(backoff)
                         backoff = min(backoff * 2, max_backoff)
@@ -932,11 +843,7 @@ class DynamoDBManager:
                         {
                             "raw_record": json.dumps(
                                 item,
-                                default=lambda o: (
-                                    float(o)
-                                    if isinstance(o, decimal.Decimal)
-                                    else str(o)
-                                ),
+                                default=lambda o: (float(o) if isinstance(o, decimal.Decimal) else str(o)),
                             )
                         }
                         for item in items
@@ -944,10 +851,7 @@ class DynamoDBManager:
                     try:
                         table_batch = pa.Table.from_pylist(normalized_items)
                     except Exception as conv_err:
-                        self._logger.error(
-                            f"Error converting items to PyArrow Table in segment {segment}: "
-                            f"{conv_err}"
-                        )
+                        self._logger.error(f"Error converting items to PyArrow Table in segment {segment}: {conv_err}")
                         raise
                     if writer is None:
                         writer = pq.ParquetWriter(temp_file, table_batch.schema)
@@ -970,23 +874,16 @@ class DynamoDBManager:
 
             if writer is not None:
                 writer.close()
-            self._logger.info(
-                f"Segment {segment} finished with {segment_item_count} items."
-            )
+            self._logger.info(f"Segment {segment} finished with {segment_item_count} items.")
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(scan_segment_to_parquet, seg)
-                for seg in range(total_segments)
-            ]
+            futures = [executor.submit(scan_segment_to_parquet, seg) for seg in range(total_segments)]
             concurrent.futures.wait(futures)
 
         progress_stop_event.set()
         progress_thread.join()
 
-        self._logger.info(
-            "All segments finished scanning. Proceeding to merge partial Parquet files."
-        )
+        self._logger.info("All segments finished scanning. Proceeding to merge partial Parquet files.")
 
         temp_files = []
         for seg in range(total_segments):

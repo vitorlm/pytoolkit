@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
-"""
-Advanced Product Deduplication Service - Creates clean product table based on database analysis
-"""
+"""Advanced Product Deduplication Service - Creates clean product table based on database analysis"""
 
 import re
-from typing import Dict, List, Any
-from collections import defaultdict, Counter
+from collections import Counter, defaultdict
 from datetime import datetime
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
 from domains.personal_finance.nfce.database.nfce_database_manager import (
     NFCeDatabaseManager,
 )
+from utils.logging.logging_manager import LogManager
 
 
 class AdvancedProductDeduplicationService:
     def __init__(self):
-        self.logger = LogManager.get_instance().get_logger(
-            "AdvancedProductDeduplicationService"
-        )
+        self.logger = LogManager.get_instance().get_logger("AdvancedProductDeduplicationService")
         self._db_manager = None
 
     @property
@@ -33,9 +29,8 @@ class AdvancedProductDeduplicationService:
         similarity_threshold: float = 0.85,
         standardize_units: bool = True,
         remove_establishment_specific: bool = True,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a comprehensive clean product master table"""
-
         self.logger.info("Starting advanced product deduplication process")
 
         # 1. Load all products from database
@@ -52,9 +47,7 @@ class AdvancedProductDeduplicationService:
         self.logger.info("Descriptions normalized")
 
         # 4. Group products by similarity
-        product_groups = self._group_products_by_similarity(
-            all_products, similarity_threshold
-        )
+        product_groups = self._group_products_by_similarity(all_products, similarity_threshold)
         self.logger.info(f"Created {len(product_groups)} product groups")
 
         # 5. Create clean master products
@@ -62,12 +55,8 @@ class AdvancedProductDeduplicationService:
         self.logger.info(f"Created {len(clean_master_products)} clean master products")
 
         # 6. Generate mappings and statistics
-        mapping_table = self._generate_mapping_table(
-            all_products, clean_master_products
-        )
-        statistics = self._calculate_comprehensive_stats(
-            all_products, clean_master_products
-        )
+        mapping_table = self._generate_mapping_table(all_products, clean_master_products)
+        statistics = self._calculate_comprehensive_stats(all_products, clean_master_products)
 
         # 7. Create final results
         results = {
@@ -89,9 +78,8 @@ class AdvancedProductDeduplicationService:
 
         return results
 
-    def _load_all_products_from_database(self) -> List[Dict[str, Any]]:
+    def _load_all_products_from_database(self) -> list[dict[str, Any]]:
         """Load all products from the database with establishment context"""
-
         try:
             conn = self.db_manager.db_manager.get_connection("nfce_db")
 
@@ -140,11 +128,8 @@ class AdvancedProductDeduplicationService:
             self.logger.error(f"Error loading products from database: {e}")
             raise
 
-    def _standardize_units(
-        self, products: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _standardize_units(self, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Apply comprehensive unit standardization"""
-
         # Enhanced unit mapping based on your data analysis
         unit_mapping = {
             # Weight units - standardize to KG
@@ -180,11 +165,8 @@ class AdvancedProductDeduplicationService:
 
         return products
 
-    def _normalize_descriptions(
-        self, products: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _normalize_descriptions(self, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Apply comprehensive description normalization"""
-
         for product in products:
             original_desc = product["description"]
             normalized = self._apply_normalization_rules(original_desc)
@@ -196,7 +178,6 @@ class AdvancedProductDeduplicationService:
 
     def _apply_normalization_rules(self, description: str) -> str:
         """Apply advanced normalization rules for Brazilian product descriptions"""
-
         # Step 1: Basic cleanup
         normalized = description.upper().strip()
 
@@ -244,10 +225,9 @@ class AdvancedProductDeduplicationService:
         return normalized
 
     def _group_products_by_similarity(
-        self, products: List[Dict[str, Any]], threshold: float
-    ) -> List[List[Dict[str, Any]]]:
+        self, products: list[dict[str, Any]], threshold: float
+    ) -> list[list[dict[str, Any]]]:
         """Group products by normalized description similarity"""
-
         # Group by exact normalized description first
         exact_groups = defaultdict(list)
 
@@ -263,11 +243,8 @@ class AdvancedProductDeduplicationService:
 
         return product_groups
 
-    def _create_master_products(
-        self, product_groups: List[List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
+    def _create_master_products(self, product_groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
         """Create master product records from grouped products"""
-
         master_products = []
 
         for group_idx, group in enumerate(product_groups):
@@ -279,11 +256,8 @@ class AdvancedProductDeduplicationService:
 
         return master_products
 
-    def _create_single_master_product(
-        self, group: List[Dict[str, Any]], group_id: int
-    ) -> Dict[str, Any]:
+    def _create_single_master_product(self, group: list[dict[str, Any]], group_id: int) -> dict[str, Any]:
         """Create a single master product from a group of similar products"""
-
         # Choose the best representative description (longest, most complete)
         descriptions = [p["description"] for p in group]
         master_description = max(descriptions, key=len)
@@ -338,7 +312,6 @@ class AdvancedProductDeduplicationService:
 
     def _determine_category(self, description: str) -> str:
         """Determine product category based on description keywords"""
-
         # Enhanced category mapping based on your data analysis
         category_keywords = {
             "fruits": [
@@ -372,9 +345,8 @@ class AdvancedProductDeduplicationService:
 
         return "uncategorized"
 
-    def _calculate_product_quality_score(self, group: List[Dict[str, Any]]) -> float:
+    def _calculate_product_quality_score(self, group: list[dict[str, Any]]) -> float:
         """Calculate quality score for a product group (0-1)"""
-
         # Factors for quality score:
         # 1. Consistency across establishments (higher = better)
         # 2. Description completeness (longer descriptions usually better)
@@ -400,9 +372,8 @@ class AdvancedProductDeduplicationService:
 
         return round(quality_score, 3)
 
-    def _calculate_consolidation_confidence(self, group: List[Dict[str, Any]]) -> float:
+    def _calculate_consolidation_confidence(self, group: list[dict[str, Any]]) -> float:
         """Calculate confidence in consolidation decision (0-1)"""
-
         # High confidence if:
         # - Descriptions are very similar after normalization
         # - Same units
@@ -432,11 +403,10 @@ class AdvancedProductDeduplicationService:
 
     def _generate_mapping_table(
         self,
-        original_products: List[Dict[str, Any]],
-        master_products: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        original_products: list[dict[str, Any]],
+        master_products: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Generate mapping table from original products to master products"""
-
         mapping_table = []
 
         # Create lookup for master products by normalized description
@@ -465,49 +435,34 @@ class AdvancedProductDeduplicationService:
 
     def _calculate_comprehensive_stats(
         self,
-        original_products: List[Dict[str, Any]],
-        master_products: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        original_products: list[dict[str, Any]],
+        master_products: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Calculate comprehensive statistics about the deduplication process"""
-
         original_count = len(original_products)
         master_count = len(master_products)
         reduction = original_count - master_count
-        reduction_percentage = (
-            (reduction / original_count * 100) if original_count > 0 else 0
-        )
+        reduction_percentage = (reduction / original_count * 100) if original_count > 0 else 0
 
         # Category analysis
         category_distribution = Counter(p["category"] for p in master_products)
 
         # Unit analysis
-        original_units = Counter(
-            p.get("original_unit", p["unit"]) for p in original_products
-        )
+        original_units = Counter(p.get("original_unit", p["unit"]) for p in original_products)
         standardized_units = Counter(p["unit"] for p in master_products)
 
         # Quality metrics
         avg_quality_score = (
-            sum(p["quality_score"] for p in master_products) / len(master_products)
-            if master_products
-            else 0
+            sum(p["quality_score"] for p in master_products) / len(master_products) if master_products else 0
         )
         avg_confidence = (
-            sum(p["consolidation_confidence"] for p in master_products)
-            / len(master_products)
-            if master_products
-            else 0
+            sum(p["consolidation_confidence"] for p in master_products) / len(master_products) if master_products else 0
         )
 
         # Establishment coverage
-        establishments_covered = len(
-            set(p["establishment_cnpj"] for p in original_products)
-        )
+        establishments_covered = len(set(p["establishment_cnpj"] for p in original_products))
         avg_establishments_per_product = (
-            sum(p["unique_establishments"] for p in master_products)
-            / len(master_products)
-            if master_products
-            else 0
+            sum(p["unique_establishments"] for p in master_products) / len(master_products) if master_products else 0
         )
 
         return {
@@ -521,29 +476,20 @@ class AdvancedProductDeduplicationService:
             "quality_metrics": {
                 "average_quality_score": round(avg_quality_score, 3),
                 "average_consolidation_confidence": round(avg_confidence, 3),
-                "high_quality_products": len(
-                    [p for p in master_products if p["quality_score"] > 0.8]
-                ),
+                "high_quality_products": len([p for p in master_products if p["quality_score"] > 0.8]),
                 "low_confidence_consolidations": len(
                     [p for p in master_products if p["consolidation_confidence"] < 0.7]
                 ),
             },
             "establishment_metrics": {
                 "total_establishments": establishments_covered,
-                "avg_establishments_per_product": round(
-                    avg_establishments_per_product, 2
-                ),
-                "cross_establishment_products": len(
-                    [p for p in master_products if p["unique_establishments"] > 1]
-                ),
+                "avg_establishments_per_product": round(avg_establishments_per_product, 2),
+                "cross_establishment_products": len([p for p in master_products if p["unique_establishments"] > 1]),
             },
         }
 
-    def _calculate_quality_metrics(
-        self, master_products: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _calculate_quality_metrics(self, master_products: list[dict[str, Any]]) -> dict[str, Any]:
         """Calculate quality metrics for the clean product table"""
-
         total_products = len(master_products)
 
         if total_products == 0:
@@ -566,31 +512,20 @@ class AdvancedProductDeduplicationService:
                 "high_quality": high_quality,
                 "medium_quality": medium_quality,
                 "low_quality": low_quality,
-                "high_quality_percentage": round(
-                    high_quality / total_products * 100, 2
-                ),
+                "high_quality_percentage": round(high_quality / total_products * 100, 2),
             },
             "confidence_distribution": {
                 "high_confidence": high_confidence,
                 "medium_confidence": medium_confidence,
                 "low_confidence": low_confidence,
-                "high_confidence_percentage": round(
-                    high_confidence / total_products * 100, 2
-                ),
+                "high_confidence_percentage": round(high_confidence / total_products * 100, 2),
             },
-            "overall_quality_score": round(
-                sum(quality_scores) / len(quality_scores), 3
-            ),
-            "overall_confidence_score": round(
-                sum(confidence_scores) / len(confidence_scores), 3
-            ),
+            "overall_quality_score": round(sum(quality_scores) / len(quality_scores), 3),
+            "overall_confidence_score": round(sum(confidence_scores) / len(confidence_scores), 3),
         }
 
-    def _generate_cleanup_recommendations(
-        self, statistics: Dict[str, Any]
-    ) -> List[str]:
+    def _generate_cleanup_recommendations(self, statistics: dict[str, Any]) -> list[str]:
         """Generate recommendations based on analysis results"""
-
         recommendations = []
 
         reduction_pct = statistics["reduction_percentage"]
@@ -598,13 +533,9 @@ class AdvancedProductDeduplicationService:
 
         # Reduction recommendations
         if reduction_pct > 50:
-            recommendations.append(
-                f"Excellent deduplication achieved: {reduction_pct:.1f}% reduction in product count"
-            )
+            recommendations.append(f"Excellent deduplication achieved: {reduction_pct:.1f}% reduction in product count")
         elif reduction_pct > 20:
-            recommendations.append(
-                f"Good deduplication achieved: {reduction_pct:.1f}% reduction in product count"
-            )
+            recommendations.append(f"Good deduplication achieved: {reduction_pct:.1f}% reduction in product count")
         else:
             recommendations.append(
                 f"Limited deduplication: {reduction_pct:.1f}% reduction. Consider reviewing similarity thresholds"
@@ -612,9 +543,7 @@ class AdvancedProductDeduplicationService:
 
         # Quality recommendations
         if quality_metrics["average_quality_score"] < 0.7:
-            recommendations.append(
-                "Consider manual review of low-quality product groups"
-            )
+            recommendations.append("Consider manual review of low-quality product groups")
 
         if quality_metrics["low_confidence_consolidations"] > 0:
             recommendations.append(
@@ -622,13 +551,9 @@ class AdvancedProductDeduplicationService:
             )
 
         # Category recommendations
-        uncategorized_count = statistics["category_distribution"].get(
-            "uncategorized", 0
-        )
+        uncategorized_count = statistics["category_distribution"].get("uncategorized", 0)
         total_count = statistics["master_count"]
-        uncategorized_pct = (
-            (uncategorized_count / total_count * 100) if total_count > 0 else 0
-        )
+        uncategorized_pct = (uncategorized_count / total_count * 100) if total_count > 0 else 0
 
         if uncategorized_pct > 50:
             recommendations.append(
@@ -638,15 +563,12 @@ class AdvancedProductDeduplicationService:
         # Unit standardization recommendations
         unit_diversity = len(statistics["standardized_unit_distribution"])
         if unit_diversity > 10:
-            recommendations.append(
-                "Consider further unit standardization - high unit diversity detected"
-            )
+            recommendations.append("Consider further unit standardization - high unit diversity detected")
 
         return recommendations
 
-    def export_to_csv(self, results: Dict[str, Any], output_path: str):
+    def export_to_csv(self, results: dict[str, Any], output_path: str):
         """Export clean master products to CSV"""
-
         import pandas as pd
 
         self.logger.info(f"Exporting clean products to CSV: {output_path}")
@@ -665,9 +587,7 @@ class AdvancedProductDeduplicationService:
                     "original_products_count": product["original_products_count"],
                     "quality_score": product["quality_score"],
                     "consolidation_confidence": product["consolidation_confidence"],
-                    "original_descriptions": "; ".join(
-                        product["original_descriptions"]
-                    ),
+                    "original_descriptions": "; ".join(product["original_descriptions"]),
                 }
             )
 
@@ -676,9 +596,8 @@ class AdvancedProductDeduplicationService:
 
         self.logger.info(f"CSV export completed: {output_path}")
 
-    def export_to_excel(self, results: Dict[str, Any], output_path: str):
+    def export_to_excel(self, results: dict[str, Any], output_path: str):
         """Export comprehensive results to Excel with multiple sheets"""
-
         import pandas as pd
 
         self.logger.info(f"Exporting to Excel: {output_path}")

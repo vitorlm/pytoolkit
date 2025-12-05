@@ -1,14 +1,13 @@
-"""
-Shared parsing logic for JIRA commands.
+"""Shared parsing logic for JIRA commands.
 
 This module provides centralized parsing utilities used across multiple JIRA commands
 to eliminate code duplication and ensure consistent argument handling.
 """
 
-from argparse import Namespace
-from typing import List, Optional, Union, Dict, Any
-from datetime import datetime, timedelta
 import re
+from argparse import Namespace
+from datetime import datetime, timedelta
+from typing import Any
 
 from utils.logging.logging_manager import LogManager
 
@@ -19,9 +18,8 @@ class TimeWindowParser:
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("TimeWindowParser")
 
-    def parse_time_window(self, args: Namespace) -> Dict[str, Any]:
-        """
-        Parse time window from various argument formats.
+    def parse_time_window(self, args: Namespace) -> dict[str, Any]:
+        """Parse time window from various argument formats.
 
         Args:
             args: Command arguments containing time specifications
@@ -49,7 +47,7 @@ class TimeWindowParser:
             self.logger.error(f"Failed to parse time window: {e}")
             return self._get_default_time_window()
 
-    def _parse_anchor_window(self, end_date: str, window_days: int) -> Dict[str, Any]:
+    def _parse_anchor_window(self, end_date: str, window_days: int) -> dict[str, Any]:
         """Parse anchor date + window days format."""
         try:
             end_dt = datetime.strptime(end_date, "%Y-%m-%d")
@@ -66,7 +64,7 @@ class TimeWindowParser:
             self.logger.error(f"Invalid date format: {e}")
             return self._get_default_time_window()
 
-    def _parse_time_window_string(self, time_window: str) -> Dict[str, Any]:
+    def _parse_time_window_string(self, time_window: str) -> dict[str, Any]:
         """Parse time window string formats."""
         if time_window == "last-week":
             return self._get_relative_window(7, "last week")
@@ -87,7 +85,7 @@ class TimeWindowParser:
             # Single date
             return self._parse_single_date(time_window)
 
-    def _parse_date_range(self, start_date: str, end_date: str) -> Dict[str, Any]:
+    def _parse_date_range(self, start_date: str, end_date: str) -> dict[str, Any]:
         """Parse explicit start and end dates."""
         try:
             start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -105,7 +103,7 @@ class TimeWindowParser:
             self.logger.error(f"Invalid date range: {e}")
             return self._get_default_time_window()
 
-    def _parse_date_range_string(self, date_range: str) -> Dict[str, Any]:
+    def _parse_date_range_string(self, date_range: str) -> dict[str, Any]:
         """Parse comma-separated date range."""
         try:
             start_date, end_date = date_range.split(",")
@@ -113,7 +111,7 @@ class TimeWindowParser:
         except ValueError:
             return self._get_default_time_window()
 
-    def _parse_single_date(self, date_str: str) -> Dict[str, Any]:
+    def _parse_single_date(self, date_str: str) -> dict[str, Any]:
         """Parse single date specification."""
         try:
             datetime.strptime(date_str, "%Y-%m-%d")
@@ -127,7 +125,7 @@ class TimeWindowParser:
         except ValueError:
             return self._get_default_time_window()
 
-    def _get_relative_window(self, days: int, description: str) -> Dict[str, Any]:
+    def _get_relative_window(self, days: int, description: str) -> dict[str, Any]:
         """Get relative time window from current date."""
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days - 1)
@@ -140,7 +138,7 @@ class TimeWindowParser:
             "description": description,
         }
 
-    def _get_default_time_window(self) -> Dict[str, Any]:
+    def _get_default_time_window(self) -> dict[str, Any]:
         """Get default time window (last 7 days)."""
         return self._get_relative_window(7, "last 7 days (default)")
 
@@ -151,9 +149,8 @@ class TeamParser:
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("TeamParser")
 
-    def parse_team_filters(self, args: Namespace) -> Dict[str, Any]:
-        """
-        Parse team-related filter arguments.
+    def parse_team_filters(self, args: Namespace) -> dict[str, Any]:
+        """Parse team-related filter arguments.
 
         Args:
             args: Command arguments
@@ -188,11 +185,8 @@ class TeamParser:
             self.logger.error(f"Failed to parse team filters: {e}")
             return team_info
 
-    def normalize_team_value(
-        self, team_data: Union[str, List[str], None]
-    ) -> Optional[str]:
-        """
-        Normalize team value for consistent output.
+    def normalize_team_value(self, team_data: str | list[str] | None) -> str | None:
+        """Normalize team value for consistent output.
 
         Args:
             team_data: Team data in various formats
@@ -216,8 +210,7 @@ class ArgumentValidator:
         self.logger = LogManager.get_instance().get_logger("ArgumentValidator")
 
     def validate_project_key(self, project_key: str) -> bool:
-        """
-        Validate JIRA project key format.
+        """Validate JIRA project key format.
 
         Args:
             project_key: Project key to validate
@@ -232,9 +225,8 @@ class ArgumentValidator:
         pattern = re.compile(r"^[A-Z]{2,10}$")
         return bool(pattern.match(project_key))
 
-    def validate_issue_types(self, issue_types: Union[str, List[str]]) -> List[str]:
-        """
-        Validate and normalize issue types.
+    def validate_issue_types(self, issue_types: str | list[str]) -> list[str]:
+        """Validate and normalize issue types.
 
         Args:
             issue_types: Issue types to validate
@@ -254,8 +246,7 @@ class ArgumentValidator:
         return [t for t in types if t]
 
     def validate_summary_mode(self, summary_mode: str) -> str:
-        """
-        Validate summary mode argument.
+        """Validate summary mode argument.
 
         Args:
             summary_mode: Summary mode to validate
@@ -266,16 +257,13 @@ class ArgumentValidator:
         valid_modes = ["auto", "json", "none"]
 
         if not summary_mode or summary_mode not in valid_modes:
-            self.logger.warning(
-                f"Invalid summary mode '{summary_mode}', defaulting to 'auto'"
-            )
+            self.logger.warning(f"Invalid summary mode '{summary_mode}', defaulting to 'auto'")
             return "auto"
 
         return summary_mode
 
     def validate_output_format(self, output_format: str) -> str:
-        """
-        Validate output format argument.
+        """Validate output format argument.
 
         Args:
             output_format: Output format to validate
@@ -286,9 +274,7 @@ class ArgumentValidator:
         valid_formats = ["json", "md", "csv", "console"]
 
         if not output_format or output_format not in valid_formats:
-            self.logger.warning(
-                f"Invalid output format '{output_format}', defaulting to 'console'"
-            )
+            self.logger.warning(f"Invalid output format '{output_format}', defaulting to 'console'")
             return "console"
 
         return output_format
@@ -301,8 +287,7 @@ class ErrorHandler:
         self.logger = LogManager.get_instance().get_logger("JiraErrorHandler")
 
     def handle_api_error(self, error: Exception, context: str = "") -> None:
-        """
-        Handle JIRA API errors with appropriate user messaging.
+        """Handle JIRA API errors with appropriate user messaging.
 
         Args:
             error: Exception that occurred
@@ -385,9 +370,7 @@ class ErrorHandler:
         print(f"Error Type: {type(error).__name__}")
         if context:
             print(f"Context: {context}")
-        print(
-            "\nThis appears to be an unexpected error. Please check the logs for more details:"
-        )
+        print("\nThis appears to be an unexpected error. Please check the logs for more details:")
         print("Check: logs/ directory for detailed error information")
         print("\nIf the problem persists, try:")
         print("1. Run with --verbose for more details")

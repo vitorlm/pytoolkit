@@ -1,12 +1,11 @@
-"""
-JIRA Domain Metrics Registry
+"""JIRA Domain Metrics Registry
 
 This module provides a central registry for JIRA metric definitions, standardizing
 metric names, units, descriptions, and validation schemas across all JIRA commands.
 """
 
-from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -17,16 +16,15 @@ class MetricDefinition:
     unit: str
     description: str
     category: str
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
+    min_value: float | None = None
+    max_value: float | None = None
     decimal_places: int = 1
     is_percentage: bool = False
     aggregation_method: str = "latest"  # latest, sum, avg, max, min
 
 
 class JiraMetricsRegistry:
-    """
-    Central registry for JIRA domain metrics.
+    """Central registry for JIRA domain metrics.
 
     Provides standardized metric definitions and validation for all JIRA commands
     including cycle time, issue adherence, and net flow metrics.
@@ -35,7 +33,7 @@ class JiraMetricsRegistry:
     def __init__(self):
         self._metrics = self._initialize_metrics()
 
-    def _initialize_metrics(self) -> Dict[str, MetricDefinition]:
+    def _initialize_metrics(self) -> dict[str, MetricDefinition]:
         """Initialize all JIRA metric definitions."""
         metrics = {}
 
@@ -56,7 +54,7 @@ class JiraMetricsRegistry:
 
         return metrics
 
-    def _get_cycle_time_metrics(self) -> Dict[str, MetricDefinition]:
+    def _get_cycle_time_metrics(self) -> dict[str, MetricDefinition]:
         """Get cycle time metric definitions."""
         return {
             "jira.cycle_time.average_hours": MetricDefinition(
@@ -111,7 +109,7 @@ class JiraMetricsRegistry:
             ),
         }
 
-    def _get_adherence_metrics(self) -> Dict[str, MetricDefinition]:
+    def _get_adherence_metrics(self) -> dict[str, MetricDefinition]:
         """Get issue adherence metric definitions."""
         return {
             "jira.issue_adherence.adherence_rate": MetricDefinition(
@@ -177,7 +175,7 @@ class JiraMetricsRegistry:
             ),
         }
 
-    def _get_net_flow_metrics(self) -> Dict[str, MetricDefinition]:
+    def _get_net_flow_metrics(self) -> dict[str, MetricDefinition]:
         """Get net flow metric definitions."""
         return {
             "jira.net_flow.net_flow": MetricDefinition(
@@ -238,7 +236,7 @@ class JiraMetricsRegistry:
             ),
         }
 
-    def _get_segmentation_metrics(self) -> Dict[str, MetricDefinition]:
+    def _get_segmentation_metrics(self) -> dict[str, MetricDefinition]:
         """Get team/type segmentation metric definitions."""
         return {
             "jira.segmentation.team_cycle_time": MetricDefinition(
@@ -269,7 +267,7 @@ class JiraMetricsRegistry:
             ),
         }
 
-    def _get_trending_metrics(self) -> Dict[str, MetricDefinition]:
+    def _get_trending_metrics(self) -> dict[str, MetricDefinition]:
         """Get trending and statistical metric definitions."""
         return {
             "jira.trending.baseline_comparison": MetricDefinition(
@@ -314,9 +312,8 @@ class JiraMetricsRegistry:
             ),
         }
 
-    def get_metric_definition(self, metric_name: str) -> Optional[MetricDefinition]:
-        """
-        Get metric definition by name.
+    def get_metric_definition(self, metric_name: str) -> MetricDefinition | None:
+        """Get metric definition by name.
 
         Args:
             metric_name: Name of the metric
@@ -326,9 +323,8 @@ class JiraMetricsRegistry:
         """
         return self._metrics.get(metric_name)
 
-    def get_metrics_by_category(self, category: str) -> List[MetricDefinition]:
-        """
-        Get all metrics in a specific category.
+    def get_metrics_by_category(self, category: str) -> list[MetricDefinition]:
+        """Get all metrics in a specific category.
 
         Args:
             category: Category name (cycle_time, adherence, net_flow, etc.)
@@ -336,13 +332,10 @@ class JiraMetricsRegistry:
         Returns:
             List of metric definitions in the category
         """
-        return [
-            metric for metric in self._metrics.values() if metric.category == category
-        ]
+        return [metric for metric in self._metrics.values() if metric.category == category]
 
-    def get_all_categories(self) -> List[str]:
-        """
-        Get all available metric categories.
+    def get_all_categories(self) -> list[str]:
+        """Get all available metric categories.
 
         Returns:
             List of category names
@@ -350,8 +343,7 @@ class JiraMetricsRegistry:
         return list(set(metric.category for metric in self._metrics.values()))
 
     def validate_metric_value(self, metric_name: str, value: Any) -> bool:
-        """
-        Validate a metric value against its definition.
+        """Validate a metric value against its definition.
 
         Args:
             metric_name: Name of the metric
@@ -379,8 +371,7 @@ class JiraMetricsRegistry:
         return True
 
     def format_metric_value(self, metric_name: str, value: Any) -> str:
-        """
-        Format a metric value according to its definition.
+        """Format a metric value according to its definition.
 
         Args:
             metric_name: Name of the metric
@@ -410,9 +401,8 @@ class JiraMetricsRegistry:
 
         return formatted
 
-    def get_metric_summary(self) -> Dict[str, Any]:
-        """
-        Get summary information about all metrics.
+    def get_metric_summary(self) -> dict[str, Any]:
+        """Get summary information about all metrics.
 
         Returns:
             Dictionary with metric counts and categories
@@ -435,9 +425,8 @@ class JiraMetricsRegistry:
 JIRA_METRICS_REGISTRY = JiraMetricsRegistry()
 
 
-def get_jira_metric_definition(metric_name: str) -> Optional[MetricDefinition]:
-    """
-    Convenience function to get metric definition.
+def get_jira_metric_definition(metric_name: str) -> MetricDefinition | None:
+    """Convenience function to get metric definition.
 
     Args:
         metric_name: Name of the metric
@@ -449,8 +438,7 @@ def get_jira_metric_definition(metric_name: str) -> Optional[MetricDefinition]:
 
 
 def validate_jira_metric(metric_name: str, value: Any) -> bool:
-    """
-    Convenience function to validate metric value.
+    """Convenience function to validate metric value.
 
     Args:
         metric_name: Name of the metric
@@ -463,8 +451,7 @@ def validate_jira_metric(metric_name: str, value: Any) -> bool:
 
 
 def format_jira_metric(metric_name: str, value: Any) -> str:
-    """
-    Convenience function to format metric value.
+    """Convenience function to format metric value.
 
     Args:
         metric_name: Name of the metric

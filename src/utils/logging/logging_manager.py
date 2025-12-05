@@ -3,14 +3,12 @@ import os
 from enum import Enum
 from logging import Logger
 from logging.handlers import TimedRotatingFileHandler
-from typing import List, Optional
 
 from utils.file_manager import FileManager
 
 
 class LogLevel(Enum):
-    """
-    Enum for log levels to improve readability and usability.
+    """Enum for log levels to improve readability and usability.
 
     Attributes:
         DEBUG: Debug log level.
@@ -28,36 +26,33 @@ class LogLevel(Enum):
 
 
 class LevelFilter(logging.Filter):
-    """
-    A logging filter that allows filtering log messages by their level.
+    """A logging filter that allows filtering log messages by their level.
+    Allows messages at the specified level and above.
     """
 
     def __init__(self, level: LogLevel):
-        """
-        Initializes the filter with a specific logging level.
+        """Initializes the filter with a specific logging level.
 
         Args:
-            level (LogLevel): The logging level to filter.
+            level (LogLevel): The minimum logging level to filter.
         """
-        self.level = level
+        self.level = level.value
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """
-        Filters log records based on their level.
+        """Filters log records based on their level.
+        Allows records at the specified level or higher.
 
         Args:
             record (logging.LogRecord): Log record to evaluate.
 
         Returns:
-            bool: True if the record matches the level, False otherwise.
+            bool: True if the record level is at or above the configured level, False otherwise.
         """
-        return record.levelno == self.level
+        return record.levelno >= self.level
 
 
 class ColorFormatter(logging.Formatter):
-    """
-    A logging formatter that applies colors to log messages based on level and a unique identifier.
-    """
+    """A logging formatter that applies colors to log messages based on level and a unique identifier."""
 
     LEVEL_COLORS = {
         LogLevel.DEBUG: "\033[94m",  # Blue
@@ -86,8 +81,7 @@ class ColorFormatter(logging.Formatter):
     ]
 
     def __init__(self, logger_number: int):
-        """
-        Initializes the formatter with a specific color based on a unique logger number.
+        """Initializes the formatter with a specific color based on a unique logger number.
 
         Args:
             logger_number (int): Unique identifier for assigning a color.
@@ -96,8 +90,7 @@ class ColorFormatter(logging.Formatter):
         self.color = self.MODULE_COLORS[logger_number % len(self.MODULE_COLORS)]
 
     def format(self, record: logging.LogRecord) -> str:
-        """
-        Formats the log record with level-based and unique color.
+        """Formats the log record with level-based and unique color.
 
         Args:
             record (logging.LogRecord): The log record to format.
@@ -121,13 +114,10 @@ class ColorFormatter(logging.Formatter):
 
 
 class CustomLogHandler(logging.Handler):
-    """
-    A custom logging handler to intercept logs and apply custom formatting.
-    """
+    """A custom logging handler to intercept logs and apply custom formatting."""
 
-    def __init__(self, formatter: Optional[logging.Formatter] = None):
-        """
-        Initializes the custom log handler.
+    def __init__(self, formatter: logging.Formatter | None = None):
+        """Initializes the custom log handler.
 
         Args:
             formatter (logging.Formatter, optional): The formatter to use. Defaults to None.
@@ -135,9 +125,8 @@ class CustomLogHandler(logging.Handler):
         super().__init__()
         self.formatter = formatter
 
-    def setFormatter(self, fmt: Optional[logging.Formatter]):
-        """
-        Sets the formatter for the handler.
+    def setFormatter(self, fmt: logging.Formatter | None):
+        """Sets the formatter for the handler.
 
         Args:
             fmt (Optional[logging.Formatter]): The formatter to set.
@@ -145,8 +134,7 @@ class CustomLogHandler(logging.Handler):
         self.formatter = fmt
 
     def emit(self, record: logging.LogRecord):
-        """
-        Emits a log record using the provided formatter.
+        """Emits a log record using the provided formatter.
 
         Args:
             record (logging.LogRecord): The log record to process.
@@ -161,9 +149,7 @@ class CustomLogHandler(logging.Handler):
 
 
 class LogManager:
-    """
-    Singleton LogManager to manage loggers for a CLI project.
-    """
+    """Singleton LogManager to manage loggers for a CLI project."""
 
     _instance = None
 
@@ -174,9 +160,9 @@ class LogManager:
         log_retention_hours: int,
         default_level: LogLevel = LogLevel.INFO,
         use_filter: bool = False,
+        log_output: str = "both",
     ):
-        """
-        Initializes the singleton instance of LogManager.
+        """Initializes the singleton instance of LogManager.
 
         Args:
             log_dir (str): Directory where log files are saved.
@@ -184,21 +170,18 @@ class LogManager:
             log_retention_hours (int): Retention period for old logs in hours.
             default_level (LogLevel): Default logging level. Defaults to LogLevel.INFO.
             use_filter (bool): Whether to use level-based filtering. Defaults to False.
+            log_output (str): Output destination - 'console', 'file', or 'both'. Defaults to 'both'.
         """
         if LogManager._instance is None:
             LogManager._instance = LogManager(
-                log_dir, log_file, log_retention_hours, default_level, use_filter
+                log_dir, log_file, log_retention_hours, default_level, use_filter, log_output
             )
 
     @staticmethod
     def get_instance():
-        """
-        Returns the singleton instance of LogManager.
-        """
+        """Returns the singleton instance of LogManager."""
         if LogManager._instance is None:
-            raise RuntimeError(
-                "LogManager is not initialized. Call `LogManager.initialize()` first."
-            )
+            raise RuntimeError("LogManager is not initialized. Call `LogManager.initialize()` first.")
         return LogManager._instance
 
     def __new__(cls, *args, **kwargs):
@@ -213,9 +196,9 @@ class LogManager:
         log_retention_hours: int,
         default_level: LogLevel = LogLevel.INFO,
         use_filter: bool = False,
+        log_output: str = "both",
     ):
-        """
-        Initializes the LogManager.
+        """Initializes the LogManager.
 
         Args:
             log_dir (str): Directory where log files are saved.
@@ -223,6 +206,7 @@ class LogManager:
             log_retention_hours (int): Retention period for old logs in hours.
             default_level (LogLevel): Default logging level. Defaults to LogLevel.INFO.
             use_filter (bool): Whether to use level-based filtering. Defaults to False.
+            log_output (str): Output destination - 'console', 'file', or 'both'. Defaults to 'both'.
 
         Raises:
             TypeError: If the arguments have invalid types.
@@ -243,6 +227,7 @@ class LogManager:
         self.log_retention_hours = log_retention_hours
         self.default_level = default_level
         self.use_filter = use_filter
+        self.log_output = log_output.lower()
         self.loggers = {}
         self.custom_handlers = {}
 
@@ -251,8 +236,7 @@ class LogManager:
         self._initialized = True
 
     def _initialize_logger(self, name: str, module_index: int = 0):
-        """
-        Configures a logger with console and file handlers.
+        """Configures a logger with console and/or file handlers based on log_output setting.
 
         Args:
             name (str): The name of the logger.
@@ -270,39 +254,38 @@ class LogManager:
         if logger.hasHandlers():
             return
 
-        # Console handler
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(ColorFormatter(logger_number=module_index))
-        logger.addHandler(console_handler)
+        # Console handler (only if log_output is 'console' or 'both')
+        if self.log_output in ("console", "both"):
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(ColorFormatter(logger_number=module_index))
+            if self.use_filter:
+                level_filter = LevelFilter(self.default_level)
+                console_handler.addFilter(level_filter)
+            logger.addHandler(console_handler)
 
-        # File handler
-        log_file_path = os.path.join(self.log_dir, self.log_file)
-        file_handler = TimedRotatingFileHandler(
-            log_file_path, when="h", interval=1, backupCount=0
-        )
-        file_handler.setFormatter(
-            logging.Formatter(
-                "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
+        # File handler (only if log_output is 'file' or 'both')
+        if self.log_output in ("file", "both"):
+            log_file_path = os.path.join(self.log_dir, self.log_file)
+            file_handler = TimedRotatingFileHandler(log_file_path, when="h", interval=1, backupCount=0)
+            file_handler.setFormatter(
+                logging.Formatter(
+                    "[%(asctime)s][%(levelname)s][%(name)s]: %(message)s",
+                    datefmt="%Y-%m-%d %H:%M:%S",
+                )
             )
-        )
-        logger.addHandler(file_handler)
-
-        # Add level filter if enabled
-        if self.use_filter:
-            level_filter = LevelFilter(self.default_level)
-            console_handler.addFilter(level_filter)
-            file_handler.addFilter(level_filter)
+            if self.use_filter:
+                level_filter = LevelFilter(self.default_level)
+                file_handler.addFilter(level_filter)
+            logger.addHandler(file_handler)
 
         self.loggers[name] = logger
 
     def get_logger(
         self,
-        name: Optional[str] = None,
-        module_name: Optional[str] = None,
+        name: str | None = None,
+        module_name: str | None = None,
     ) -> Logger:
-        """
-        Retrieves or creates a logger instance.
+        """Retrieves or creates a logger instance.
 
         Args:
             name (Optional[str]): The base name of the logger. Defaults to None, which uses the
@@ -333,13 +316,12 @@ class LogManager:
     @staticmethod
     def add_custom_handler(
         logger_name: str,
-        formatter: Optional[logging.Formatter] = None,
+        formatter: logging.Formatter | None = None,
         replace_existing: bool = False,
         disable_propagation: bool = True,
-        handler_id: Optional[str] = None,
+        handler_id: str | None = None,
     ) -> None:
-        """
-        Adds a custom logging handler to a specific logger.
+        """Adds a custom logging handler to a specific logger.
 
         Args:
             logger_name (str): The name of the logger to add the handler to.
@@ -359,9 +341,7 @@ class LogManager:
             log_manager = LogManager.get_instance()
             logger = log_manager.get_logger(logger_name)
             if not logger:
-                raise ValueError(
-                    f"Logger with name '{logger_name}' could not be found or created."
-                )
+                raise ValueError(f"Logger with name '{logger_name}' could not be found or created.")
 
             if replace_existing:
                 while logger.handlers:
@@ -383,13 +363,10 @@ class LogManager:
                 logger.propagate = False
 
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to add custom handler to logger '{logger_name}': {e}"
-            ) from e
+            raise RuntimeError(f"Failed to add custom handler to logger '{logger_name}': {e}") from e
 
-    def list_log_files(self, extension: str = ".log") -> List[str]:
-        """
-        Lists all log files in the configured log directory.
+    def list_log_files(self, extension: str = ".log") -> list[str]:
+        """Lists all log files in the configured log directory.
 
         Args:
             extension (str): Extension of the files to be listed. Defaults to ".log".
@@ -399,9 +376,8 @@ class LogManager:
         """
         return FileManager.list_files(self.log_dir, extension)
 
-    def read_log_file(self, file_name: str) -> List[str]:
-        """
-        Reads the content of a log file.
+    def read_log_file(self, file_name: str) -> list[str]:
+        """Reads the content of a log file.
 
         Args:
             file_name (str): Name of the log file.
@@ -413,8 +389,7 @@ class LogManager:
         return FileManager.read_file(file_path)
 
     def delete_log_file(self, file_name: str) -> None:
-        """
-        Deletes a log file.
+        """Deletes a log file.
 
         Args:
             file_name (str): Name of the log file.

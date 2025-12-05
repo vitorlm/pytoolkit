@@ -1,5 +1,4 @@
-"""
-JIRA Issues Creation Analysis Service
+"""JIRA Issues Creation Analysis Service
 
 This service provides functionality to analyze issues creation patterns over time by fetching
 issues created within specified time periods and calculating aggregated statistics by
@@ -10,7 +9,6 @@ import csv
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Optional
 
 from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from utils.cache_manager.cache_manager import CacheManager
@@ -30,9 +28,9 @@ class IssueCreationResult:
     issue_type: str
     priority: str
     status: str
-    assignee: Optional[str]
+    assignee: str | None
     project_key: str
-    labels: List[str]
+    labels: list[str]
     created_date: str
     created_date_parsed: date
 
@@ -41,8 +39,7 @@ class IssuesCreationAnalysisService:
     """Service for analyzing JIRA issues creation patterns over time."""
 
     def __init__(self, cache_expiration: int = 60):
-        """
-        Initialize the service.
+        """Initialize the service.
 
         Args:
             cache_expiration (int): Cache expiration time in minutes (default: 60)
@@ -64,17 +61,16 @@ class IssuesCreationAnalysisService:
         start_date: date,
         end_date: date,
         aggregation: str = "daily",
-        issue_types: Optional[List[str]] = None,
-        teams: Optional[List[str]] = None,
-        labels: Optional[List[str]] = None,
-        additional_jql: Optional[str] = None,
+        issue_types: list[str] | None = None,
+        teams: list[str] | None = None,
+        labels: list[str] | None = None,
+        additional_jql: str | None = None,
         include_summary: bool = False,
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
         output_format: str = "console",
         verbose: bool = False,
-    ) -> Dict:
-        """
-        Analyze issues creation patterns over time.
+    ) -> dict:
+        """Analyze issues creation patterns over time.
 
         Args:
             project_key: JIRA project key to analyze
@@ -281,13 +277,12 @@ class IssuesCreationAnalysisService:
         project_key: str,
         start_date: date,
         end_date: date,
-        issue_types: Optional[List[str]] = None,
-        teams: Optional[List[str]] = None,
-        labels: Optional[List[str]] = None,
-        additional_jql: Optional[str] = None,
+        issue_types: list[str] | None = None,
+        teams: list[str] | None = None,
+        labels: list[str] | None = None,
+        additional_jql: str | None = None,
     ) -> str:
-        """
-        Build JQL query with all filters.
+        """Build JQL query with all filters.
 
         Args:
             project_key: Project key to filter
@@ -359,9 +354,8 @@ class IssuesCreationAnalysisService:
         self.logger.debug(f"Final JQL query: {jql_query}")
         return jql_query
 
-    def _process_issue_creation(self, issue: Dict) -> Optional[IssueCreationResult]:
-        """
-        Process a single issue into structured creation result.
+    def _process_issue_creation(self, issue: dict) -> IssueCreationResult | None:
+        """Process a single issue into structured creation result.
 
         Args:
             issue: Raw JIRA issue data
@@ -416,14 +410,13 @@ class IssuesCreationAnalysisService:
 
     def _aggregate_issues_by_time(
         self,
-        issues: List[IssueCreationResult],
+        issues: list[IssueCreationResult],
         aggregation: str,
         start_date: date,
         end_date: date,
         verbose: bool = False,
-    ) -> List[Dict]:
-        """
-        Aggregate issues by time period, filling in missing periods with zero counts.
+    ) -> list[dict]:
+        """Aggregate issues by time period, filling in missing periods with zero counts.
 
         Args:
             issues: List of IssueCreationResult objects
@@ -504,9 +497,8 @@ class IssuesCreationAnalysisService:
 
         return aggregated_data
 
-    def _generate_complete_timeline(self, start_date: date, end_date: date, aggregation: str) -> List[str]:
-        """
-        Generate a complete timeline with all periods between start and end dates.
+    def _generate_complete_timeline(self, start_date: date, end_date: date, aggregation: str) -> list[str]:
+        """Generate a complete timeline with all periods between start and end dates.
 
         Args:
             start_date: Start date
@@ -546,9 +538,8 @@ class IssuesCreationAnalysisService:
 
         return sorted(timeline)
 
-    def _calculate_period_statistics(self, issues: List[IssueCreationResult]) -> Dict:
-        """
-        Calculate detailed statistics for a specific time period.
+    def _calculate_period_statistics(self, issues: list[IssueCreationResult]) -> dict:
+        """Calculate detailed statistics for a specific time period.
 
         Args:
             issues: List of issues in the period
@@ -585,12 +576,11 @@ class IssuesCreationAnalysisService:
 
     def _generate_comprehensive_summary(
         self,
-        issues: List[IssueCreationResult],
-        aggregated_data: List[Dict],
+        issues: list[IssueCreationResult],
+        aggregated_data: list[dict],
         aggregation: str,
-    ) -> Dict:
-        """
-        Generate comprehensive summary statistics.
+    ) -> dict:
+        """Generate comprehensive summary statistics.
 
         Args:
             issues: Original issues list
@@ -660,7 +650,7 @@ class IssuesCreationAnalysisService:
             "distribution_analysis": distribution_analysis,
         }
 
-    def _analyze_trends(self, issue_counts: List[int], aggregation_type: str) -> Dict:
+    def _analyze_trends(self, issue_counts: list[int], aggregation_type: str) -> dict:
         """Analyze trends in issue creation over time."""
         if len(issue_counts) < 3:
             return {"direction": "stable", "confidence": "low", "slope": 0}
@@ -707,7 +697,7 @@ class IssuesCreationAnalysisService:
             "r_squared": r_squared,
         }
 
-    def _analyze_peaks(self, aggregated_data: List[Dict]) -> Dict:
+    def _analyze_peaks(self, aggregated_data: list[dict]) -> dict:
         """Analyze peaks and valleys in issue creation."""
         issue_counts = [data["total_issues"] for data in aggregated_data]
 
@@ -728,7 +718,7 @@ class IssuesCreationAnalysisService:
             "valley_periods": valleys,
         }
 
-    def _analyze_distribution(self, issue_counts: List[int]) -> Dict:
+    def _analyze_distribution(self, issue_counts: list[int]) -> dict:
         """Analyze the distribution of issue counts."""
         if not issue_counts:
             return {}
@@ -751,7 +741,7 @@ class IssuesCreationAnalysisService:
             "skewness": "normal" if abs(mean - median) < stdev * 0.5 else "skewed",
         }
 
-    def _result_to_dict(self, result: IssueCreationResult) -> Dict:
+    def _result_to_dict(self, result: IssueCreationResult) -> dict:
         """Convert IssueCreationResult to dictionary."""
         return {
             "issue_key": result.issue_key,
@@ -766,7 +756,7 @@ class IssuesCreationAnalysisService:
             "created_date_parsed": result.created_date_parsed.isoformat(),
         }
 
-    def _save_markdown_report(self, results: Dict, output_file: str):
+    def _save_markdown_report(self, results: dict, output_file: str):
         """Save results to Markdown file with formatted report."""
         query_info = results.get("query_info", {})
         summary = results.get("summary", {})
@@ -806,7 +796,7 @@ class IssuesCreationAnalysisService:
 
         self.logger.info(f"Markdown report saved to {output_file}")
 
-    def _save_results(self, results: Dict, output_file: str):
+    def _save_results(self, results: dict, output_file: str):
         """Save results to file using the same pattern as resolution time service."""
         if output_file.endswith(".csv"):
             self._save_to_csv(results, output_file)
@@ -818,7 +808,7 @@ class IssuesCreationAnalysisService:
 
         self.logger.info(f"Results saved to {output_file}")
 
-    def _save_to_csv(self, results: Dict, output_file: str):
+    def _save_to_csv(self, results: dict, output_file: str):
         """Save results to CSV file with comprehensive data."""
         with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
@@ -942,12 +932,11 @@ class IssuesCreationAnalysisService:
 
     def export_results(
         self,
-        result: Dict,
+        result: dict,
         format: str = "json",
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
     ) -> str:
-        """
-        Export results to file using OutputManager.
+        """Export results to file using OutputManager.
 
         Args:
             result: Analysis results
@@ -985,7 +974,7 @@ class IssuesCreationAnalysisService:
             self.logger.error(f"Error exporting results: {e}", exc_info=True)
             raise
 
-    def _save_summary_csv(self, result: Dict, summary_file: str):
+    def _save_summary_csv(self, result: dict, summary_file: str):
         """Save summary statistics to separate CSV file."""
         with open(summary_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
@@ -1004,9 +993,8 @@ class IssuesCreationAnalysisService:
 
         self.logger.info(f"Summary CSV saved to {summary_file}")
 
-    def display_results(self, result: Dict, verbose: bool = False):
-        """
-        Display results in console format with hierarchical summaries.
+    def display_results(self, result: dict, verbose: bool = False):
+        """Display results in console format with hierarchical summaries.
 
         Args:
             result: Analysis results
@@ -1100,9 +1088,8 @@ class IssuesCreationAnalysisService:
 
         print("\n" + "=" * 80)
 
-    def _display_hierarchical_summary(self, result: Dict, verbose: bool = False):
-        """
-        Display hierarchical summary based on aggregation level.
+    def _display_hierarchical_summary(self, result: dict, verbose: bool = False):
+        """Display hierarchical summary based on aggregation level.
 
         Args:
             result: Analysis results
@@ -1135,10 +1122,10 @@ class IssuesCreationAnalysisService:
             return "QUARTERLY"
         return "PERIOD"
 
-    def _display_monthly_summary(self, data_points: List[Dict], verbose: bool = False):
+    def _display_monthly_summary(self, data_points: list[dict], verbose: bool = False):
         """Display monthly summary for daily/weekly data."""
-        from datetime import datetime
         from collections import defaultdict
+        from datetime import datetime
 
         monthly_stats = defaultdict(
             lambda: {
@@ -1209,10 +1196,10 @@ class IssuesCreationAnalysisService:
             else:
                 print(f"{month}: 0 issues")
 
-    def _display_quarterly_summary(self, data_points: List[Dict], verbose: bool = False):
+    def _display_quarterly_summary(self, data_points: list[dict], verbose: bool = False):
         """Display quarterly summary for monthly data."""
-        from datetime import datetime
         from collections import defaultdict
+        from datetime import datetime
 
         quarterly_stats = defaultdict(
             lambda: {
@@ -1284,7 +1271,7 @@ class IssuesCreationAnalysisService:
             else:
                 print(f"{quarter}: 0 issues")
 
-    def _write_hierarchical_summary_csv(self, results: Dict, writer):
+    def _write_hierarchical_summary_csv(self, results: dict, writer):
         """Write hierarchical summary section to CSV."""
         aggregation_type = results["query_info"]["aggregation"]
         data_points = results["data"]
@@ -1303,10 +1290,10 @@ class IssuesCreationAnalysisService:
         elif aggregation_type == "monthly":
             self._write_quarterly_summary_csv(data_points, writer)
 
-    def _write_monthly_summary_csv(self, data_points: List[Dict], writer):
+    def _write_monthly_summary_csv(self, data_points: list[dict], writer):
         """Write monthly summary to CSV for daily/weekly data."""
-        from datetime import datetime
         from collections import defaultdict
+        from datetime import datetime
 
         monthly_stats = defaultdict(
             lambda: {
@@ -1358,10 +1345,10 @@ class IssuesCreationAnalysisService:
                 ]
             )
 
-    def _write_quarterly_summary_csv(self, data_points: List[Dict], writer):
+    def _write_quarterly_summary_csv(self, data_points: list[dict], writer):
         """Write quarterly summary to CSV for monthly data."""
-        from datetime import datetime
         from collections import defaultdict
+        from datetime import datetime
 
         quarterly_stats = defaultdict(
             lambda: {

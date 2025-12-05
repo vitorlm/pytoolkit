@@ -1,12 +1,14 @@
-from typing import Any, Dict, List, Optional
-from datetime import date, datetime, timedelta
-import requests
-import re
 import os
+import re
+from datetime import date, datetime, timedelta
+from typing import Any
+
+import requests
+
+from utils.data.json_manager import JSONManager
+from utils.jira.error import JiraManagerError
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
-from utils.jira.error import JiraManagerError
-from utils.data.json_manager import JSONManager
 
 
 class EpicIssue:
@@ -16,39 +18,29 @@ class EpicIssue:
     _jira_to_slack_mapping = None
     _mapping_file_path = None
 
-    def __init__(self, epic_data: Dict):
+    def __init__(self, epic_data: dict):
         self.key = epic_data.get("key", "")
         self.summary = epic_data.get("fields", {}).get("summary", "")
         self.status = epic_data.get("fields", {}).get("status", {}).get("name", "")
-        self.start_date = self._parse_date(
-            epic_data.get("fields", {}).get("customfield_10015")
-        )
+        self.start_date = self._parse_date(epic_data.get("fields", {}).get("customfield_10015"))
         self.due_date = self._parse_date(epic_data.get("fields", {}).get("duedate"))
-        self.fix_version = self._get_fix_version(
-            epic_data.get("fields", {}).get("fixVersions", [])
-        )
+        self.fix_version = self._get_fix_version(epic_data.get("fields", {}).get("fixVersions", []))
         assignee = epic_data.get("fields", {}).get("assignee")
         self.assignee_id = assignee.get("accountId", "") if assignee else ""
         self.assignee_name = assignee.get("displayName", "") if assignee else ""
-        self.assignee_slack_id = (
-            self._get_slack_user_id(self.assignee_id) if self.assignee_id else ""
-        )
+        self.assignee_slack_id = self._get_slack_user_id(self.assignee_id) if self.assignee_id else ""
         self.problems = []
 
     @classmethod
-    def _load_jira_to_slack_mapping(cls) -> Dict[str, str]:
+    def _load_jira_to_slack_mapping(cls) -> dict[str, str]:
         """Load JIRA to Slack user ID mapping from JSON file."""
         if cls._jira_to_slack_mapping is None:
             # Get mapping file path from environment or use default
             if cls._mapping_file_path is None:
-                cls._mapping_file_path = os.path.join(
-                    os.path.dirname(__file__), "jira_to_slack_user_mapping.json"
-                )
+                cls._mapping_file_path = os.path.join(os.path.dirname(__file__), "jira_to_slack_user_mapping.json")
 
             try:
-                cls._jira_to_slack_mapping = JSONManager.read_json(
-                    cls._mapping_file_path, default={}
-                )
+                cls._jira_to_slack_mapping = JSONManager.read_json(cls._mapping_file_path, default={})
             except Exception as e:
                 # Log warning but don't fail - return empty mapping
                 print(f"Warning: Could not load JIRA to Slack mapping file: {e}")
@@ -65,14 +57,14 @@ class EpicIssue:
         return mapping.get(jira_user_id, "")
 
     @classmethod
-    def reload_mapping(cls, mapping_file_path: Optional[str] = None):
+    def reload_mapping(cls, mapping_file_path: str | None = None):
         """Force reload of the JIRA to Slack mapping file."""
         if mapping_file_path:
             cls._mapping_file_path = mapping_file_path
         cls._jira_to_slack_mapping = None
         cls._load_jira_to_slack_mapping()
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
+    def _parse_date(self, date_str: str | None) -> date | None:
         """Parse date string to date object."""
         if not date_str:
             return None
@@ -85,7 +77,7 @@ class EpicIssue:
         except (ValueError, TypeError):
             return None
 
-    def _get_fix_version(self, fix_versions: List[Dict]) -> Optional[str]:
+    def _get_fix_version(self, fix_versions: list[dict]) -> str | None:
         """Extract fix version from the list."""
         if not fix_versions:
             return None
@@ -110,7 +102,7 @@ class CycleDetector:
             return date(2025, 1, 6)
 
     @classmethod
-    def _calculate_cycle_dates(cls, year_start: date) -> Dict[str, Dict[str, date]]:
+    def _calculate_cycle_dates(cls, year_start: date) -> dict[str, dict[str, date]]:
         """Calculate all cycle start and end dates for the year."""
         cycles = {}
         current_date = year_start
@@ -118,18 +110,12 @@ class CycleDetector:
         for quarter in range(1, 5):  # Q1, Q2, Q3, Q4
             # C1 cycle (6 weeks)
             c1_start = current_date
-            c1_end = (
-                current_date
-                + timedelta(weeks=cls.CYCLE_WEEKS["C1"])
-                - timedelta(days=1)
-            )
+            c1_end = current_date + timedelta(weeks=cls.CYCLE_WEEKS["C1"]) - timedelta(days=1)
             cycles[f"Q{quarter}C1"] = {"start": c1_start, "end": c1_end}
 
             # C2 cycle (7 weeks)
             c2_start = c1_end + timedelta(days=1)
-            c2_end = (
-                c2_start + timedelta(weeks=cls.CYCLE_WEEKS["C2"]) - timedelta(days=1)
-            )
+            c2_end = c2_start + timedelta(weeks=cls.CYCLE_WEEKS["C2"]) - timedelta(days=1)
             cycles[f"Q{quarter}C2"] = {"start": c2_start, "end": c2_end}
 
             # Move to next quarter
@@ -156,7 +142,7 @@ class CycleDetector:
             return "Q4C2"  # After year end
 
     @classmethod
-    def is_fix_version_current_cycle(cls, fix_version: Optional[str]) -> bool:
+    def is_fix_version_current_cycle(cls, fix_version: str | None) -> bool:
         """Check if fix version matches current cycle pattern."""
         if not fix_version:
             return False
@@ -185,7 +171,7 @@ class CycleDetector:
         return False
 
     @classmethod
-    def get_cycle_info(cls, cycle_name: Optional[str] = None) -> Dict[str, date]:
+    def get_cycle_info(cls, cycle_name: str | None = None) -> dict[str, date]:
         """Get start and end dates for a specific cycle or current cycle."""
         if not cycle_name:
             cycle_name = cls.get_current_cycle()
@@ -205,17 +191,13 @@ class EpicMonitorService:
         """Initialize the service with JIRA assistant."""
         self.jira_assistant = JiraAssistant()
 
-    def get_catalog_epics(self) -> List[EpicIssue]:
-        """
-        Fetch epics for Catalog team that are not done and in current cycle.
+    def get_catalog_epics(self) -> list[EpicIssue]:
+        """Fetch epics for Catalog team that are not done and in current cycle.
         JQL: type = Epic and statusCategory != Done and "Squad[Dropdown]" = "Catalog"
         Order by priority
         """
         try:
-            jql_query = (
-                "type = Epic AND statusCategory != Done AND "
-                '"Squad[Dropdown]" = "Catalog" ORDER BY priority'
-            )
+            jql_query = 'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "Catalog" ORDER BY priority'
 
             self._logger.info("Fetching Catalog epics from JIRA")
             # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
@@ -241,29 +223,21 @@ class EpicMonitorService:
             self._logger.error(f"Error fetching epics: {e}", exc_info=True)
             raise JiraManagerError("Failed to fetch Catalog epics", error=str(e))
 
-    def analyze_epic_problems(self, epics: List[EpicIssue]) -> List[EpicIssue]:
-        """
-        Analyze epics for problems based on the defined rules.
-        """
+    def analyze_epic_problems(self, epics: list[EpicIssue]) -> list[EpicIssue]:
+        """Analyze epics for problems based on the defined rules."""
         problematic_epics = []
         today = date.today()
 
         # Get configurable thresholds from environment
-        business_days_threshold = int(
-            os.getenv("EPIC_MONITOR_BUSINESS_DAYS_THRESHOLD", "3")
-        )
-        due_date_warning_days = int(
-            os.getenv("EPIC_MONITOR_DUE_DATE_WARNING_DAYS", "3")
-        )
+        business_days_threshold = int(os.getenv("EPIC_MONITOR_BUSINESS_DAYS_THRESHOLD", "3"))
+        due_date_warning_days = int(os.getenv("EPIC_MONITOR_DUE_DATE_WARNING_DAYS", "3"))
 
         for epic in epics:
             epic.problems = []
 
             # Rule 1: Status is "7 PI Started" and Start Date is missing
             if epic.status == "7 PI Started" and not epic.start_date:
-                epic.problems.append(
-                    "Status is '7 PI Started' but Start Date is missing"
-                )
+                epic.problems.append("Status is '7 PI Started' but Start Date is missing")
 
             # Rule 2: Status is "7 PI Started" and Due Date is missing
             if epic.status == "7 PI Started" and not epic.due_date:
@@ -272,9 +246,7 @@ class EpicMonitorService:
             # Rule 3: Status is "7 PI Started", Start Date exists,
             # but Due Date missing for X business days
             if epic.status == "7 PI Started" and epic.start_date and not epic.due_date:
-                business_days_since_start = self._calculate_business_days(
-                    epic.start_date, today
-                )
+                business_days_since_start = self._calculate_business_days(epic.start_date, today)
                 if business_days_since_start >= business_days_threshold:
                     epic.problems.append(
                         f"Status is '7 PI Started', started {business_days_since_start} "
@@ -288,20 +260,15 @@ class EpicMonitorService:
 
             # Rule 5: Epic is approaching due date (3 or fewer business days remaining)
             if epic.due_date and epic.due_date >= today:
-                business_days_remaining = self._calculate_business_days(
-                    today, epic.due_date
-                )
+                business_days_remaining = self._calculate_business_days(today, epic.due_date)
                 if business_days_remaining <= due_date_warning_days:
                     epic.problems.append(
-                        f"Epic is approaching due date ({business_days_remaining} "
-                        f"business days remaining)"
+                        f"Epic is approaching due date ({business_days_remaining} business days remaining)"
                     )
 
             # Rule 6: Epic is started but has no assignee
             if epic.status == "7 PI Started" and not epic.assignee_id:
-                epic.problems.append(
-                    "Status is '7 PI Started' but no person is assigned to this epic"
-                )
+                epic.problems.append("Status is '7 PI Started' but no person is assigned to this epic")
 
             if epic.problems:
                 problematic_epics.append(epic)
@@ -336,12 +303,11 @@ class SlackNotificationService:
 
     def send_epic_problems_notification(
         self,
-        problematic_epics: List[EpicIssue],
-        slack_token: Optional[str] = None,
-        recipient_id: Optional[str] = None,
+        problematic_epics: list[EpicIssue],
+        slack_token: str | None = None,
+        recipient_id: str | None = None,
     ) -> bool:
-        """
-        Send a Slack notification about problematic epics using Block Kit.
+        """Send a Slack notification about problematic epics using Block Kit.
         Works for channels or direct messages.
         """
         if not problematic_epics:
@@ -357,9 +323,7 @@ class SlackNotificationService:
             return False
 
         if not channel:
-            self._logger.error(
-                "Slack channel not provided and SLACK_CHANNEL_ID not set"
-            )
+            self._logger.error("Slack channel not provided and SLACK_CHANNEL_ID not set")
             return False
 
         blocks = self._format_epic_problems_blocks(problematic_epics)
@@ -384,23 +348,17 @@ class SlackNotificationService:
             )
 
             if response.status_code == 200 and response.json().get("ok"):
-                self._logger.info(
-                    f"Successfully sent notification for {len(problematic_epics)} problematic epics"
-                )
+                self._logger.info(f"Successfully sent notification for {len(problematic_epics)} problematic epics")
                 return True
             else:
-                self._logger.error(
-                    f"Failed to send Slack notification. Response: {response.text}"
-                )
+                self._logger.error(f"Failed to send Slack notification. Response: {response.text}")
                 return False
 
         except Exception as e:
             self._logger.error(f"Error sending Slack notification: {e}", exc_info=True)
             return False
 
-    def _format_epic_problems_blocks(
-        self, problematic_epics: List[EpicIssue]
-    ) -> List[Dict[str, Any]]:
+    def _format_epic_problems_blocks(self, problematic_epics: list[EpicIssue]) -> list[dict[str, Any]]:
         current_cycle = CycleDetector.get_current_cycle()
         blocks = []
 
@@ -435,15 +393,10 @@ class SlackNotificationService:
             if jira_url:
                 # Create epic URL when base URL is available
                 epic_url = f"{jira_url}/browse/{epic.key}"
-                epic_text = (
-                    f"📌 *<{epic_url}|{epic.key}>*: {epic.summary}\n"
-                    f"• Status: *{epic.status}*\n"
-                )
+                epic_text = f"📌 *<{epic_url}|{epic.key}>*: {epic.summary}\n• Status: *{epic.status}*\n"
             else:
                 # Just show the key without link when base URL is not available
-                epic_text = (
-                    f"📌 *{epic.key}*: {epic.summary}\n• Status: *{epic.status}*\n"
-                )
+                epic_text = f"📌 *{epic.key}*: {epic.summary}\n• Status: *{epic.status}*\n"
 
             if epic.assignee_slack_id:
                 epic_text += f"• Assignee: <@{epic.assignee_slack_id}>\n"
@@ -459,9 +412,7 @@ class SlackNotificationService:
             for problem in epic.problems:
                 epic_text += f"\n> • {problem}"
 
-            blocks.append(
-                {"type": "section", "text": {"type": "mrkdwn", "text": epic_text}}
-            )
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": epic_text}})
 
             blocks.append({"type": "divider"})
 
@@ -486,20 +437,17 @@ class EpicCronService:
 
     _logger = LogManager.get_instance().get_logger("EpicCronService")
 
-    def __init__(self, slack_webhook_url: Optional[str] = None):
+    def __init__(self, slack_webhook_url: str | None = None):
         """Initialize the service with dependencies."""
         self.epic_monitor = EpicMonitorService()
         # Use provided webhook or environment variable
         webhook_url = slack_webhook_url or os.getenv("SLACK_WEBHOOK_URL")
         if not webhook_url:
-            raise ValueError(
-                "Slack webhook URL must be provided or set in SLACK_WEBHOOK_URL"
-            )
+            raise ValueError("Slack webhook URL must be provided or set in SLACK_WEBHOOK_URL")
         self.slack_service = SlackNotificationService(webhook_url)
 
     def run_epic_check(self) -> bool:
-        """
-        Main method to run the epic check process.
+        """Main method to run the epic check process.
 
         Returns:
             bool: True if successful, False otherwise
@@ -514,9 +462,7 @@ class EpicCronService:
             problematic_epics = self.epic_monitor.analyze_epic_problems(epics)
 
             # 3. Send notifications if problems found
-            success = self.slack_service.send_epic_problems_notification(
-                problematic_epics
-            )
+            success = self.slack_service.send_epic_problems_notification(problematic_epics)
 
             if success:
                 self._logger.info("Epic monitoring check completed successfully")
@@ -526,7 +472,5 @@ class EpicCronService:
             return success
 
         except Exception as e:
-            self._logger.error(
-                f"Error during epic monitoring check: {e}", exc_info=True
-            )
+            self._logger.error(f"Error during epic monitoring check: {e}", exc_info=True)
             return False

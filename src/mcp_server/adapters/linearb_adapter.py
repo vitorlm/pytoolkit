@@ -1,5 +1,4 @@
-"""
-LinearB Adapter for MCP Integration.
+"""LinearB Adapter for MCP Integration.
 
 This module provides the actual LinearB adapter integration,
 using the existing PyToolkit LinearB infrastructure.
@@ -11,7 +10,6 @@ from argparse import Namespace
 from datetime import datetime
 from typing import Any
 
-
 # Add src to path to import PyToolkit domains
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
@@ -22,8 +20,7 @@ from .base_adapter import BaseAdapter
 
 
 class LinearBAdapter(BaseAdapter):
-    """
-    Adapter for LinearB integration via PyToolkit.
+    """Adapter for LinearB integration via PyToolkit.
 
     This adapter uses the existing LinearB infrastructure from PyToolkit
     to provide engineering metrics and team performance data.
@@ -45,9 +42,7 @@ class LinearBAdapter(BaseAdapter):
         try:
             # Check for required environment variables first
             if not os.getenv("LINEARB_API_KEY"):  # Fixed env var name
-                self.logger.warning(
-                    "LINEARB_API_KEY not configured - LinearB features unavailable"
-                )
+                self.logger.warning("LINEARB_API_KEY not configured - LinearB features unavailable")
                 return {
                     "service_name": "linearb_pytoolkit",
                     "status": "not_configured",
@@ -77,8 +72,7 @@ class LinearBAdapter(BaseAdapter):
             return {"error": str(e), "status": "failed"}
 
     def _load_environment(self) -> None:
-        """
-        Loads LinearB-specific environment variables.
+        """Loads LinearB-specific environment variables.
 
         This method is responsible for loading and validating LinearB-specific
         configuration from environment variables using PyToolkit's env_loader.
@@ -99,9 +93,7 @@ class LinearBAdapter(BaseAdapter):
                     missing_vars.append(var)
 
             if missing_vars:
-                self.logger.debug(
-                    f"Missing LinearB environment variables: {missing_vars}"
-                )
+                self.logger.debug(f"Missing LinearB environment variables: {missing_vars}")
             else:
                 self.logger.debug("LinearB environment variables loaded successfully")
 
@@ -109,8 +101,7 @@ class LinearBAdapter(BaseAdapter):
             self.logger.error(f"Failed to load LinearB environment: {e}")
 
     def _validate_configuration(self) -> bool:
-        """
-        Validates LinearB configuration.
+        """Validates LinearB configuration.
 
         This method validates that all required LinearB configuration
         parameters are properly set and accessible.
@@ -145,8 +136,7 @@ class LinearBAdapter(BaseAdapter):
             return False
 
     def get_health_status(self) -> dict[str, Any]:
-        """
-        Gets LinearB service health status.
+        """Gets LinearB service health status.
 
         This method checks the health and availability of the LinearB service
         and returns status information using the PyToolkit LinearB service.
@@ -187,8 +177,7 @@ class LinearBAdapter(BaseAdapter):
     def get_engineering_metrics(
         self, time_range: str = "last-week", team_ids: list[str] | None = None
     ) -> dict[str, Any]:
-        """
-        Gets engineering metrics from LinearB.
+        """Gets engineering metrics from LinearB.
 
         Args:
             time_range: Analysis period (last-week, last-month, etc.)
@@ -248,8 +237,7 @@ class LinearBAdapter(BaseAdapter):
         )
 
     def get_team_performance(self, team_ids: list[str] | None = None) -> dict[str, Any]:
-        """
-        Gets team performance analysis.
+        """Gets team performance analysis.
 
         Args:
             team_ids: Team IDs for analysis
@@ -279,9 +267,7 @@ class LinearBAdapter(BaseAdapter):
                 performance_data = self._linearb_service.get_performance_metrics(args)
 
                 # Generate summary for easier consumption
-                summary = self._linearb_service.get_team_performance_summary(
-                    performance_data
-                )
+                summary = self._linearb_service.get_team_performance_summary(performance_data)
 
                 return {
                     "team_ids": kwargs.get("team_ids"),
@@ -308,8 +294,7 @@ class LinearBAdapter(BaseAdapter):
         )
 
     def get_teams_info(self, search_term: str | None = None) -> dict[str, Any]:
-        """
-        Gets teams information from LinearB.
+        """Gets teams information from LinearB.
 
         Args:
             search_term: Optional search term to filter teams
@@ -325,9 +310,7 @@ class LinearBAdapter(BaseAdapter):
                     if not self._linearb_service:
                         raise ValueError("Failed to initialize LinearB service")
 
-                teams_data = self._linearb_service.get_teams_info(
-                    kwargs.get("search_term")
-                )
+                teams_data = self._linearb_service.get_teams_info(kwargs.get("search_term"))
 
                 return {
                     "search_term": kwargs.get("search_term"),
@@ -352,8 +335,7 @@ class LinearBAdapter(BaseAdapter):
         )
 
     def get_available_metrics(self) -> dict[str, Any]:
-        """
-        Gets available metrics from LinearB.
+        """Gets available metrics from LinearB.
 
         Returns:
             dict with available metrics organized by category

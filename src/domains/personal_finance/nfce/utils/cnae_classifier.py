@@ -1,19 +1,18 @@
-"""
-CNAE Classifier for automatic establishment type identification
+"""CNAE Classifier for automatic establishment type identification
 Uses Receita Federal API to get CNAE codes and classify establishments
 """
 
-import requests
 import time
-from typing import Optional, Dict, Any
-from utils.logging.logging_manager import LogManager
+from typing import Any
+
+import requests
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
 
 
 class CNAEClassifier:
-    """
-    Classifies establishments by their CNAE (National Classification of Economic Activities)
-    """
+    """Classifies establishments by their CNAE (National Classification of Economic Activities)"""
 
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("CNAEClassifier")
@@ -208,9 +207,8 @@ class CNAEClassifier:
             "9529100": "Outros Reparos",
         }
 
-    def get_establishment_info(self, cnpj: str) -> Optional[Dict[str, Any]]:
-        """
-        Consulta informações do estabelecimento via API da Receita Federal
+    def get_establishment_info(self, cnpj: str) -> dict[str, Any] | None:
+        """Consulta informações do estabelecimento via API da Receita Federal
 
         Args:
             cnpj: CNPJ do estabelecimento (apenas números)
@@ -235,16 +233,12 @@ class CNAEClassifier:
                 self.logger.warning(f"CNPJ truncated: {cnpj} -> {clean_cnpj}")
 
             if len(clean_cnpj) != 14:
-                self.logger.error(
-                    f"CNPJ inválido após normalização: {cnpj} -> {clean_cnpj}"
-                )
+                self.logger.error(f"CNPJ inválido após normalização: {cnpj} -> {clean_cnpj}")
                 return None
 
             # Verificar cache primeiro
             cache_key = f"cnpj_{clean_cnpj}"
-            cached_data = self.cache.load(
-                cache_key, expiration_minutes=1440
-            )  # 24 horas
+            cached_data = self.cache.load(cache_key, expiration_minutes=1440)  # 24 horas
 
             if cached_data:
                 self.logger.info(f"Using cached CNAE data for CNPJ: {clean_cnpj}")
@@ -262,9 +256,7 @@ class CNAEClassifier:
 
             for attempt in range(max_retries):
                 try:
-                    response = requests.get(
-                        url, timeout=45
-                    )  # Aumentar timeout para 45s
+                    response = requests.get(url, timeout=45)  # Aumentar timeout para 45s
                     response.raise_for_status()
 
                     data = response.json()
@@ -286,9 +278,7 @@ class CNAEClassifier:
                         continue
                     else:
                         # Última tentativa falhou
-                        self.logger.error(
-                            f"API request failed after {max_retries} attempts for CNPJ {clean_cnpj}: {e}"
-                        )
+                        self.logger.error(f"API request failed after {max_retries} attempts for CNPJ {clean_cnpj}: {e}")
                         return None
 
             if not data:
@@ -297,9 +287,7 @@ class CNAEClassifier:
 
             # Verificar se retornou erro
             if data.get("status") == "ERROR":
-                self.logger.error(
-                    f"API error for CNPJ {clean_cnpj}: {data.get('message', 'Unknown error')}"
-                )
+                self.logger.error(f"API error for CNPJ {clean_cnpj}: {data.get('message', 'Unknown error')}")
                 return None
 
             # Extrair informações relevantes
@@ -322,16 +310,12 @@ class CNAEClassifier:
 
             # Classificar tipo de estabelecimento
             if result["cnae_principal"]:
-                result["establishment_type"] = self.classify_establishment(
-                    result["cnae_principal"]
-                )
+                result["establishment_type"] = self.classify_establishment(result["cnae_principal"])
 
             # Salvar no cache
             self.cache.save(cache_key, result)
 
-            self.logger.info(
-                f"Successfully retrieved CNAE data for {clean_cnpj}: {result['establishment_type']}"
-            )
+            self.logger.info(f"Successfully retrieved CNAE data for {clean_cnpj}: {result['establishment_type']}")
             return result
 
         except requests.exceptions.RequestException as e:
@@ -343,8 +327,7 @@ class CNAEClassifier:
             return None
 
     def classify_establishment(self, cnae_code: str) -> str:
-        """
-        Classifica o tipo de estabelecimento baseado no código CNAE
+        """Classifica o tipo de estabelecimento baseado no código CNAE
 
         Args:
             cnae_code: Código CNAE (ex: "47.11-3-02")
@@ -363,10 +346,8 @@ class CNAEClassifier:
         self.logger.debug(f"CNAE {cnae_code} -> Type: {establishment_type}")
         return establishment_type
 
-    def _format_address(self, data: dict) -> Optional[str]:
-        """
-        Formata o endereço a partir dos dados da API
-        """
+    def _format_address(self, data: dict) -> str | None:
+        """Formata o endereço a partir dos dados da API"""
         try:
             parts = []
 
@@ -391,10 +372,8 @@ class CNAEClassifier:
             self.logger.warning(f"Error formatting address: {e}")
             return None
 
-    def get_establishment_type_summary(self) -> Dict[str, int]:
-        """
-        Retorna um resumo dos tipos de estabelecimento disponíveis
-        """
+    def get_establishment_type_summary(self) -> dict[str, int]:
+        """Retorna um resumo dos tipos de estabelecimento disponíveis"""
         type_counts = {}
         for establishment_type in self.cnae_mapping.values():
             type_counts[establishment_type] = type_counts.get(establishment_type, 0) + 1

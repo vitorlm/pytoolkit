@@ -1,16 +1,14 @@
-"""
-JIRA Issue Adherence Service
+"""JIRA Issue Adherence Service
 
 This service provides functionality to analyze issue adherence by checking completion
 status against due dates for issues that were resolved within specified time periods.
 """
 
 import re
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
 import statistics
 from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
@@ -28,21 +26,20 @@ class IssueAdherenceResult:
     issue_type: str
     status: str
     status_category: str
-    due_date: Optional[str]
-    resolution_date: Optional[str]
-    assignee: Optional[str]
-    team: Optional[str]
+    due_date: str | None
+    resolution_date: str | None
+    assignee: str | None
+    team: str | None
     adherence_status: str  # 'early', 'on_time', 'late', 'overdue', 'no_due_date'
-    days_difference: Optional[int]  # positive = late, negative = early, None = no due date or not resolved
+    days_difference: int | None  # positive = late, negative = early, None = no due date or not resolved
 
 
 class TimePeriodParser:
     """Utility class to parse time period strings."""
 
     @staticmethod
-    def parse_time_period(time_period: str) -> Tuple[datetime, datetime]:
-        """
-        Parse time period string and return start and end dates.
+    def parse_time_period(time_period: str) -> tuple[datetime, datetime]:
+        """Parse time period string and return start and end dates.
 
         Args:
             time_period (str): Time period string. Supports:
@@ -86,7 +83,7 @@ class TimePeriodParser:
         return start_date, end_date
 
     @staticmethod
-    def _parse_date_range(time_period: str) -> Tuple[datetime, datetime]:
+    def _parse_date_range(time_period: str) -> tuple[datetime, datetime]:
         """Parse date range format: 'YYYY-MM-DD to YYYY-MM-DD'."""
         try:
             start_str, end_str = time_period.split(" to ")
@@ -106,7 +103,7 @@ class TimePeriodParser:
             raise
 
     @staticmethod
-    def _parse_single_date(time_period: str) -> Tuple[datetime, datetime]:
+    def _parse_single_date(time_period: str) -> tuple[datetime, datetime]:
         """Parse single date format: 'YYYY-MM-DD' (treats as single day range)."""
         try:
             single_date = datetime.strptime(time_period, "%Y-%m-%d")
@@ -159,13 +156,13 @@ class IssueAdherenceService:
         self,
         project_key: str,
         time_period: str,
-        issue_types: List[str],
-        teams: Optional[List[str]] = None,
-        status: Optional[List[str]] = None,
-        status_categories: Optional[List[str]] = None,
+        issue_types: list[str],
+        teams: list[str] | None = None,
+        status: list[str] | None = None,
+        status_categories: list[str] | None = None,
         include_no_due_date: bool = False,
         verbose: bool = False,
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
         output_format: str = "console",
         weighted_adherence: bool = False,
         enable_extended: bool = False,
@@ -173,9 +170,8 @@ class IssueAdherenceService:
         early_weight: float = 1.0,
         late_weight: float = 3.0,
         no_due_penalty: float = 15.0,
-    ) -> Dict:
-        """
-        Analyze issue adherence for issues that were resolved within a specified time period.
+    ) -> dict:
+        """Analyze issue adherence for issues that were resolved within a specified time period.
 
         Args:
             project_key (str): JIRA project key
@@ -332,13 +328,12 @@ class IssueAdherenceService:
                     else:
                         # For JSON, keep original logic
                         output_path = self._save_results_with_format(results, output_file, "json")
+                # Infer format from file extension or default to JSON
+                elif output_file.endswith(".md"):
+                    base_path = output_file.replace(".md", "")
+                    output_path = self._save_results_with_format(results, base_path, "md")
                 else:
-                    # Infer format from file extension or default to JSON
-                    if output_file.endswith(".md"):
-                        base_path = output_file.replace(".md", "")
-                        output_path = self._save_results_with_format(results, base_path, "md")
-                    else:
-                        output_path = self._save_results_with_format(results, output_file, "json")
+                    output_path = self._save_results_with_format(results, output_file, "json")
             elif output_format in ["json", "md"]:
                 # Generate default output file in organized structure (per-day folder)
                 from datetime import datetime as _dt
@@ -391,13 +386,12 @@ class IssueAdherenceService:
         project_key: str,
         start_date: datetime,
         end_date: datetime,
-        issue_types: List[str],
-        teams: Optional[List[str]],
-        status: Optional[List[str]],
-        status_categories: Optional[List[str]],
+        issue_types: list[str],
+        teams: list[str] | None,
+        status: list[str] | None,
+        status_categories: list[str] | None,
     ) -> str:
         """Build JQL query for fetching issues."""
-
         # Base query
         jql_parts = [f"project = '{project_key}'"]
 
@@ -443,9 +437,8 @@ class IssueAdherenceService:
 
         return " AND ".join(jql_parts)
 
-    def _analyze_issue_adherence(self, issue: Dict) -> IssueAdherenceResult:
+    def _analyze_issue_adherence(self, issue: dict) -> IssueAdherenceResult:
         """Analyze adherence for a single issue."""
-
         fields = issue.get("fields", {})
 
         # Extract issue information
@@ -478,12 +471,11 @@ class IssueAdherenceService:
 
     def _determine_adherence_status(
         self,
-        due_date: Optional[str],
-        resolution_date: Optional[str],
+        due_date: str | None,
+        resolution_date: str | None,
         status_category: str,
-    ) -> Tuple[str, Optional[int]]:
+    ) -> tuple[str, int | None]:
         """Determine adherence status for an issue."""
-
         if not due_date:
             return "no_due_date", None
 
@@ -511,8 +503,7 @@ class IssueAdherenceService:
                 return "in_progress", days_difference
 
     def _parse_datetime(self, date_string: str) -> datetime:
-        """
-        Parse datetime string from JIRA, handling various timezone formats.
+        """Parse datetime string from JIRA, handling various timezone formats.
 
         Args:
             date_string (str): DateTime string from JIRA API
@@ -549,9 +540,8 @@ class IssueAdherenceService:
             self.logger.error(f"Failed to parse datetime string '{date_string}': {e}")
             raise ValueError(f"Invalid datetime format: {date_string}")
 
-    def _calculate_metrics(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_metrics(self, results: list[IssueAdherenceResult]) -> dict:
         """Calculate adherence metrics."""
-
         total_issues = len(results)
 
         if total_issues == 0:
@@ -572,7 +562,7 @@ class IssueAdherenceService:
             }
 
         # Count by status
-        status_counts: Dict[str, int] = {}
+        status_counts: dict[str, int] = {}
         for result in results:
             status = result.adherence_status
             status_counts[status] = status_counts.get(status, 0) + 1
@@ -613,7 +603,7 @@ class IssueAdherenceService:
             "in_progress_percentage": in_progress_percentage,
         }
 
-    def _result_to_dict(self, result: IssueAdherenceResult) -> Dict:
+    def _result_to_dict(self, result: IssueAdherenceResult) -> dict:
         """Convert result to dictionary."""
         return {
             "issue_key": result.issue_key,
@@ -631,15 +621,14 @@ class IssueAdherenceService:
 
     def _calculate_weighted_metrics(
         self,
-        adherence_results: List[IssueAdherenceResult],
+        adherence_results: list[IssueAdherenceResult],
         include_no_due_date: bool,
         early_tolerance_days: int,
         early_weight: float,
         late_weight: float,
         no_due_penalty: float,
-    ) -> Dict:
-        """
-        Calculate weighted adherence based on asymmetric linear penalties with enhanced scoring.
+    ) -> dict:
+        """Calculate weighted adherence based on asymmetric linear penalties with enhanced scoring.
 
         Rules:
           - Early tolerance applies only to earliness; lateness has zero tolerance.
@@ -649,9 +638,9 @@ class IssueAdherenceService:
 
         Returns a dict with weighted_adherence and parameters.
         """
-        scores: List[float] = []
-        individual_scores: List[Dict] = []
-        counted_by_category: Dict[str, int] = {
+        scores: list[float] = []
+        individual_scores: list[dict] = []
+        counted_by_category: dict[str, int] = {
             "early": 0,
             "on_time": 0,
             "late": 0,
@@ -794,9 +783,8 @@ class IssueAdherenceService:
             },
         }
 
-    def _save_results_with_format(self, results: Dict, base_path: str, output_format: str) -> str:
-        """
-        Save results in the specified format.
+    def _save_results_with_format(self, results: dict, base_path: str, output_format: str) -> str:
+        """Save results in the specified format.
 
         Args:
             results (Dict): Analysis results
@@ -842,7 +830,7 @@ class IssueAdherenceService:
             self.logger.error(f"Failed to save results in {output_format} format: {e}")
             raise
 
-    def _save_results(self, results: Dict, output_file: str):
+    def _save_results(self, results: dict, output_file: str):
         """Save results to JSON file."""
         try:
             # Ensure the directory exists before writing the file
@@ -858,9 +846,8 @@ class IssueAdherenceService:
             self.logger.error(f"Failed to save results to {output_file}: {e}")
             raise
 
-    def _extract_directory_path(self, file_path: str) -> Optional[str]:
-        """
-        Extract directory path from file path in a cross-platform way.
+    def _extract_directory_path(self, file_path: str) -> str | None:
+        """Extract directory path from file path in a cross-platform way.
 
         Args:
             file_path (str): Full file path
@@ -876,14 +863,14 @@ class IssueAdherenceService:
 
         return None
 
-    def _print_verbose_results(self, results: List[IssueAdherenceResult], _metrics: Dict):
+    def _print_verbose_results(self, results: list[IssueAdherenceResult], _metrics: dict):
         """Print verbose results to console."""
         print("\n" + "=" * 80)
         print("DETAILED ISSUE ADHERENCE ANALYSIS")
         print("=" * 80)
 
         # Group by adherence status
-        status_groups: Dict[str, List[IssueAdherenceResult]] = {}
+        status_groups: dict[str, list[IssueAdherenceResult]] = {}
         for result in results:
             status = result.adherence_status
             if status not in status_groups:
@@ -912,9 +899,8 @@ class IssueAdherenceService:
 
         print("=" * 80)
 
-    def _format_as_markdown(self, results: Dict) -> str:
-        """
-        Format adherence analysis results as markdown optimized for AI consumption.
+    def _format_as_markdown(self, results: dict) -> str:
+        """Format adherence analysis results as markdown optimized for AI consumption.
 
         Args:
             results (Dict): Analysis results containing metadata, metrics, and issues
@@ -1345,7 +1331,7 @@ class IssueAdherenceService:
             md_content.append("")
 
             # Group issues by status
-            status_groups: Dict[str, List[Dict]] = {}
+            status_groups: dict[str, list[dict]] = {}
             for issue in issues:
                 status = issue.get("adherence_status", "unknown")
                 if status not in status_groups:
@@ -1595,7 +1581,7 @@ class IssueAdherenceService:
 
         return "\n".join(md_content)
 
-    def _calculate_statistical_insights(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_statistical_insights(self, results: list[IssueAdherenceResult]) -> dict:
         """Calculate statistical insights for completion times."""
         completed_with_due_dates = [
             r for r in results if r.adherence_status in ("early", "on_time", "late") and r.days_difference is not None
@@ -1671,7 +1657,7 @@ class IssueAdherenceService:
             "outlier_analysis": outlier_analysis,
         }
 
-    def _calculate_segmentation_analysis(self, results: List[IssueAdherenceResult]) -> Dict:
+    def _calculate_segmentation_analysis(self, results: list[IssueAdherenceResult]) -> dict:
         """Calculate adherence metrics segmented by team, issue type, and assignee."""
         segments = {
             "by_team": defaultdict(
@@ -1749,8 +1735,8 @@ class IssueAdherenceService:
         }
 
     def _calculate_due_date_coverage_analysis(
-        self, all_issues: List[Dict], analyzed_results: List[IssueAdherenceResult]
-    ) -> Dict:
+        self, all_issues: list[dict], analyzed_results: list[IssueAdherenceResult]
+    ) -> dict:
         """Analyze due date coverage across the dataset."""
         total_issues = len(all_issues)
 
@@ -1809,9 +1795,8 @@ class IssueAdherenceService:
             "by_issue_type": calculate_coverage_rates(type_coverage),
         }
 
-    def _calculate_delivery_time_distribution(self, results: List[IssueAdherenceResult]) -> Dict:
-        """
-        Compute distribution of days early/late (integers) for completed items with due dates.
+    def _calculate_delivery_time_distribution(self, results: list[IssueAdherenceResult]) -> dict:
+        """Compute distribution of days early/late (integers) for completed items with due dates.
 
         Bins (contiguous, non-overlapping for integer days):
           < -3, -3, -2, -1, 0, 1, 2, 3, > 3
@@ -1830,7 +1815,7 @@ class IssueAdherenceService:
             "> 3",
         ]
 
-        bins: Dict[str, int] = {k: 0 for k in order}
+        bins: dict[str, int] = {k: 0 for k in order}
         total_considered = 0
 
         for r in results:

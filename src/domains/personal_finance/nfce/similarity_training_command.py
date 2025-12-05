@@ -1,35 +1,31 @@
 #!/usr/bin/env python3
-"""
-Similarity Training Command - Interactive training data collection for similarity algorithms
-"""
+"""Similarity Training Command - Interactive training data collection for similarity algorithms"""
 
 import os
 import sys
 from argparse import ArgumentParser, Namespace
-from typing import List, Optional
 from datetime import datetime
-
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
-from utils.file_manager import FileManager
 
 from domains.personal_finance.nfce.database.nfce_database_manager import (
     NFCeDatabaseManager,
 )
 from domains.personal_finance.nfce.similarity.feature_extractor import FeatureExtractor
+from utils.command.base_command import BaseCommand
+from utils.data.json_manager import JSONManager
+from utils.env_loader import ensure_env_loaded
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 # Try to import advanced components
 try:
-    from domains.personal_finance.nfce.similarity.supervised_similarity_trainer import (
-        SupervisedSimilarityTrainer,
+    from domains.personal_finance.nfce.similarity.advanced_embedding_engine import (
+        AdvancedEmbeddingEngine,
     )
     from domains.personal_finance.nfce.similarity.brazilian_product_normalizer import (
         BrazilianProductNormalizer,
     )
-    from domains.personal_finance.nfce.similarity.advanced_embedding_engine import (
-        AdvancedEmbeddingEngine,
+    from domains.personal_finance.nfce.similarity.supervised_similarity_trainer import (
+        SupervisedSimilarityTrainer,
     )
 
     ADVANCED_AVAILABLE = True
@@ -43,8 +39,7 @@ except ImportError as e:
 
 
 class SimilarityTrainingCommand(BaseCommand):
-    """
-    Interactive command for collecting training data for similarity algorithms
+    """Interactive command for collecting training data for similarity algorithms
 
     This command provides different modes:
     1. Manual labeling of product pairs
@@ -113,9 +108,7 @@ OPTIONS:
             help="Training mode to run",
         )
 
-        parser.add_argument(
-            "--samples", type=int, default=20, help="Number of samples to process"
-        )
+        parser.add_argument("--samples", type=int, default=20, help="Number of samples to process")
 
         parser.add_argument(
             "--suggestions",
@@ -142,13 +135,9 @@ OPTIONS:
 
         parser.add_argument("--output", help="Output file path for exports")
 
-        parser.add_argument(
-            "--format", choices=["json", "csv"], default="json", help="Export format"
-        )
+        parser.add_argument("--format", choices=["json", "csv"], default="json", help="Export format")
 
-        parser.add_argument(
-            "--detailed", action="store_true", help="Show detailed analysis"
-        )
+        parser.add_argument("--detailed", action="store_true", help="Show detailed analysis")
 
         parser.add_argument(
             "--auto-accept",
@@ -175,9 +164,7 @@ OPTIONS:
                 if ADVANCED_IMPORT_ERROR:
                     print(f"   Root cause: {ADVANCED_IMPORT_ERROR}")
                 print("   Please install required dependencies:")
-                print(
-                    "   pip install sentence-transformers torch transformers scikit-learn"
-                )
+                print("   pip install sentence-transformers torch transformers scikit-learn")
                 sys.exit(1)
 
             # Initialize components
@@ -228,9 +215,7 @@ OPTIONS:
                 handler.evaluate_model(detailed=args.detailed)
 
             elif args.mode == "export":
-                handler.export_training_data(
-                    output_file=args.output, format=args.format
-                )
+                handler.export_training_data(output_file=args.output, format=args.format)
 
             elif args.mode == "demo":
                 handler.demo_similarity_improvements()
@@ -268,20 +253,17 @@ class SimilarityTrainingHandler:
     def collect_training_data(
         self,
         samples: int = 20,
-        cnpj_filter: Optional[str] = None,
+        cnpj_filter: str | None = None,
         threshold: float = 0.6,
         auto_accept: bool = False,
         skip_existing: bool = True,
     ):
         """Interactive training data collection"""
-
         print("\n" + "=" * 70)
         print("🎯 SIMILARITY TRAINING DATA COLLECTION")
         print("=" * 70)
         print("This will help improve the product similarity detection algorithm.")
-        print(
-            "You'll be shown product pairs and asked if they represent the same product."
-        )
+        print("You'll be shown product pairs and asked if they represent the same product.")
         print("=" * 70)
 
         # Get candidate product pairs
@@ -332,9 +314,7 @@ class SimilarityTrainingHandler:
                 continue
 
             # Interactive labeling
-            print(
-                f"\n📋 Pair {labeled_count + 1}/{samples} (Similarity: {similarity_score:.3f})"
-            )
+            print(f"\n📋 Pair {labeled_count + 1}/{samples} (Similarity: {similarity_score:.3f})")
             print("-" * 50)
 
             # Show normalized versions if available
@@ -358,15 +338,11 @@ class SimilarityTrainingHandler:
             print(
                 f"  Brand Match: {norm1.extracted_brand == norm2.extracted_brand if norm1.extracted_brand and norm2.extracted_brand else 'N/A'}"
             )
-            print(
-                f"  Categories: {', '.join(norm1.category_hints)} | {', '.join(norm2.category_hints)}"
-            )
+            print(f"  Categories: {', '.join(norm1.category_hints)} | {', '.join(norm2.category_hints)}")
 
             # Get user input
             while True:
-                response = (
-                    input("\nAre these the SAME product? (y/n/s/q): ").lower().strip()
-                )
+                response = input("\nAre these the SAME product? (y/n/s/q): ").lower().strip()
 
                 if response in ["y", "yes"]:
                     confidence = self._get_confidence_level()
@@ -426,11 +402,10 @@ class SimilarityTrainingHandler:
     def active_learning_suggestions(
         self,
         suggestions: int = 10,
-        cnpj_filter: Optional[str] = None,
+        cnpj_filter: str | None = None,
         threshold: float = 0.6,
     ):
         """Use active learning to suggest best examples to label"""
-
         print("\n" + "=" * 70)
         print("🧠 ACTIVE LEARNING SUGGESTIONS")
         print("=" * 70)
@@ -447,9 +422,7 @@ class SimilarityTrainingHandler:
             return
 
         # Convert to format expected by trainer
-        candidate_pairs = [
-            (features1, features2) for _, _, features1, features2, _ in candidates
-        ]
+        candidate_pairs = [(features1, features2) for _, _, features1, features2, _ in candidates]
 
         # Get uncertainty-based suggestions
         uncertain_pairs = self.trainer.suggest_training_examples(
@@ -476,10 +449,8 @@ class SimilarityTrainingHandler:
                 # Find original candidate
                 for candidate in candidates:
                     if (
-                        candidate[2].original_description
-                        == features1.original_description
-                        and candidate[3].original_description
-                        == features2.original_description
+                        candidate[2].original_description == features1.original_description
+                        and candidate[3].original_description == features2.original_description
                     ):
                         selected_candidates.append(candidate)
                         break
@@ -489,7 +460,6 @@ class SimilarityTrainingHandler:
 
     def train_model(self, model_type: str = "random_forest", detailed: bool = False):
         """Train ML model on collected data"""
-
         print("\n" + "=" * 70)
         print("🤖 MODEL TRAINING")
         print("=" * 70)
@@ -511,9 +481,7 @@ class SimilarityTrainingHandler:
 
         try:
             # Train model
-            performance = self.trainer.train_model(
-                model_type=model_type, validate_model=detailed
-            )
+            performance = self.trainer.train_model(model_type=model_type, validate_model=detailed)
 
             # Display results
             print("\n✅ Model training completed!")
@@ -541,7 +509,6 @@ class SimilarityTrainingHandler:
 
     def evaluate_model(self, detailed: bool = False):
         """Evaluate model performance"""
-
         print("\n" + "=" * 70)
         print("📈 MODEL EVALUATION")
         print("=" * 70)
@@ -561,12 +528,8 @@ class SimilarityTrainingHandler:
 
         if stats["models_trained"] > 0:
             print("\n📊 Performance History:")
-            for i, perf in enumerate(
-                self.trainer.performance_history[-3:], 1
-            ):  # Last 3 models
-                print(
-                    f"  Model {i}: F1={perf.f1_score:.3f}, Acc={perf.accuracy:.3f}, AUC={perf.auc_score:.3f}"
-                )
+            for i, perf in enumerate(self.trainer.performance_history[-3:], 1):  # Last 3 models
+                print(f"  Model {i}: F1={perf.f1_score:.3f}, Acc={perf.accuracy:.3f}, AUC={perf.auc_score:.3f}")
 
         if detailed and self.trainer.current_model is not None:
             print("\n🔍 Detailed Analysis:")
@@ -575,12 +538,8 @@ class SimilarityTrainingHandler:
             test_pairs = self._get_candidate_pairs(max_pairs=10)
             if test_pairs:
                 print("Sample predictions on new data:")
-                for i, (prod1, prod2, feat1, feat2, orig_score) in enumerate(
-                    test_pairs[:5], 1
-                ):
-                    is_similar, confidence = self.trainer.predict_similarity(
-                        feat1, feat2
-                    )
+                for i, (prod1, prod2, feat1, feat2, orig_score) in enumerate(test_pairs[:5], 1):
+                    is_similar, confidence = self.trainer.predict_similarity(feat1, feat2)
                     print(f"  {i}. {prod1[:40]}...")
                     print(f"     {prod2[:40]}...")
                     print(
@@ -588,11 +547,8 @@ class SimilarityTrainingHandler:
                     )
                     print()
 
-    def export_training_data(
-        self, output_file: Optional[str] = None, format: str = "json"
-    ):
+    def export_training_data(self, output_file: str | None = None, format: str = "json"):
         """Export training data"""
-
         if not output_file:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_file = f"output/similarity_training_data_{timestamp}.{format}"
@@ -617,7 +573,6 @@ class SimilarityTrainingHandler:
 
     def demo_similarity_improvements(self):
         """Demo the improvements in similarity detection"""
-
         print("\n" + "=" * 70)
         print("🚀 SIMILARITY IMPROVEMENTS DEMO")
         print("=" * 70)
@@ -643,16 +598,12 @@ class SimilarityTrainingHandler:
             features2 = self.feature_extractor.extract_features(prod2)
 
             # Original similarity
-            similarity_result = self.trainer.similarity_calculator.calculate_similarity(
-                features1, features2
-            )
+            similarity_result = self.trainer.similarity_calculator.calculate_similarity(features1, features2)
             orig_score = similarity_result.final_score
 
             # ML-based similarity (if model available)
             if self.trainer.current_model is not None:
-                ml_similar, ml_confidence = self.trainer.predict_similarity(
-                    features1, features2
-                )
+                ml_similar, ml_confidence = self.trainer.predict_similarity(features1, features2)
             else:
                 ml_similar, ml_confidence = None, None
 
@@ -664,30 +615,20 @@ class SimilarityTrainingHandler:
             if self.embedding_engine:
                 emb_result1 = self.embedding_engine.get_embedding(prod1)
                 emb_result2 = self.embedding_engine.get_embedding(prod2)
-                emb_similarity = float(
-                    np.dot(
-                        emb_result1.ensemble_embedding, emb_result2.ensemble_embedding
-                    )
-                )
+                emb_similarity = float(np.dot(emb_result1.ensemble_embedding, emb_result2.ensemble_embedding))
             else:
                 emb_similarity = None
 
             print("   Results:")
             print(f"     Original Algorithm: {orig_score:.3f}")
             if ml_confidence is not None:
-                print(
-                    f"     ML Model: {ml_confidence:.3f} ({'Similar' if ml_similar else 'Different'})"
-                )
+                print(f"     ML Model: {ml_confidence:.3f} ({'Similar' if ml_similar else 'Different'})")
             if emb_similarity is not None:
                 print(f"     Advanced Embeddings: {emb_similarity:.3f}")
 
             print("   Normalized:")
-            print(
-                f"     A: {norm1.normalized} (Brand: {norm1.extracted_brand or 'N/A'})"
-            )
-            print(
-                f"     B: {norm2.normalized} (Brand: {norm2.extracted_brand or 'N/A'})"
-            )
+            print(f"     A: {norm1.normalized} (Brand: {norm1.extracted_brand or 'N/A'})")
+            print(f"     B: {norm2.normalized} (Brand: {norm2.extracted_brand or 'N/A'})")
             print()
 
         print("💡 Key Improvements:")
@@ -700,11 +641,10 @@ class SimilarityTrainingHandler:
     def _get_candidate_pairs(
         self,
         max_pairs: int = 100,
-        cnpj_filter: Optional[str] = None,
+        cnpj_filter: str | None = None,
         threshold: float = 0.6,
-    ) -> List:
+    ) -> list:
         """Get candidate product pairs for labeling"""
-
         try:
             conn = self.db_manager.db_manager.get_connection("nfce_db")
 
@@ -746,16 +686,10 @@ class SimilarityTrainingHandler:
                 features2 = self.feature_extractor.extract_features(desc2)
 
                 # Calculate similarity
-                similarity_result = (
-                    self.trainer.similarity_calculator.calculate_similarity(
-                        features1, features2
-                    )
-                )
+                similarity_result = self.trainer.similarity_calculator.calculate_similarity(features1, features2)
 
                 # Filter by threshold
-                if (
-                    threshold <= similarity_result.final_score <= 0.95
-                ):  # Avoid obvious matches
+                if threshold <= similarity_result.final_score <= 0.95:  # Avoid obvious matches
                     candidates.append(
                         (
                             desc1,
@@ -782,9 +716,7 @@ class SimilarityTrainingHandler:
         """Get user confidence level"""
         while True:
             try:
-                confidence_str = input(
-                    "Confidence level (1-5, or just press Enter for 5): "
-                ).strip()
+                confidence_str = input("Confidence level (1-5, or just press Enter for 5): ").strip()
                 if not confidence_str:
                     return 1.0  # Default high confidence
 
@@ -809,9 +741,7 @@ class SimilarityTrainingHandler:
             if os.path.exists(labeled_file):
                 data = JSONManager.read_json(labeled_file)
                 self.labeled_pairs = set(data.get("pairs", []))
-                self.logger.info(
-                    f"Loaded {len(self.labeled_pairs)} previously labeled pairs"
-                )
+                self.logger.info(f"Loaded {len(self.labeled_pairs)} previously labeled pairs")
         except Exception as e:
             self.logger.error(f"Error loading labeled pairs: {e}")
             self.labeled_pairs = set()
@@ -827,7 +757,7 @@ class SimilarityTrainingHandler:
         except Exception as e:
             self.logger.error(f"Error saving labeled pairs: {e}")
 
-    def _label_candidates_interactively(self, candidates: List):
+    def _label_candidates_interactively(self, candidates: list):
         """Label candidates interactively"""
         print(f"\n🏷️  Labeling {len(candidates)} selected candidates...")
 

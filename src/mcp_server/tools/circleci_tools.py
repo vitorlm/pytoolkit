@@ -3,16 +3,16 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from ..adapters.circleci_adapter import CircleCIAdapter
 from utils.logging.logging_manager import LogManager
+
+from ..adapters.circleci_adapter import CircleCIAdapter
 
 
 class CircleCITools:
     """MCP Tools for CircleCI integration via PyToolkit."""
 
     def __init__(self):
-        """
-        Initialize CircleCI Tools MCP handler.
+        """Initialize CircleCI Tools MCP handler.
 
         Sets up the CircleCI adapter and logger for processing CircleCI-related
         MCP tool requests including pipeline status, build metrics, and deployment analysis.
@@ -83,9 +83,7 @@ class CircleCITools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executes specific CircleCI tool."""
         self.logger.info(f"Executing CircleCI tool: {name} with args: {arguments}")
 
@@ -101,13 +99,12 @@ class CircleCITools:
                 self.logger.error(error_msg)
                 return [TextContent(type="text", text=f"Error: {error_msg}")]
         except Exception as e:
-            error_msg = f"Error executing CircleCI tool '{name}': {str(e)}"
+            error_msg = f"Error executing CircleCI tool '{name}': {e!s}"
             self.logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
     async def _get_pipeline_status(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve pipeline status information.
+        """Retrieve pipeline status information.
 
         Gets the status of the most recent pipelines for a specified project,
         including success rates and execution details.
@@ -135,9 +132,7 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "pipeline_status",
                     "pipelines_analyzed": limit,
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -152,13 +147,12 @@ class CircleCITools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve pipeline status for {project_slug}: {str(e)}",
+                    text=f"Failed to retrieve pipeline status for {project_slug}: {e!s}",
                 )
             ]
 
     async def _get_build_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve build performance metrics.
+        """Retrieve build performance metrics.
 
         Gets comprehensive build and deployment performance metrics for a project
         over a specified time period, including success rates and timing data.
@@ -186,9 +180,7 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "build_metrics",
                     "period_days": days,
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -203,15 +195,12 @@ class CircleCITools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve build metrics for {project_slug}: {str(e)}",
+                    text=f"Failed to retrieve build metrics for {project_slug}: {e!s}",
                 )
             ]
 
-    async def _analyze_deployment_frequency(
-        self, args: dict[str, Any]
-    ) -> list[TextContent]:
-        """
-        Analyze deployment frequency and success rates.
+    async def _analyze_deployment_frequency(self, args: dict[str, Any]) -> list[TextContent]:
+        """Analyze deployment frequency and success rates.
 
         Analyzes deployment patterns, frequency, and success rates over a specified
         time period to provide insights into delivery performance.
@@ -227,9 +216,7 @@ class CircleCITools:
         """
         project_slug = args["project_slug"]
         days = args.get("days", 30)
-        self.logger.info(
-            f"Analyzing deployment frequency for {project_slug}, last {days} days"
-        )
+        self.logger.info(f"Analyzing deployment frequency for {project_slug}, last {days} days")
 
         try:
             # Reuse build metrics for deployment analysis
@@ -254,11 +241,7 @@ class CircleCITools:
                 "summary": {
                     "analysis_type": "deployment_frequency",
                     "period_days": days,
-                    "timestamp": (
-                        build_data.get("timestamp")
-                        if isinstance(build_data, dict)
-                        else None
-                    ),
+                    "timestamp": (build_data.get("timestamp") if isinstance(build_data, dict) else None),
                 },
             }
 
@@ -273,6 +256,6 @@ class CircleCITools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to analyze deployment frequency for {project_slug}: {str(e)}",
+                    text=f"Failed to analyze deployment frequency for {project_slug}: {e!s}",
                 )
             ]

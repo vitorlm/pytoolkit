@@ -1,45 +1,40 @@
-from typing import Optional, Dict, List
 from pydantic import BaseModel, model_validator
 
 
 class FeedbackAssessment(BaseModel):
-    """
-    Model for validating health check data.
-    """
+    """Model for validating health check data."""
 
     health_check_date: str
     feedback_by: str
-    effort: Optional[int] = None
-    effort_comment: Optional[str] = None
-    impact: Optional[int] = None
-    impact_comment: Optional[str] = None
-    morale: Optional[int] = None
-    morale_comment: Optional[str] = None
-    retention: Optional[int] = None
-    retention_comment: Optional[str] = None
+    effort: int | None = None
+    effort_comment: str | None = None
+    impact: int | None = None
+    impact_comment: str | None = None
+    morale: int | None = None
+    morale_comment: str | None = None
+    retention: int | None = None
+    retention_comment: str | None = None
 
 
 class CorrelationSummary(BaseModel):
-    effort_vs_impact: Optional[float] = None
-    effort_vs_morale: Optional[float] = None
-    effort_vs_retention: Optional[float] = None
-    impact_vs_morale: Optional[float] = None
-    impact_vs_retention: Optional[float] = None
-    morale_vs_retention: Optional[float] = None
+    effort_vs_impact: float | None = None
+    effort_vs_morale: float | None = None
+    effort_vs_retention: float | None = None
+    impact_vs_morale: float | None = None
+    impact_vs_retention: float | None = None
+    morale_vs_retention: float | None = None
 
 
 class HealthCheckStatistics(BaseModel):
     sample_size: int
-    means: Dict[str, Optional[float]]
-    std_devs: Dict[str, Optional[float]]
+    means: dict[str, float | None]
+    std_devs: dict[str, float | None]
     correlations: CorrelationSummary
 
     @model_validator(mode="before")
     @classmethod
-    def validate_and_initialize(cls, values: Dict) -> Dict:
-        """
-        Validator to initialize means and std_devs with default values if not provided.
-        """
+    def validate_and_initialize(cls, values: dict) -> dict:
+        """Validator to initialize means and std_devs with default values if not provided."""
         means = values.get("means", {})
         std_devs = values.get("std_devs", {})
         values["means"] = {
@@ -58,9 +53,7 @@ class HealthCheckStatistics(BaseModel):
 
 
 class MemberHealthCheck(BaseModel):
-    """
-    Model representing a member's health check data and statistics.
-    """
+    """Model representing a member's health check data and statistics."""
 
-    feedback_data: List[FeedbackAssessment]
-    statistics: Optional[HealthCheckStatistics] = None
+    feedback_data: list[FeedbackAssessment]
+    statistics: HealthCheckStatistics | None = None

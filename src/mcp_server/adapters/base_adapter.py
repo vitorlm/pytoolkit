@@ -1,5 +1,4 @@
-"""
-Base Adapter for PyToolkit MCP Integration.
+"""Base Adapter for PyToolkit MCP Integration.
 
 This module provides the base adapter class that all service adapters must inherit from.
 It provides common functionality for logging, caching, error handling, and service integration.
@@ -14,8 +13,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class BaseAdapter(ABC):
-    """
-    Base adapter for integrating PyToolkit services with MCP.
+    """Base adapter for integrating PyToolkit services with MCP.
 
     Provides common infrastructure:
     - Standardized logging
@@ -25,8 +23,7 @@ class BaseAdapter(ABC):
     """
 
     def __init__(self, adapter_name: str) -> None:
-        """
-        Initialize base adapter.
+        """Initialize base adapter.
 
         Args:
             adapter_name: Name of the adapter for logging
@@ -57,11 +54,8 @@ class BaseAdapter(ABC):
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"{self.adapter_name}_{operation}_{params}"
 
-    def cached_operation(
-        self, operation: str, func, expiration_minutes: int = 60, **kwargs
-    ) -> Any:
-        """
-        Execute operation with automatic caching.
+    def cached_operation(self, operation: str, func, expiration_minutes: int = 60, **kwargs) -> Any:
+        """Execute operation with automatic caching.
 
         Args:
             operation: Name of the operation
@@ -72,9 +66,7 @@ class BaseAdapter(ABC):
         cache_key = self.get_cache_key(operation, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(
-            cache_key, expiration_minutes=expiration_minutes
-        )
+        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
         if cached_result is not None:
             self.logger.debug(f"Cache hit for {operation}")
             return cached_result
@@ -115,8 +107,7 @@ class BaseAdapter(ABC):
             }
 
     def clear_cache(self, operation: str | None = None) -> dict[str, Any]:
-        """
-        Clear cache for this adapter.
+        """Clear cache for this adapter.
 
         Args:
             operation: Specific operation to clear, or None for all

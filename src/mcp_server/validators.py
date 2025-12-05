@@ -1,43 +1,42 @@
-"""
-MCP Tool Argument Validators.
+"""MCP Tool Argument Validators.
 
 This module provides validation utilities for MCP tool arguments using Pydantic models.
 """
 
-from typing import Type, Dict, Any, Optional
-from pydantic import BaseModel, ValidationError
+from typing import Any
 
 from mcp.types import TextContent
+from pydantic import BaseModel, ValidationError
+
 from utils.logging.logging_manager import LogManager
 
 from .models import (
-    JiraEpicMonitoringArgs,
-    JiraCycleTimeArgs,
-    JiraTeamVelocityArgs,
-    JiraOpenIssuesArgs,
-    SonarQubeProjectMetricsArgs,
-    SonarQubeProjectIssuesArgs,
-    SonarQubeQualityOverviewArgs,
-    SonarQubeCompareProjectsArgs,
-    LinearBTeamsArgs,
-    LinearBMetricsArgs,
-    LinearBExportArgs,
     CircleCIPipelineArgs,
     CircleCIProjectArgs,
     CircleCIWorkflowArgs,
+    JiraCycleTimeArgs,
+    JiraEpicMonitoringArgs,
+    JiraOpenIssuesArgs,
+    JiraTeamVelocityArgs,
+    LinearBExportArgs,
+    LinearBMetricsArgs,
+    LinearBTeamsArgs,
+    SonarQubeCompareProjectsArgs,
+    SonarQubeProjectIssuesArgs,
+    SonarQubeProjectMetricsArgs,
+    SonarQubeQualityOverviewArgs,
 )
 
 
 class MCPToolValidator:
-    """
-    Validates MCP tool arguments using Pydantic models.
+    """Validates MCP tool arguments using Pydantic models.
 
     Provides centralized validation logic for all MCP tools with
     structured error handling and logging.
     """
 
     # Mapping of tool names to their corresponding Pydantic models
-    TOOL_MODELS: Dict[str, Type[BaseModel]] = {
+    TOOL_MODELS: dict[str, type[BaseModel]] = {
         # Jira tools
         "jira_get_epic_monitoring": JiraEpicMonitoringArgs,
         "jira_get_cycle_time_metrics": JiraCycleTimeArgs,
@@ -61,11 +60,8 @@ class MCPToolValidator:
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("MCPValidator")
 
-    def validate_tool_args(
-        self, tool_name: str, arguments: Dict[str, Any]
-    ) -> BaseModel:
-        """
-        Validate tool arguments using the appropriate Pydantic model.
+    def validate_tool_args(self, tool_name: str, arguments: dict[str, Any]) -> BaseModel:
+        """Validate tool arguments using the appropriate Pydantic model.
 
         Args:
             tool_name: Name of the MCP tool
@@ -93,11 +89,8 @@ class MCPToolValidator:
             self.logger.error(f"Validation failed for tool {tool_name}: {e}")
             raise
 
-    def format_validation_error(
-        self, error: ValidationError, tool_name: str
-    ) -> list[TextContent]:
-        """
-        Format a ValidationError into user-friendly MCP TextContent response.
+    def format_validation_error(self, error: ValidationError, tool_name: str) -> list[TextContent]:
+        """Format a ValidationError into user-friendly MCP TextContent response.
 
         Args:
             error: The ValidationError to format
@@ -117,11 +110,7 @@ class MCPToolValidator:
             message = err["msg"]
             value = err.get("input", "")
 
-            error_messages.append(
-                f"**Field:** `{field_path}`\n"
-                f"**Error:** {message}\n"
-                f"**Value:** `{value}`\n"
-            )
+            error_messages.append(f"**Field:** `{field_path}`\n**Error:** {message}\n**Value:** `{value}`\n")
 
         # Helpful suggestions
         error_messages.append(
@@ -136,9 +125,8 @@ class MCPToolValidator:
 
         return [TextContent(type="text", text=full_message)]
 
-    def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get the JSON schema for a tool's arguments.
+    def get_tool_schema(self, tool_name: str) -> dict[str, Any] | None:
+        """Get the JSON schema for a tool's arguments.
 
         Args:
             tool_name: Name of the tool

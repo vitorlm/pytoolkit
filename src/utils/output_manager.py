@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
@@ -16,8 +16,7 @@ class OutputManager:
 
     @staticmethod
     def get_output_path(sub_dir: str, file_name: str, extension: str = "json") -> str:
-        """
-        Constructs a standardized file path within the output directory,
+        """Constructs a standardized file path within the output directory,
         ensuring the subdirectory exists.
 
         Args:
@@ -39,11 +38,8 @@ class OutputManager:
         return os.path.join(target_dir, full_file_name)
 
     @staticmethod
-    def save_json_report(
-        data: Dict, sub_dir: str, file_basename: str, output_path: Optional[str] = None
-    ) -> str:
-        """
-        Saves a dictionary as a JSON report.
+    def save_json_report(data: dict, sub_dir: str, file_basename: str, output_path: str | None = None) -> str:
+        """Saves a dictionary as a JSON report.
 
         Args:
             data (Dict): The dictionary data to save.
@@ -70,10 +66,9 @@ class OutputManager:
         content: str,
         sub_dir: str,
         file_basename: str,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> str:
-        """
-        Saves a string as a Markdown report.
+        """Saves a string as a Markdown report.
 
         Args:
             content (str): The Markdown content to save.
@@ -97,10 +92,10 @@ class OutputManager:
 
     @staticmethod
     def save_summary_report(
-        metrics: List[Dict[str, Any]],
+        metrics: list[dict[str, Any]],
         sub_dir: str,
         file_basename: str,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> str:
         """Persist summary metrics using the standard output directory layout."""
         if output_path:

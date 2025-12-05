@@ -24,6 +24,7 @@ log_manager = LogManager(
     log_retention_hours=Config.LOG_RETENTION_HOURS,
     default_level=LOG_LEVEL_MAP.get(Config.LOG_LEVEL, LogLevel.INFO),
     use_filter=Config.USE_FILTER == "true",
+    log_output=Config.LOG_OUTPUT,
 )
 
 # Custom handler with validated configurations

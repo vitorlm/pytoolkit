@@ -1,5 +1,4 @@
-"""
-JIRA Net Flow Calculation Service
+"""JIRA Net Flow Calculation Service
 
 This service calculates net flow metrics by analyzing arrival rate (issues created)
 versus throughput (issues completed) for specified time periods. It supports
@@ -11,15 +10,15 @@ Net Flow = Arrival Rate - Throughput
 - Negative Net Flow: More work is being completed than arriving (backlog may be shrinking).
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict
-from collections import defaultdict
 import math
 import random
 import re
-import numpy as np
+from collections import defaultdict
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
+
+import numpy as np
 
 from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from domains.syngenta.jira.workflow_config_service import WorkflowConfigService
@@ -55,11 +54,11 @@ class StatisticalSignal:
 class TrendAnalysis:
     """Trend analysis result."""
 
-    ewma_values: List[float]
+    ewma_values: list[float]
     current_ewma: float
     direction: str  # ↑/↓/→
     cusum_shift_detected: bool = False
-    shift_point: Optional[int] = None
+    shift_point: int | None = None
 
 
 @dataclass
@@ -113,8 +112,8 @@ class AssignmentMetrics:
     unassigned_count: int  # Current unassigned issues
     unassigned_percentage: float  # % of issues unassigned
     reassignment_frequency: float  # Avg reassignments per issue
-    team_load_balance: Dict[str, int]  # Assigned issues per team member (all statuses)
-    team_load_wip: Dict[str, int]  # WIP issues per team member (active statuses only)
+    team_load_balance: dict[str, int]  # Assigned issues per team member (all statuses)
+    team_load_wip: dict[str, int]  # WIP issues per team member (active statuses only)
     handoff_quality_score: float  # 0-100 based on clean handoffs
 
 
@@ -134,31 +133,31 @@ class StageTransition:
 class CycleTimeHeatmap:
     """Cycle time breakdown by workflow stages."""
 
-    transitions: List[StageTransition]
+    transitions: list[StageTransition]
     total_cycle_time: float
     bottleneck_stage: str
-    efficiency_by_stage: Dict[str, float]
+    efficiency_by_stage: dict[str, float]
 
 
 @dataclass
 class NetFlowScorecard:
     """Data class for the complete net flow scorecard."""
 
-    metadata: Dict
+    metadata: dict
     current_week: WeeklyFlowMetrics
-    rolling_trend: List[WeeklyFlowMetrics]
-    insights: List[str]
-    details: Dict = field(default_factory=dict)
+    rolling_trend: list[WeeklyFlowMetrics]
+    insights: list[str]
+    details: dict = field(default_factory=dict)
 
     # New statistical fields
-    statistical_signal: Optional[StatisticalSignal] = None
-    trend_analysis: Optional[TrendAnalysis] = None
-    volatility_metrics: Optional[VolatilityMetrics] = None
+    statistical_signal: StatisticalSignal | None = None
+    trend_analysis: TrendAnalysis | None = None
+    volatility_metrics: VolatilityMetrics | None = None
     flow_debt: int = 0
-    normalized_metrics: Dict = field(default_factory=dict)
-    segments: List[SegmentMetrics] = field(default_factory=list)
-    bottlenecks: List[BottleneckAnalysis] = field(default_factory=list)
-    alerts: List[FlowAlert] = field(default_factory=list)
+    normalized_metrics: dict = field(default_factory=dict)
+    segments: list[SegmentMetrics] = field(default_factory=list)
+    bottlenecks: list[BottleneckAnalysis] = field(default_factory=list)
+    alerts: list[FlowAlert] = field(default_factory=list)
 
 
 class SignalLabel(Enum):
@@ -182,7 +181,7 @@ class NetFlowCalculationService:
         random.seed(42)
         np.random.seed(42)
 
-    def _parse_datetime(self, value: Optional[str]) -> Optional[datetime]:
+    def _parse_datetime(self, value: str | None) -> datetime | None:
         """Safely parse ISO timestamps from JIRA responses, handling offsets without colon."""
         if not value:
             return None
@@ -244,8 +243,7 @@ class NetFlowCalculationService:
         B: int = 2000,
         confidence_level: float = 0.95,
     ) -> StatisticalSignal:
-        """
-        Compute bootstrap confidence interval for Net Flow using small-sample awareness.
+        """Compute bootstrap confidence interval for Net Flow using small-sample awareness.
 
         Args:
             arrivals: Number of arrivals in the period
@@ -284,9 +282,8 @@ class NetFlowCalculationService:
 
         return StatisticalSignal(ci_low, ci_high, signal_label, confidence_level)
 
-    def compute_ewma(self, series: List[float], alpha: float = 0.2) -> TrendAnalysis:
-        """
-        Compute Exponentially Weighted Moving Average for trend analysis.
+    def compute_ewma(self, series: list[float], alpha: float = 0.2) -> TrendAnalysis:
+        """Compute Exponentially Weighted Moving Average for trend analysis.
 
         Args:
             series: Time series data (e.g., flow ratios)
@@ -322,9 +319,8 @@ class NetFlowCalculationService:
 
         return TrendAnalysis(ewma_values, ewma_values[-1], direction)
 
-    def detect_cusum_shift(self, series: List[float], k_factor: float = 0.5, h_threshold: float = 5.0) -> bool:
-        """
-        Detect sustained shifts using CUSUM algorithm.
+    def detect_cusum_shift(self, series: list[float], k_factor: float = 0.5, h_threshold: float = 5.0) -> bool:
+        """Detect sustained shifts using CUSUM algorithm.
 
         Args:
             series: Time series data
@@ -361,9 +357,8 @@ class NetFlowCalculationService:
 
         return False
 
-    def compute_rolling_cv(self, series: List[float], window: int = 8) -> List[Optional[float]]:
-        """
-        Compute rolling coefficient of variation.
+    def compute_rolling_cv(self, series: list[float], window: int = 8) -> list[float | None]:
+        """Compute rolling coefficient of variation.
 
         Args:
             series: Time series data
@@ -394,9 +389,8 @@ class NetFlowCalculationService:
 
         return cv_values
 
-    def compute_stability_index(self, net_flow_series: List[int], window: int = 8) -> float:
-        """
-        Compute stability index as % of periods within control bands.
+    def compute_stability_index(self, net_flow_series: list[int], window: int = 8) -> float:
+        """Compute stability index as % of periods within control bands.
 
         Args:
             net_flow_series: Historical net flow values
@@ -424,9 +418,8 @@ class NetFlowCalculationService:
         within_bounds = sum(1 for x in recent_data if lower_bound <= x <= upper_bound)
         return (within_bounds / len(recent_data)) * 100
 
-    def compute_flow_debt(self, net_flow_history: List[int]) -> int:
-        """
-        Compute cumulative flow debt (positive net flows over time).
+    def compute_flow_debt(self, net_flow_history: list[int]) -> int:
+        """Compute cumulative flow debt (positive net flows over time).
 
         Args:
             net_flow_history: Historical net flow values
@@ -436,9 +429,8 @@ class NetFlowCalculationService:
         """
         return sum(max(nf, 0) for nf in net_flow_history)
 
-    def normalize_per_dev(self, value: float, active_devs: Optional[int]) -> Optional[float]:
-        """
-        Normalize metrics per active developer.
+    def normalize_per_dev(self, value: float, active_devs: int | None) -> float | None:
+        """Normalize metrics per active developer.
 
         Args:
             value: Value to normalize
@@ -452,10 +444,9 @@ class NetFlowCalculationService:
         return value / active_devs
 
     def analyze_segments_by_type(
-        self, arrival_issues: List[Dict], completed_issues: List[Dict]
-    ) -> List[SegmentMetrics]:
-        """
-        Analyze metrics segmented by issue type.
+        self, arrival_issues: list[dict], completed_issues: list[dict]
+    ) -> list[SegmentMetrics]:
+        """Analyze metrics segmented by issue type.
 
         Args:
             arrival_issues: List of arrived issues
@@ -497,10 +488,9 @@ class NetFlowCalculationService:
         flow_efficiency: float,
         testing_aging_p85: float = 0.0,
         testing_threshold_days: float = 7.0,
-        consecutive_weeks_data: List[Dict] = None,
-    ) -> List[FlowAlert]:
-        """
-        Generate health alerts based on defined rules.
+        consecutive_weeks_data: list[dict] = None,
+    ) -> list[FlowAlert]:
+        """Generate health alerts based on defined rules.
 
         Args:
             signal: Statistical signal analysis
@@ -566,9 +556,8 @@ class NetFlowCalculationService:
 
         return alerts
 
-    def analyze_assignment_metrics(self, all_issues: List[Dict], project_key: str) -> AssignmentMetrics:
-        """
-        Analyze assignment and ownership tracking metrics.
+    def analyze_assignment_metrics(self, all_issues: list[dict], project_key: str) -> AssignmentMetrics:
+        """Analyze assignment and ownership tracking metrics.
 
         Args:
             all_issues: List of all issues (arrivals + completed) with full history
@@ -642,7 +631,7 @@ class NetFlowCalculationService:
             handoff_quality_score=handoff_quality_score,
         )
 
-    def _extract_assignment_history(self, issue: Dict) -> List[Dict]:
+    def _extract_assignment_history(self, issue: dict) -> list[dict]:
         """Extract assignment history from issue changelog."""
         assignment_history = []
         changelog = issue.get("changelog", {}).get("histories", [])
@@ -665,12 +654,11 @@ class NetFlowCalculationService:
 
     def analyze_cycle_time_heatmap(
         self,
-        completed_issues: List[Dict],
+        completed_issues: list[dict],
         project_key: str,
-        teams: Optional[List[str]] = None,
+        teams: list[str] | None = None,
     ) -> CycleTimeHeatmap:
-        """
-        Analyze cycle time breakdown by workflow stages.
+        """Analyze cycle time breakdown by workflow stages.
 
         Args:
             completed_issues: List of completed issues with full changelog
@@ -824,7 +812,7 @@ class NetFlowCalculationService:
             efficiency_by_stage=efficiency_by_stage,
         )
 
-    def _extract_stage_transitions(self, issue: Dict, workflow_stages: List[str]) -> List[Dict]:
+    def _extract_stage_transitions(self, issue: dict, workflow_stages: list[str]) -> list[dict]:
         """Extract stage transitions from issue changelog (chronologically, non-negative durations)."""
         transitions = []
         histories = issue.get("changelog", {}).get("histories", [])
@@ -877,8 +865,8 @@ class NetFlowCalculationService:
         self,
         project_key: str,
         end_date: str,
-        issue_types: Optional[List[str]] = None,
-        teams: Optional[List[str]] = None,
+        issue_types: list[str] | None = None,
+        teams: list[str] | None = None,
         include_subtasks: bool = False,
         output_format: str = "console",
         verbose: bool = False,
@@ -889,12 +877,10 @@ class NetFlowCalculationService:
         enable_cusum: bool = False,
         cv_window: int = 8,
         alpha: float = 0.2,
-        active_devs: Optional[int] = None,
+        active_devs: int | None = None,
         testing_threshold_days: float = 7.0,
-    ) -> Dict:
-        """
-        Generates a net flow scorecard with a rolling 4-week trend.
-        """
+    ) -> dict:
+        """Generates a net flow scorecard with a rolling 4-week trend."""
         try:
             self.logger.info(f"Generating Net Flow Scorecard for project {project_key} with anchor date {end_date}")
 
@@ -1274,12 +1260,12 @@ class NetFlowCalculationService:
         project_key: str,
         start_date: datetime,
         end_date: datetime,
-        issue_types: List[str],
-        teams: Optional[List[str]],
+        issue_types: list[str],
+        teams: list[str] | None,
         include_subtasks: bool,
-        done_statuses: List[str],
+        done_statuses: list[str],
         expand_for_detailed: bool = False,
-    ) -> tuple[Dict, List, List]:
+    ) -> tuple[dict, list, list]:
         """Calculates arrival, throughput, and net flow for a single time period.
 
         Returns a tuple of (metrics, arrival_issues_raw, completed_issues_raw).
@@ -1318,7 +1304,7 @@ class NetFlowCalculationService:
         return metrics, arrival_issues, completed_issues
 
     def _analyze_flow_efficiency_and_bottlenecks(
-        self, completed_issues: List[Dict], project_key: str
+        self, completed_issues: list[dict], project_key: str
     ) -> tuple[float, str]:
         # TODO: Move status configuration to WorkflowConfigService
         active_statuses = self.workflow_service.get_active_statuses(project_key)
@@ -1380,7 +1366,7 @@ class NetFlowCalculationService:
 
         return flow_efficiency, bottleneck
 
-    def _calculate_volatility(self, data: List[float]) -> float:
+    def _calculate_volatility(self, data: list[float]) -> float:
         if not data or len(data) < 2:
             return 0.0
 
@@ -1399,7 +1385,7 @@ class NetFlowCalculationService:
         start_date: datetime,
         end_date: datetime,
         issue_types: list,
-        teams: Optional[List[str]],
+        teams: list[str] | None,
         include_subtasks: bool,
         expand_changelog: bool = False,
     ) -> list:
@@ -1463,7 +1449,7 @@ class NetFlowCalculationService:
         start_date: datetime,
         end_date: datetime,
         issue_types: list,
-        teams: Optional[List[str]],
+        teams: list[str] | None,
         include_subtasks: bool,
         done_statuses: list,
         expand_changelog: bool = False,
@@ -1590,9 +1576,8 @@ class NetFlowCalculationService:
             self.logger.error(f"Failed to save results to {output_file}: {e}")
             raise
 
-    def _format_as_markdown(self, scorecard: Dict) -> str:
-        """
-        Formats the net flow scorecard as structured markdown following PyToolkit patterns.
+    def _format_as_markdown(self, scorecard: dict) -> str:
+        """Formats the net flow scorecard as structured markdown following PyToolkit patterns.
 
         Args:
             scorecard (Dict): The complete scorecard data structure
@@ -1732,7 +1717,7 @@ Flow debt represents the cumulative positive net flow over time, indicating back
             markdown_content += f"| {week_marker}Week {week_num}{week_marker} | {net_flow_week:+d} | {arrival} | {throughput} | {week_status} |\n"
 
         # Segmentation Analysis
-        if "segments" in scorecard and scorecard["segments"]:
+        if scorecard.get("segments"):
             markdown_content += """
 
 ## 👥 Segmentation Analysis
@@ -1749,7 +1734,7 @@ Flow debt represents the cumulative positive net flow over time, indicating back
                 markdown_content += f"| {segment['segment_name']} | {seg_net_flow:+d} | {segment['arrivals']} | {segment['throughput']} | {seg_status} |\n"
 
         # Health Alerts
-        if "alerts" in scorecard and scorecard["alerts"]:
+        if scorecard.get("alerts"):
             triggered_alerts = [a for a in scorecard["alerts"] if a["triggered"]]
             if triggered_alerts:
                 markdown_content += f"""
@@ -1964,11 +1949,10 @@ Week {week_number} Cycle Time Breakdown:
 
             if len(arrival_issues) > 20:
                 markdown_content += f"\n*... and {len(arrival_issues) - 20} more arrival issues*\n"
+        elif details:
+            markdown_content += "\n*No arrival issues found in the current analysis period.*\n"
         else:
-            if details:
-                markdown_content += "\n*No arrival issues found in the current analysis period.*\n"
-            else:
-                markdown_content += "\n*Enable --verbose to include arrival issue details.*\n"
+            markdown_content += "\n*Enable --verbose to include arrival issue details.*\n"
 
         if completed_issues:
             markdown_content += f"""
@@ -2000,11 +1984,10 @@ Week {week_number} Cycle Time Breakdown:
 
             if len(completed_issues) > 20:
                 markdown_content += f"\n*... and {len(completed_issues) - 20} more completed issues*\n"
+        elif details:
+            markdown_content += "\n*No completed issues found in the current analysis period.*\n"
         else:
-            if details:
-                markdown_content += "\n*No completed issues found in the current analysis period.*\n"
-            else:
-                markdown_content += "\n*Enable --verbose to include completed issue details.*\n"
+            markdown_content += "\n*Enable --verbose to include completed issue details.*\n"
 
         # Recommendations section
         markdown_content += """

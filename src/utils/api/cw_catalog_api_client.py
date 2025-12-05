@@ -1,5 +1,4 @@
-"""
-CW Catalog API Client
+"""CW Catalog API Client
 
 API client for Cropwise Catalog API to fetch products by country and organization.
 Based on the API specification at workspaces/api/src/swagger-spec.yaml.
@@ -7,7 +6,8 @@ Based on the API specification at workspaces/api/src/swagger-spec.yaml.
 
 import json
 import time
-from typing import Dict, List, Any, Optional
+from typing import Any
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -19,8 +19,7 @@ class CWCatalogApiClient:
     """Client for Cropwise Catalog API."""
 
     def __init__(self, base_url: str, api_key: str, timeout: int = 30):
-        """
-        Initialize the CW Catalog API client.
+        """Initialize the CW Catalog API client.
 
         Args:
             base_url: The base URL of the catalog API (e.g., https://api.cropwise.com)
@@ -55,17 +54,16 @@ class CWCatalogApiClient:
     def get_products_by_country(
         self,
         country: str,
-        org_id: Optional[str] = None,
+        org_id: str | None = None,
         source: str = "TUBE",
         include_deleted: bool = False,
         full: bool = True,
-        indication: Optional[str] = None,
-        name: Optional[str] = None,
+        indication: str | None = None,
+        name: str | None = None,
         size: int = 1000,
-        include_attributes: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Get products by country and optionally by organization.
+        include_attributes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Get products by country and optionally by organization.
 
         Args:
             country: ISO2 country code (e.g., 'BR', 'AR', 'US')
@@ -109,13 +107,12 @@ class CWCatalogApiClient:
     def get_all_products_by_country(
         self,
         country: str,
-        org_id: Optional[str] = None,
+        org_id: str | None = None,
         source: str = "TUBE",
         include_deleted: bool = False,
         batch_size: int = 1000,
-    ) -> List[Dict[str, Any]]:
-        """
-        Get all products for a country using pagination.
+    ) -> list[dict[str, Any]]:
+        """Get all products for a country using pagination.
 
         Args:
             country: ISO2 country code
@@ -132,9 +129,7 @@ class CWCatalogApiClient:
         page = 1
 
         endpoint_type = "organization-specific" if org_id else "canonical"
-        self.logger.info(
-            f"Fetching all {endpoint_type} products for country {country} from source {source}"
-        )
+        self.logger.info(f"Fetching all {endpoint_type} products for country {country} from source {source}")
 
         while True:
             self.logger.info(f"Fetching page {page} (batch size: {batch_size})")
@@ -158,9 +153,7 @@ class CWCatalogApiClient:
                 products = response.get("content", [])
                 all_products.extend(products)
 
-                self.logger.info(
-                    f"Page {page}: Retrieved {len(products)} products (total: {len(all_products)})"
-                )
+                self.logger.info(f"Page {page}: Retrieved {len(products)} products (total: {len(all_products)})")
 
                 # Check if there are more pages
                 pagination = response.get("pagination", {})
@@ -175,25 +168,20 @@ class CWCatalogApiClient:
                 time.sleep(0.1)
 
             except Exception as e:
-                self.logger.error(
-                    f"Error fetching page {page} for country {country}: {e}"
-                )
+                self.logger.error(f"Error fetching page {page} for country {country}: {e}")
                 break
 
-        self.logger.info(
-            f"Completed fetching products for {country}: {len(all_products)} total products"
-        )
+        self.logger.info(f"Completed fetching products for {country}: {len(all_products)} total products")
         return all_products
 
     def _make_request(
         self,
         method: str,
         endpoint: str,
-        params: Optional[Dict[str, Any]] = None,
-        data: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Make an HTTP request to the API.
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Make an HTTP request to the API.
 
         Args:
             method: HTTP method
@@ -212,9 +200,7 @@ class CWCatalogApiClient:
         self.logger.debug(f"Making {method} request to {url}")
 
         try:
-            response = self.session.request(
-                method=method, url=url, params=params, json=data, timeout=self.timeout
-            )
+            response = self.session.request(method=method, url=url, params=params, json=data, timeout=self.timeout)
 
             response.raise_for_status()
 
@@ -240,10 +226,9 @@ class CWCatalogApiClient:
             raise requests.RequestException(error_msg) from e
 
     def get_products_by_ids(
-        self, product_ids: List[str], include_deleted: bool = False, full: bool = True
-    ) -> List[Dict[str, Any]]:
-        """
-        Get products by their IDs using the /products/ids endpoint.
+        self, product_ids: list[str], include_deleted: bool = False, full: bool = True
+    ) -> list[dict[str, Any]]:
+        """Get products by their IDs using the /products/ids endpoint.
 
         Args:
             product_ids: List of product IDs to fetch
@@ -284,14 +269,13 @@ class CWCatalogApiClient:
 
     def get_products_by_ids_in_batches(
         self,
-        product_ids: List[str],
+        product_ids: list[str],
         batch_size: int = 100,
         include_deleted: bool = False,
         full: bool = True,
         delay_between_batches: float = 0.5,
-    ) -> List[Dict[str, Any]]:
-        """
-        Get products by IDs in batches to handle large lists efficiently.
+    ) -> list[dict[str, Any]]:
+        """Get products by IDs in batches to handle large lists efficiently.
 
         Args:
             product_ids: List of product IDs to fetch
@@ -306,9 +290,7 @@ class CWCatalogApiClient:
         if not product_ids:
             return []
 
-        self.logger.info(
-            f"Fetching {len(product_ids)} products in batches of {batch_size}"
-        )
+        self.logger.info(f"Fetching {len(product_ids)} products in batches of {batch_size}")
 
         all_products = []
         total_batches = (len(product_ids) + batch_size - 1) // batch_size
@@ -317,9 +299,7 @@ class CWCatalogApiClient:
             batch_ids = product_ids[i : i + batch_size]
             batch_num = (i // batch_size) + 1
 
-            self.logger.debug(
-                f"Processing batch {batch_num}/{total_batches} ({len(batch_ids)} IDs)"
-            )
+            self.logger.debug(f"Processing batch {batch_num}/{total_batches} ({len(batch_ids)} IDs)")
 
             try:
                 batch_products = self.get_products_by_ids(
@@ -336,14 +316,11 @@ class CWCatalogApiClient:
                 # Continue with other batches instead of failing completely
                 continue
 
-        self.logger.info(
-            f"Successfully fetched {len(all_products)} products from {total_batches} batches"
-        )
+        self.logger.info(f"Successfully fetched {len(all_products)} products from {total_batches} batches")
         return all_products
 
     def health_check(self) -> bool:
-        """
-        Perform a health check against the API.
+        """Perform a health check against the API.
 
         Returns:
             True if API is healthy, False otherwise

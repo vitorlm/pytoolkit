@@ -1,30 +1,27 @@
 #!/usr/bin/env python3
-"""
-Enhanced NFCe Database Manager - Integrates generic product management with similarity detection
-"""
+"""Enhanced NFCe Database Manager - Integrates generic product management with similarity detection"""
 
 import os
 import uuid
-from typing import List, Dict, Optional, Any
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
-from utils.data.duckdb_manager import DuckDBManager
-from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
 from domains.personal_finance.nfce.database.generic_product_manager import (
     GenericProductManager,
 )
 from domains.personal_finance.nfce.models.invoice_data import (
-    InvoiceData,
     EstablishmentData,
+    InvoiceData,
     ProductData,
 )
+from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
+from utils.data.duckdb_manager import DuckDBManager
+from utils.logging.logging_manager import LogManager
 
 
 class EnhancedNFCeDatabaseManager:
-    """
-    Enhanced NFCe database manager with generic product management and automatic deduplication
+    """Enhanced NFCe database manager with generic product management and automatic deduplication
 
     Key changes from original:
     - Products are now generic across establishments
@@ -40,8 +37,7 @@ class EnhancedNFCeDatabaseManager:
         use_sbert: bool = False,
         sbert_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
     ):
-        """
-        Initialize enhanced NFCe database manager
+        """Initialize enhanced NFCe database manager
 
         Args:
             database_path: Path to DuckDB database file
@@ -49,10 +45,7 @@ class EnhancedNFCeDatabaseManager:
             use_sbert: Whether to use SBERT embeddings for similarity
             sbert_model: SBERT model name
         """
-
-        self.logger = LogManager.get_instance().get_logger(
-            "EnhancedNFCeDatabaseManager"
-        )
+        self.logger = LogManager.get_instance().get_logger("EnhancedNFCeDatabaseManager")
         self.database_path = database_path
         self.cnae_classifier = CNAEClassifier()
 
@@ -64,9 +57,7 @@ class EnhancedNFCeDatabaseManager:
 
         # Initialize DuckDB manager
         self.db_manager = DuckDBManager()
-        self.db_manager.add_connection_config(
-            {"name": "main_db", "path": database_path, "read_only": False}
-        )
+        self.db_manager.add_connection_config({"name": "main_db", "path": database_path, "read_only": False})
 
         # Initialize schema with new structure
         self._initialize_enhanced_schema()
@@ -97,13 +88,12 @@ class EnhancedNFCeDatabaseManager:
 
     def _initialize_enhanced_schema(self) -> None:
         """Initialize enhanced database schema with generic products"""
-
         try:
             self.logger.info("Initializing enhanced NFCe database schema")
 
             # Read new schema file
             schema_path = Path(__file__).parent / "new_schema.sql"
-            with open(schema_path, "r", encoding="utf-8") as f:
+            with open(schema_path, encoding="utf-8") as f:
                 schema_sql = f.read()
 
             # Execute schema creation
@@ -113,9 +103,7 @@ class EnhancedNFCeDatabaseManager:
             try:
                 # Split into individual statements and execute
                 statements = [
-                    stmt.strip()
-                    for stmt in schema_sql.split(";")
-                    if stmt.strip() and not stmt.strip().startswith("--")
+                    stmt.strip() for stmt in schema_sql.split(";") if stmt.strip() and not stmt.strip().startswith("--")
                 ]
 
                 for statement in statements:
@@ -134,8 +122,7 @@ class EnhancedNFCeDatabaseManager:
             raise
 
     def store_invoice_data(self, invoice_data: InvoiceData) -> bool:
-        """
-        Store complete invoice data with generic product management
+        """Store complete invoice data with generic product management
 
         Args:
             invoice_data: Complete invoice data object
@@ -143,7 +130,6 @@ class EnhancedNFCeDatabaseManager:
         Returns:
             True if stored successfully, False otherwise
         """
-
         try:
             self.logger.debug(f"Storing invoice data: {invoice_data.access_key}")
 
@@ -159,9 +145,7 @@ class EnhancedNFCeDatabaseManager:
                 invoice_stored = self._store_invoice(invoice_data, establishment_id)
 
                 if not invoice_stored:
-                    self.logger.debug(
-                        f"Invoice {invoice_data.access_key} already exists, skipping"
-                    )
+                    self.logger.debug(f"Invoice {invoice_data.access_key} already exists, skipping")
                     conn.execute("ROLLBACK")
                     self.stats["invoices_skipped"] += 1
                     return True
@@ -174,22 +158,16 @@ class EnhancedNFCeDatabaseManager:
                 if items_stored:
                     conn.execute("COMMIT")
                     self.stats["invoices_inserted"] += 1
-                    self.logger.debug(
-                        f"Successfully stored invoice: {invoice_data.access_key}"
-                    )
+                    self.logger.debug(f"Successfully stored invoice: {invoice_data.access_key}")
                     return True
                 else:
                     conn.execute("ROLLBACK")
-                    self.logger.error(
-                        f"Failed to store items for invoice: {invoice_data.access_key}"
-                    )
+                    self.logger.error(f"Failed to store items for invoice: {invoice_data.access_key}")
                     return False
 
             except Exception as e:
                 conn.execute("ROLLBACK")
-                self.logger.error(
-                    f"Error in transaction for invoice {invoice_data.access_key}: {e}"
-                )
+                self.logger.error(f"Error in transaction for invoice {invoice_data.access_key}: {e}")
                 raise
 
         except Exception as e:
@@ -198,7 +176,6 @@ class EnhancedNFCeDatabaseManager:
 
     def _store_establishment(self, establishment: EstablishmentData) -> str:
         """Store or update establishment data (unchanged logic)"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -208,9 +185,7 @@ class EnhancedNFCeDatabaseManager:
 
             if existing:
                 establishment_id = existing[0]
-                self.logger.debug(
-                    f"Establishment {establishment.cnpj} already exists with ID: {establishment_id}"
-                )
+                self.logger.debug(f"Establishment {establishment.cnpj} already exists with ID: {establishment_id}")
                 return establishment_id
 
             # Create new establishment
@@ -218,9 +193,7 @@ class EnhancedNFCeDatabaseManager:
 
             # Extract CNPJ components for relationship tracking
             cnpj_root = establishment.cnpj[:8] if establishment.cnpj else ""
-            branch_number = (
-                establishment.cnpj[8:12] if len(establishment.cnpj) >= 12 else "0001"
-            )
+            branch_number = establishment.cnpj[8:12] if len(establishment.cnpj) >= 12 else "0001"
             is_main_office = branch_number == "0001"
 
             # Classify establishment type using CNAE
@@ -253,9 +226,7 @@ class EnhancedNFCeDatabaseManager:
             )
 
             self.stats["establishments_inserted"] += 1
-            self.logger.debug(
-                f"Created new establishment: {establishment_id} - {establishment.business_name}"
-            )
+            self.logger.debug(f"Created new establishment: {establishment_id} - {establishment.business_name}")
 
             return establishment_id
 
@@ -265,7 +236,6 @@ class EnhancedNFCeDatabaseManager:
 
     def _store_invoice(self, invoice_data: InvoiceData, establishment_id: str) -> bool:
         """Store invoice data (unchanged logic)"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -295,9 +265,7 @@ class EnhancedNFCeDatabaseManager:
                     invoice_data.series,
                     invoice_data.establishment.cnpj,
                     invoice_data.issue_date,
-                    float(invoice_data.total_amount)
-                    if invoice_data.total_amount
-                    else 0,
+                    float(invoice_data.total_amount) if invoice_data.total_amount else 0,
                     len(invoice_data.items),
                     datetime.now(),
                 ],
@@ -310,23 +278,20 @@ class EnhancedNFCeDatabaseManager:
             raise
 
     def _store_items_with_generic_products(
-        self, access_key: str, items: List[ProductData], establishment_id: str
+        self, access_key: str, items: list[ProductData], establishment_id: str
     ) -> bool:
         """Store invoice items using generic product management"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
             for item in items:
                 # Find or create generic product
-                match_result = (
-                    self.generic_product_manager.find_or_create_generic_product(
-                        description=item.description,
-                        establishment_id=establishment_id,
-                        unit_price=item.unit_price,
-                        unit=item.unit,
-                        product_code=getattr(item, "product_code", None),
-                    )
+                match_result = self.generic_product_manager.find_or_create_generic_product(
+                    description=item.description,
+                    establishment_id=establishment_id,
+                    unit_price=item.unit_price,
+                    unit=item.unit,
+                    product_code=getattr(item, "product_code", None),
                 )
 
                 # Update statistics
@@ -344,15 +309,13 @@ class EnhancedNFCeDatabaseManager:
                 )
 
                 # Create or update establishment product
-                establishment_product_id = (
-                    self.generic_product_manager.create_or_update_establishment_product(
-                        generic_product_id=match_result.generic_product_id,
-                        establishment_id=establishment_id,
-                        local_description=item.description,
-                        unit_price=item.unit_price,
-                        local_product_code=getattr(item, "product_code", None),
-                        local_unit=item.unit,
-                    )
+                establishment_product_id = self.generic_product_manager.create_or_update_establishment_product(
+                    generic_product_id=match_result.generic_product_id,
+                    establishment_id=establishment_id,
+                    local_description=item.description,
+                    unit_price=item.unit_price,
+                    local_product_code=getattr(item, "product_code", None),
+                    local_unit=item.unit,
                 )
 
                 # Insert invoice item with reference to generic product
@@ -392,9 +355,8 @@ class EnhancedNFCeDatabaseManager:
             self.logger.error(f"Error storing items with generic products: {e}")
             raise
 
-    def _get_establishment_type(self, cnae_code: Optional[str]) -> str:
+    def _get_establishment_type(self, cnae_code: str | None) -> str:
         """Get establishment type from CNAE code with caching"""
-
         if not cnae_code:
             return "Não classificado"
 
@@ -416,19 +378,16 @@ class EnhancedNFCeDatabaseManager:
             self._cnae_session_cache[cnae_code] = "Não classificado"
             return "Não classificado"
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get processing statistics"""
         return self.stats.copy()
 
-    def get_generic_product_analytics(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_generic_product_analytics(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get analytics for generic products"""
         return self.generic_product_manager.get_generic_product_analytics(limit)
 
-    def get_price_comparison_report(
-        self, product_limit: int = 50
-    ) -> List[Dict[str, Any]]:
+    def get_price_comparison_report(self, product_limit: int = 50) -> list[dict[str, Any]]:
         """Get price comparison report across establishments"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -453,9 +412,8 @@ class EnhancedNFCeDatabaseManager:
             self.logger.error(f"Error generating price comparison report: {e}")
             return []
 
-    def get_similarity_quality_report(self) -> List[Dict[str, Any]]:
+    def get_similarity_quality_report(self) -> list[dict[str, Any]]:
         """Get similarity matching quality report"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -476,11 +434,8 @@ class EnhancedNFCeDatabaseManager:
             self.logger.error(f"Error generating similarity quality report: {e}")
             return []
 
-    def get_spending_summary_with_generic_products(
-        self, limit: int = 100
-    ) -> List[Dict[str, Any]]:
+    def get_spending_summary_with_generic_products(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get spending summary using generic products view"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 

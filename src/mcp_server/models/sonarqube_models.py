@@ -1,12 +1,10 @@
-"""
-Pydantic models for SonarQube MCP tools validation.
-"""
+"""Pydantic models for SonarQube MCP tools validation."""
 
-from typing import Optional
 from enum import Enum
+
 from pydantic import Field, field_validator
 
-from .base import BaseMCPModel, OutputFileModel, CacheControlModel
+from .base import BaseMCPModel, CacheControlModel, OutputFileModel
 
 
 class SonarQubeOperationEnum(str, Enum):
@@ -47,16 +45,15 @@ class SonarQubeProjectMetricsArgs(BaseMCPModel, OutputFileModel, CacheControlMod
         min_length=1,
     )
 
-    organization: Optional[str] = Field(
+    organization: str | None = Field(
         None,
         description="SonarQube organization (optional). If not provided, uses default configuration",
     )
 
-    metrics: Optional[str] = Field(
+    metrics: str | None = Field(
         None,
         description=(
-            "Comma-separated list of specific metrics to retrieve. "
-            "If not provided, uses default quality metrics set"
+            "Comma-separated list of specific metrics to retrieve. If not provided, uses default quality metrics set"
         ),
     )
 
@@ -114,12 +111,12 @@ class SonarQubeProjectIssuesArgs(BaseMCPModel, OutputFileModel, CacheControlMode
         description="Issue type: BUG, VULNERABILITY, or CODE_SMELL",
     )
 
-    severities: Optional[str] = Field(
+    severities: str | None = Field(
         None,
         description="Comma-separated list of severities to filter (BLOCKER,CRITICAL,MAJOR,MINOR,INFO)",
     )
 
-    organization: Optional[str] = Field(
+    organization: str | None = Field(
         None,
         description="SonarQube organization (optional)",
     )
@@ -136,9 +133,7 @@ class SonarQubeProjectIssuesArgs(BaseMCPModel, OutputFileModel, CacheControlMode
 
         for severity in severities:
             if severity not in valid_severities:
-                raise ValueError(
-                    f"Invalid severity: {severity}. Valid: {valid_severities}"
-                )
+                raise ValueError(f"Invalid severity: {severity}. Valid: {valid_severities}")
 
         return ",".join(severities)
 
@@ -146,12 +141,12 @@ class SonarQubeProjectIssuesArgs(BaseMCPModel, OutputFileModel, CacheControlMode
 class SonarQubeQualityOverviewArgs(BaseMCPModel, OutputFileModel, CacheControlModel):
     """Arguments for SonarQube quality overview tool."""
 
-    organization: Optional[str] = Field(
+    organization: str | None = Field(
         None,
         description="SonarQube organization (e.g., 'syngenta-digital'). If not provided, uses default configuration",
     )
 
-    project_keys: Optional[str] = Field(
+    project_keys: str | None = Field(
         None,
         description="Comma-separated list of specific project keys to analyze (optional)",
     )
@@ -166,7 +161,7 @@ class SonarQubeQualityOverviewArgs(BaseMCPModel, OutputFileModel, CacheControlMo
         description="Include detailed metrics for each project (default: true)",
     )
 
-    metrics: Optional[str] = Field(
+    metrics: str | None = Field(
         None,
         description=(
             "Comma-separated list of specific metrics to include. "
@@ -184,12 +179,12 @@ class SonarQubeCompareProjectsArgs(BaseMCPModel, OutputFileModel, CacheControlMo
         min_length=1,
     )
 
-    metrics: Optional[str] = Field(
+    metrics: str | None = Field(
         None,
         description="Comma-separated list of metrics to compare. If not provided, uses default comparison set",
     )
 
-    organization: Optional[str] = Field(
+    organization: str | None = Field(
         None,
         description="SonarQube organization (optional)",
     )

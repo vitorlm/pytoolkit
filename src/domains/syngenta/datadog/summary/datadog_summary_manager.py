@@ -1,5 +1,4 @@
-"""
-Datadog-specific summary metrics management.
+"""Datadog-specific summary metrics management.
 
 This module provides the Datadog domain implementation for centralized summary
 generation, removing duplication from command files while preserving backward
@@ -12,16 +11,15 @@ import os
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from utils.output_manager import OutputManager
 from utils.summary.summary_manager import SummaryManager
 from utils.summary_helpers import _has_value, _isoz
-from utils.output_manager import OutputManager
 
 
 class DatadogSummaryManager(SummaryManager):
-    """
-    Datadog-specific summary manager.
+    """Datadog-specific summary manager.
 
     Supports legacy-compatible emission used by events_command while also
     providing a generic metrics builder for potential future use.
@@ -31,23 +29,16 @@ class DatadogSummaryManager(SummaryManager):
         super().__init__("datadog")
 
     # --- Generic API (not currently used by events_command) ---
-    def build_metrics(self, data: Any, args: Namespace) -> Dict[str, Any]:
-        """
-        Build a generic Datadog metrics document. Currently minimal because
+    def build_metrics(self, data: Any, args: Namespace) -> dict[str, Any]:
+        """Build a generic Datadog metrics document. Currently minimal because
         events_command consumes the legacy-compatible emitter.
         """
         summary = data.get("summary") if isinstance(data, dict) else {}
         time_period = (summary or {}).get("time_period") or {}
         period = {
-            "start_date": _isoz(time_period.get("start"))
-            if isinstance(time_period, dict)
-            else None,
-            "end_date": _isoz(time_period.get("end"))
-            if isinstance(time_period, dict)
-            else None,
-            "description": (
-                time_period.get("label") if isinstance(time_period, dict) else None
-            )
+            "start_date": _isoz(time_period.get("start")) if isinstance(time_period, dict) else None,
+            "end_date": _isoz(time_period.get("end")) if isinstance(time_period, dict) else None,
+            "description": (time_period.get("label") if isinstance(time_period, dict) else None)
             or "Datadog analysis period",
         }
 
@@ -69,13 +60,12 @@ class DatadogSummaryManager(SummaryManager):
     # --- Legacy-compatible API used by events_command ---
     def emit_summary_compatible(
         self,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         summary_mode: str,
-        existing_output_path: Optional[str],
-        teams: List[str],
-    ) -> Optional[str]:
-        """
-        Emit summary JSON with full backward compatibility to the original
+        existing_output_path: str | None,
+        teams: list[str],
+    ) -> str | None:
+        """Emit summary JSON with full backward compatibility to the original
         events_command implementation.
 
         Returns the absolute path of the written summary or None.
@@ -84,18 +74,14 @@ class DatadogSummaryManager(SummaryManager):
             if summary_mode == "none":
                 return None
 
-            raw_data_path = (
-                os.path.abspath(existing_output_path) if existing_output_path else None
-            )
+            raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
 
-            metrics_payload = self._build_legacy_summary_metrics(
-                payload, raw_data_path, teams
-            )
+            metrics_payload = self._build_legacy_summary_metrics(payload, raw_data_path, teams)
             if not metrics_payload:
                 return None
 
             sub_dir, base_name = self._output_defaults(payload, teams)
-            summary_path: Optional[str] = None
+            summary_path: str | None = None
 
             if existing_output_path:
                 target_path = self._summary_path_for_existing(existing_output_path)
@@ -124,20 +110,16 @@ class DatadogSummaryManager(SummaryManager):
             return None
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to emit Datadog summary (compatible): {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to emit Datadog summary (compatible): {e}", exc_info=True)
             return None
 
     def _build_legacy_summary_metrics(
-        self, payload: Dict[str, Any], raw_data_path: Optional[str], teams: List[str]
-    ) -> List[Dict[str, Any]]:
+        self, payload: dict[str, Any], raw_data_path: str | None, teams: list[str]
+    ) -> list[dict[str, Any]]:
         summary_obj = payload.get("summary") or {}
-        summary: Dict[str, Any] = summary_obj if isinstance(summary_obj, dict) else {}
+        summary: dict[str, Any] = summary_obj if isinstance(summary_obj, dict) else {}
         time_period_obj = summary.get("time_period") or {}
-        time_period: Dict[str, Any] = (
-            time_period_obj if isinstance(time_period_obj, dict) else {}
-        )
+        time_period: dict[str, Any] = time_period_obj if isinstance(time_period_obj, dict) else {}
         period_start = _isoz(time_period.get("start"))
         period_end = _isoz(time_period.get("end"))
         if not period_start or not period_end:
@@ -145,13 +127,13 @@ class DatadogSummaryManager(SummaryManager):
 
         period = {"start_date": period_start, "end_date": period_end}
         base_dimensions = self._base_dimensions(summary, teams)
-        metrics: List[Dict[str, Any]] = []
+        metrics: list[dict[str, Any]] = []
         command_name = "events"
 
         advanced = payload.get("advanced_analysis")
         if isinstance(advanced, dict):
             alert_quality = advanced.get("alert_quality")
-            overall_quality: Dict[str, Any] = {}
+            overall_quality: dict[str, Any] = {}
             if isinstance(alert_quality, dict):
                 _ov = alert_quality.get("overall")
                 if isinstance(_ov, dict):
@@ -179,9 +161,7 @@ class DatadogSummaryManager(SummaryManager):
             self._append_legacy_metric(
                 metrics,
                 "datadog.events.quality.actionable_alerts_percent",
-                self._percent_value(
-                    overall_quality.get("actionable_alerts_percentage")
-                ),
+                self._percent_value(overall_quality.get("actionable_alerts_percentage")),
                 "percent",
                 period,
                 base_dimensions,
@@ -189,7 +169,7 @@ class DatadogSummaryManager(SummaryManager):
                 raw_data_path,
             )
 
-            temporal_metrics: Dict[str, Any] = {}
+            temporal_metrics: dict[str, Any] = {}
             if isinstance(advanced, dict):
                 _tm = advanced.get("temporal_metrics")
                 if isinstance(_tm, dict):
@@ -216,18 +196,14 @@ class DatadogSummaryManager(SummaryManager):
                     raw_data_path,
                 )
 
-            detailed_stats: Dict[str, Any] = {}
+            detailed_stats: dict[str, Any] = {}
             if isinstance(advanced, dict):
                 _ds = advanced.get("detailed_monitor_statistics")
                 if isinstance(_ds, dict):
                     detailed_stats = _ds
 
-            overall_insights: Dict[str, Any] = {}
-            _oi = (
-                detailed_stats.get("overall_insights")
-                if isinstance(detailed_stats, dict)
-                else None
-            )
+            overall_insights: dict[str, Any] = {}
+            _oi = detailed_stats.get("overall_insights") if isinstance(detailed_stats, dict) else None
             if isinstance(_oi, dict):
                 overall_insights = _oi
             self._append_legacy_metric(
@@ -255,14 +231,14 @@ class DatadogSummaryManager(SummaryManager):
 
     def _append_legacy_metric(
         self,
-        container: List[Dict[str, Any]],
+        container: list[dict[str, Any]],
         metric_name: str,
         value: Any,
         unit: str,
-        period: Dict[str, str],
-        dimensions: Dict[str, Any],
+        period: dict[str, str],
+        dimensions: dict[str, Any],
         source_command: str,
-        raw_data_path: Optional[str],
+        raw_data_path: str | None,
     ) -> None:
         if not _has_value(value):
             return
@@ -272,9 +248,7 @@ class DatadogSummaryManager(SummaryManager):
         except (TypeError, ValueError):
             return
 
-        cleaned_dimensions = {
-            k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()
-        }
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
         container.append(
             {
                 "metric_name": metric_name,
@@ -287,10 +261,8 @@ class DatadogSummaryManager(SummaryManager):
             }
         )
 
-    def _base_dimensions(
-        self, summary: Dict[str, Any], teams: List[str]
-    ) -> Dict[str, Any]:
-        dimensions: Dict[str, Any] = {}
+    def _base_dimensions(self, summary: dict[str, Any], teams: list[str]) -> dict[str, Any]:
+        dimensions: dict[str, Any] = {}
         env = summary.get("env") if isinstance(summary, dict) else None
         if env:
             dimensions["env"] = env
@@ -299,21 +271,15 @@ class DatadogSummaryManager(SummaryManager):
         dimensions["team"] = team_dimension or "overall"
         return dimensions
 
-    def _format_team_dimension(
-        self, summary: Dict[str, Any], teams: List[str]
-    ) -> Optional[str]:
-        candidates: List[str] = []
-        requested = (
-            summary.get("requested_teams") if isinstance(summary, dict) else None
-        )
+    def _format_team_dimension(self, summary: dict[str, Any], teams: list[str]) -> str | None:
+        candidates: list[str] = []
+        requested = summary.get("requested_teams") if isinstance(summary, dict) else None
         if isinstance(requested, list):
-            candidates.extend(
-                str(team).strip() for team in requested if str(team).strip()
-            )
+            candidates.extend(str(team).strip() for team in requested if str(team).strip())
 
         candidates.extend(str(team).strip() for team in teams if str(team).strip())
 
-        unique: List[str] = []
+        unique: list[str] = []
         seen = set()
         for team in candidates:
             if team not in seen:
@@ -324,7 +290,7 @@ class DatadogSummaryManager(SummaryManager):
             return ",".join(unique)
         return None
 
-    def _percent_value(self, value: Any) -> Optional[float]:
+    def _percent_value(self, value: Any) -> float | None:
         if not _has_value(value):
             return None
 
@@ -336,9 +302,7 @@ class DatadogSummaryManager(SummaryManager):
         scaled_value = numeric_value * 100 if numeric_value <= 1.0 else numeric_value
         return round(scaled_value, 2)
 
-    def _output_defaults(
-        self, payload: Dict[str, object], teams: List[str]
-    ) -> Tuple[str, str]:
+    def _output_defaults(self, payload: dict[str, object], teams: list[str]) -> tuple[str, str]:
         summary = payload.get("summary") or {}
         env = summary.get("env") if isinstance(summary, dict) else None
         env_label = env or "all"

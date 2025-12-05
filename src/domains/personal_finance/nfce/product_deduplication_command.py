@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""
-Product Deduplication Command - Create clean product table based on similarity analysis
-"""
+"""Product Deduplication Command - Create clean product table based on similarity analysis"""
 
 from argparse import ArgumentParser, Namespace
-from typing import Dict, List, Any
+from collections import Counter, defaultdict
 from datetime import datetime
-from collections import defaultdict, Counter
+from typing import Any
 
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
-from utils.file_manager import FileManager
 from domains.personal_finance.nfce.advanced_product_deduplication_service import (
     AdvancedProductDeduplicationService,
 )
+from utils.command.base_command import BaseCommand
+from utils.data.json_manager import JSONManager
+from utils.env_loader import ensure_env_loaded
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class ProductDeduplicationCommand(BaseCommand):
@@ -25,9 +23,7 @@ class ProductDeduplicationCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Create clean product table by merging duplicates and standardizing entries"
-        )
+        return "Create clean product table by merging duplicates and standardizing entries"
 
     @staticmethod
     def get_help() -> str:
@@ -87,9 +83,7 @@ Examples:
             help="Generate detailed mapping between original and clean products",
         )
 
-        parser.add_argument(
-            "--export-csv", action="store_true", help="Export clean table to CSV format"
-        )
+        parser.add_argument("--export-csv", action="store_true", help="Export clean table to CSV format")
 
         parser.add_argument(
             "--export-excel",
@@ -138,14 +132,10 @@ Examples:
 
                 # Export to additional formats if requested
                 if args.export_csv:
-                    advanced_service.export_to_csv(
-                        clean_results, output_path.replace(".json", ".csv")
-                    )
+                    advanced_service.export_to_csv(clean_results, output_path.replace(".json", ".csv"))
 
                 if args.export_excel:
-                    advanced_service.export_to_excel(
-                        clean_results, output_path.replace(".json", ".xlsx")
-                    )
+                    advanced_service.export_to_excel(clean_results, output_path.replace(".json", ".xlsx"))
 
                 # Print summary for advanced service
                 ProductDeduplicationCommand._print_advanced_summary(clean_results)
@@ -156,9 +146,7 @@ Examples:
                 service = ProductDeduplicationService(logger)
 
                 # Validate input file
-                if not FileManager.validate_file(
-                    args.input, allowed_extensions=[".json"]
-                ):
+                if not FileManager.validate_file(args.input, allowed_extensions=[".json"]):
                     raise ValueError(f"Invalid input file: {args.input}")
 
                 # Load similarity analysis results
@@ -175,21 +163,15 @@ Examples:
 
                 # Export to additional formats if requested
                 if args.export_csv:
-                    service.export_to_csv(
-                        clean_results, output_path.replace(".json", ".csv")
-                    )
+                    service.export_to_csv(clean_results, output_path.replace(".json", ".csv"))
 
                 if args.export_excel:
-                    service.export_to_excel(
-                        clean_results, output_path.replace(".json", ".xlsx")
-                    )
+                    service.export_to_excel(clean_results, output_path.replace(".json", ".xlsx"))
 
                 # Generate manual review list if requested
                 if args.manual_review:
                     review_path = output_path.replace(".json", "_manual_review.json")
-                    service.generate_manual_review_list(
-                        similarity_data, review_path, args.threshold
-                    )
+                    service.generate_manual_review_list(similarity_data, review_path, args.threshold)
 
                 # Print summary
                 service.print_deduplication_summary(clean_results)
@@ -207,9 +189,8 @@ Examples:
             exit(1)
 
     @staticmethod
-    def _print_advanced_summary(results: Dict[str, Any]):
+    def _print_advanced_summary(results: dict[str, Any]):
         """Print summary for advanced deduplication results"""
-
         metadata = results["metadata"]
         stats = results["statistics"]
         quality = results["quality_metrics"]
@@ -224,22 +205,14 @@ Examples:
         print("\n📊 QUALITY METRICS:")
         print(f"Overall Quality Score: {quality['overall_quality_score']:.3f}")
         print(f"Overall Confidence Score: {quality['overall_confidence_score']:.3f}")
-        print(
-            f"High Quality Products: {quality['quality_distribution']['high_quality']}"
-        )
-        print(
-            f"High Confidence Products: {quality['confidence_distribution']['high_confidence']}"
-        )
+        print(f"High Quality Products: {quality['quality_distribution']['high_quality']}")
+        print(f"High Confidence Products: {quality['confidence_distribution']['high_confidence']}")
 
         print("\n🏪 ESTABLISHMENT COVERAGE:")
         est_metrics = stats["establishment_metrics"]
         print(f"Total Establishments: {est_metrics['total_establishments']}")
-        print(
-            f"Cross-Establishment Products: {est_metrics['cross_establishment_products']}"
-        )
-        print(
-            f"Avg Establishments per Product: {est_metrics['avg_establishments_per_product']:.1f}"
-        )
+        print(f"Cross-Establishment Products: {est_metrics['cross_establishment_products']}")
+        print(f"Avg Establishments per Product: {est_metrics['avg_establishments_per_product']:.1f}")
 
         print("\n📦 CATEGORY DISTRIBUTION:")
         categories = stats["category_distribution"]
@@ -260,13 +233,12 @@ class ProductDeduplicationService:
 
     def create_clean_product_table(
         self,
-        similarity_data: Dict[str, Any],
+        similarity_data: dict[str, Any],
         threshold: float = 0.8,
         standardize_units: bool = True,
         detailed_mapping: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create clean product table from similarity analysis"""
-
         self.logger.info("Creating clean product table")
 
         # Extract products from similarity data
@@ -277,9 +249,7 @@ class ProductDeduplicationService:
             products = self._standardize_units(products)
 
         # Apply deduplication rules
-        clean_products, product_mapping = self._apply_deduplication_rules(
-            products, similarity_data, threshold
-        )
+        clean_products, product_mapping = self._apply_deduplication_rules(products, similarity_data, threshold)
 
         # Generate statistics
         stats = self._calculate_deduplication_stats(products, clean_products)
@@ -303,11 +273,8 @@ class ProductDeduplicationService:
 
         return results
 
-    def _extract_products_from_analysis(
-        self, similarity_data: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
+    def _extract_products_from_analysis(self, similarity_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract product data from similarity analysis results"""
-
         # Try to get products from similarity engine results first
         if "similarity_engine_results" in similarity_data:
             engine_results = similarity_data["similarity_engine_results"]
@@ -348,11 +315,8 @@ class ProductDeduplicationService:
 
         return products
 
-    def _standardize_units(
-        self, products: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+    def _standardize_units(self, products: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Standardize unit variations"""
-
         self.logger.info("Standardizing product units")
 
         unit_mapping = {
@@ -391,12 +355,11 @@ class ProductDeduplicationService:
 
     def _apply_deduplication_rules(
         self,
-        products: List[Dict[str, Any]],
-        similarity_data: Dict[str, Any],
+        products: list[dict[str, Any]],
+        similarity_data: dict[str, Any],
         threshold: float,
-    ) -> tuple[List[Dict[str, Any]], Dict[str, str]]:
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
         """Apply deduplication rules based on similarity analysis"""
-
         self.logger.info(f"Applying deduplication rules with threshold {threshold}")
 
         # Group products by normalized description
@@ -420,15 +383,12 @@ class ProductDeduplicationService:
 
                 # Map all original descriptions to the merged one
                 for product in group:
-                    product_mapping[product["description"]] = merged_product[
-                        "description"
-                    ]
+                    product_mapping[product["description"]] = merged_product["description"]
 
         return clean_products, product_mapping
 
     def _normalize_description(self, description: str) -> str:
         """Normalize product description for grouping"""
-
         # Basic normalization rules
         normalized = description.upper().strip()
 
@@ -442,9 +402,8 @@ class ProductDeduplicationService:
 
         return normalized
 
-    def _merge_products(self, products: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _merge_products(self, products: list[dict[str, Any]]) -> dict[str, Any]:
         """Merge multiple similar products into one clean product"""
-
         # Choose the most complete/frequent description as primary
         descriptions = [p["description"] for p in products]
         primary_description = max(descriptions, key=len)  # Longest description
@@ -469,17 +428,14 @@ class ProductDeduplicationService:
 
     def _calculate_deduplication_stats(
         self,
-        original_products: List[Dict[str, Any]],
-        clean_products: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        original_products: list[dict[str, Any]],
+        clean_products: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Calculate deduplication statistics"""
-
         original_count = len(original_products)
         clean_count = len(clean_products)
         reduction = original_count - clean_count
-        reduction_percentage = (
-            (reduction / original_count * 100) if original_count > 0 else 0
-        )
+        reduction_percentage = (reduction / original_count * 100) if original_count > 0 else 0
 
         # Count merged products
         merged_products = [p for p in clean_products if p.get("merged_from", 1) > 1]
@@ -493,9 +449,8 @@ class ProductDeduplicationService:
             "total_merges": sum(p.get("merged_from", 1) - 1 for p in merged_products),
         }
 
-    def _get_applied_rules(self) -> List[str]:
+    def _get_applied_rules(self) -> list[str]:
         """Get list of deduplication rules that were applied"""
-
         return [
             "Normalized product descriptions (case insensitive)",
             "Standardized units (UN/Un -> UN, KG/Kg/kg -> KG)",
@@ -505,9 +460,8 @@ class ProductDeduplicationService:
             "Preserved establishment information for traceability",
         ]
 
-    def export_to_csv(self, clean_results: Dict[str, Any], output_path: str):
+    def export_to_csv(self, clean_results: dict[str, Any], output_path: str):
         """Export clean products to CSV format"""
-
         import pandas as pd
 
         self.logger.info(f"Exporting to CSV: {output_path}")
@@ -532,9 +486,8 @@ class ProductDeduplicationService:
 
         self.logger.info(f"CSV export completed: {output_path}")
 
-    def export_to_excel(self, clean_results: Dict[str, Any], output_path: str):
+    def export_to_excel(self, clean_results: dict[str, Any], output_path: str):
         """Export clean products to Excel format"""
-
         import pandas as pd
 
         self.logger.info(f"Exporting to Excel: {output_path}")
@@ -566,20 +519,15 @@ class ProductDeduplicationService:
 
         self.logger.info(f"Excel export completed: {output_path}")
 
-    def generate_manual_review_list(
-        self, similarity_data: Dict[str, Any], output_path: str, threshold: float
-    ):
+    def generate_manual_review_list(self, similarity_data: dict[str, Any], output_path: str, threshold: float):
         """Generate list of products requiring manual review"""
-
         self.logger.info("Generating manual review list")
 
         review_items = []
 
         # Get similar groups that might need manual review
         if "similarity_engine_results" in similarity_data:
-            matching_results = similarity_data["similarity_engine_results"][
-                "matching_results"
-            ]
+            matching_results = similarity_data["similarity_engine_results"]["matching_results"]
 
             for group in matching_results.get("similar_groups", []):
                 avg_similarity = group.get("avg_similarity", 0)
@@ -587,9 +535,7 @@ class ProductDeduplicationService:
                     review_items.append(
                         {
                             "group_id": group.get("group_id"),
-                            "representative_product": group.get(
-                                "representative_product"
-                            ),
+                            "representative_product": group.get("representative_product"),
                             "avg_similarity": avg_similarity,
                             "size": group.get("size", 0),
                             "reason": "Similarity below threshold but above minimum",
@@ -607,9 +553,8 @@ class ProductDeduplicationService:
         JSONManager.write_json(review_results, output_path)
         self.logger.info(f"Manual review list saved to: {output_path}")
 
-    def print_deduplication_summary(self, results: Dict[str, Any]):
+    def print_deduplication_summary(self, results: dict[str, Any]):
         """Print deduplication summary to console"""
-
         metadata = results["metadata"]
         stats = results["statistics"]
 

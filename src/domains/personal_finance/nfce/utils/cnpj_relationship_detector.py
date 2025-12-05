@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""
-CNPJ Relationship Detector - Identifica filiais e empresas relacionadas
-"""
+"""CNPJ Relationship Detector - Identifica filiais e empresas relacionadas"""
 
 import re
-import requests
 import time
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from utils.logging.logging_manager import LogManager
+from typing import Any
+
+import requests
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
 
 
 @dataclass
@@ -19,9 +19,9 @@ class CompanyInfo:
     cnpj: str
     cnpj_root: str  # Primeiros 8 dígitos
     company_name: str
-    trade_name: Optional[str]
+    trade_name: str | None
     is_branch: bool
-    main_cnpj: Optional[str]  # CNPJ da matriz se for filial
+    main_cnpj: str | None  # CNPJ da matriz se for filial
     branch_number: str  # Últimos 4 dígitos antes do DV
 
 
@@ -34,7 +34,7 @@ class CNPJRelationshipDetector:
         self.rate_limit_delay = 1.0  # 1 segundo entre requests
         self.last_request_time = 0
 
-    def extract_cnpj_components(self, cnpj: str) -> Dict[str, str]:
+    def extract_cnpj_components(self, cnpj: str) -> dict[str, str]:
         """Extrai componentes do CNPJ para análise"""
         # Remove formatação
         clean_cnpj = re.sub(r"[^\d]", "", cnpj)
@@ -66,12 +66,10 @@ class CNPJRelationshipDetector:
         except ValueError:
             return False
 
-    def get_company_info_brasil_api(self, cnpj: str) -> Optional[CompanyInfo]:
+    def get_company_info_brasil_api(self, cnpj: str) -> CompanyInfo | None:
         """Consulta informações da empresa via Brasil API"""
         cache_key = f"cnpj_info_{cnpj}"
-        cached_info = self.cache.load(
-            cache_key, expiration_minutes=1440
-        )  # Cache por 24h
+        cached_info = self.cache.load(cache_key, expiration_minutes=1440)  # Cache por 24h
 
         if cached_info:
             self.logger.debug(f"Using cached CNPJ info for {cnpj}")
@@ -120,18 +118,16 @@ class CNPJRelationshipDetector:
             }
             self.cache.save(cache_key, cache_data)
 
-            self.logger.info(
-                f"Retrieved CNPJ info for {cnpj}: {company_info.company_name}"
-            )
+            self.logger.info(f"Retrieved CNPJ info for {cnpj}: {company_info.company_name}")
             return company_info
 
         except Exception as e:
             self.logger.error(f"Error fetching CNPJ info for {cnpj}: {e}")
             return None
 
-    def find_related_establishments(self, cnpj_list: List[str]) -> Dict[str, List[str]]:
+    def find_related_establishments(self, cnpj_list: list[str]) -> dict[str, list[str]]:
         """Agrupa CNPJs por empresa (mesmo root)"""
-        company_groups: Dict[str, List[str]] = {}
+        company_groups: dict[str, list[str]] = {}
 
         for cnpj in cnpj_list:
             try:
@@ -148,27 +144,20 @@ class CNPJRelationshipDetector:
                 continue
 
         # Filter out single-establishment companies
-        related_groups = {
-            root: cnpjs for root, cnpjs in company_groups.items() if len(cnpjs) > 1
-        }
+        related_groups = {root: cnpjs for root, cnpjs in company_groups.items() if len(cnpjs) > 1}
 
-        self.logger.info(
-            f"Found {len(related_groups)} companies with multiple establishments"
-        )
+        self.logger.info(f"Found {len(related_groups)} companies with multiple establishments")
         return related_groups
 
-    def analyze_establishment_relationships(
-        self, cnpj_list: List[str]
-    ) -> Dict[str, Any]:
+    def analyze_establishment_relationships(self, cnpj_list: list[str]) -> dict[str, Any]:
         """Análise completa de relacionamentos entre estabelecimentos"""
-
         self.logger.info(f"Analyzing relationships for {len(cnpj_list)} establishments")
 
         # Encontrar grupos relacionados
         related_groups = self.find_related_establishments(cnpj_list)
 
         # Obter informações detalhadas dos CNPJs relacionados
-        detailed_groups: Dict[str, Any] = {}
+        detailed_groups: dict[str, Any] = {}
         total_branches = 0
 
         for root, cnpj_group in related_groups.items():
@@ -198,9 +187,7 @@ class CNPJRelationshipDetector:
                     )
 
                     if not detailed_groups[root]["company_name"]:
-                        detailed_groups[root]["company_name"] = (
-                            company_info.company_name
-                        )
+                        detailed_groups[root]["company_name"] = company_info.company_name
 
                 detailed_groups[root]["establishments"].append(establishment_data)
 
@@ -213,7 +200,6 @@ class CNPJRelationshipDetector:
 
     def calculate_similarity_bonus(self, cnpj1: str, cnpj2: str) -> float:
         """Calcula bonus de similaridade baseado no relacionamento entre CNPJs"""
-
         if self.is_same_company_by_root(cnpj1, cnpj2):
             # Mesmo grupo empresarial = bonus alto
             return 0.15

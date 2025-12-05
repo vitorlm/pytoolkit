@@ -1,7 +1,8 @@
 from argparse import ArgumentParser, Namespace
 from datetime import datetime
-from utils.command.base_command import BaseCommand
+
 from domains.syngenta.jira.epic_monitor_service import CycleDetector
+from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 
 
@@ -18,29 +19,21 @@ class CycleInfoCommand(BaseCommand):
 
     @staticmethod
     def get_help() -> str:
-        return (
-            "This command shows current cycle information and allows "
-            "testing cycle calculations."
-        )
+        return "This command shows current cycle information and allows testing cycle calculations."
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         parser.add_argument(
             "--year-start",
             type=str,
-            help=(
-                "Override year start date (YYYY-MM-DD format). "
-                "Uses YEAR_START_DATE env var if not provided."
-            ),
+            help=("Override year start date (YYYY-MM-DD format). Uses YEAR_START_DATE env var if not provided."),
         )
         parser.add_argument(
             "--test-date",
             type=str,
             help="Test what cycle a specific date falls into (YYYY-MM-DD format)",
         )
-        parser.add_argument(
-            "--show-all", action="store_true", help="Show all cycles for the year"
-        )
+        parser.add_argument("--show-all", action="store_true", help="Show all cycles for the year")
 
     @staticmethod
     def main(args: Namespace):
@@ -112,8 +105,7 @@ class CycleInfoCommand(BaseCommand):
                         duration = (dates["end"] - dates["start"]).days + 1
                         weeks = duration / 7
                         print(
-                            f"   {cycle_name}: {dates['start']} to {dates['end']} "
-                            f"({duration} days, {weeks:.1f} weeks)"
+                            f"   {cycle_name}: {dates['start']} to {dates['end']} ({duration} days, {weeks:.1f} weeks)"
                         )
 
             # Show some example fix version tests

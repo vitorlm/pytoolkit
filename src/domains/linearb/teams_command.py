@@ -1,6 +1,4 @@
-"""
-LinearB Teams Command.
-"""
+"""LinearB Teams Command."""
 
 from argparse import ArgumentParser, Namespace
 
@@ -43,9 +41,7 @@ Examples:
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--search", type=str, help="Search term to filter teams by name"
-        )
+        parser.add_argument("--search", type=str, help="Search term to filter teams by name")
 
         parser.add_argument(
             "--page-size",
@@ -54,9 +50,7 @@ Examples:
             help="Number of teams per page (max 50, default: 50)",
         )
 
-        parser.add_argument(
-            "--offset", type=int, default=0, help="Offset for pagination (default: 0)"
-        )
+        parser.add_argument("--offset", type=int, default=0, help="Offset for pagination (default: 0)")
 
         parser.add_argument(
             "--show-details",
@@ -123,14 +117,10 @@ Examples:
             # Show pagination info
             if args.offset > 0 or len(teams_list) == args.page_size:
                 current_page = (args.offset // args.page_size) + 1
-                logger.info(
-                    f"\nPage {current_page} (offset: {args.offset}, page size: {args.page_size})"
-                )
+                logger.info(f"\nPage {current_page} (offset: {args.offset}, page size: {args.page_size})")
 
                 if len(teams_list) == args.page_size:
-                    logger.info(
-                        "There may be more teams available. Use --offset to see more."
-                    )
+                    logger.info("There may be more teams available. Use --offset to see more.")
 
             logger.info("Teams listing completed successfully")
 

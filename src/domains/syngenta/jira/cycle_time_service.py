@@ -1,5 +1,4 @@
-"""
-JIRA Cycle Time Service
+"""JIRA Cycle Time Service
 
 This service provides functionality to analyze cycle time by calculating the time taken
 for tickets to move from Started status (07) to Done status (10), excluding Archived
@@ -11,11 +10,10 @@ Enhanced with robust statistical analysis and outlier detection capabilities.
 import statistics
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
 
+from domains.syngenta.jira.cycle_time_trend_service import OutlierDetector
 from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from domains.syngenta.jira.workflow_config_service import WorkflowConfigService
-from domains.syngenta.jira.cycle_time_trend_service import OutlierDetector
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
@@ -31,13 +29,13 @@ class CycleTimeResult:
     issue_type: str
     status: str
     status_category: str
-    priority: Optional[str]
-    assignee: Optional[str]
-    team: Optional[str]
-    started_date: Optional[str]
-    done_date: Optional[str]
-    cycle_time_hours: Optional[float]  # Accumulative time in WIP statuses
-    lead_time_hours: Optional[float]  # Total time from first transition to Done
+    priority: str | None
+    assignee: str | None
+    team: str | None
+    started_date: str | None
+    done_date: str | None
+    cycle_time_hours: float | None  # Accumulative time in WIP statuses
+    lead_time_hours: float | None  # Total time from first transition to Done
     has_valid_cycle_time: bool
     has_batch_update_pattern: bool  # Indicates potential batch status updates
 
@@ -129,15 +127,14 @@ class CycleTimeService:
         self,
         project_key: str,
         time_period: str,
-        issue_types: List[str],
-        teams: Optional[List[str]] = None,
-        priorities: Optional[List[str]] = None,
+        issue_types: list[str],
+        teams: list[str] | None = None,
+        priorities: list[str] | None = None,
         verbose: bool = False,
         include_subtasks: bool = False,
-        output_file: Optional[str] = None,
-    ) -> Dict:
-        """
-        Analyze cycle time for issues that were resolved within a specified time period.
+        output_file: str | None = None,
+    ) -> dict:
+        """Analyze cycle time for issues that were resolved within a specified time period.
 
         Args:
             project_key (str): JIRA project key
@@ -323,13 +320,12 @@ class CycleTimeService:
         project_key: str,
         start_date: datetime,
         end_date: datetime,
-        issue_types: List[str],
-        teams: Optional[List[str]],
-        priorities: Optional[List[str]],
+        issue_types: list[str],
+        teams: list[str] | None,
+        priorities: list[str] | None,
         include_subtasks: bool,
     ) -> str:
         """Build JQL query for fetching issues."""
-
         # Base query
         jql_parts = [f"project = '{project_key}'"]
 
@@ -379,9 +375,8 @@ class CycleTimeService:
 
         return " AND ".join(jql_parts)
 
-    def _analyze_issue_cycle_time(self, issue: Dict, project_key: str) -> CycleTimeResult:
+    def _analyze_issue_cycle_time(self, issue: dict, project_key: str) -> CycleTimeResult:
         """Analyze cycle time for a single issue."""
-
         # Ensure cache is initialized for this project
         if self._cached_project_key != project_key:
             self._cached_project_key = project_key
@@ -434,10 +429,9 @@ class CycleTimeService:
         )
 
     def _calculate_cycle_time_from_changelog(
-        self, changelog: Dict
-    ) -> Tuple[Optional[str], Optional[str], Optional[float], Optional[float], bool]:
-        """
-        Calculate cycle time from issue changelog using sophisticated logic:
+        self, changelog: dict
+    ) -> tuple[str | None, str | None, float | None, float | None, bool]:
+        """Calculate cycle time from issue changelog using sophisticated logic:
         1. Accumulative time in WIP statuses
         2. Detection of batch updates (multiple transitions in short time)
         3. First WIP entry to final Done exit
@@ -448,7 +442,6 @@ class CycleTimeService:
         Returns:
             Tuple containing: started_date, done_date, cycle_time_hours, lead_time_hours, has_batch_pattern
         """
-
         # Collect all status transitions with timestamps
         transitions = []
         histories = changelog.get("histories", [])
@@ -576,9 +569,8 @@ class CycleTimeService:
             has_batch_pattern,
         )
 
-    def _issue_went_through_archived(self, issue: Dict, project_key: str) -> bool:
+    def _issue_went_through_archived(self, issue: dict, project_key: str) -> bool:
         """Check if an issue went through Archived status using cached config."""
-
         # Ensure cache is initialized for this project
         if self._cached_project_key != project_key:
             self._cached_project_key = project_key
@@ -609,8 +601,7 @@ class CycleTimeService:
         return any(indicator in status_lower for indicator in archived_indicators)
 
     def _parse_datetime(self, date_string: str) -> datetime:
-        """
-        Parse datetime string from JIRA, handling various timezone formats.
+        """Parse datetime string from JIRA, handling various timezone formats.
 
         Args:
             date_string (str): DateTime string from JIRA API
@@ -649,11 +640,10 @@ class CycleTimeService:
 
     def _calculate_metrics(
         self,
-        results: List[CycleTimeResult],
-        anomalies: Optional[List[CycleTimeResult]] = None,
-    ) -> Dict:
+        results: list[CycleTimeResult],
+        anomalies: list[CycleTimeResult] | None = None,
+    ) -> dict:
         """Calculate cycle time metrics."""
-
         if anomalies is None:
             anomalies = []
 
@@ -789,9 +779,8 @@ class CycleTimeService:
             },
         }
 
-    def _calculate_time_distribution(self, cycle_times: List[float]) -> Dict[str, int]:
+    def _calculate_time_distribution(self, cycle_times: list[float]) -> dict[str, int]:
         """Calculate distribution of cycle times by time ranges."""
-
         distribution = {
             "< 4 hours": 0,
             "4-8 hours": 0,
@@ -820,9 +809,8 @@ class CycleTimeService:
 
         return distribution
 
-    def _calculate_priority_breakdown(self, results: List[CycleTimeResult]) -> Dict[str, Dict]:
+    def _calculate_priority_breakdown(self, results: list[CycleTimeResult]) -> dict[str, dict]:
         """Calculate cycle time metrics grouped by priority."""
-
         priority_groups = {}
 
         # Group results by priority
@@ -876,7 +864,7 @@ class CycleTimeService:
 
         return priority_metrics
 
-    def _analyze_anomalies(self, anomalies: List[CycleTimeResult]) -> Dict:
+    def _analyze_anomalies(self, anomalies: list[CycleTimeResult]) -> dict:
         """Analyze zero cycle time anomalies and provide insights."""
         if not anomalies:
             return {
@@ -926,7 +914,7 @@ class CycleTimeService:
             "recommendations": recommendations,
         }
 
-    def _result_to_dict(self, result: CycleTimeResult) -> Dict:
+    def _result_to_dict(self, result: CycleTimeResult) -> dict:
         """Convert result to dictionary."""
         return {
             "issue_key": result.issue_key,
@@ -947,9 +935,8 @@ class CycleTimeService:
             "has_batch_update_pattern": result.has_batch_update_pattern,
         }
 
-    def _format_as_markdown(self, results: Dict) -> str:
-        """
-        Format cycle time analysis results as markdown optimized for AI consumption.
+    def _format_as_markdown(self, results: dict) -> str:
+        """Format cycle time analysis results as markdown optimized for AI consumption.
 
         Args:
             results (Dict): Analysis results containing metadata, metrics, and issues
@@ -1351,7 +1338,7 @@ class CycleTimeService:
 
         return "\n".join(md_content)
 
-    def _save_results(self, results: Dict, output_file: str):
+    def _save_results(self, results: dict, output_file: str):
         """Save results to JSON file."""
         try:
             JSONManager.write_json(results, output_file)
@@ -1362,9 +1349,9 @@ class CycleTimeService:
 
     def _print_verbose_results(
         self,
-        results: List[CycleTimeResult],
-        anomalies: List[CycleTimeResult],
-        metrics: Dict,
+        results: list[CycleTimeResult],
+        anomalies: list[CycleTimeResult],
+        metrics: dict,
     ):
         """Print verbose results to console."""
         print("\n" + "=" * 80)

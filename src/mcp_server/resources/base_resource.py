@@ -1,5 +1,4 @@
-"""
-Base Resource Handler for MCP Integration with PyToolkit.
+"""Base Resource Handler for MCP Integration with PyToolkit.
 
 This module provides the base resource handler class that all resource handlers must inherit from.
 It provides common functionality for aggregating data from multiple sources with robust error handling.
@@ -18,8 +17,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class BaseResourceHandler(ABC):
-    """
-    Base handler for MCP resources that aggregate data from multiple sources.
+    """Base handler for MCP resources that aggregate data from multiple sources.
 
     Provides:
     - Optimized cache for heavy resources
@@ -30,8 +28,7 @@ class BaseResourceHandler(ABC):
     """
 
     def __init__(self, resource_name: str):
-        """
-        Initializes base handler.
+        """Initializes base handler.
 
         Args:
             resource_name: Resource name for logging
@@ -55,11 +52,8 @@ class BaseResourceHandler(ABC):
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"resource_{self.resource_name}_{operation}_{params}"
 
-    def cached_resource_operation(
-        self, operation: str, func, expiration_minutes: int = 120, **kwargs
-    ) -> Any:
-        """
-        Executes resource operation with long cache (resources are heavier).
+    def cached_resource_operation(self, operation: str, func, expiration_minutes: int = 120, **kwargs) -> Any:
+        """Executes resource operation with long cache (resources are heavier).
 
         Args:
             operation: Operation name
@@ -70,9 +64,7 @@ class BaseResourceHandler(ABC):
         cache_key = self.get_cache_key(operation, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(
-            cache_key, expiration_minutes=expiration_minutes
-        )
+        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
         if cached_result is not None:
             self.logger.debug(f"Resource cache hit for {operation}")
             return cached_result
@@ -97,8 +89,7 @@ class BaseResourceHandler(ABC):
         data_sources: dict[str, Callable],
         required_sources: list[str] | None = None,
     ) -> dict[str, Any]:
-        """
-        Aggregates data from multiple sources with partial failure handling.
+        """Aggregates data from multiple sources with partial failure handling.
 
         Args:
             data_sources: dict with source name and function to get data
@@ -125,7 +116,7 @@ class BaseResourceHandler(ABC):
                 self.logger.debug(f"Successfully fetched data from {source_name}")
 
             except Exception as e:
-                error_msg = f"Failed to fetch data from {source_name}: {str(e)}"
+                error_msg = f"Failed to fetch data from {source_name}: {e!s}"
                 self.logger.warning(error_msg)
                 errors[source_name] = error_msg
 
@@ -140,9 +131,7 @@ class BaseResourceHandler(ABC):
 
         return aggregated_data
 
-    def format_resource_content(
-        self, data: dict[str, Any], title: str, description: str
-    ) -> str:
+    def format_resource_content(self, data: dict[str, Any], title: str, description: str) -> str:
         """Formats resource content in a standardized way."""
         formatted_content = f"""# {title}
 
@@ -158,9 +147,7 @@ class BaseResourceHandler(ABC):
         for source_name, source_data in data.get("sources", {}).items():
             formatted_content += f"\n### {source_name}\n"
             if isinstance(source_data, dict):
-                formatted_content += (
-                    f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
-                )
+                formatted_content += f"```json\n{json.dumps(source_data, indent=2)}\n```\n"
             else:
                 formatted_content += f"{source_data}\n"
 
@@ -173,8 +160,7 @@ class BaseResourceHandler(ABC):
         return formatted_content
 
     def parse_quarter_cycle(self, period: str) -> dict[str, Any]:
-        """
-        Analyzes period in format Q1-C1, Q2-C2, etc.
+        """Analyzes period in format Q1-C1, Q2-C2, etc.
 
         Args:
             period: Period in format "Q1-C1" or "current" for current period
@@ -211,14 +197,11 @@ class BaseResourceHandler(ABC):
                 "is_current": False,
             }
         except (IndexError, ValueError):
-            self.logger.warning(
-                f"Invalid period format '{period}', using current period"
-            )
+            self.logger.warning(f"Invalid period format '{period}', using current period")
             return self.parse_quarter_cycle("current")
 
     def get_period_days(self, _quarter: int, _cycle: int) -> int:
-        """
-        Returns approximate number of days for a quarter/cycle.
+        """Returns approximate number of days for a quarter/cycle.
 
         Args:
             quarter: Quarter number (1-4)
@@ -232,4 +215,6 @@ class BaseResourceHandler(ABC):
 
     def format_quarter_cycle_summary(self, period_info: dict[str, Any]) -> str:
         """Formats quarter/cycle period summary."""
-        return f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"
+        return (
+            f"**Period:** {period_info['period_code']} (Quarter {period_info['quarter']}, Cycle {period_info['cycle']})"
+        )

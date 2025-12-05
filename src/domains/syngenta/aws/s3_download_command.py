@@ -1,13 +1,13 @@
-"""
-S3 Download Command
+"""S3 Download Command
 Downloads files from AWS S3 buckets with pagination and progress tracking.
 """
 
 from argparse import ArgumentParser, Namespace
+
+from domains.syngenta.aws.s3_download_service import S3DownloadService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
-from domains.syngenta.aws.s3_download_service import S3DownloadService
 
 
 class S3DownloadCommand(BaseCommand):
@@ -142,9 +142,7 @@ The command will:
 
             # Check results
             if stats["failed"] > 0:
-                logger.warning(
-                    f"Some downloads failed: {stats['failed']} out of {stats['total_files']}"
-                )
+                logger.warning(f"Some downloads failed: {stats['failed']} out of {stats['total_files']}")
                 if stats["downloaded"] == 0:
                     logger.error("No files were successfully downloaded")
                     exit(1)
@@ -158,9 +156,7 @@ The command will:
             if "Failed to initialize S3 client" in str(e):
                 logger.error("")
                 logger.error("🔧 TROUBLESHOOTING AWS CREDENTIALS:")
-                logger.error(
-                    "1. Install AWS CLI: brew install awscli (Mac) or pip install awscli"
-                )
+                logger.error("1. Install AWS CLI: brew install awscli (Mac) or pip install awscli")
                 logger.error("2. Configure credentials: aws configure")
                 logger.error("3. Test access: aws s3 ls")
                 logger.error("4. Or set environment variables:")

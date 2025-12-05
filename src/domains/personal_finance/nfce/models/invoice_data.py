@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
@@ -9,25 +8,25 @@ class EstablishmentData:
     """Data class for establishment/business information"""
 
     cnpj: str
-    business_name: Optional[str] = None
-    trade_name: Optional[str] = None
-    address: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    state_registration: Optional[str] = None
-    phone: Optional[str] = None
-    email: Optional[str] = None
+    business_name: str | None = None
+    trade_name: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    zip_code: str | None = None
+    state_registration: str | None = None
+    phone: str | None = None
+    email: str | None = None
 
 
 @dataclass
 class ConsumerData:
     """Data class for consumer information"""
 
-    cpf: Optional[str] = None
-    name: Optional[str] = None
-    email: Optional[str] = None
-    final_consumer: Optional[str] = None  # "1 - Sim" or similar from NFCe
+    cpf: str | None = None
+    name: str | None = None
+    email: str | None = None
+    final_consumer: str | None = None  # "1 - Sim" or similar from NFCe
 
 
 @dataclass
@@ -35,36 +34,36 @@ class ProductData:
     """Data class for individual product/item information"""
 
     item_number: int
-    product_code: Optional[str] = None
-    barcode: Optional[str] = None
+    product_code: str | None = None
+    barcode: str | None = None
     description: str = ""
-    ncm_code: Optional[str] = None
-    cest_code: Optional[str] = None
-    cfop_code: Optional[str] = None
-    unit: Optional[str] = None
-    quantity: Optional[Decimal] = None
-    unit_price: Optional[Decimal] = None
-    total_amount: Optional[Decimal] = None
-    discount_amount: Optional[Decimal] = None
+    ncm_code: str | None = None
+    cest_code: str | None = None
+    cfop_code: str | None = None
+    unit: str | None = None
+    quantity: Decimal | None = None
+    unit_price: Decimal | None = None
+    total_amount: Decimal | None = None
+    discount_amount: Decimal | None = None
 
     # Tax information
-    icms_rate: Optional[Decimal] = None
-    icms_amount: Optional[Decimal] = None
-    pis_rate: Optional[Decimal] = None
-    pis_amount: Optional[Decimal] = None
-    cofins_rate: Optional[Decimal] = None
-    cofins_amount: Optional[Decimal] = None
+    icms_rate: Decimal | None = None
+    icms_amount: Decimal | None = None
+    pis_rate: Decimal | None = None
+    pis_amount: Decimal | None = None
+    cofins_rate: Decimal | None = None
+    cofins_amount: Decimal | None = None
 
 
 @dataclass
 class TaxData:
     """Data class for tax information"""
 
-    total_taxes: Optional[Decimal] = None
-    icms_total: Optional[Decimal] = None
-    pis_total: Optional[Decimal] = None
-    cofins_total: Optional[Decimal] = None
-    other_taxes: Optional[Decimal] = None
+    total_taxes: Decimal | None = None
+    icms_total: Decimal | None = None
+    pis_total: Decimal | None = None
+    cofins_total: Decimal | None = None
+    other_taxes: Decimal | None = None
 
 
 @dataclass
@@ -75,29 +74,29 @@ class InvoiceData:
     access_key: str
     invoice_number: str
     series: str
-    issue_date: Optional[datetime] = None
-    authorization_date: Optional[datetime] = None
+    issue_date: datetime | None = None
+    authorization_date: datetime | None = None
 
     # Financial information
-    total_amount: Optional[Decimal] = None
-    discount_amount: Optional[Decimal] = None
-    products_amount: Optional[Decimal] = None
+    total_amount: Decimal | None = None
+    discount_amount: Decimal | None = None
+    products_amount: Decimal | None = None
 
     # Status and environment
-    status: Optional[str] = None
+    status: str | None = None
     environment: str = "2"  # Default to homologation
 
     # Related data
-    establishment: Optional[EstablishmentData] = None
-    consumer: Optional[ConsumerData] = None
-    items: List[ProductData] = None
-    taxes: Optional[TaxData] = None
+    establishment: EstablishmentData | None = None
+    consumer: ConsumerData | None = None
+    items: list[ProductData] = None
+    taxes: TaxData | None = None
 
     # Metadata
     source_url: str = ""
-    scraped_at: Optional[datetime] = None
+    scraped_at: datetime | None = None
     scraping_success: bool = False
-    scraping_errors: Optional[List[str]] = None
+    scraping_errors: list[str] | None = None
 
     def __post_init__(self):
         if self.items is None:
@@ -127,9 +126,7 @@ class InvoiceData:
     @property
     def has_consumer_info(self) -> bool:
         """Check if consumer information is available"""
-        return self.consumer is not None and (
-            self.consumer.cpf is not None or self.consumer.name is not None
-        )
+        return self.consumer is not None and (self.consumer.cpf is not None or self.consumer.name is not None)
 
     def add_item(self, item: ProductData) -> None:
         """Add a product item to the invoice"""
@@ -151,16 +148,10 @@ class InvoiceData:
             "series": self.series,
             "full_invoice_number": self.full_invoice_number,
             "issue_date": self.issue_date.isoformat() if self.issue_date else None,
-            "authorization_date": self.authorization_date.isoformat()
-            if self.authorization_date
-            else None,
+            "authorization_date": self.authorization_date.isoformat() if self.authorization_date else None,
             "total_amount": float(self.total_amount) if self.total_amount else None,
-            "discount_amount": float(self.discount_amount)
-            if self.discount_amount
-            else None,
-            "products_amount": float(self.products_amount)
-            if self.products_amount
-            else None,
+            "discount_amount": float(self.discount_amount) if self.discount_amount else None,
+            "products_amount": float(self.products_amount) if self.products_amount else None,
             "status": self.status,
             "environment": self.environment,
             "establishment": self._establishment_to_dict(),
@@ -175,7 +166,7 @@ class InvoiceData:
             "scraping_errors": self.scraping_errors or [],
         }
 
-    def _establishment_to_dict(self) -> Optional[dict]:
+    def _establishment_to_dict(self) -> dict | None:
         """Convert establishment to dict"""
         if not self.establishment:
             return None
@@ -193,7 +184,7 @@ class InvoiceData:
             "email": self.establishment.email,
         }
 
-    def _consumer_to_dict(self) -> Optional[dict]:
+    def _consumer_to_dict(self) -> dict | None:
         """Convert consumer to dict"""
         if not self.consumer:
             return None
@@ -218,9 +209,7 @@ class InvoiceData:
             "quantity": float(item.quantity) if item.quantity else None,
             "unit_price": float(item.unit_price) if item.unit_price else None,
             "total_amount": float(item.total_amount) if item.total_amount else None,
-            "discount_amount": float(item.discount_amount)
-            if item.discount_amount
-            else None,
+            "discount_amount": float(item.discount_amount) if item.discount_amount else None,
             "icms_rate": float(item.icms_rate) if item.icms_rate else None,
             "icms_amount": float(item.icms_amount) if item.icms_amount else None,
             "pis_rate": float(item.pis_rate) if item.pis_rate else None,
@@ -229,24 +218,16 @@ class InvoiceData:
             "cofins_amount": float(item.cofins_amount) if item.cofins_amount else None,
         }
 
-    def _taxes_to_dict(self) -> Optional[dict]:
+    def _taxes_to_dict(self) -> dict | None:
         """Convert taxes to dict"""
         if not self.taxes:
             return None
         return {
-            "total_taxes": float(self.taxes.total_taxes)
-            if self.taxes.total_taxes
-            else None,
-            "icms_total": float(self.taxes.icms_total)
-            if self.taxes.icms_total
-            else None,
+            "total_taxes": float(self.taxes.total_taxes) if self.taxes.total_taxes else None,
+            "icms_total": float(self.taxes.icms_total) if self.taxes.icms_total else None,
             "pis_total": float(self.taxes.pis_total) if self.taxes.pis_total else None,
-            "cofins_total": float(self.taxes.cofins_total)
-            if self.taxes.cofins_total
-            else None,
-            "other_taxes": float(self.taxes.other_taxes)
-            if self.taxes.other_taxes
-            else None,
+            "cofins_total": float(self.taxes.cofins_total) if self.taxes.cofins_total else None,
+            "other_taxes": float(self.taxes.other_taxes) if self.taxes.other_taxes else None,
         }
 
 
@@ -256,9 +237,9 @@ class ScrapingResult:
 
     url: str
     success: bool
-    invoice_data: Optional[InvoiceData] = None
-    error_message: Optional[str] = None
-    processing_time_ms: Optional[int] = None
+    invoice_data: InvoiceData | None = None
+    error_message: str | None = None
+    processing_time_ms: int | None = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""

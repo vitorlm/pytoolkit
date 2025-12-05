@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-"""
-Enhanced NFCe Service - Integrates hybrid similarity detection with NFCe processing
-"""
+"""Enhanced NFCe Service - Integrates hybrid similarity detection with NFCe processing"""
 
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
+from domains.personal_finance.nfce.database.enhanced_nfce_database_manager import (
+    EnhancedNFCeDatabaseManager,
+)
 from domains.personal_finance.nfce.nfce_processor_service import NFCeService
 from domains.personal_finance.nfce.similarity.enhanced_similarity_calculator import (
     EnhancedSimilarityCalculator,
 )
 from domains.personal_finance.nfce.similarity.feature_extractor import FeatureExtractor
-from domains.personal_finance.nfce.database.enhanced_nfce_database_manager import (
-    EnhancedNFCeDatabaseManager,
-)
+from utils.logging.logging_manager import LogManager
 
 
 class EnhancedNFCeService(NFCeService):
@@ -26,15 +24,13 @@ class EnhancedNFCeService(NFCeService):
         use_sbert: bool = False,
         sbert_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
     ):
-        """
-        Initialize enhanced NFCe service
+        """Initialize enhanced NFCe service
 
         Args:
             similarity_threshold: Threshold for product similarity matching
             use_sbert: Whether to use SBERT embeddings for enhanced similarity
             sbert_model: SBERT model name for Portuguese embeddings
         """
-
         super().__init__()
         self.logger = LogManager.get_instance().get_logger("EnhancedNFCeService")
 
@@ -76,14 +72,13 @@ class EnhancedNFCeService(NFCeService):
 
     def process_urls_with_similarity(
         self,
-        urls: List[str],
+        urls: list[str],
         batch_size: int = 10,
         timeout: int = 30,
         force_refresh: bool = False,
         detect_similar: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Process URLs and detect similar products across establishments
+    ) -> dict[str, Any]:
+        """Process URLs and detect similar products across establishments
 
         Args:
             urls: List of NFCe URLs to process
@@ -95,10 +90,7 @@ class EnhancedNFCeService(NFCeService):
         Returns:
             Enhanced results with similarity analysis
         """
-
-        self.logger.info(
-            f"Processing {len(urls)} URLs with enhanced similarity detection"
-        )
+        self.logger.info(f"Processing {len(urls)} URLs with enhanced similarity detection")
 
         # Process URLs directly using the batch processing logic
         results = self._process_urls_batch(
@@ -109,11 +101,7 @@ class EnhancedNFCeService(NFCeService):
         )
 
         # Add similarity analysis if enabled
-        if (
-            detect_similar
-            and self.similarity_enabled
-            and results.get("successful", 0) > 0
-        ):
+        if detect_similar and self.similarity_enabled and results.get("successful", 0) > 0:
             self.logger.info("Starting similarity analysis...")
             similarity_results = self._analyze_product_similarity(results["invoices"])
             results["similarity_analysis"] = similarity_results
@@ -122,9 +110,8 @@ class EnhancedNFCeService(NFCeService):
 
     def process_import_data_with_similarity(
         self, import_file: str, save_to_db: bool = False, detect_similar: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Import existing NFCe data and perform similarity analysis
+    ) -> dict[str, Any]:
+        """Import existing NFCe data and perform similarity analysis
 
         Args:
             import_file: JSON file with processed NFCe data
@@ -134,10 +121,7 @@ class EnhancedNFCeService(NFCeService):
         Returns:
             Results with similarity analysis
         """
-
-        self.logger.info(
-            f"Importing NFCe data with similarity analysis from: {import_file}"
-        )
+        self.logger.info(f"Importing NFCe data with similarity analysis from: {import_file}")
 
         # Import data using parent method
         results = self.import_existing_data(import_file)
@@ -149,22 +133,15 @@ class EnhancedNFCeService(NFCeService):
             return {"error": f"Invalid results type: {type(results)}"}
 
         # Add similarity analysis if enabled
-        if (
-            detect_similar
-            and self.similarity_enabled
-            and results.get("successful", 0) > 0
-        ):
+        if detect_similar and self.similarity_enabled and results.get("successful", 0) > 0:
             self.logger.info("Starting similarity analysis on imported data...")
             similarity_results = self._analyze_product_similarity(results["invoices"])
             results["similarity_analysis"] = similarity_results
 
         return results
 
-    def _analyze_product_similarity(
-        self, invoices: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
-        """
-        Analyze product similarity across all invoices
+    def _analyze_product_similarity(self, invoices: list[dict[str, Any]]) -> dict[str, Any]:
+        """Analyze product similarity across all invoices
 
         Args:
             invoices: List of processed invoice data
@@ -172,7 +149,6 @@ class EnhancedNFCeService(NFCeService):
         Returns:
             Similarity analysis results
         """
-
         if not self.similarity_enabled:
             return {"error": "Similarity detection not available"}
 
@@ -182,9 +158,7 @@ class EnhancedNFCeService(NFCeService):
             product_sources = []  # Track which invoice/establishment each product came from
 
             for invoice in invoices:
-                establishment_name = invoice.get("establishment", {}).get(
-                    "business_name", "Unknown"
-                )
+                establishment_name = invoice.get("establishment", {}).get("business_name", "Unknown")
                 cnpj = invoice.get("establishment", {}).get("cnpj", "Unknown")
                 invoice_number = invoice.get("invoice_number", "Unknown")
 
@@ -204,9 +178,7 @@ class EnhancedNFCeService(NFCeService):
                             }
                         )
 
-            self.logger.info(
-                f"Analyzing similarity for {len(all_products)} products from {len(invoices)} invoices"
-            )
+            self.logger.info(f"Analyzing similarity for {len(all_products)} products from {len(invoices)} invoices")
 
             if len(all_products) < 2:
                 return {
@@ -222,9 +194,7 @@ class EnhancedNFCeService(NFCeService):
                     features = self.feature_extractor.extract(product)
                     features_list.append(features)
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to extract features for '{product}': {e}"
-                    )
+                    self.logger.warning(f"Failed to extract features for '{product}': {e}")
                     features_list.append(None)
 
             # Find similar products
@@ -234,14 +204,10 @@ class EnhancedNFCeService(NFCeService):
             )
 
             # Group similar products
-            similar_groups = self._group_similar_products(
-                similar_pairs, all_products, product_sources
-            )
+            similar_groups = self._group_similar_products(similar_pairs, all_products, product_sources)
 
             # Generate statistics
-            stats = self._generate_similarity_stats(
-                similar_groups, all_products, invoices
-            )
+            stats = self._generate_similarity_stats(similar_groups, all_products, invoices)
 
             return {
                 "total_products": len(all_products),
@@ -254,16 +220,15 @@ class EnhancedNFCeService(NFCeService):
 
         except Exception as e:
             self.logger.error(f"Error in similarity analysis: {e}")
-            return {"error": f"Similarity analysis failed: {str(e)}"}
+            return {"error": f"Similarity analysis failed: {e!s}"}
 
     def _group_similar_products(
         self,
-        similar_pairs: List[Any],
-        all_products: List[str],
-        product_sources: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        similar_pairs: list[Any],
+        all_products: list[str],
+        product_sources: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """Group similar products into clusters"""
-
         groups = []
         processed_indices = set()
 
@@ -296,9 +261,7 @@ class EnhancedNFCeService(NFCeService):
                     "quantity_matches": getattr(pair, "quantity_matches", []),
                     "explanation": getattr(pair, "explanation", ""),
                     "embedding_similarity": getattr(pair, "embedding_similarity", 0.0),
-                    "token_rule_similarity": getattr(
-                        pair, "token_rule_similarity", 0.0
-                    ),
+                    "token_rule_similarity": getattr(pair, "token_rule_similarity", 0.0),
                 },
             }
 
@@ -313,12 +276,11 @@ class EnhancedNFCeService(NFCeService):
 
     def _generate_similarity_stats(
         self,
-        similar_groups: List[Dict[str, Any]],
-        all_products: List[str],
-        invoices: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        similar_groups: list[dict[str, Any]],
+        all_products: list[str],
+        invoices: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         """Generate similarity analysis statistics"""
-
         total_similar_products = sum(len(group["products"]) for group in similar_groups)
         unique_establishments = set()
 
@@ -334,35 +296,24 @@ class EnhancedNFCeService(NFCeService):
             if len(prices) > 1:
                 min_price = min(prices)
                 max_price = max(prices)
-                variation = (
-                    ((max_price - min_price) / min_price) * 100 if min_price > 0 else 0
-                )
+                variation = ((max_price - min_price) / min_price) * 100 if min_price > 0 else 0
                 price_variations.append(variation)
 
-        avg_price_variation = (
-            sum(price_variations) / len(price_variations) if price_variations else 0
-        )
+        avg_price_variation = sum(price_variations) / len(price_variations) if price_variations else 0
 
         return {
             "total_similar_groups": len(similar_groups),
             "total_similar_products": total_similar_products,
-            "similarity_rate": (total_similar_products / len(all_products)) * 100
-            if all_products
-            else 0,
+            "similarity_rate": (total_similar_products / len(all_products)) * 100 if all_products else 0,
             "unique_establishments": len(unique_establishments),
             "average_price_variation": round(avg_price_variation, 2),
             "max_price_variation": max(price_variations) if price_variations else 0,
             "groups_with_price_variation": len(price_variations),
-            "high_confidence_groups": len(
-                [g for g in similar_groups if g.get("confidence_score", 0) > 0.8]
-            ),
+            "high_confidence_groups": len([g for g in similar_groups if g.get("confidence_score", 0) > 0.8]),
         }
 
-    def generate_similarity_report(
-        self, results: Dict[str, Any], output_file: Optional[str] = None
-    ) -> str:
+    def generate_similarity_report(self, results: dict[str, Any], output_file: str | None = None) -> str:
         """Generate detailed similarity analysis report"""
-
         if "similarity_analysis" not in results:
             return "No similarity analysis data available"
 
@@ -395,9 +346,7 @@ class EnhancedNFCeService(NFCeService):
         ]
 
         # Add detailed group information
-        for i, group in enumerate(
-            analysis.get("similar_groups", [])[:10], 1
-        ):  # Show top 10
+        for i, group in enumerate(analysis.get("similar_groups", [])[:10], 1):  # Show top 10
             report_lines.extend(
                 [
                     "",
@@ -413,21 +362,13 @@ class EnhancedNFCeService(NFCeService):
                     if len(product["establishment_name"]) > 30
                     else product["establishment_name"]
                 )
-                report_lines.append(
-                    f"{j}. {product['description']} | "
-                    f"R$ {product['unit_price']:.2f} | "
-                    f"{establishment}"
-                )
+                report_lines.append(f"{j}. {product['description']} | R$ {product['unit_price']:.2f} | {establishment}")
 
             analysis_info = group.get("analysis", {})
             if analysis_info.get("brazilian_tokens"):
-                report_lines.append(
-                    f"   🇧🇷 Padrões BR: {', '.join(analysis_info['brazilian_tokens'][:3])}"
-                )
+                report_lines.append(f"   🇧🇷 Padrões BR: {', '.join(analysis_info['brazilian_tokens'][:3])}")
             if analysis_info.get("quantity_matches"):
-                report_lines.append(
-                    f"   📏 Quantidades: {', '.join(analysis_info['quantity_matches'])}"
-                )
+                report_lines.append(f"   📏 Quantidades: {', '.join(analysis_info['quantity_matches'])}")
             if analysis_info.get("explanation"):
                 report_lines.append(f"   💬 {analysis_info['explanation']}")
 
@@ -444,13 +385,10 @@ class EnhancedNFCeService(NFCeService):
 
         return report_content
 
-    def save_to_database_with_generic_products(self, results: Dict[str, Any]) -> bool:
+    def save_to_database_with_generic_products(self, results: dict[str, Any]) -> bool:
         """Save results to database using enhanced database manager with generic products"""
-
         try:
-            self.logger.info(
-                "Saving results to database with generic product management"
-            )
+            self.logger.info("Saving results to database with generic product management")
 
             invoices = results.get("invoices", [])
             self.logger.info(f"Found {len(invoices)} invoices to save")
@@ -465,14 +403,10 @@ class EnhancedNFCeService(NFCeService):
 
             for i, invoice_dict in enumerate(invoices):
                 try:
-                    self.logger.debug(
-                        f"Processing invoice {i + 1}/{len(invoices)}: type={type(invoice_dict)}"
-                    )
+                    self.logger.debug(f"Processing invoice {i + 1}/{len(invoices)}: type={type(invoice_dict)}")
 
                     if not isinstance(invoice_dict, dict):
-                        self.logger.error(
-                            f"Invoice {i + 1} is not a dict: {type(invoice_dict)}"
-                        )
+                        self.logger.error(f"Invoice {i + 1} is not a dict: {type(invoice_dict)}")
                         failed_count += 1
                         continue
 
@@ -480,9 +414,7 @@ class EnhancedNFCeService(NFCeService):
                     try:
                         invoice_data = self._dict_to_invoice_data(invoice_dict)
                     except Exception as convert_error:
-                        self.logger.error(
-                            f"Error converting invoice {i + 1} to InvoiceData: {convert_error}"
-                        )
+                        self.logger.error(f"Error converting invoice {i + 1} to InvoiceData: {convert_error}")
                         failed_count += 1
                         continue
 
@@ -495,20 +427,14 @@ class EnhancedNFCeService(NFCeService):
                         failed_count += 1
 
                 except Exception as e:
-                    self.logger.error(
-                        f"Error saving invoice {invoice_dict.get('access_key', 'unknown')}: {e}"
-                    )
+                    self.logger.error(f"Error saving invoice {invoice_dict.get('access_key', 'unknown')}: {e}")
                     failed_count += 1
 
             # Get processing statistics
             stats = self.enhanced_db_manager.get_statistics()
 
-            self.logger.info(
-                f"Database save completed: {saved_count} saved, {failed_count} failed"
-            )
-            self.logger.info(
-                f"Generic products created: {stats['generic_products_created']}"
-            )
+            self.logger.info(f"Database save completed: {saved_count} saved, {failed_count} failed")
+            self.logger.info(f"Generic products created: {stats['generic_products_created']}")
             self.logger.info(f"Similarity matches: {stats['similarity_matches']}")
             self.logger.info(f"Exact matches: {stats['exact_matches']}")
 
@@ -518,17 +444,17 @@ class EnhancedNFCeService(NFCeService):
             self.logger.error(f"Error saving to database with generic products: {e}")
             return False
 
-    def _dict_to_invoice_data(self, invoice_dict: Dict[str, Any]):
+    def _dict_to_invoice_data(self, invoice_dict: dict[str, Any]):
         """Convert dictionary back to InvoiceData object"""
+        from decimal import Decimal
 
         from domains.personal_finance.nfce.models.invoice_data import (
-            InvoiceData,
-            EstablishmentData,
-            ProductData,
             ConsumerData,
+            EstablishmentData,
+            InvoiceData,
+            ProductData,
             TaxData,
         )
-        from decimal import Decimal
 
         # Convert establishment
         est_dict = invoice_dict.get("establishment", {})
@@ -560,7 +486,7 @@ class EnhancedNFCeService(NFCeService):
 
         # Convert consumer (optional)
         consumer = None
-        if "consumer" in invoice_dict and invoice_dict["consumer"]:
+        if invoice_dict.get("consumer"):
             cons_dict = invoice_dict["consumer"]
             consumer = ConsumerData(
                 name=cons_dict.get("name", ""),
@@ -570,7 +496,7 @@ class EnhancedNFCeService(NFCeService):
 
         # Convert tax data (optional)
         tax_data = None
-        if "tax_data" in invoice_dict and invoice_dict["tax_data"]:
+        if invoice_dict.get("tax_data"):
             tax_dict = invoice_dict["tax_data"]
             tax_data = TaxData(
                 icms_total=Decimal(str(tax_dict.get("icms_total", 0))),
@@ -583,9 +509,7 @@ class EnhancedNFCeService(NFCeService):
             access_key=invoice_dict.get("access_key", ""),
             invoice_number=invoice_dict.get("invoice_number", ""),
             series=invoice_dict.get("series", ""),
-            issue_date=datetime.fromisoformat(
-                invoice_dict["issue_date"].replace("Z", "+00:00")
-            )
+            issue_date=datetime.fromisoformat(invoice_dict["issue_date"].replace("Z", "+00:00"))
             if invoice_dict.get("issue_date")
             else None,
             total_amount=Decimal(str(invoice_dict.get("total_amount", 0))),

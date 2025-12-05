@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from .trend_analyzer import TrendDirection
 
@@ -15,8 +15,8 @@ class EnhancedReportRenderer:
         self.datadog_base_url = f"https://app.{datadog_site}"
 
     def render_enhanced_analysis_section(
-        self, enhanced_quality: Dict[str, Any], recommendations: Dict[str, Any]
-    ) -> List[str]:
+        self, enhanced_quality: dict[str, Any], recommendations: dict[str, Any]
+    ) -> list[str]:
         """Render enhanced analysis section with classification results."""
         lines = []
 
@@ -38,31 +38,17 @@ class EnhancedReportRenderer:
             lines.append("#### Alert Cycle Classification")
             lines.append("")
             lines.append(f"- **Total Cycles Analyzed**: {total}")
-            lines.append(
-                f"- **🔄 Flapping Cycles**: {flapping} ({flapping / max(total, 1) * 100:.1f}%)"
-            )
-            lines.append(
-                "  - *Rapid state oscillations indicating threshold or system issues*"
-            )
-            lines.append(
-                f"- **⚡ Benign Transient Cycles**: {benign} ({benign / max(total, 1) * 100:.1f}%)"
-            )
-            lines.append(
-                "  - *Short-lived, self-resolving issues requiring no human action*"
-            )
-            lines.append(
-                f"- **🎯 Actionable Cycles**: {actionable} ({actionable / max(total, 1) * 100:.1f}%)"
-            )
-            lines.append(
-                "  - *Legitimate alerts requiring or benefiting from human intervention*"
-            )
+            lines.append(f"- **🔄 Flapping Cycles**: {flapping} ({flapping / max(total, 1) * 100:.1f}%)")
+            lines.append("  - *Rapid state oscillations indicating threshold or system issues*")
+            lines.append(f"- **⚡ Benign Transient Cycles**: {benign} ({benign / max(total, 1) * 100:.1f}%)")
+            lines.append("  - *Short-lived, self-resolving issues requiring no human action*")
+            lines.append(f"- **🎯 Actionable Cycles**: {actionable} ({actionable / max(total, 1) * 100:.1f}%)")
+            lines.append("  - *Legitimate alerts requiring or benefiting from human intervention*")
             lines.append("")
 
             # Confidence in classifications
             avg_confidence = classification_summary.get("avg_confidence", 0.0)
-            lines.append(
-                f"- **Average Classification Confidence**: {avg_confidence:.1%}"
-            )
+            lines.append(f"- **Average Classification Confidence**: {avg_confidence:.1%}")
             if avg_confidence >= 0.8:
                 lines.append("  - 🟢 *High confidence - classifications are reliable*")
             elif avg_confidence >= 0.6:
@@ -76,9 +62,7 @@ class EnhancedReportRenderer:
 
         return lines
 
-    def _add_recommendations_section(
-        self, lines: List[str], recommendations: Dict[str, Any]
-    ) -> None:
+    def _add_recommendations_section(self, lines: list[str], recommendations: dict[str, Any]) -> None:
         """Add recommendations sections."""
         lines.append("#### 🎯 Actionable Recommendations")
         lines.append("")
@@ -106,13 +90,9 @@ class EnhancedReportRenderer:
                 details = rec.get("details", {})
                 if details:
                     if "suggested_debounce_seconds" in details:
-                        lines.append(
-                            f"  - *Suggested Debounce*: {details['suggested_debounce_seconds']:.0f} seconds"
-                        )
+                        lines.append(f"  - *Suggested Debounce*: {details['suggested_debounce_seconds']:.0f} seconds")
                     if details.get("suggested_hysteresis"):
-                        lines.append(
-                            "  - *Consider Hysteresis*: Use separate up/down thresholds"
-                        )
+                        lines.append("  - *Consider Hysteresis*: Use separate up/down thresholds")
 
             lines.append("")
 
@@ -138,9 +118,7 @@ class EnhancedReportRenderer:
                 # Add specific policy suggestions
                 details = rec.get("details", {})
                 if details.get("consider_dashboard_only"):
-                    lines.append(
-                        "  - *Notification Change*: Route to dashboard instead of alerting"
-                    )
+                    lines.append("  - *Notification Change*: Route to dashboard instead of alerting")
                 if "suggested_notification_level" in details:
                     lines.append(
                         f"  - *Severity Adjustment*: Change to '{details['suggested_notification_level']}' level"
@@ -152,35 +130,21 @@ class EnhancedReportRenderer:
         lines.append("##### 📋 Implementation Guidelines")
         lines.append("")
         lines.append("**For Flapping Monitors:**")
-        lines.append(
-            "1. **Increase Debounce Window**: Add `evaluation_delay` to prevent rapid state changes"
-        )
+        lines.append("1. **Increase Debounce Window**: Add `evaluation_delay` to prevent rapid state changes")
         lines.append(
             "2. **Implement Hysteresis**: Use different thresholds for alert/recovery (e.g., alert at 90%, recover at 85%)"
         )
-        lines.append(
-            "3. **Consider Composite Monitors**: Combine multiple conditions to reduce noise"
-        )
-        lines.append(
-            "4. **Window-Based Evaluation**: Use percentage of time over threshold rather than instant values"
-        )
+        lines.append("3. **Consider Composite Monitors**: Combine multiple conditions to reduce noise")
+        lines.append("4. **Window-Based Evaluation**: Use percentage of time over threshold rather than instant values")
         lines.append("")
         lines.append("**For Benign Transients:**")
-        lines.append(
-            "1. **Adjust Notification Routing**: Send to dashboards instead of paging teams"
-        )
-        lines.append(
-            "2. **Increase Alert Duration Threshold**: Require sustained conditions before alerting"
-        )
-        lines.append(
-            "3. **Add Context**: Include automatic remediation hints in alert descriptions"
-        )
-        lines.append(
-            "4. **Consider SLO-Based Alerts**: Focus on user-impacting issues rather than transient blips"
-        )
+        lines.append("1. **Adjust Notification Routing**: Send to dashboards instead of paging teams")
+        lines.append("2. **Increase Alert Duration Threshold**: Require sustained conditions before alerting")
+        lines.append("3. **Add Context**: Include automatic remediation hints in alert descriptions")
+        lines.append("4. **Consider SLO-Based Alerts**: Focus on user-impacting issues rather than transient blips")
         lines.append("")
 
-    def render_trend_analysis_section(self, trends: Dict[str, Any]) -> List[str]:
+    def render_trend_analysis_section(self, trends: dict[str, Any]) -> list[str]:
         """Render temporal trend analysis section."""
         lines = []
 
@@ -189,9 +153,7 @@ class EnhancedReportRenderer:
 
         lines.append("### 📈 Temporal Trend Analysis")
         lines.append("")
-        lines.append(
-            "**Week-over-week analysis reveals monitoring system health trends:**"
-        )
+        lines.append("**Week-over-week analysis reveals monitoring system health trends:**")
         lines.append("")
 
         # Overall trend summary
@@ -217,15 +179,9 @@ class EnhancedReportRenderer:
             if total_monitors > 0:
                 lines.append("**Monitor Trend Distribution:**")
                 lines.append("")
-                lines.append(
-                    f"- 🟢 **Improving**: {improving} monitors ({improving / total_monitors * 100:.1f}%)"
-                )
-                lines.append(
-                    f"- 🔴 **Degrading**: {degrading} monitors ({degrading / total_monitors * 100:.1f}%)"
-                )
-                lines.append(
-                    f"- ⚪ **Stable**: {stable} monitors ({stable / total_monitors * 100:.1f}%)"
-                )
+                lines.append(f"- 🟢 **Improving**: {improving} monitors ({improving / total_monitors * 100:.1f}%)")
+                lines.append(f"- 🔴 **Degrading**: {degrading} monitors ({degrading / total_monitors * 100:.1f}%)")
+                lines.append(f"- ⚪ **Stable**: {stable} monitors ({stable / total_monitors * 100:.1f}%)")
                 if insufficient > 0:
                     lines.append(
                         f"- ⚫ **Insufficient Data**: {insufficient} monitors ({insufficient / total_monitors * 100:.1f}%)"
@@ -268,9 +224,7 @@ class EnhancedReportRenderer:
             lines.append("|---------|-----------|------------|-------------|")
 
             # Sort by trend confidence and show top examples
-            sorted_monitors = sorted(
-                per_monitor.items(), key=lambda x: x[1].trend_confidence, reverse=True
-            )
+            sorted_monitors = sorted(per_monitor.items(), key=lambda x: x[1].trend_confidence, reverse=True)
 
             for monitor_id, trend_data in sorted_monitors[:5]:  # Top 5
                 monitor_name = trend_data.monitor_name or monitor_id
@@ -287,33 +241,21 @@ class EnhancedReportRenderer:
 
                 # Get key notable changes
                 notable_changes = trend_data.notable_changes
-                changes_text = (
-                    "; ".join(notable_changes[:2])
-                    if notable_changes
-                    else "No significant changes"
-                )
+                changes_text = "; ".join(notable_changes[:2]) if notable_changes else "No significant changes"
                 if len(changes_text) > 50:
                     changes_text = changes_text[:47] + "..."
 
-                monitor_link = self._create_monitor_link(
-                    monitor_name, monitor_id, max_length=25
-                )
+                monitor_link = self._create_monitor_link(monitor_name, monitor_id, max_length=25)
 
-                lines.append(
-                    f"| {monitor_link} | {direction_emoji} {direction} | {confidence:.2f} | {changes_text} |"
-                )
+                lines.append(f"| {monitor_link} | {direction_emoji} {direction} | {confidence:.2f} | {changes_text} |")
 
             lines.append("")
-            lines.append(
-                "💡 **Tip**: Focus on monitors with high confidence trends (>0.7) for actionable insights."
-            )
+            lines.append("💡 **Tip**: Focus on monitors with high confidence trends (>0.7) for actionable insights.")
             lines.append("")
 
         return lines
 
-    def render_informational_policy_section(
-        self, enhanced_quality: Dict[str, Any]
-    ) -> List[str]:
+    def render_informational_policy_section(self, enhanced_quality: dict[str, Any]) -> list[str]:
         """Render informational-only policy recommendations section."""
         lines = []
 
@@ -344,9 +286,7 @@ class EnhancedReportRenderer:
                         "benign_rate": benign_rate,
                         "confidence": confidence,
                         "total_cycles": total_cycles,
-                        "business_hours_pct": metrics.get(
-                            "business_hours_percentage", 0
-                        ),
+                        "business_hours_pct": metrics.get("business_hours_percentage", 0),
                     }
                 )
 
@@ -356,12 +296,8 @@ class EnhancedReportRenderer:
         if informational_candidates:
             lines.append("#### Candidates for Informational-Only Classification")
             lines.append("")
-            lines.append(
-                "| Monitor | Benign Rate | Confidence | Business Hours Impact | Recommendation |"
-            )
-            lines.append(
-                "|---------|-------------|------------|----------------------|----------------|"
-            )
+            lines.append("| Monitor | Benign Rate | Confidence | Business Hours Impact | Recommendation |")
+            lines.append("|---------|-------------|------------|----------------------|----------------|")
 
             for candidate in informational_candidates[:10]:  # Top 10
                 monitor_name = candidate.get("monitor_name", "Unknown")
@@ -370,9 +306,7 @@ class EnhancedReportRenderer:
                 confidence = candidate["confidence"]
                 bh_pct = candidate["business_hours_pct"]
 
-                monitor_link = self._create_monitor_link(
-                    monitor_name, monitor_id, max_length=30
-                )
+                monitor_link = self._create_monitor_link(monitor_name, monitor_id, max_length=30)
 
                 # Determine recommendation based on business hours impact
                 if bh_pct > 50:
@@ -387,35 +321,21 @@ class EnhancedReportRenderer:
             lines.append("")
             lines.append("**Policy Change Guidelines:**")
             lines.append("")
-            lines.append(
-                "- **Dashboard Only**: For monitors with <50% business hours impact"
-            )
-            lines.append(
-                "- **Dashboard + Low Priority**: For business-critical services"
-            )
-            lines.append(
-                "- **Increased Duration Threshold**: Require sustained conditions (5-10 minutes)"
-            )
-            lines.append(
-                "- **Add Auto-Recovery Context**: Include hints about expected self-resolution"
-            )
+            lines.append("- **Dashboard Only**: For monitors with <50% business hours impact")
+            lines.append("- **Dashboard + Low Priority**: For business-critical services")
+            lines.append("- **Increased Duration Threshold**: Require sustained conditions (5-10 minutes)")
+            lines.append("- **Add Auto-Recovery Context**: Include hints about expected self-resolution")
             lines.append("")
 
         else:
-            lines.append(
-                "No monitors currently qualify for informational-only classification."
-            )
+            lines.append("No monitors currently qualify for informational-only classification.")
             lines.append("")
-            lines.append(
-                "*Criteria: ≥70% benign transient rate, ≥60% classification confidence, ≥5 cycles*"
-            )
+            lines.append("*Criteria: ≥70% benign transient rate, ≥60% classification confidence, ≥5 cycles*")
             lines.append("")
 
         return lines
 
-    def render_configuration_impact_section(
-        self, config_summary: Dict[str, Any]
-    ) -> List[str]:
+    def render_configuration_impact_section(self, config_summary: dict[str, Any]) -> list[str]:
         """Render section showing impact of current configuration."""
         lines = []
 
@@ -430,12 +350,8 @@ class EnhancedReportRenderer:
         min_weeks = config_summary.get("min_weeks_for_trends", 3)
 
         lines.append(f"- **Analysis Period**: {analysis_period} days")
-        lines.append(
-            f"- **Enhanced Classification**: {'✅ Enabled' if classification_enabled else '❌ Disabled'}"
-        )
-        lines.append(
-            f"- **Trend Analysis**: {'✅ Enabled' if trend_enabled else '❌ Disabled'}"
-        )
+        lines.append(f"- **Enhanced Classification**: {'✅ Enabled' if classification_enabled else '❌ Disabled'}")
+        lines.append(f"- **Trend Analysis**: {'✅ Enabled' if trend_enabled else '❌ Disabled'}")
         if trend_enabled:
             lines.append(f"- **Minimum Weeks for Trends**: {min_weeks} weeks")
         lines.append("")
@@ -444,17 +360,11 @@ class EnhancedReportRenderer:
         lines.append("")
 
         if analysis_period < 14:
-            lines.append(
-                "🟡 **Consider Longer Analysis Period**: Current period may miss periodic patterns"
-            )
+            lines.append("🟡 **Consider Longer Analysis Period**: Current period may miss periodic patterns")
         elif analysis_period > 90:
-            lines.append(
-                "🟡 **Consider Shorter Analysis Period**: Very long periods may dilute recent trends"
-            )
+            lines.append("🟡 **Consider Shorter Analysis Period**: Very long periods may dilute recent trends")
         else:
-            lines.append(
-                "🟢 **Analysis Period**: Appropriate for reliable pattern detection"
-            )
+            lines.append("🟢 **Analysis Period**: Appropriate for reliable pattern detection")
 
         if not classification_enabled:
             lines.append(
@@ -462,17 +372,13 @@ class EnhancedReportRenderer:
             )
 
         if not trend_enabled:
-            lines.append(
-                "🟡 **Enable Trend Analysis**: Track week-over-week improvements and degradations"
-            )
+            lines.append("🟡 **Enable Trend Analysis**: Track week-over-week improvements and degradations")
 
         lines.append("")
 
         return lines
 
-    def _create_monitor_link(
-        self, monitor_name: str, monitor_id: Optional[str], max_length: int = 40
-    ) -> str:
+    def _create_monitor_link(self, monitor_name: str, monitor_id: str | None, max_length: int = 40) -> str:
         """Create a markdown link for a monitor."""
         clean_name = self._clean_monitor_name_for_markdown(monitor_name, max_length)
 
@@ -482,9 +388,7 @@ class EnhancedReportRenderer:
 
         return clean_name
 
-    def _clean_monitor_name_for_markdown(
-        self, monitor_name: str, max_length: int = 30
-    ) -> str:
+    def _clean_monitor_name_for_markdown(self, monitor_name: str, max_length: int = 30) -> str:
         """Clean monitor name for safe use in Markdown tables."""
         if not monitor_name:
             return "Unknown"

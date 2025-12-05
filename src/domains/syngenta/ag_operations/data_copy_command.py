@@ -1,19 +1,19 @@
 from argparse import ArgumentParser, Namespace
+
 from utils.command.base_command import BaseCommand
 from utils.data.duckdb_manager import DuckDBManager
-from .data_copy_processor import DataCopyProcessor
 from utils.data.dynamodb_manager import DynamoDBManager
 from utils.logging.logging_manager import LogManager
+
 from .config import Config
+from .data_copy_processor import DataCopyProcessor
 
 # Configure logger
 logger = LogManager.get_instance().get_logger("DataCopyCommand")
 
 
 class DataCopyCommand(BaseCommand):
-    """
-    Command to handle data copy between DynamoDB tables for Agro Operations.
-    """
+    """Command to handle data copy between DynamoDB tables for Agro Operations."""
 
     @staticmethod
     def get_name() -> str:

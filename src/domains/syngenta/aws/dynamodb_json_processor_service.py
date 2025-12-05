@@ -1,5 +1,4 @@
-"""
-DynamoDB JSON Processor Service
+"""DynamoDB JSON Processor Service
 Business logic for processing DynamoDB JSON exports and loading into DuckDB.
 """
 
@@ -7,13 +6,13 @@ import base64
 import gzip
 import json
 import os
+from typing import Any, cast
+
 import duckdb
 
-from typing import Any, Dict, List, Optional, cast
-
-from utils.logging.logging_manager import LogManager
 from utils.cache_manager.cache_manager import CacheManager
 from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 
 
 class DynamoDBJSONProcessorService:
@@ -21,22 +20,15 @@ class DynamoDBJSONProcessorService:
 
     def __init__(self):
         ensure_env_loaded()  # Load environment variables
-        self.logger = LogManager.get_instance().get_logger(
-            "DynamoDBJSONProcessorService"
-        )
+        self.logger = LogManager.get_instance().get_logger("DynamoDBJSONProcessorService")
         self.cache = CacheManager.get_instance()
-        self._column_mapping: Dict[str, str] = {}  # Original -> Normalized mapping
-        self._column_conflicts: Dict[
-            str, List[str]
-        ] = {}  # Normalized -> List of originals
-        self._mapping_config: Optional[Dict[str, Any]] = (
-            None  # Column mapping configuration
-        )
+        self._column_mapping: dict[str, str] = {}  # Original -> Normalized mapping
+        self._column_conflicts: dict[str, list[str]] = {}  # Normalized -> List of originals
+        self._mapping_config: dict[str, Any] | None = None  # Column mapping configuration
         self._ensure_dependencies()
 
     def _normalize_column_name(self, column_name: str) -> str:
-        """
-        Normalize column name to be compatible with DuckDB.
+        """Normalize column name to be compatible with DuckDB.
 
         Strategy:
         1. Convert to lowercase for case-insensitive matching
@@ -67,8 +59,7 @@ class DynamoDBJSONProcessorService:
         return normalized or "unknown_col"
 
     def _load_mapping_config(self, mapping_file_path: str) -> None:
-        """
-        Load column mapping configuration from JSON file.
+        """Load column mapping configuration from JSON file.
 
         Args:
             mapping_file_path: Path to the JSON mapping configuration file
@@ -80,7 +71,7 @@ class DynamoDBJSONProcessorService:
             raise ValueError(f"Mapping file does not exist: {mapping_file_path}")
 
         try:
-            with open(mapping_file_path, "r", encoding="utf-8") as f:
+            with open(mapping_file_path, encoding="utf-8") as f:
                 config = json.load(f)
 
             # Validate the mapping configuration structure
@@ -88,9 +79,7 @@ class DynamoDBJSONProcessorService:
                 raise ValueError("Mapping file must contain 'columnMappings' section")
 
             self._mapping_config = config
-            self.logger.info(
-                f"Loaded column mapping configuration from: {mapping_file_path}"
-            )
+            self.logger.info(f"Loaded column mapping configuration from: {mapping_file_path}")
             self.logger.info(f"Found {len(config['columnMappings'])} column mappings")
 
         except json.JSONDecodeError as e:
@@ -99,8 +88,7 @@ class DynamoDBJSONProcessorService:
             raise ValueError(f"Error loading mapping file: {e}")
 
     def _apply_column_mapping(self, original_column: str) -> str:
-        """
-        Apply column mapping from configuration file if available.
+        """Apply column mapping from configuration file if available.
 
         Args:
             original_column: Original DynamoDB column name
@@ -117,9 +105,8 @@ class DynamoDBJSONProcessorService:
         # Fall back to automatic normalization
         return self._normalize_column_name(original_column)
 
-    def _get_column_type_mapping(self, original_column: str) -> Optional[str]:
-        """
-        Get the target data type for a column from mapping configuration.
+    def _get_column_type_mapping(self, original_column: str) -> str | None:
+        """Get the target data type for a column from mapping configuration.
 
         Args:
             original_column: Original DynamoDB column name
@@ -133,9 +120,8 @@ class DynamoDBJSONProcessorService:
                 return column_mappings[original_column].get("type")
         return None
 
-    def _get_column_transformation(self, original_column: str) -> Optional[str]:
-        """
-        Get the transformation function for a column from mapping configuration.
+    def _get_column_transformation(self, original_column: str) -> str | None:
+        """Get the transformation function for a column from mapping configuration.
 
         Args:
             original_column: Original DynamoDB column name
@@ -149,11 +135,8 @@ class DynamoDBJSONProcessorService:
                 return column_mappings[original_column].get("transformation")
         return None
 
-    def _build_column_mapping(
-        self, all_columns: set[str]
-    ) -> tuple[Dict[str, str], Dict[str, str]]:
-        """
-        Build mapping between original and normalized column names.
+    def _build_column_mapping(self, all_columns: set[str]) -> tuple[dict[str, str], dict[str, str]]:
+        """Build mapping between original and normalized column names.
         Handle conflicts when multiple original names normalize to the same name.
         Uses mapping configuration file if available.
 
@@ -163,9 +146,9 @@ class DynamoDBJSONProcessorService:
         Returns:
             Tuple of (original_to_normalized, normalized_to_original) mappings
         """
-        original_to_normalized: Dict[str, str] = {}
-        normalized_to_original: Dict[str, str] = {}
-        conflicts: Dict[str, List[str]] = {}
+        original_to_normalized: dict[str, str] = {}
+        normalized_to_original: dict[str, str] = {}
+        conflicts: dict[str, list[str]] = {}
 
         # First pass: find all normalizations and conflicts
         for original in sorted(all_columns):
@@ -186,15 +169,12 @@ class DynamoDBJSONProcessorService:
 
         # Second pass: resolve conflicts by adding suffixes
         for normalized, originals in conflicts.items():
-            self.logger.warning(
-                f"Column name conflict detected for '{normalized}': {originals}"
-            )
+            self.logger.warning(f"Column name conflict detected for '{normalized}': {originals}")
 
             # Remove the original mapping since we need to create new ones
             if normalized in normalized_to_original:
                 original_without_suffix = normalized_to_original[normalized]
-                if original_without_suffix in original_to_normalized:
-                    del original_to_normalized[original_without_suffix]
+                original_to_normalized.pop(original_without_suffix, None)
                 del normalized_to_original[normalized]
 
             # Create unique names with suffixes
@@ -213,11 +193,8 @@ class DynamoDBJSONProcessorService:
 
         return original_to_normalized, normalized_to_original
 
-    def _normalize_records(
-        self, records: List[Dict[str, Any]], column_mapping: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
-        """
-        Normalize record column names using the provided mapping.
+    def _normalize_records(self, records: list[dict[str, Any]], column_mapping: dict[str, str]) -> list[dict[str, Any]]:
+        """Normalize record column names using the provided mapping.
 
         Args:
             records: List of records with original column names
@@ -240,8 +217,8 @@ class DynamoDBJSONProcessorService:
     def _ensure_dependencies(self):
         """Install required packages if not available."""
         try:
-            import duckdb  # noqa: F401
-            import pandas as pd  # noqa: F401
+            import duckdb
+            import pandas as pd
         except ImportError as e:
             self.logger.info(f"Installing required packages: {e}")
             try:
@@ -254,9 +231,7 @@ class DynamoDBJSONProcessorService:
                         __import__(package)
                     except ImportError:
                         self.logger.info(f"Installing {package}...")
-                        subprocess.check_call(
-                            [sys.executable, "-m", "pip", "install", package]
-                        )
+                        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
                 # Re-import after installation
                 import duckdb  # noqa: F401
@@ -265,9 +240,7 @@ class DynamoDBJSONProcessorService:
                 self.logger.info("All required packages installed successfully")
 
             except Exception as install_error:
-                self.logger.error(
-                    f"Failed to install required packages: {install_error}"
-                )
+                self.logger.error(f"Failed to install required packages: {install_error}")
                 raise
 
     def process_exports_structured(
@@ -278,9 +251,8 @@ class DynamoDBJSONProcessorService:
         skip_empty_files: bool = False,
         verbose: bool = False,
         create_views: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Process AWS DynamoDB JSON export files with structured entity-based approach.
+    ) -> dict[str, Any]:
+        """Process AWS DynamoDB JSON export files with structured entity-based approach.
 
         Creates separate tables for each entity type (PRODUCTS, ITEMS, FERTILIZERS, etc.)
         with proper column mapping and business-friendly names.
@@ -301,9 +273,8 @@ class DynamoDBJSONProcessorService:
             input_dir, output_db, batch_size, skip_empty_files, verbose, create_views
         )
 
-    def _get_entity_schema_mapping(self) -> Dict[str, Dict[str, str]]:
-        """
-        Define schema mappings for each entity type with business-friendly column names.
+    def _get_entity_schema_mapping(self) -> dict[str, dict[str, str]]:
+        """Define schema mappings for each entity type with business-friendly column names.
 
         Returns:
             Dictionary mapping entity types to their column mappings
@@ -451,17 +422,14 @@ class DynamoDBJSONProcessorService:
         skip_empty_files: bool,
         verbose: bool,
         create_views: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process DynamoDB export with entity-based table separation."""
-
         # Validate input directory
         if not os.path.exists(input_dir):
             raise ValueError(f"Input directory does not exist: {input_dir}")
 
         if not self._is_aws_dynamodb_export(input_dir):
-            raise ValueError(
-                f"Directory does not contain valid AWS DynamoDB export: {input_dir}"
-            )
+            raise ValueError(f"Directory does not contain valid AWS DynamoDB export: {input_dir}")
 
         # Read manifest files
         manifest_summary_path = os.path.join(input_dir, "manifest-summary.json")
@@ -469,11 +437,11 @@ class DynamoDBJSONProcessorService:
         data_dir = os.path.join(input_dir, "data")
 
         try:
-            with open(manifest_summary_path, "r", encoding="utf-8") as f:
+            with open(manifest_summary_path, encoding="utf-8") as f:
                 manifest_summary = json.load(f)
 
             data_files = []
-            with open(manifest_files_path, "r", encoding="utf-8") as f:
+            with open(manifest_files_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:
@@ -482,17 +450,13 @@ class DynamoDBJSONProcessorService:
         except Exception as e:
             raise ValueError(f"Error reading manifest files: {e}")
 
-        self.logger.info(
-            f"Processing {len(data_files)} data files from DynamoDB export"
-        )
+        self.logger.info(f"Processing {len(data_files)} data files from DynamoDB export")
         self.logger.info(f"Table: {manifest_summary.get('tableArn', 'Unknown')}")
         self.logger.info(f"Total items: {manifest_summary.get('itemCount', 'Unknown')}")
 
         # Initialize DuckDB connection - create fresh database to avoid type inference conflicts
         if os.path.exists(output_db):
-            self.logger.info(
-                f"Removing existing database {output_db} to avoid schema conflicts"
-            )
+            self.logger.info(f"Removing existing database {output_db} to avoid schema conflicts")
             os.remove(output_db)
 
         conn = duckdb.connect(output_db)
@@ -512,15 +476,13 @@ class DynamoDBJSONProcessorService:
                     continue
 
                 if verbose:
-                    self.logger.info(
-                        f"Processing file {i + 1}/{len(data_files)}: {filename}"
-                    )
+                    self.logger.info(f"Processing file {i + 1}/{len(data_files)}: {filename}")
 
                 records = self._process_aws_data_file(file_path, skip_empty_files)
 
                 if records:
                     # Group records by entity type (rk field)
-                    entity_records: Dict[str, List[Dict[str, Any]]] = {}
+                    entity_records: dict[str, list[dict[str, Any]]] = {}
 
                     for record in records:
                         # Use proper entity identification logic
@@ -530,9 +492,7 @@ class DynamoDBJSONProcessorService:
                         if verbose and len(entity_records) < 10:
                             pk = record.get("pk", "NO_PK")
                             rk = record.get("rk", "NO_RK")
-                            self.logger.debug(
-                                f"Record: pk='{pk}', rk='{rk}' → entity_type='{entity_type}'"
-                            )
+                            self.logger.debug(f"Record: pk='{pk}', rk='{rk}' → entity_type='{entity_type}'")
 
                         if entity_type not in entity_records:
                             entity_records[entity_type] = []
@@ -556,9 +516,7 @@ class DynamoDBJSONProcessorService:
 
             except Exception as e:
                 file_key = file_info.get("dataFileS3Key", "unknown")
-                self.logger.error(
-                    f"Error processing file {file_key}: {e}", exc_info=True
-                )
+                self.logger.error(f"Error processing file {file_key}: {e}", exc_info=True)
 
                 # Add to entity stats for tracking
                 if "processing_errors" not in entity_stats:
@@ -566,9 +524,7 @@ class DynamoDBJSONProcessorService:
 
                 processing_errors = entity_stats["processing_errors"]
                 if isinstance(processing_errors, list):
-                    processing_errors.append(
-                        {"file": file_key, "error": str(e), "file_index": i + 1}
-                    )
+                    processing_errors.append({"file": file_key, "error": str(e), "file_index": i + 1})
 
                 if not skip_empty_files:
                     raise
@@ -590,9 +546,7 @@ class DynamoDBJSONProcessorService:
             "database_file": output_db,
             "views_created": create_views,
             "processing_errors": processing_errors,
-            "error_count": (
-                len(processing_errors) if isinstance(processing_errors, list) else 0
-            ),
+            "error_count": (len(processing_errors) if isinstance(processing_errors, list) else 0),
         }
 
         self.logger.info(
@@ -603,9 +557,8 @@ class DynamoDBJSONProcessorService:
         conn.close()
         return stats
 
-    def _identify_entity_type(self, record: Dict[str, Any]) -> str:
-        """
-        Identify entity type based on pk and rk fields following the business logic.
+    def _identify_entity_type(self, record: dict[str, Any]) -> str:
+        """Identify entity type based on pk and rk fields following the business logic.
 
         Args:
             record: DynamoDB record
@@ -636,13 +589,12 @@ class DynamoDBJSONProcessorService:
         self,
         conn: Any,
         entity_type: str,
-        records: List[Dict[str, Any]],
-        entity_schema_mapping: Dict[str, Dict[str, str]],
+        records: list[dict[str, Any]],
+        entity_schema_mapping: dict[str, dict[str, str]],
         batch_size: int,
         verbose: bool,
     ) -> None:
         """Process a batch of records for a specific entity type."""
-
         if not records:
             return
 
@@ -660,26 +612,19 @@ class DynamoDBJSONProcessorService:
                     value = record[dynamo_col]
                     # Handle compressed binary fields
                     if business_col.endswith("_compressed") and value is not None:
-                        mapped_record[business_col] = self._handle_compressed_field(
-                            value
-                        )
-                    else:
-                        # Convert values to strings to avoid type conflicts in DuckDB
-                        if isinstance(value, bool):
-                            mapped_record[business_col] = str(
-                                value
-                            ).lower()  # true/false instead of True/False
-                        elif value is None:
-                            mapped_record[business_col] = None
-                        elif isinstance(value, bytes):
-                            # Handle binary data by converting to base64 string
-                            import base64
+                        mapped_record[business_col] = self._handle_compressed_field(value)
+                    # Convert values to strings to avoid type conflicts in DuckDB
+                    elif isinstance(value, bool):
+                        mapped_record[business_col] = str(value).lower()  # true/false instead of True/False
+                    elif value is None:
+                        mapped_record[business_col] = None
+                    elif isinstance(value, bytes):
+                        # Handle binary data by converting to base64 string
+                        import base64
 
-                            mapped_record[business_col] = base64.b64encode(
-                                value
-                            ).decode("utf-8")
-                        else:
-                            mapped_record[business_col] = str(value)
+                        mapped_record[business_col] = base64.b64encode(value).decode("utf-8")
+                    else:
+                        mapped_record[business_col] = str(value)
 
             # Keep unmapped columns with original names (prefixed to avoid conflicts)
             for orig_col, value in record.items():
@@ -693,9 +638,7 @@ class DynamoDBJSONProcessorService:
                         # Handle binary data by converting to base64 string
                         import base64
 
-                        mapped_record[f"raw_{orig_col}"] = base64.b64encode(
-                            value
-                        ).decode("utf-8")
+                        mapped_record[f"raw_{orig_col}"] = base64.b64encode(value).decode("utf-8")
                     else:
                         mapped_record[f"raw_{orig_col}"] = str(value)
 
@@ -710,11 +653,9 @@ class DynamoDBJSONProcessorService:
             self._create_or_insert_entity_table(conn, table_name, batch, verbose)
 
         if verbose:
-            self.logger.debug(
-                f"Processed {len(mapped_records)} {entity_type} records into table '{table_name}'"
-            )
+            self.logger.debug(f"Processed {len(mapped_records)} {entity_type} records into table '{table_name}'")
 
-    def _handle_compressed_field(self, value: Any) -> Optional[str]:
+    def _handle_compressed_field(self, value: Any) -> str | None:
         """Handle compressed binary fields by converting to readable format."""
         if value is None:
             return None
@@ -747,10 +688,9 @@ class DynamoDBJSONProcessorService:
             return str(value) if value is not None else None
 
     def _create_or_insert_entity_table(
-        self, conn: Any, table_name: str, records: List[Dict[str, Any]], verbose: bool
+        self, conn: Any, table_name: str, records: list[dict[str, Any]], verbose: bool
     ) -> None:
         """Create table or insert records for an entity."""
-
         if not records:
             return
 
@@ -785,9 +725,7 @@ class DynamoDBJSONProcessorService:
 
             if not table_exists:
                 if verbose:
-                    self.logger.info(
-                        f"Creating table '{table_name}' with {len(df.columns)} columns"
-                    )
+                    self.logger.info(f"Creating table '{table_name}' with {len(df.columns)} columns")
 
                 # Build explicit CREATE TABLE statement to avoid type inference
                 column_definitions = []
@@ -795,9 +733,7 @@ class DynamoDBJSONProcessorService:
                     safe_col_name = f'"{col}"'
                     column_definitions.append(f"{safe_col_name} VARCHAR")
 
-                create_sql = (
-                    f'CREATE TABLE "{table_name}" ({", ".join(column_definitions)})'
-                )
+                create_sql = f'CREATE TABLE "{table_name}" ({", ".join(column_definitions)})'
 
                 try:
                     conn.execute(create_sql)
@@ -806,57 +742,39 @@ class DynamoDBJSONProcessorService:
                             f"Successfully created table '{table_name}' with {len(df.columns)} VARCHAR columns"
                         )
                 except Exception as create_error:
-                    self.logger.error(
-                        f"Error creating table with explicit schema: {create_error}"
-                    )
+                    self.logger.error(f"Error creating table with explicit schema: {create_error}")
                     # Fallback to simpler approach
-                    conn.execute(
-                        f'CREATE TABLE "{table_name}" AS SELECT * FROM df WHERE 1=0'
-                    )
+                    conn.execute(f'CREATE TABLE "{table_name}" AS SELECT * FROM df WHERE 1=0')
                     if verbose:
-                        self.logger.warning(
-                            f"Used fallback table creation for '{table_name}'"
-                        )
+                        self.logger.warning(f"Used fallback table creation for '{table_name}'")
 
             # Insert data with error handling - use explicit column insertion to avoid type conflicts
             try:
                 # First, handle existing tables by checking if we need to add missing columns
                 if table_exists:
-                    table_columns_result = conn.execute(
-                        f'DESCRIBE "{table_name}"'
-                    ).fetchall()
+                    table_columns_result = conn.execute(f'DESCRIBE "{table_name}"').fetchall()
                     existing_columns = {row[0] for row in table_columns_result}
                     missing_columns = set(df.columns) - existing_columns
 
                     if missing_columns:
                         if verbose:
-                            self.logger.info(
-                                f"Adding {len(missing_columns)} missing columns to '{table_name}'"
-                            )
+                            self.logger.info(f"Adding {len(missing_columns)} missing columns to '{table_name}'")
                         for col in missing_columns:
                             safe_col_name = f'"{col}"'
                             try:
-                                conn.execute(
-                                    f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR'
-                                )
+                                conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR')
                             except Exception as col_error:
-                                self.logger.warning(
-                                    f"Could not add column {col}: {col_error}"
-                                )
+                                self.logger.warning(f"Could not add column {col}: {col_error}")
 
                 # Convert all DataFrame to strings but preserve NULL values properly
                 df_clean = df.copy()
                 for col in df_clean.columns:
-                    df_clean[col] = df_clean[col].apply(
-                        lambda x: None if pd.isna(x) else str(x)
-                    )
+                    df_clean[col] = df_clean[col].apply(lambda x: None if pd.isna(x) else str(x))
 
                 # Use explicit INSERT with column names to ensure proper type handling
                 if len(df_clean) > 0:
                     # Get table column order to ensure proper insertion
-                    table_columns_result = conn.execute(
-                        f'DESCRIBE "{table_name}"'
-                    ).fetchall()
+                    table_columns_result = conn.execute(f'DESCRIBE "{table_name}"').fetchall()
                     table_column_order = [row[0] for row in table_columns_result]
 
                     # Ensure DataFrame columns match table order and fill missing with NULL
@@ -874,9 +792,7 @@ class DynamoDBJSONProcessorService:
                     self.logger.debug(f"Inserted {len(df)} records into '{table_name}'")
 
             except Exception as insert_error:
-                self.logger.error(
-                    f"Error inserting data into '{table_name}': {insert_error}"
-                )
+                self.logger.error(f"Error inserting data into '{table_name}': {insert_error}")
                 # Try to get more details about the error
                 self.logger.error(f"DataFrame columns: {list(df.columns)}")
                 self.logger.error(f"DataFrame shape: {df.shape}")
@@ -895,10 +811,9 @@ class DynamoDBJSONProcessorService:
             raise
 
     def _create_business_views(
-        self, conn: Any, entity_schema_mapping: Dict[str, Dict[str, str]], verbose: bool
+        self, conn: Any, entity_schema_mapping: dict[str, dict[str, str]], verbose: bool
     ) -> None:
         """Create business-friendly views for each entity table."""
-
         try:
             existing_tables = conn.execute("SHOW TABLES").fetchall()
             table_names = [table[0] for table in existing_tables]
@@ -934,9 +849,7 @@ class DynamoDBJSONProcessorService:
                         conn.execute(view_sql)
 
                         if verbose:
-                            self.logger.info(
-                                f"Created view '{view_name}' with {len(select_columns)} columns"
-                            )
+                            self.logger.info(f"Created view '{view_name}' with {len(select_columns)} columns")
 
         except Exception as e:
             self.logger.warning(f"Error creating business views: {e}")
@@ -949,10 +862,9 @@ class DynamoDBJSONProcessorService:
         batch_size: int = 2500,
         skip_empty_files: bool = False,
         verbose: bool = False,
-        column_mapping_file: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """
-        Process AWS DynamoDB JSON export files and load into DuckDB.
+        column_mapping_file: str | None = None,
+    ) -> dict[str, Any]:
+        """Process AWS DynamoDB JSON export files and load into DuckDB.
 
         This method now handles AWS DynamoDB exports by:
         1. Reading manifest-summary.json and manifest-files.json
@@ -981,9 +893,7 @@ class DynamoDBJSONProcessorService:
         if column_mapping_file:
             is_normalizing_required = True
             self._load_mapping_config(column_mapping_file)
-            self.logger.info(
-                f"Using column mapping configuration: {column_mapping_file}"
-            )
+            self.logger.info(f"Using column mapping configuration: {column_mapping_file}")
         else:
             is_normalizing_required = False
             self.logger.info("Using automatic column name normalization")
@@ -1018,11 +928,7 @@ class DynamoDBJSONProcessorService:
         manifest_files = os.path.join(input_dir, "manifest-files.json")
         data_dir = os.path.join(input_dir, "data")
 
-        return (
-            os.path.exists(manifest_summary)
-            and os.path.exists(manifest_files)
-            and os.path.exists(data_dir)
-        )
+        return os.path.exists(manifest_summary) and os.path.exists(manifest_files) and os.path.exists(data_dir)
 
     def _process_aws_dynamodb_export(
         self,
@@ -1033,9 +939,8 @@ class DynamoDBJSONProcessorService:
         skip_empty_files: bool,
         verbose: bool,
         is_normalizing_required: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process AWS DynamoDB export using manifest files."""
-
         # Read manifest files
         manifest_summary_path = os.path.join(input_dir, "manifest-summary.json")
         manifest_files_path = os.path.join(input_dir, "manifest-files.json")
@@ -1043,24 +948,18 @@ class DynamoDBJSONProcessorService:
 
         try:
             # Read manifest summary
-            with open(manifest_summary_path, "r", encoding="utf-8") as f:
+            with open(manifest_summary_path, encoding="utf-8") as f:
                 manifest_summary = json.load(f)
 
             self.logger.info("Export summary:")
             self.logger.info(f"  Table: {manifest_summary.get('tableArn', 'Unknown')}")
-            self.logger.info(
-                f"  Export time: {manifest_summary.get('exportTime', 'Unknown')}"
-            )
-            self.logger.info(
-                f"  Total items: {manifest_summary.get('itemCount', 'Unknown')}"
-            )
-            self.logger.info(
-                f"  Output format: {manifest_summary.get('outputFormat', 'Unknown')}"
-            )
+            self.logger.info(f"  Export time: {manifest_summary.get('exportTime', 'Unknown')}")
+            self.logger.info(f"  Total items: {manifest_summary.get('itemCount', 'Unknown')}")
+            self.logger.info(f"  Output format: {manifest_summary.get('outputFormat', 'Unknown')}")
 
             # Read manifest files to get data file list
             data_files = []
-            with open(manifest_files_path, "r", encoding="utf-8") as f:
+            with open(manifest_files_path, encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
                     if line:
@@ -1073,7 +972,7 @@ class DynamoDBJSONProcessorService:
             raise ValueError(f"Error reading manifest files: {e}")
 
         # Initialize statistics
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "files_processed": 0,
             "files_skipped": 0,
             "total_records": 0,
@@ -1085,9 +984,7 @@ class DynamoDBJSONProcessorService:
         conn = duckdb.connect(output_db)
         table_created = False
 
-        self.logger.info(
-            f"Processing {len(data_files)} data files with dynamic schema..."
-        )
+        self.logger.info(f"Processing {len(data_files)} data files with dynamic schema...")
 
         # Phase 1: Collect all column names to build comprehensive mapping
         self.logger.info("Phase 1: Analyzing all files to detect column schema...")
@@ -1106,9 +1003,7 @@ class DynamoDBJSONProcessorService:
                     continue
 
                 if verbose:
-                    self.logger.info(
-                        f"  Analyzing file {i + 1}/{len(data_files)}: {filename}"
-                    )
+                    self.logger.info(f"  Analyzing file {i + 1}/{len(data_files)}: {filename}")
 
                 # Process file to get column names only - limited sample for performance
                 records = self._process_aws_data_file(file_path, skip_empty_files)
@@ -1125,9 +1020,7 @@ class DynamoDBJSONProcessorService:
                     schema_variations[schema_key] += len(records)
 
             except Exception as e:
-                self.logger.warning(
-                    f"Error analyzing file {file_info.get('dataFileS3Key', 'unknown')}: {e}"
-                )
+                self.logger.warning(f"Error analyzing file {file_info.get('dataFileS3Key', 'unknown')}: {e}")
                 continue
 
         self.logger.info(f"Found {len(all_columns)} unique columns across all files")
@@ -1136,22 +1029,16 @@ class DynamoDBJSONProcessorService:
                 f"Schema variations: {dict(sorted(schema_variations.items(), key=lambda x: x[1], reverse=True))}"
             )
 
-        original_to_normalized: Dict[str, str] = {}
-        normalized_to_original: Dict[str, str] = {}
+        original_to_normalized: dict[str, str] = {}
+        normalized_to_original: dict[str, str] = {}
         if is_normalizing_required:
             # Build column mapping to handle case sensitivity conflicts
-            original_to_normalized, normalized_to_original = self._build_column_mapping(
-                all_columns
-            )
+            original_to_normalized, normalized_to_original = self._build_column_mapping(all_columns)
 
-            self.logger.info(
-                f"Column mapping created: {len(original_to_normalized)} mappings"
-            )
+            self.logger.info(f"Column mapping created: {len(original_to_normalized)} mappings")
             if verbose:
                 conflicts = sum(
-                    1
-                    for norm in normalized_to_original.keys()
-                    if "_" in norm and norm.split("_")[-1].isdigit()
+                    1 for norm in normalized_to_original.keys() if "_" in norm and norm.split("_")[-1].isdigit()
                 )
                 if conflicts > 0:
                     self.logger.info(f"Resolved {conflicts} column name conflicts")
@@ -1164,9 +1051,7 @@ class DynamoDBJSONProcessorService:
             try:
                 if verbose:
                     self.logger.info(f"Processing file {i + 1}/{len(data_files)}")
-                    self.logger.info(
-                        f"  Expected items: {file_info.get('itemCount', 'Unknown')}"
-                    )
+                    self.logger.info(f"  Expected items: {file_info.get('itemCount', 'Unknown')}")
 
                 # Extract filename from S3 key
                 s3_key = file_info["dataFileS3Key"]
@@ -1177,7 +1062,7 @@ class DynamoDBJSONProcessorService:
                     error_msg = f"Data file not found: {file_path}"
                     self.logger.error(error_msg)
                     stats["errors"] = cast(int, stats["errors"]) + 1
-                    error_details = cast(List[Dict[str, str]], stats["error_details"])
+                    error_details = cast(list[dict[str, str]], stats["error_details"])
                     error_details.append({"file": file_path, "error": error_msg})
                     if not skip_empty_files:
                         raise FileNotFoundError(error_msg)
@@ -1191,9 +1076,7 @@ class DynamoDBJSONProcessorService:
                 if records:
                     if is_normalizing_required:
                         # Normalize column names in records
-                        normalized_records = self._normalize_records(
-                            records, original_to_normalized
-                        )
+                        normalized_records = self._normalize_records(records, original_to_normalized)
 
                         # Get normalized columns from current file
                         normalized_file_columns: set[str] = set()
@@ -1201,13 +1084,9 @@ class DynamoDBJSONProcessorService:
                             normalized_file_columns.update(record.keys())
 
                         if verbose:
-                            original_cols = len(
-                                set().union(*(record.keys() for record in records))
-                            )
+                            original_cols = len(set().union(*(record.keys() for record in records)))
                             normalized_cols = len(normalized_file_columns)
-                            self.logger.info(
-                                f"  → Normalized {original_cols} → {normalized_cols} columns"
-                            )
+                            self.logger.info(f"  → Normalized {original_cols} → {normalized_cols} columns")
 
                         # Get all normalized columns for consistent schema
                         all_normalized_columns = set(normalized_to_original.keys())
@@ -1234,20 +1113,15 @@ class DynamoDBJSONProcessorService:
                             verbose,
                         )
 
-                    stats["total_records"] = cast(int, stats["total_records"]) + len(
-                        records
-                    )
+                    stats["total_records"] = cast(int, stats["total_records"]) + len(records)
                     stats["files_processed"] = cast(int, stats["files_processed"]) + 1
 
                     if verbose:
-                        self.logger.info(
-                            f"  → Extracted and loaded {len(records)} records"
-                        )
+                        self.logger.info(f"  → Extracted and loaded {len(records)} records")
                         expected_count = file_info.get("itemCount", 0)
                         if expected_count and len(records) != expected_count:
                             self.logger.warning(
-                                f"  → Record count mismatch: got {len(records)}, "
-                                f"expected {expected_count}"
+                                f"  → Record count mismatch: got {len(records)}, expected {expected_count}"
                             )
                 else:
                     stats["files_skipped"] = cast(int, stats["files_skipped"]) + 1
@@ -1256,10 +1130,10 @@ class DynamoDBJSONProcessorService:
 
             except Exception as e:
                 file_key = file_info.get("dataFileS3Key", "unknown")
-                error_msg = f"Error processing file {file_key}: {str(e)}"
+                error_msg = f"Error processing file {file_key}: {e!s}"
                 self.logger.error(error_msg)
                 stats["errors"] = cast(int, stats["errors"]) + 1
-                error_details = cast(List[Dict[str, str]], stats["error_details"])
+                error_details = cast(list[dict[str, str]], stats["error_details"])
                 error_details.append({"file": file_key, "error": str(e)})
 
                 if not skip_empty_files:
@@ -1270,17 +1144,14 @@ class DynamoDBJSONProcessorService:
             result = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
             final_count = result[0] if result else 0
 
-            self.logger.info(
-                f"Final table '{table_name}' contains {final_count} records"
-            )
+            self.logger.info(f"Final table '{table_name}' contains {final_count} records")
             stats["final_table_count"] = final_count
 
             # Compare with manifest
             manifest_count = stats["manifest_item_count"]
             if manifest_count and final_count != manifest_count:
                 self.logger.warning(
-                    f"Record count mismatch with manifest: "
-                    f"imported {final_count}, manifest says {manifest_count}"
+                    f"Record count mismatch with manifest: imported {final_count}, manifest says {manifest_count}"
                 )
                 stats["count_mismatch"] = True
             else:
@@ -1296,11 +1167,7 @@ class DynamoDBJSONProcessorService:
                 "total_normalized_columns": len(normalized_to_original),
                 "mappings": original_to_normalized,
                 "conflicts_resolved": len(
-                    [
-                        k
-                        for k in normalized_to_original.keys()
-                        if "_" in k and k.split("_")[-1].isdigit()
-                    ]
+                    [k for k in normalized_to_original.keys() if "_" in k and k.split("_")[-1].isdigit()]
                 ),
             }
 
@@ -1323,9 +1190,8 @@ class DynamoDBJSONProcessorService:
         batch_size: int,
         skip_empty_files: bool,
         verbose: bool,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process generic JSON files (original behavior)."""
-
         # Find all JSON files
         json_files = self._find_json_files(input_dir)
         if not json_files:
@@ -1334,7 +1200,7 @@ class DynamoDBJSONProcessorService:
         self.logger.info(f"Found {len(json_files)} JSON files to process")
 
         # Initialize statistics
-        stats: Dict[str, Any] = {
+        stats: dict[str, Any] = {
             "files_processed": 0,
             "files_skipped": 0,
             "total_records": 0,
@@ -1348,9 +1214,7 @@ class DynamoDBJSONProcessorService:
         conn = duckdb.connect(output_db)
         table_created = False
 
-        self.logger.info(
-            f"Processing {len(json_files)} JSON files with dynamic schema..."
-        )
+        self.logger.info(f"Processing {len(json_files)} JSON files with dynamic schema...")
 
         # Phase 1: Collect all column names to build comprehensive mapping
         self.logger.info("Phase 1: Analyzing all files to detect column schema...")
@@ -1360,9 +1224,7 @@ class DynamoDBJSONProcessorService:
             try:
                 if verbose:
                     file_short = json_file.replace(input_dir, "")
-                    self.logger.info(
-                        f"  Analyzing file {i + 1}/{len(json_files)}: {file_short}"
-                    )
+                    self.logger.info(f"  Analyzing file {i + 1}/{len(json_files)}: {file_short}")
 
                 # Process file to get column names only
                 records = self._process_json_file(json_file, skip_empty_files)
@@ -1377,18 +1239,12 @@ class DynamoDBJSONProcessorService:
         self.logger.info(f"Found {len(all_columns)} unique columns across all files")
 
         # Build column mapping to handle case sensitivity conflicts
-        original_to_normalized, normalized_to_original = self._build_column_mapping(
-            all_columns
-        )
+        original_to_normalized, normalized_to_original = self._build_column_mapping(all_columns)
 
-        self.logger.info(
-            f"Column mapping created: {len(original_to_normalized)} mappings"
-        )
+        self.logger.info(f"Column mapping created: {len(original_to_normalized)} mappings")
         if verbose:
             conflicts = sum(
-                1
-                for norm in normalized_to_original.keys()
-                if "_" in norm and norm.split("_")[-1].isdigit()
+                1 for norm in normalized_to_original.keys() if "_" in norm and norm.split("_")[-1].isdigit()
             )
             if conflicts > 0:
                 self.logger.info(f"Resolved {conflicts} column name conflicts")
@@ -1401,17 +1257,13 @@ class DynamoDBJSONProcessorService:
             try:
                 if verbose:
                     file_short = json_file.replace(input_dir, "")
-                    self.logger.info(
-                        f"Processing file {i + 1}/{len(json_files)}: {file_short}"
-                    )
+                    self.logger.info(f"Processing file {i + 1}/{len(json_files)}: {file_short}")
 
                 records = self._process_json_file(json_file, skip_empty_files)
 
                 if records:
                     # Normalize column names in records
-                    normalized_records = self._normalize_records(
-                        records, original_to_normalized
-                    )
+                    normalized_records = self._normalize_records(records, original_to_normalized)
 
                     # Get normalized columns from current file
                     normalized_file_columns: set[str] = set()
@@ -1419,13 +1271,9 @@ class DynamoDBJSONProcessorService:
                         normalized_file_columns.update(record.keys())
 
                     if verbose:
-                        original_cols = len(
-                            set().union(*(record.keys() for record in records))
-                        )
+                        original_cols = len(set().union(*(record.keys() for record in records)))
                         normalized_cols = len(normalized_file_columns)
-                        self.logger.info(
-                            f"  → Normalized {original_cols} → {normalized_cols} cols"
-                        )
+                        self.logger.info(f"  → Normalized {original_cols} → {normalized_cols} cols")
 
                     # Adjust table schema if needed and load data with normalized columns
                     table_created = self._load_file_data_with_dynamic_schema(
@@ -1438,25 +1286,21 @@ class DynamoDBJSONProcessorService:
                         verbose,
                     )
 
-                    stats["total_records"] = cast(int, stats["total_records"]) + len(
-                        records
-                    )
+                    stats["total_records"] = cast(int, stats["total_records"]) + len(records)
                     stats["files_processed"] = cast(int, stats["files_processed"]) + 1
 
                     if verbose:
-                        self.logger.info(
-                            f"  → Extracted and loaded {len(records)} records"
-                        )
+                        self.logger.info(f"  → Extracted and loaded {len(records)} records")
                 else:
                     stats["files_skipped"] = cast(int, stats["files_skipped"]) + 1
                     if verbose:
                         self.logger.info("  → No records found (empty file)")
 
             except Exception as e:
-                error_msg = f"Error processing file {json_file}: {str(e)}"
+                error_msg = f"Error processing file {json_file}: {e!s}"
                 self.logger.error(error_msg)
                 stats["errors"] = cast(int, stats["errors"]) + 1
-                error_details = cast(List[Dict[str, str]], stats["error_details"])
+                error_details = cast(list[dict[str, str]], stats["error_details"])
                 error_details.append({"file": json_file, "error": str(e)})
 
                 if not skip_empty_files:
@@ -1467,9 +1311,7 @@ class DynamoDBJSONProcessorService:
             result = conn.execute(f'SELECT COUNT(*) FROM "{table_name}"').fetchone()
             final_count = result[0] if result else 0
 
-            self.logger.info(
-                f"Final table '{table_name}' contains {final_count} records"
-            )
+            self.logger.info(f"Final table '{table_name}' contains {final_count} records")
             stats["final_table_count"] = final_count
 
         except Exception as e:
@@ -1481,11 +1323,7 @@ class DynamoDBJSONProcessorService:
             "total_normalized_columns": len(normalized_to_original),
             "mappings": original_to_normalized,
             "conflicts_resolved": len(
-                [
-                    k
-                    for k in normalized_to_original.keys()
-                    if "_" in k and k.split("_")[-1].isdigit()
-                ]
+                [k for k in normalized_to_original.keys() if "_" in k and k.split("_")[-1].isdigit()]
             ),
         }
 
@@ -1501,11 +1339,8 @@ class DynamoDBJSONProcessorService:
 
         return stats
 
-    def _process_aws_data_file(
-        self, file_path: str, skip_empty: bool = False
-    ) -> List[Dict[str, Any]]:
-        """
-        Process a single AWS DynamoDB export data file (.json.gz).
+    def _process_aws_data_file(self, file_path: str, skip_empty: bool = False) -> list[dict[str, Any]]:
+        """Process a single AWS DynamoDB export data file (.json.gz).
 
         Args:
             file_path: Path to the compressed JSON file
@@ -1540,9 +1375,7 @@ class DynamoDBJSONProcessorService:
                         converted = self._convert_dynamodb_item(data["Item"])
                         if converted:
                             if converted.get("pk") in [None, ""]:
-                                self.logger.warning(
-                                    f"Record without pk found in {file_path} at line {line_num}"
-                                )
+                                self.logger.warning(f"Record without pk found in {file_path} at line {line_num}")
                                 continue  # Skip records without pk
                             records.append(converted)
                     else:
@@ -1552,9 +1385,7 @@ class DynamoDBJSONProcessorService:
                             records.append(converted)
 
                 except json.JSONDecodeError as e:
-                    self.logger.warning(
-                        f"Invalid JSON on line {line_num} in {file_path}: {e}"
-                    )
+                    self.logger.warning(f"Invalid JSON on line {line_num} in {file_path}: {e}")
                     continue
 
             return records
@@ -1562,7 +1393,7 @@ class DynamoDBJSONProcessorService:
         except Exception as e:
             raise ValueError(f"Error processing compressed file: {e}")
 
-    def _find_json_files(self, directory: str) -> List[str]:
+    def _find_json_files(self, directory: str) -> list[str]:
         """Recursively find all JSON files in a directory."""
         json_files = []
 
@@ -1573,11 +1404,8 @@ class DynamoDBJSONProcessorService:
 
         return sorted(json_files)
 
-    def _process_json_file(
-        self, file_path: str, skip_empty: bool = False
-    ) -> List[Dict[str, Any]]:
-        """
-        Process a single JSON file and extract DynamoDB items.
+    def _process_json_file(self, file_path: str, skip_empty: bool = False) -> list[dict[str, Any]]:
+        """Process a single JSON file and extract DynamoDB items.
 
         Args:
             file_path: Path to the JSON file
@@ -1587,7 +1415,7 @@ class DynamoDBJSONProcessorService:
             List of converted records
         """
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read().strip()
 
             if not content:
@@ -1633,9 +1461,8 @@ class DynamoDBJSONProcessorService:
         except Exception as e:
             raise ValueError(f"Error processing file: {e}")
 
-    def _convert_dynamodb_item(self, item: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Convert a DynamoDB item from DynamoDB JSON format to plain Python types.
+    def _convert_dynamodb_item(self, item: dict[str, Any]) -> dict[str, Any] | None:
+        """Convert a DynamoDB item from DynamoDB JSON format to plain Python types.
 
         Args:
             item: DynamoDB item in JSON format
@@ -1658,8 +1485,7 @@ class DynamoDBJSONProcessorService:
         return converted
 
     def _convert_dynamodb_value(self, value: Any) -> Any:
-        """
-        Convert a DynamoDB value from DynamoDB JSON format to Python type.
+        """Convert a DynamoDB value from DynamoDB JSON format to Python type.
 
         DynamoDB JSON format examples:
         - {"S": "hello"} → "hello"
@@ -1700,17 +1526,10 @@ class DynamoDBJSONProcessorService:
             except Exception:
                 return type_value
         elif type_key == "SS":  # String Set
-            return (
-                [str(item) for item in type_value]
-                if isinstance(type_value, list)
-                else type_value
-            )
+            return [str(item) for item in type_value] if isinstance(type_value, list) else type_value
         elif type_key == "NS":  # Number Set
             try:
-                return [
-                    int(item) if "." not in str(item) else float(item)
-                    for item in type_value
-                ]
+                return [int(item) if "." not in str(item) else float(item) for item in type_value]
             except (ValueError, TypeError):
                 return type_value
         elif type_key == "BS":  # Binary Set
@@ -1720,9 +1539,7 @@ class DynamoDBJSONProcessorService:
                 return type_value
         elif type_key == "M":  # Map
             if isinstance(type_value, dict):
-                return {
-                    k: self._convert_dynamodb_value(v) for k, v in type_value.items()
-                }
+                return {k: self._convert_dynamodb_value(v) for k, v in type_value.items()}
             return type_value
         elif type_key == "L":  # List
             if isinstance(type_value, list):
@@ -1736,9 +1553,8 @@ class DynamoDBJSONProcessorService:
             # Unknown type, return original value
             return value
 
-    def _apply_transformations(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Apply transformations specified in the mapping configuration.
+    def _apply_transformations(self, record: dict[str, Any]) -> dict[str, Any]:
+        """Apply transformations specified in the mapping configuration.
 
         Args:
             record: Converted record with original column names
@@ -1776,9 +1592,7 @@ class DynamoDBJSONProcessorService:
                         except (json.JSONDecodeError, UnicodeDecodeError):
                             value = decompressed.decode("utf-8", errors="replace")
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to decompress column '{original_key}': {e}"
-                    )
+                    self.logger.warning(f"Failed to decompress column '{original_key}': {e}")
                     # Keep original value
 
             elif transformation == "epoch_to_timestamp" and value is not None:
@@ -1795,9 +1609,7 @@ class DynamoDBJSONProcessorService:
                         dt = datetime.fromtimestamp(int(value))
                         value = dt.isoformat()
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to convert epoch timestamp for column '{original_key}': {e}"
-                    )
+                    self.logger.warning(f"Failed to convert epoch timestamp for column '{original_key}': {e}")
                     # Keep original value
 
             transformed_record[target_key] = value
@@ -1807,12 +1619,11 @@ class DynamoDBJSONProcessorService:
     def _load_batch_to_duckdb(
         self,
         conn: Any,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         table_name: str,
         create_table: bool = False,
     ) -> None:
-        """
-        Load a batch of records into DuckDB.
+        """Load a batch of records into DuckDB.
 
         Args:
             conn: DuckDB connection
@@ -1832,9 +1643,7 @@ class DynamoDBJSONProcessorService:
         for col in df.columns:
             # Convert complex types (lists, dicts) to JSON strings
             if df[col].dtype == "object":
-                df[col] = df[col].apply(
-                    lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
-                )
+                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x)
 
         if create_table:
             # Create table and insert data
@@ -1846,13 +1655,12 @@ class DynamoDBJSONProcessorService:
     def _load_batch_to_duckdb_normalized(
         self,
         conn: Any,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         table_name: str,
         create_table: bool,
         all_columns: set[str],
     ) -> bool:
-        """
-        Load a batch of records into DuckDB with normalized schema.
+        """Load a batch of records into DuckDB with normalized schema.
 
         This method ensures all records have the same columns by:
         1. Normalizing all records to have the same column set
@@ -1892,25 +1700,17 @@ class DynamoDBJSONProcessorService:
         for col in df.columns:
             # Convert complex types (lists, dicts) to JSON strings
             if df[col].dtype == "object":
-                df[col] = df[col].apply(
-                    lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x
-                )
+                df[col] = df[col].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else x)
 
         # Check for duplicates AFTER converting complex types
         original_count = len(df)
         if original_count > 0:
             try:
                 # Check if we have potential primary key columns that might cause deduplication
-                potential_pk_columns = [
-                    col
-                    for col in df.columns
-                    if "id" in col.lower() or "key" in col.lower()
-                ]
+                potential_pk_columns = [col for col in df.columns if "id" in col.lower() or "key" in col.lower()]
 
                 if potential_pk_columns:
-                    self.logger.debug(
-                        f"Found potential primary key columns: {potential_pk_columns}"
-                    )
+                    self.logger.debug(f"Found potential primary key columns: {potential_pk_columns}")
 
                     # Check for duplicates on these columns
                     for pk_col in potential_pk_columns:
@@ -1918,20 +1718,14 @@ class DynamoDBJSONProcessorService:
                             try:
                                 duplicate_count = df[pk_col].duplicated().sum()
                                 if duplicate_count > 0:
-                                    self.logger.warning(
-                                        f"Found {duplicate_count} duplicates in column '{pk_col}'"
-                                    )
+                                    self.logger.warning(f"Found {duplicate_count} duplicates in column '{pk_col}'")
                             except Exception as e:
-                                self.logger.debug(
-                                    f"Could not check duplicates for column '{pk_col}': {e}"
-                                )
+                                self.logger.debug(f"Could not check duplicates for column '{pk_col}': {e}")
 
                 # Check for completely duplicate rows
                 duplicate_rows = df.duplicated().sum()
                 if duplicate_rows > 0:
-                    self.logger.warning(
-                        f"Found {duplicate_rows} completely duplicate rows"
-                    )
+                    self.logger.warning(f"Found {duplicate_rows} completely duplicate rows")
 
             except Exception as e:
                 self.logger.debug(f"Could not perform duplicate checking: {e}")
@@ -1945,16 +1739,12 @@ class DynamoDBJSONProcessorService:
             for col in sorted_columns:
                 # Use a generic VARCHAR type for all columns to avoid any implicit constraints
                 # We'll handle type inference later if needed
-                safe_col_name = (
-                    f'"{col}"'  # Quote column names to handle special characters
-                )
+                safe_col_name = f'"{col}"'  # Quote column names to handle special characters
                 column_definitions.append(f"{safe_col_name} VARCHAR")
 
             schema_sql = f'CREATE OR REPLACE TABLE "{table_name}" ({", ".join(column_definitions)})'
 
-            self.logger.debug(
-                f"Creating table with explicit schema: {len(column_definitions)} columns"
-            )
+            self.logger.debug(f"Creating table with explicit schema: {len(column_definitions)} columns")
             conn.execute(schema_sql)
 
             # Now insert the data
@@ -1966,16 +1756,12 @@ class DynamoDBJSONProcessorService:
                 actual_count = result[0] if result else 0
                 if actual_count != len(df):
                     self.logger.error(
-                        f"Initial table creation data mismatch! "
-                        f"Inserted {len(df)} but table has {actual_count}"
+                        f"Initial table creation data mismatch! Inserted {len(df)} but table has {actual_count}"
                     )
             except Exception as e:
                 self.logger.warning(f"Could not verify initial table creation: {e}")
 
-            self.logger.info(
-                f"Created table '{table_name}' with {len(sorted_columns)} columns "
-                f"and {len(df)} rows"
-            )
+            self.logger.info(f"Created table '{table_name}' with {len(sorted_columns)} columns and {len(df)} rows")
             return True
         else:
             # Check current table count before insert
@@ -2010,23 +1796,17 @@ class DynamoDBJSONProcessorService:
 
                     # Check for potential causes
                     potential_pk_columns = [
-                        col
-                        for col in df.columns
-                        if col.lower() in ["id", "pk", "key"] or "id" in col.lower()
+                        col for col in df.columns if col.lower() in ["id", "pk", "key"] or "id" in col.lower()
                     ]
                     if potential_pk_columns:
-                        self.logger.error(
-                            f"Potential deduplication columns: {potential_pk_columns}"
-                        )
+                        self.logger.error(f"Potential deduplication columns: {potential_pk_columns}")
 
                         # Sample some values to see if there are actual duplicates
                         for pk_col in potential_pk_columns[:3]:  # Check first 3 columns
                             if pk_col in df.columns:
                                 sample_values = df[pk_col].value_counts().head(5)
                                 sample_dict = sample_values.to_dict()
-                                self.logger.debug(
-                                    f"Sample {pk_col} values: {sample_dict}"
-                                )
+                                self.logger.debug(f"Sample {pk_col} values: {sample_dict}")
 
             except Exception as e:
                 self.logger.warning(f"Could not verify insert: {e}")
@@ -2036,15 +1816,14 @@ class DynamoDBJSONProcessorService:
     def _load_file_data_with_dynamic_schema(
         self,
         conn: Any,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         table_name: str,
         table_created: bool,
         file_columns: set[str],
         batch_size: int,
         verbose: bool = False,
     ) -> bool:
-        """
-        Load file data with dynamic schema adjustment.
+        """Load file data with dynamic schema adjustment.
 
         This method:
         1. Checks if table exists and gets current columns
@@ -2085,9 +1864,7 @@ class DynamoDBJSONProcessorService:
         if not table_created:
             # Create table with initial schema from first file
             if verbose:
-                self.logger.info(
-                    f"Creating table '{table_name}' with {len(file_columns)} columns"
-                )
+                self.logger.info(f"Creating table '{table_name}' with {len(file_columns)} columns")
 
             # Create empty table first
             conn.execute(f'CREATE OR REPLACE TABLE "{table_name}" (temp_col VARCHAR)')
@@ -2096,9 +1873,7 @@ class DynamoDBJSONProcessorService:
             for col in sorted(file_columns):
                 safe_col_name = f'"{col}"'
                 try:
-                    conn.execute(
-                        f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR'
-                    )
+                    conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR')
                 except Exception as e:
                     if "already exists" not in str(e).lower():
                         self.logger.warning(f"Could not add column {col}: {e}")
@@ -2123,17 +1898,13 @@ class DynamoDBJSONProcessorService:
                 if missing_columns:
                     if verbose:
                         missing_cols_list = sorted(missing_columns)
-                        self.logger.info(
-                            f"Adding {len(missing_columns)} new columns: {missing_cols_list}"
-                        )
+                        self.logger.info(f"Adding {len(missing_columns)} new columns: {missing_cols_list}")
 
                     # Add missing columns
                     for col in sorted(missing_columns):
                         safe_col_name = f'"{col}"'
                         try:
-                            conn.execute(
-                                f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR'
-                            )
+                            conn.execute(f'ALTER TABLE "{table_name}" ADD COLUMN {safe_col_name} VARCHAR')
                             if verbose:
                                 self.logger.debug(f"Added column: {col}")
                         except Exception as e:
@@ -2160,9 +1931,7 @@ class DynamoDBJSONProcessorService:
                         df_batch[col] = None
 
                 # Reorder columns to match table schema
-                df_batch = df_batch.reindex(
-                    columns=sorted(table_columns), fill_value=None
-                )
+                df_batch = df_batch.reindex(columns=sorted(table_columns), fill_value=None)
 
                 # Insert batch
                 conn.execute(f'INSERT INTO "{table_name}" SELECT * FROM df_batch')

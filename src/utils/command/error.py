@@ -22,9 +22,7 @@ class HierarchyConflictError(CommandManagerError):
     """Raised when a duplicate command name is detected in the hierarchy."""
 
     def __init__(self, command_name: str):
-        super().__init__(
-            f"Duplicate command detected: '{command_name}'", command_name=command_name
-        )
+        super().__init__(f"Duplicate command detected: '{command_name}'", command_name=command_name)
 
 
 class ModuleImportError(CommandManagerError):

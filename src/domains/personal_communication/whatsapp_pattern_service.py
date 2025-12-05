@@ -1,7 +1,8 @@
 import re
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from typing import Any
 from urllib.parse import urlparse
+
 from utils.logging.logging_manager import LogManager
 
 
@@ -13,7 +14,7 @@ class WhatsAppMessage:
         self.raw_line = raw_line
         self.parsed_datetime = self._parse_datetime()
 
-    def _parse_datetime(self) -> Optional[datetime]:
+    def _parse_datetime(self) -> datetime | None:
         try:
             return datetime.strptime(self.timestamp, "[%d/%m/%y, %H:%M:%S]")
         except ValueError:
@@ -22,11 +23,11 @@ class WhatsAppMessage:
     def contains_url(self) -> bool:
         return bool(re.search(r"https?://", self.content))
 
-    def extract_urls(self) -> List[str]:
+    def extract_urls(self) -> list[str]:
         url_pattern = r"https?://[^\s]+"
         return re.findall(url_pattern, self.content)
 
-    def get_domains(self) -> List[str]:
+    def get_domains(self) -> list[str]:
         urls = self.extract_urls()
         domains = []
         for url in urls:
@@ -38,14 +39,12 @@ class WhatsAppMessage:
                 continue
         return domains
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "timestamp": self.timestamp,
             "sender": self.sender,
             "content": self.content,
-            "parsed_datetime": self.parsed_datetime.isoformat()
-            if self.parsed_datetime
-            else None,
+            "parsed_datetime": self.parsed_datetime.isoformat() if self.parsed_datetime else None,
             "urls": self.extract_urls(),
             "domains": self.get_domains(),
         }
@@ -55,15 +54,15 @@ class WhatsAppPatternService:
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("WhatsAppPatternService")
 
-    def parse_chat_file(self, file_path: str) -> List[WhatsAppMessage]:
+    def parse_chat_file(self, file_path: str) -> list[WhatsAppMessage]:
         """Parse WhatsApp chat export file into structured messages"""
         messages = []
 
         try:
-            with open(file_path, "r", encoding="utf-8") as file:
+            with open(file_path, encoding="utf-8") as file:
                 content = file.read()
         except UnicodeDecodeError:
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+            with open(file_path, encoding="utf-8", errors="ignore") as file:
                 content = file.read()
 
         lines = content.split("\n")
@@ -75,9 +74,7 @@ class WhatsAppPatternService:
                 continue
 
             # Check if line starts with timestamp pattern [DD/MM/YY, HH:MM:SS]
-            timestamp_match = re.match(
-                r"(\[\d{2}/\d{2}/\d{2}, \d{2}:\d{2}:\d{2}\])", line
-            )
+            timestamp_match = re.match(r"(\[\d{2}/\d{2}/\d{2}, \d{2}:\d{2}:\d{2}\])", line)
 
             if timestamp_match:
                 # Save previous message if exists
@@ -98,11 +95,10 @@ class WhatsAppPatternService:
                     content = remaining
 
                 current_message = WhatsAppMessage(timestamp, sender, content, line)
-            else:
-                # Continuation of previous message
-                if current_message:
-                    current_message.content += " " + line
-                    current_message.raw_line += "\n" + line
+            # Continuation of previous message
+            elif current_message:
+                current_message.content += " " + line
+                current_message.raw_line += "\n" + line
 
         # Add last message
         if current_message:
@@ -111,9 +107,7 @@ class WhatsAppPatternService:
         self.logger.info(f"Parsed {len(messages)} messages from {file_path}")
         return messages
 
-    def find_messages_with_domain(
-        self, messages: List[WhatsAppMessage], domain: str
-    ) -> List[WhatsAppMessage]:
+    def find_messages_with_domain(self, messages: list[WhatsAppMessage], domain: str) -> list[WhatsAppMessage]:
         """Find messages containing links from a specific domain"""
         domain = domain.lower()
         matching_messages = []
@@ -123,14 +117,12 @@ class WhatsAppPatternService:
             if any(domain in d for d in domains):
                 matching_messages.append(message)
 
-        self.logger.info(
-            f"Found {len(matching_messages)} messages with domain '{domain}'"
-        )
+        self.logger.info(f"Found {len(matching_messages)} messages with domain '{domain}'")
         return matching_messages
 
     def find_messages_with_pattern(
-        self, messages: List[WhatsAppMessage], pattern: str, regex: bool = False
-    ) -> List[WhatsAppMessage]:
+        self, messages: list[WhatsAppMessage], pattern: str, regex: bool = False
+    ) -> list[WhatsAppMessage]:
         """Find messages matching a text pattern"""
         matching_messages = []
 
@@ -145,16 +137,13 @@ class WhatsAppPatternService:
             if regex:
                 if compiled_pattern.search(message.content):
                     matching_messages.append(message)
-            else:
-                if pattern.lower() in message.content.lower():
-                    matching_messages.append(message)
+            elif pattern.lower() in message.content.lower():
+                matching_messages.append(message)
 
-        self.logger.info(
-            f"Found {len(matching_messages)} messages matching pattern '{pattern}'"
-        )
+        self.logger.info(f"Found {len(matching_messages)} messages matching pattern '{pattern}'")
         return matching_messages
 
-    def find_all_urls(self, messages: List[WhatsAppMessage]) -> List[Dict[str, Any]]:
+    def find_all_urls(self, messages: list[WhatsAppMessage]) -> list[dict[str, Any]]:
         """Extract all URLs from messages"""
         url_data = []
 
@@ -164,9 +153,7 @@ class WhatsAppPatternService:
                 url_data.append(
                     {
                         "url": url,
-                        "domain": urlparse(url).netloc.lower()
-                        if urlparse(url).netloc
-                        else "unknown",
+                        "domain": urlparse(url).netloc.lower() if urlparse(url).netloc else "unknown",
                         "timestamp": message.timestamp,
                         "sender": message.sender,
                         "message_content": message.content[:100] + "..."
@@ -178,7 +165,7 @@ class WhatsAppPatternService:
         self.logger.info(f"Extracted {len(url_data)} URLs from messages")
         return url_data
 
-    def get_domain_statistics(self, messages: List[WhatsAppMessage]) -> Dict[str, int]:
+    def get_domain_statistics(self, messages: list[WhatsAppMessage]) -> dict[str, int]:
         """Get statistics of domains mentioned in messages"""
         domain_counts = {}
 
@@ -188,16 +175,14 @@ class WhatsAppPatternService:
                 domain_counts[domain] = domain_counts.get(domain, 0) + 1
 
         # Sort by count descending
-        sorted_domains = dict(
-            sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)
-        )
+        sorted_domains = dict(sorted(domain_counts.items(), key=lambda x: x[1], reverse=True))
 
         self.logger.info(f"Found {len(sorted_domains)} unique domains")
         return sorted_domains
 
     def find_messages_by_date_range(
-        self, messages: List[WhatsAppMessage], start_date: str, end_date: str
-    ) -> List[WhatsAppMessage]:
+        self, messages: list[WhatsAppMessage], start_date: str, end_date: str
+    ) -> list[WhatsAppMessage]:
         """Find messages within a date range (format: DD/MM/YY)"""
         try:
             start_dt = datetime.strptime(start_date, "%d/%m/%y")
@@ -213,14 +198,11 @@ class WhatsAppPatternService:
                 if start_dt.date() <= msg_date <= end_dt.date():
                     matching_messages.append(message)
 
-        self.logger.info(
-            f"Found {len(matching_messages)} messages between {start_date} and {end_date}"
-        )
+        self.logger.info(f"Found {len(matching_messages)} messages between {start_date} and {end_date}")
         return matching_messages
 
-    def extract_portal_sped_urls(self, file_path: str) -> List[Dict[str, Any]]:
-        """
-        Extract Portal SPED URLs from WhatsApp export file
+    def extract_portal_sped_urls(self, file_path: str) -> list[dict[str, Any]]:
+        """Extract Portal SPED URLs from WhatsApp export file
 
         Args:
             file_path: Path to WhatsApp export file
@@ -234,9 +216,7 @@ class WhatsAppPatternService:
         messages = self.parse_chat_file(file_path)
 
         # Find messages with Portal SPED domain
-        portal_sped_messages = self.find_messages_with_domain(
-            messages, "portalsped.fazenda.mg.gov.br"
-        )
+        portal_sped_messages = self.find_messages_with_domain(messages, "portalsped.fazenda.mg.gov.br")
 
         # Extract Portal SPED URLs
         portal_sped_urls = []
@@ -252,9 +232,7 @@ class WhatsAppPatternService:
                             "message_content": message.content[:200] + "..."
                             if len(message.content) > 200
                             else message.content,
-                            "parsed_datetime": message.parsed_datetime.isoformat()
-                            if message.parsed_datetime
-                            else None,
+                            "parsed_datetime": message.parsed_datetime.isoformat() if message.parsed_datetime else None,
                         }
                     )
 

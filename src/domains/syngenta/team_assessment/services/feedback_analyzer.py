@@ -1,45 +1,40 @@
-from typing import Dict, List, Optional, Union, Tuple
 from domains.syngenta.team_assessment.processors.criteria_processor import Criterion
 from utils.logging.logging_manager import LogManager
+
 from ..core.config import Config
-from .feedback_specialist import FeedbackSpecialist
-from ..core.statistics import TeamStatistics, IndividualStatistics, StatisticsHelper
 from ..core.indicators import Indicator
+from ..core.statistics import IndividualStatistics, StatisticsHelper, TeamStatistics
+from .feedback_specialist import FeedbackSpecialist
 
 # Type aliases for better readability
-CriteriaDict = Dict[str, Dict]
-StatisticsDict = Dict[str, Union[float, Dict]]
+CriteriaDict = dict[str, dict]
+StatisticsDict = dict[str, float | dict]
 
 logger = LogManager.get_instance().get_logger("CompetencyAnalyzer")
 
 
 class FeedbackAnalyzer:
-    """
-    Handles analysis of competency matrices from Excel files.
+    """Handles analysis of competency matrices from Excel files.
 
     Attributes:
         logger: Configured logging instance for the module.
         feedback_specialist: Instance of FeedbackSpecialist for feedback analysis.
     """
 
-    def __init__(self, feedback_specialist: Optional[FeedbackSpecialist] = None):
-        """
-        Initializes the CompetencyAnalyzer with logging and feedback components.
+    def __init__(self, feedback_specialist: FeedbackSpecialist | None = None):
+        """Initializes the CompetencyAnalyzer with logging and feedback components.
 
         Args:
             feedback_specialist (FeedbackSpecialist, optional): Instance of FeedbackSpecialist.
             Defaults to None.
         """
-        self.feedback_specialist = (
-            feedback_specialist if feedback_specialist else FeedbackSpecialist()
-        )
+        self.feedback_specialist = feedback_specialist if feedback_specialist else FeedbackSpecialist()
         self._config = Config()
 
     def analyze(
-        self, competency_matrix: List[Criterion], feedback: CriteriaDict
-    ) -> Tuple[TeamStatistics, Dict[str, IndividualStatistics]]:
-        """
-        Analyzes the competency matrix and computes team and individual statistics.
+        self, competency_matrix: list[Criterion], feedback: CriteriaDict
+    ) -> tuple[TeamStatistics, dict[str, IndividualStatistics]]:
+        """Analyzes the competency matrix and computes team and individual statistics.
 
         Args:
             competency_matrix (CriteriaDict): Processed competency data.
@@ -58,8 +53,7 @@ class FeedbackAnalyzer:
         return team_stats, individual_stats
 
     def _calculate_team_statistics(self, feedback: CriteriaDict) -> TeamStatistics:
-        """
-        Calculates team-level statistics from the competency matrix.
+        """Calculates team-level statistics from the competency matrix.
 
         Args:
             competency_matrix (CriteriaDict): Processed competency data.
@@ -81,8 +75,7 @@ class FeedbackAnalyzer:
 
                     for indicator in indicators:
                         if isinstance(indicator, Indicator) and (
-                            hasattr(indicator, "level")
-                            and isinstance(indicator.level, int)
+                            hasattr(indicator, "level") and isinstance(indicator.level, int)
                         ):
                             level = indicator.level
                             ind_name = indicator.name
@@ -90,31 +83,22 @@ class FeedbackAnalyzer:
                             team_stats.overall_levels.append(level)
                             team_stats.criteria_stats[criterion]["levels"].append(level)
 
-                            if (
-                                ind_name
-                                not in team_stats.criteria_stats[criterion][
-                                    "indicator_stats"
-                                ]
-                            ):
-                                team_stats.criteria_stats[criterion]["indicator_stats"][
-                                    ind_name
-                                ] = {"levels": []}
+                            if ind_name not in team_stats.criteria_stats[criterion]["indicator_stats"]:
+                                team_stats.criteria_stats[criterion]["indicator_stats"][ind_name] = {"levels": []}
 
-                            team_stats.criteria_stats[criterion]["indicator_stats"][
-                                ind_name
-                            ]["levels"].append(level)
+                            team_stats.criteria_stats[criterion]["indicator_stats"][ind_name]["levels"].append(level)
 
         self._finalize_statistics_for_criteria(team_stats.criteria_stats)
         team_stats.finalize_statistics(self._config.criteria_weights)
         del team_stats.overall_levels
         return team_stats
 
-    def _finalize_statistics_for_criteria(self, criteria_stats: Dict):
-        """
-        Finalizes the statistics for each criterion and its indicators.
+    def _finalize_statistics_for_criteria(self, criteria_stats: dict):
+        """Finalizes the statistics for each criterion and its indicators.
         This method processes the given criteria statistics dictionary to calculate
         and add statistical measures such as quartiles (Q1 and Q3), average, highest,
         and lowest values for each criterion and its associated indicators.
+
         Args:
             criteria_stats (Dict): A dictionary containing statistics for each criterion.
             The dictionary is expected to have the following structure:
@@ -137,7 +121,6 @@ class FeedbackAnalyzer:
             - "highest": The maximum value of the levels.
             - "lowest": The minimum value of the levels.
         """
-
         for criterion_data in criteria_stats.values():
             levels = criterion_data.get("levels", [])
             if levels:
@@ -160,9 +143,8 @@ class FeedbackAnalyzer:
 
     def _calculate_individual_statistics(
         self, feedback: CriteriaDict, team_stats: TeamStatistics
-    ) -> Dict[str, IndividualStatistics]:
-        """
-        Calculate individual-level statistics for each team member based on the competency matrix
+    ) -> dict[str, IndividualStatistics]:
+        """Calculate individual-level statistics for each team member based on the competency matrix
         and feedback.
 
         Args:
@@ -195,8 +177,7 @@ class FeedbackAnalyzer:
 
                     for indicator in indicators:
                         if isinstance(indicator, Indicator) and (
-                            hasattr(indicator, "level")
-                            and isinstance(indicator.level, int)
+                            hasattr(indicator, "level") and isinstance(indicator.level, int)
                         ):
                             level = indicator.level
                             ind_name = indicator.name
@@ -204,9 +185,7 @@ class FeedbackAnalyzer:
                             individual_stats.overall_levels.append(level)
                             criterion_stats["levels"].append(level)
 
-                            ind_stats = criterion_stats["indicator_stats"].setdefault(
-                                ind_name, {}
-                            )
+                            ind_stats = criterion_stats["indicator_stats"].setdefault(ind_name, {})
 
                             if "levels" not in ind_stats:
                                 ind_stats["levels"] = []
@@ -214,19 +193,14 @@ class FeedbackAnalyzer:
                             ind_stats["levels"].append(level)
 
             self._finalize_statistics_for_criteria(individual_stats.criteria_stats)
-            individual_stats.finalize_statistics(
-                self._config.criteria_weights, team_stats
-            )
+            individual_stats.finalize_statistics(self._config.criteria_weights, team_stats)
             del individual_stats.overall_levels
             team_member_statistics[evaluatee_name] = individual_stats
 
         return team_member_statistics
 
-    def _detect_outliers(
-        self, individual_stats: Dict[str, IndividualStatistics]
-    ) -> Dict:
-        """
-        Detects statistical outliers in individual statistics.
+    def _detect_outliers(self, individual_stats: dict[str, IndividualStatistics]) -> dict:
+        """Detects statistical outliers in individual statistics.
 
         Args:
             individual_stats (Dict): Dictionary of individual statistics.
@@ -237,9 +211,11 @@ class FeedbackAnalyzer:
         """
         logger.debug("Detecting outliers in individual statistics.")
         averages = [stats.average_level for stats in individual_stats.values()]
-        outlier_indices = StatisticsHelper.calculate_outliers(
-            averages, self._config.outlier_threshold
-        )
+        outlier_indices = StatisticsHelper.calculate_outliers(averages, self._config.outlier_threshold)
+
+        # Return empty dict if no outliers detected
+        if not outlier_indices:
+            return {}
 
         min_outlier = min(outlier_indices)
         max_outlier = max(outlier_indices)

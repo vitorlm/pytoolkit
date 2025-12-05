@@ -1,15 +1,15 @@
-"""
-DynamoDB JSON Processor Command
+"""DynamoDB JSON Processor Command
 Processes DynamoDB JSON export files and loads them into DuckDB.
 """
 
 from argparse import ArgumentParser, Namespace
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
+
 from domains.syngenta.aws.dynamodb_json_processor_service import (
     DynamoDBJSONProcessorService,
 )
+from utils.command.base_command import BaseCommand
+from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 
 
 class DynamoDBJSONProcessorCommand(BaseCommand):
@@ -215,9 +215,7 @@ REQUIREMENTS:
             action="store_true",
             help="Skip creating business-friendly views when using structured processing",
         )
-        parser.add_argument(
-            "--verbose", action="store_true", help="Enable verbose progress output"
-        )
+        parser.add_argument("--verbose", action="store_true", help="Enable verbose progress output")
 
     @staticmethod
     def main(args: Namespace):
@@ -242,9 +240,7 @@ REQUIREMENTS:
             service = DynamoDBJSONProcessorService()
 
             if args.structured:
-                logger.info(
-                    "Using structured processing - entities will be separated into different tables"
-                )
+                logger.info("Using structured processing - entities will be separated into different tables")
                 result = service.process_exports_structured(
                     input_dir=args.input_dir,
                     output_db=args.output_db,
@@ -282,19 +278,13 @@ REQUIREMENTS:
                 logger.info("\nEntity Statistics:")
                 for entity_type, count in result["entity_statistics"].items():
                     table_name = f"{entity_type.lower()}_entities"
-                    logger.info(
-                        f"  • {entity_type}: {count:,} records → table '{table_name}'"
-                    )
+                    logger.info(f"  • {entity_type}: {count:,} records → table '{table_name}'")
 
                 # Show processing errors if any
                 if result.get("error_count", 0) > 0:
-                    logger.warning(
-                        f"\nProcessing errors encountered: {result['error_count']}"
-                    )
+                    logger.warning(f"\nProcessing errors encountered: {result['error_count']}")
                     for error_info in result.get("processing_errors", []):
-                        logger.warning(
-                            f"  • File {error_info['file_index']}: {error_info['file']}"
-                        )
+                        logger.warning(f"  • File {error_info['file_index']}: {error_info['file']}")
                         logger.warning(f"    Error: {error_info['error']}")
 
             else:
@@ -322,9 +312,7 @@ REQUIREMENTS:
                 if result.get("errors", 0) > 0:
                     logger.warning("Errors occurred during processing:")
                     for error_detail in result.get("error_details", []):
-                        logger.warning(
-                            f"  • {error_detail['file']}: {error_detail['error']}"
-                        )
+                        logger.warning(f"  • {error_detail['file']}: {error_detail['error']}")
 
             logger.info(f"Output database: {args.output_db}")
             logger.info("=" * 60)

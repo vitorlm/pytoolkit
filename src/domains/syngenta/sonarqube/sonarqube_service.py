@@ -1,24 +1,20 @@
-"""
-SonarQube Service for fetching project metrics and issues.
-"""
+"""SonarQube Service for fetching project metrics and issues."""
+
+import hashlib
+import os
 
 import requests
-from typing import Dict, List, Optional
-from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
+
 from utils.cache_manager.cache_manager import CacheManager
-import os
-import hashlib
+from utils.data.json_manager import JSONManager
+from utils.logging.logging_manager import LogManager
 
 
 class SonarQubeService:
-    """
-    Service class for interacting with SonarQube API.
-    """
+    """Service class for interacting with SonarQube API."""
 
-    def __init__(self, base_url: Optional[str] = None, token: Optional[str] = None):
-        """
-        Initialize the SonarQube service.
+    def __init__(self, base_url: str | None = None, token: str | None = None):
+        """Initialize the SonarQube service.
 
         Args:
             base_url: SonarQube instance URL (defaults to env SONARQUBE_URL)
@@ -45,12 +41,11 @@ class SonarQubeService:
 
     def get_projects(
         self,
-        organization: Optional[str] = None,
+        organization: str | None = None,
         use_project_list: bool = False,
-        output_file: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Fetch all projects from SonarQube with pagination support.
+        output_file: str | None = None,
+    ) -> list[dict]:
+        """Fetch all projects from SonarQube with pagination support.
 
         Args:
             organization: Organization key (for SonarCloud)
@@ -62,16 +57,12 @@ class SonarQubeService:
         """
         # If using project list, load projects from file
         if use_project_list:
-            projects_file = os.path.join(
-                os.path.dirname(__file__), "projects_list.json"
-            )
+            projects_file = os.path.join(os.path.dirname(__file__), "projects_list.json")
             if os.path.exists(projects_file):
                 self._logger.info("Using predefined project list")
                 projects_data = JSONManager.read_json(projects_file)
                 project_keys = projects_data.get("projects", [])
-                return self._get_projects_by_keys(
-                    project_keys, organization, output_file
-                )
+                return self._get_projects_by_keys(project_keys, organization, output_file)
             else:
                 self._logger.warning(f"Projects list file not found: {projects_file}")
                 return []
@@ -85,13 +76,9 @@ class SonarQubeService:
 
         # Try to get from cache first
         try:
-            cached_result = self._cache_manager.load(
-                cache_key, expiration_minutes=self._cache_expiration
-            )
+            cached_result = self._cache_manager.load(cache_key, expiration_minutes=self._cache_expiration)
             if cached_result is not None and len(cached_result) > 0:
-                self._logger.info(
-                    f"Using cached projects data (found {len(cached_result)} projects)"
-                )
+                self._logger.info(f"Using cached projects data (found {len(cached_result)} projects)")
                 if output_file:
                     JSONManager.write_json(cached_result, output_file)
                     self._logger.info(f"Projects saved to '{output_file}'")
@@ -111,7 +98,7 @@ class SonarQubeService:
 
         try:
             while True:
-                params: Dict[str, str | int] = {"p": page, "ps": page_size}
+                params: dict[str, str | int] = {"p": page, "ps": page_size}
                 if org:
                     params["organization"] = org
 
@@ -130,8 +117,7 @@ class SonarQubeService:
                 page_size_returned = paging.get("pageSize", page_size)
 
                 self._logger.info(
-                    f"Page {page_index}, Total: {total}, "
-                    f"Page size: {page_size_returned}, Returned: {len(projects)}"
+                    f"Page {page_index}, Total: {total}, Page size: {page_size_returned}, Returned: {len(projects)}"
                 )
 
                 # Add projects from this page
@@ -143,9 +129,7 @@ class SonarQubeService:
 
                 page += 1
 
-            self._logger.info(
-                f"Fetched {len(all_projects)} total projects from {page} pages"
-            )
+            self._logger.info(f"Fetched {len(all_projects)} total projects from {page} pages")
 
             self._logger.info(f"Found {len(all_projects)} projects")
             for project in all_projects:
@@ -172,11 +156,10 @@ class SonarQubeService:
     def get_project_measures(
         self,
         project_key: str,
-        metric_keys: List[str],
-        output_file: Optional[str] = None,
-    ) -> Dict:
-        """
-        Fetch measures for a specific project.
+        metric_keys: list[str],
+        output_file: str | None = None,
+    ) -> dict:
+        """Fetch measures for a specific project.
 
         Args:
             project_key: Project key
@@ -207,25 +190,20 @@ class SonarQubeService:
                 JSONManager.write_json(data, output_file)
                 self._logger.info(f"Measures saved to '{output_file}'")
 
-            self._logger.info(
-                f"Fetched {len(measures)} measures for project '{project_key}'"
-            )
+            self._logger.info(f"Fetched {len(measures)} measures for project '{project_key}'")
             return data
 
         except requests.exceptions.RequestException as e:
-            self._logger.error(
-                f"Failed to fetch measures for project '{project_key}': {e}"
-            )
+            self._logger.error(f"Failed to fetch measures for project '{project_key}': {e}")
             return {}
 
     def get_project_issues(
         self,
         project_key: str,
-        severities: Optional[List[str]] = None,
-        output_file: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Fetch issues for a specific project.
+        severities: list[str] | None = None,
+        output_file: str | None = None,
+    ) -> list[dict]:
+        """Fetch issues for a specific project.
 
         Args:
             project_key: Project key
@@ -262,20 +240,15 @@ class SonarQubeService:
                 JSONManager.write_json(issues, output_file)
                 self._logger.info(f"Issues saved to '{output_file}'")
 
-            self._logger.info(
-                f"Fetched {len(issues)} issues for project '{project_key}'"
-            )
+            self._logger.info(f"Fetched {len(issues)} issues for project '{project_key}'")
             return issues
 
         except requests.exceptions.RequestException as e:
-            self._logger.error(
-                f"Failed to fetch issues for project '{project_key}': {e}"
-            )
+            self._logger.error(f"Failed to fetch issues for project '{project_key}': {e}")
             return []
 
-    def get_available_metrics(self, output_file: Optional[str] = None) -> List[Dict]:
-        """
-        Fetch all available metrics.
+    def get_available_metrics(self, output_file: str | None = None) -> list[dict]:
+        """Fetch all available metrics.
 
         Args:
             output_file: Optional file to save results
@@ -313,12 +286,11 @@ class SonarQubeService:
 
     def get_batch_measures(
         self,
-        project_keys: List[str],
-        metric_keys: List[str],
-        output_file: Optional[str] = None,
-    ) -> Dict:
-        """
-        Fetch measures for multiple projects in a single request.
+        project_keys: list[str],
+        metric_keys: list[str],
+        output_file: str | None = None,
+    ) -> dict:
+        """Fetch measures for multiple projects in a single request.
 
         Args:
             project_keys: List of project keys
@@ -364,9 +336,7 @@ class SonarQubeService:
                 JSONManager.write_json(data, output_file)
                 self._logger.info(f"Batch measures saved to '{output_file}'")
 
-            self._logger.info(
-                f"Fetched batch measures for {len(project_keys)} projects"
-            )
+            self._logger.info(f"Fetched batch measures for {len(project_keys)} projects")
             return data
 
         except requests.exceptions.RequestException as e:
@@ -375,14 +345,13 @@ class SonarQubeService:
 
     def get_projects_by_list(
         self,
-        organization: Optional[str] = None,
+        organization: str | None = None,
         include_measures: bool = False,
-        metric_keys: Optional[List[str]] = None,
-        output_file: Optional[str] = None,
-        filter_project_keys: Optional[List[str]] = None,
-    ) -> Dict:
-        """
-        Get projects from predefined list and optionally include their measures.
+        metric_keys: list[str] | None = None,
+        output_file: str | None = None,
+        filter_project_keys: list[str] | None = None,
+    ) -> dict:
+        """Get projects from predefined list and optionally include their measures.
         Optionally filter by project keys.
 
         Args:
@@ -415,14 +384,10 @@ class SonarQubeService:
         if include_measures and projects:
             # Get project keys and filter out None values
             project_keys = [project.get("key") for project in projects]
-            project_keys = [
-                key for key in project_keys if isinstance(key, str) and key is not None
-            ]
+            project_keys = [key for key in project_keys if isinstance(key, str) and key is not None]
 
             if project_keys and metric_keys:
-                self._logger.info(
-                    f"Fetching measures for {len(project_keys)} projects from list..."
-                )
+                self._logger.info(f"Fetching measures for {len(project_keys)} projects from list...")
                 measures_data = self.get_batch_measures(project_keys, metric_keys)
                 # Create a mapping of project key to measures
                 project_measures = {}
@@ -451,9 +416,7 @@ class SonarQubeService:
                     }
                     result["projects"].append(project_info)
             elif include_measures and not metric_keys:
-                self._logger.warning(
-                    "include_measures=True but no metric_keys provided"
-                )
+                self._logger.warning("include_measures=True but no metric_keys provided")
                 # Add projects without measures
                 result["projects"] = projects
         else:
@@ -468,12 +431,11 @@ class SonarQubeService:
 
     def _get_projects_by_keys(
         self,
-        project_keys: List[str],
-        organization: Optional[str] = None,
-        output_file: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Get specific projects by their keys using batch requests.
+        project_keys: list[str],
+        organization: str | None = None,
+        output_file: str | None = None,
+    ) -> list[dict]:
+        """Get specific projects by their keys using batch requests.
 
         Args:
             project_keys: List of project keys to fetch
@@ -495,21 +457,15 @@ class SonarQubeService:
 
         # Try to get from cache first
         try:
-            cached_result = self._cache_manager.load(
-                cache_key, expiration_minutes=self._cache_expiration
-            )
+            cached_result = self._cache_manager.load(cache_key, expiration_minutes=self._cache_expiration)
             if cached_result is not None and len(cached_result) > 0:
-                self._logger.info(
-                    f"Using cached project keys data (found {len(cached_result)} projects)"
-                )
+                self._logger.info(f"Using cached project keys data (found {len(cached_result)} projects)")
                 if output_file:
                     JSONManager.write_json(cached_result, output_file)
                     self._logger.info(f"Projects saved to '{output_file}'")
                 return cached_result
             elif cached_result is not None:
-                self._logger.info(
-                    "Found empty cached project keys result, proceeding with API call"
-                )
+                self._logger.info("Found empty cached project keys result, proceeding with API call")
         except Exception as e:
             self._logger.warning(f"Failed to load cached project keys data: {e}")
 
@@ -544,9 +500,7 @@ class SonarQubeService:
             except requests.exceptions.RequestException as e:
                 self._logger.error(f"Failed to fetch project chunk: {e}")
 
-        self._logger.info(
-            f"Found {len(all_projects)} total projects from predefined list"
-        )
+        self._logger.info(f"Found {len(all_projects)} total projects from predefined list")
         for project in all_projects:
             self._logger.debug(f"  - {project.get('key')}: {project.get('name')}")
 
@@ -565,8 +519,7 @@ class SonarQubeService:
         return all_projects
 
     def _generate_cache_key(self, prefix: str, **kwargs) -> str:
-        """
-        Generate a cache key based on a prefix and additional parameters.
+        """Generate a cache key based on a prefix and additional parameters.
 
         Args:
             prefix: The base prefix for the cache key
@@ -584,9 +537,7 @@ class SonarQubeService:
         return f"sonarqube_{prefix}_{hash_hex}"
 
     def clear_cache(self):
-        """
-        Clear all SonarQube related cache entries.
-        """
+        """Clear all SonarQube related cache entries."""
         try:
             self._cache_manager.clear_all()
             self._logger.info("Cache cleared successfully")

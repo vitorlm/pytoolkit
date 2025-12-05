@@ -1,20 +1,18 @@
 import datetime
 import os
-import requests
-from typing import List, Optional, Dict
 from urllib.parse import urlparse
+
+import requests
 
 
 class FileManager:
-    """
-    General file management operations including listing, reading, deleting files,
+    """General file management operations including listing, reading, deleting files,
     and retrieving metadata.
     """
 
     @staticmethod
-    def list_files(directory: str, extension: Optional[str] = None) -> List[str]:
-        """
-        Lists all files in a directory with an optional filter by extension.
+    def list_files(directory: str, extension: str | None = None) -> list[str]:
+        """Lists all files in a directory with an optional filter by extension.
 
         Args:
             directory (str): Path to the directory.
@@ -31,14 +29,12 @@ class FileManager:
         return [
             os.path.join(directory, f)
             for f in os.listdir(directory)
-            if os.path.isfile(os.path.join(directory, f))
-            and (extension is None or f.endswith(extension))
+            if os.path.isfile(os.path.join(directory, f)) and (extension is None or f.endswith(extension))
         ]
 
     @staticmethod
-    def read_file(file_path: str) -> List[str]:
-        """
-        Reads the content of a file.
+    def read_file(file_path: str) -> list[str]:
+        """Reads the content of a file.
 
         Args:
             file_path (str): Path to the file.
@@ -51,13 +47,12 @@ class FileManager:
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             return file.readlines()
 
     @staticmethod
     def write_file(file_path: str, content: str) -> None:
-        """
-        Writes content to a file.
+        """Writes content to a file.
 
         Args:
             file_path (str): Path to the file.
@@ -68,8 +63,7 @@ class FileManager:
 
     @staticmethod
     def delete_file(file_path: str) -> None:
-        """
-        Deletes a file.
+        """Deletes a file.
 
         Args:
             file_path (str): Path to the file to be deleted.
@@ -83,9 +77,8 @@ class FileManager:
             raise FileNotFoundError(f"File not found: {file_path}")
 
     @staticmethod
-    def batch_delete_files(file_paths: List[str]) -> None:
-        """
-        Deletes multiple files at once.
+    def batch_delete_files(file_paths: list[str]) -> None:
+        """Deletes multiple files at once.
 
         Args:
             file_paths (List[str]): List of file paths to delete.
@@ -98,14 +91,13 @@ class FileManager:
 
     @staticmethod
     def generate_file_name(
-        module: Optional[str] = None,
-        suffix: Optional[str] = None,
+        module: str | None = None,
+        suffix: str | None = None,
         extension: str = ".txt",
         include_timestamp: bool = True,
         timestamp_format: str = "%Y%m%d%H%M%S",
     ) -> str:
-        """
-        Generates a standardized and flexible file name.
+        """Generates a standardized and flexible file name.
 
         Args:
             module (Optional[str]): Module or context name.
@@ -121,17 +113,14 @@ class FileManager:
             raise ValueError("Extension must start with a dot.")
         parts = [
             module.replace(" ", "_") if module else None,
-            datetime.datetime.now().strftime(timestamp_format)
-            if include_timestamp
-            else None,
+            datetime.datetime.now().strftime(timestamp_format) if include_timestamp else None,
             suffix.replace(" ", "_") if suffix else None,
         ]
         return "_".join(filter(None, parts)) + extension
 
     @staticmethod
-    def retrieve_metadata(file_path: str) -> Dict[str, str]:
-        """
-        Retrieves metadata of a file.
+    def retrieve_metadata(file_path: str) -> dict[str, str]:
+        """Retrieves metadata of a file.
 
         Args:
             file_path (str): Path to the file.
@@ -153,8 +142,7 @@ class FileManager:
 
     @staticmethod
     def create_folder(folder_path: str, exist_ok: bool = True) -> None:
-        """
-        Creates a folder.
+        """Creates a folder.
 
         Args:
             folder_path (str): Path of the folder to create.
@@ -166,11 +154,8 @@ class FileManager:
         os.makedirs(folder_path, exist_ok=exist_ok)
 
     @staticmethod
-    def validate_file(
-        file_path: str, allowed_extensions: Optional[List[str]] = None
-    ) -> None:
-        """
-        Validates file existence and extension.
+    def validate_file(file_path: str, allowed_extensions: list[str] | None = None) -> None:
+        """Validates file existence and extension.
 
         Args:
             file_path (str): Path to the file.
@@ -185,14 +170,11 @@ class FileManager:
         if allowed_extensions:
             _, ext = os.path.splitext(file_path)
             if ext.lower() not in allowed_extensions:
-                raise ValueError(
-                    f"Invalid file extension: {ext}. Allowed: {allowed_extensions}"
-                )
+                raise ValueError(f"Invalid file extension: {ext}. Allowed: {allowed_extensions}")
 
     @staticmethod
     def is_folder(path: str) -> bool:
-        """
-        Checks if the given path is a folder.
+        """Checks if the given path is a folder.
 
         Args:
             path (str): The path to validate.
@@ -204,8 +186,7 @@ class FileManager:
 
     @staticmethod
     def validate_folder(folder_path: str) -> None:
-        """
-        Validates if a folder exists.
+        """Validates if a folder exists.
 
         Args:
             folder_path (str): Path to the folder to validate.
@@ -218,8 +199,7 @@ class FileManager:
 
     @staticmethod
     def get_file_name(file_name: str) -> str:
-        """
-        Extracts the module name from a file name.
+        """Extracts the module name from a file name.
 
         Args:
             file_name (str): Name of the file.
@@ -231,8 +211,7 @@ class FileManager:
 
     @staticmethod
     def file_exists(file_path: str) -> bool:
-        """
-        Checks if a file exists.
+        """Checks if a file exists.
 
         Args:
             file_path (str): Path to the file.
@@ -246,12 +225,11 @@ class FileManager:
     def download_file(
         url: str,
         destination_path: str,
-        headers: Optional[Dict[str, str]] = None,
+        headers: dict[str, str] | None = None,
         timeout: int = 30,
         chunk_size: int = 8192,
     ) -> str:
-        """
-        Downloads a file from a URL and saves it to the specified destination.
+        """Downloads a file from a URL and saves it to the specified destination.
 
         Args:
             url (str): The URL to download the file from.
@@ -283,9 +261,7 @@ class FileManager:
             destination_path = os.path.join(destination_path, filename)
 
         try:
-            response = requests.get(
-                url, headers=headers or {}, timeout=timeout, stream=True
-            )
+            response = requests.get(url, headers=headers or {}, timeout=timeout, stream=True)
             response.raise_for_status()
 
             with open(destination_path, "wb") as file:
@@ -296,8 +272,6 @@ class FileManager:
             return destination_path
 
         except requests.exceptions.RequestException as e:
-            raise requests.exceptions.RequestException(
-                f"Failed to download file from {url}: {e}"
-            )
+            raise requests.exceptions.RequestException(f"Failed to download file from {url}: {e}")
         except OSError as e:
             raise OSError(f"Failed to save file to {destination_path}: {e}")

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-Advanced NFCe Similarity Command - Uses larger Portuguese models for enhanced similarity detection
-"""
+"""Advanced NFCe Similarity Command - Uses larger Portuguese models for enhanced similarity detection"""
 
 from argparse import ArgumentParser, Namespace
+
+from domains.personal_finance.nfce.enhanced_nfce_service import EnhancedNFCeService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
-from domains.personal_finance.nfce.enhanced_nfce_service import EnhancedNFCeService
 
 
 class AdvancedNFCeSimilarityCommand(BaseCommand):
@@ -17,9 +16,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Advanced NFCe similarity detection using larger Portuguese language models"
-        )
+        return "Advanced NFCe similarity detection using larger Portuguese language models"
 
     @staticmethod
     def get_help() -> str:
@@ -112,9 +109,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
         )
 
         # Processing options
-        parser.add_argument(
-            "--save-db", action="store_true", help="Save results to local database"
-        )
+        parser.add_argument("--save-db", action="store_true", help="Save results to local database")
         parser.add_argument(
             "--output",
             help="Output file path for results (default: auto-generated in output/)",
@@ -151,12 +146,8 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
 
             # Check system resources for large models
             if args.model in ["bertimbau-large", "legal-bertimbau"]:
-                logger.warning(
-                    "Using large model - ensure sufficient RAM (8GB+) and consider GPU acceleration"
-                )
-                print(
-                    "⚠️  Large model selected - this may take significant time and resources"
-                )
+                logger.warning("Using large model - ensure sufficient RAM (8GB+) and consider GPU acceleration")
+                print("⚠️  Large model selected - this may take significant time and resources")
 
             # Initialize enhanced service with advanced model
             service = EnhancedNFCeService(
@@ -179,9 +170,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
                     detect_similar=True,
                 )
             else:  # args.input
-                logger.info(
-                    f"Processing URLs with advanced similarity from: {args.input}"
-                )
+                logger.info(f"Processing URLs with advanced similarity from: {args.input}")
                 from utils.data.json_manager import JSONManager
 
                 url_data = JSONManager.read_json(args.input)
@@ -201,9 +190,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
 
             # Filter results by minimum confidence if specified
             if args.min_confidence > 0 and "similarity_analysis" in result:
-                AdvancedNFCeSimilarityCommand._filter_by_confidence(
-                    result, args.min_confidence, logger
-                )
+                AdvancedNFCeSimilarityCommand._filter_by_confidence(result, args.min_confidence, logger)
 
             # Generate detailed report
             if "similarity_analysis" in result:
@@ -214,26 +201,18 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
                     if args.detailed_report:
-                        report_path = (
-                            f"output/advanced_similarity_report_{timestamp}.md"
-                        )
+                        report_path = f"output/advanced_similarity_report_{timestamp}.md"
                     else:
                         report_path = f"output/similarity_summary_{timestamp}.md"
 
-                    report_content = service.generate_similarity_report(
-                        result, report_path
-                    )
+                    report_content = service.generate_similarity_report(result, report_path)
                     print(f"Advanced similarity report saved to: {report_path}")
 
                     # Print detailed summary to console
-                    AdvancedNFCeSimilarityCommand._print_advanced_summary(
-                        result, args.model
-                    )
+                    AdvancedNFCeSimilarityCommand._print_advanced_summary(result, args.model)
 
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to generate advanced similarity report: {e}"
-                    )
+                    logger.warning(f"Failed to generate advanced similarity report: {e}")
 
             # Save results
             if args.output:
@@ -253,9 +232,7 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
             successful = result.get("successful", 0)
 
             if successful > 0:
-                logger.info(
-                    f"✅ Advanced similarity analysis completed: {successful}/{total_processed} processed"
-                )
+                logger.info(f"✅ Advanced similarity analysis completed: {successful}/{total_processed} processed")
                 print("✅ Analysis completed successfully!")
             else:
                 logger.warning("No data was processed successfully")
@@ -269,33 +246,20 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
     @staticmethod
     def _filter_by_confidence(result: dict, min_confidence: float, logger):
         """Filter similarity results by minimum confidence score"""
-
         similarity_analysis = result["similarity_analysis"]
         original_groups = similarity_analysis.get("similar_groups", [])
 
-        filtered_groups = [
-            group
-            for group in original_groups
-            if group.get("confidence_score", 0) >= min_confidence
-        ]
+        filtered_groups = [group for group in original_groups if group.get("confidence_score", 0) >= min_confidence]
 
         filtered_count = len(original_groups) - len(filtered_groups)
         if filtered_count > 0:
-            logger.info(
-                f"Filtered {filtered_count} low-confidence groups (min confidence: {min_confidence})"
-            )
+            logger.info(f"Filtered {filtered_count} low-confidence groups (min confidence: {min_confidence})")
             similarity_analysis["similar_groups"] = filtered_groups
 
             # Recalculate statistics
-            total_similar_products = sum(
-                len(group["products"]) for group in filtered_groups
-            )
-            similarity_analysis["statistics"]["total_similar_groups"] = len(
-                filtered_groups
-            )
-            similarity_analysis["statistics"]["total_similar_products"] = (
-                total_similar_products
-            )
+            total_similar_products = sum(len(group["products"]) for group in filtered_groups)
+            similarity_analysis["statistics"]["total_similar_groups"] = len(filtered_groups)
+            similarity_analysis["statistics"]["total_similar_products"] = total_similar_products
             similarity_analysis["statistics"]["high_confidence_groups"] = len(
                 [g for g in filtered_groups if g.get("confidence_score", 0) > 0.8]
             )
@@ -303,7 +267,6 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
     @staticmethod
     def _print_advanced_summary(result: dict, model_name: str):
         """Print detailed summary of advanced similarity analysis"""
-
         if "similarity_analysis" not in result:
             return
 
@@ -360,6 +323,4 @@ class AdvancedNFCeSimilarityCommand(BaseCommand):
             print("✅ Boa performance com modelo balanceado!")
             print("💡 Para máxima precisão, tente: --model bertimbau-large")
         else:
-            print(
-                "⚡ Modelo rápido usado - para melhor precisão, tente modelos BERTimbau!"
-            )
+            print("⚡ Modelo rápido usado - para melhor precisão, tente modelos BERTimbau!")

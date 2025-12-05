@@ -23,8 +23,7 @@ class MCPServerConfig:
 
     @classmethod
     def get_config(cls) -> dict[str, Any]:
-        """
-        Get complete server configuration.
+        """Get complete server configuration.
 
         Returns:
             dict[str, Any]: Complete server configuration including server identity,

@@ -1,11 +1,8 @@
 class BaseCustomError(Exception):
-    """
-    Base class for custom exceptions with metadata support.
-    """
+    """Base class for custom exceptions with metadata support."""
 
     def __init__(self, message: str, **metadata):
-        """
-        Initializes the exception with a message and optional metadata.
+        """Initializes the exception with a message and optional metadata.
 
         :param message: Error message.
         :param metadata: Additional context or metadata for debugging.

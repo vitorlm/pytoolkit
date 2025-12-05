@@ -1,25 +1,23 @@
 #!/usr/bin/env python3
-"""
-Similarity Module - Product similarity detection and matching
-"""
+"""Similarity Module - Product similarity detection and matching"""
 
-from .product_normalizer import ProductNormalizer
+from .embedding_similarity import EmbeddingResult, EmbeddingSimilarity
 from .feature_extractor import FeatureExtractor, ProductFeatures
+from .product_matcher import MatchGroup, MatchingResults, ProductMatcher
+from .product_normalizer import ProductNormalizer
 from .similarity_calculator import SimilarityCalculator, SimilarityResult
-from .product_matcher import ProductMatcher, MatchGroup, MatchingResults
-from .embedding_similarity import EmbeddingSimilarity, EmbeddingResult
 
 __all__ = [
-    "ProductNormalizer",
+    "EmbeddingResult",
+    "EmbeddingSimilarity",
     "FeatureExtractor",
-    "ProductFeatures",
-    "SimilarityCalculator",
-    "SimilarityResult",
-    "ProductMatcher",
     "MatchGroup",
     "MatchingResults",
-    "EmbeddingSimilarity",
-    "EmbeddingResult",
+    "ProductFeatures",
+    "ProductMatcher",
+    "ProductNormalizer",
+    "SimilarityCalculator",
+    "SimilarityResult",
 ]
 
 # Version info

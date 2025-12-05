@@ -1,18 +1,19 @@
-import os
-import inspect
 import importlib
+import inspect
+import os
 import pkgutil
 from argparse import ArgumentParser, _SubParsersAction
-from typing import Dict, Type, Union
 from types import ModuleType
+
 from utils.command.base_command import BaseCommand
-from utils.logging.logging_manager import LogManager
 from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
+
 from .error import (
-    CommandManagerError,
     CommandLoadError,
-    ModuleImportError,
+    CommandManagerError,
     HierarchyConflictError,
+    ModuleImportError,
 )
 
 
@@ -21,15 +22,11 @@ class CommandManager:
 
     def __init__(self, base_path: str):
         self.base_path = os.path.abspath(base_path)
-        self.hierarchy: Dict[str, Dict] = {}
+        self.hierarchy: dict[str, dict] = {}
 
     def load_commands(self) -> None:
-        """
-        Dynamically loads all commands inheriting BaseCommand and builds the hierarchy.
-        """
-        self._logger.debug(
-            f"Starting to load commands from base path: {self.base_path}"
-        )
+        """Dynamically loads all commands inheriting BaseCommand and builds the hierarchy."""
+        self._logger.debug(f"Starting to load commands from base path: {self.base_path}")
 
         for root, _, _ in os.walk(self.base_path):
             if not os.path.isfile(os.path.join(root, "__init__.py")):
@@ -39,14 +36,10 @@ class CommandManager:
             for _, module_name, _ in pkgutil.iter_modules([root]):
                 try:
                     absolute_module_path = os.path.join(root, module_name)
-                    if FileManager.is_folder(
-                        absolute_module_path
-                    ) and not os.path.isfile(
+                    if FileManager.is_folder(absolute_module_path) and not os.path.isfile(
                         os.path.join(absolute_module_path, "__init__.py")
                     ):
-                        self._logger.debug(
-                            f"Skipping non-package module: {absolute_module_path}"
-                        )
+                        self._logger.debug(f"Skipping non-package module: {absolute_module_path}")
                         continue
 
                     self._logger.debug(f"Processing module: {module_name} in {root}")
@@ -58,8 +51,7 @@ class CommandManager:
         self._logger.debug("Finished loading commands.")
 
     def _module_path_from_root(self, root: str, module_name: str) -> str:
-        """
-        Constructs the relative module path for importlib.import_module.
+        """Constructs the relative module path for importlib.import_module.
 
         Args:
             root (str): Current directory being processed.
@@ -80,9 +72,7 @@ class CommandManager:
             return f".{package_path}.{module_name}"
 
     def _import_module(self, root: str, module_name: str):
-        """
-        Imports a module dynamically.
-        """
+        """Imports a module dynamically."""
         relative_path = self._module_path_from_root(root, module_name)
         self._logger.debug(f"Importing module {relative_path}")
         try:
@@ -93,9 +83,7 @@ class CommandManager:
             raise ModuleImportError(module_path=relative_path, error=e) from e
 
     def _process_module(self, module):
-        """
-        Processes a module to find BaseCommand subclasses and updates the hierarchy.
-        """
+        """Processes a module to find BaseCommand subclasses and updates the hierarchy."""
         self._logger.debug(f"Inspecting module: {module.__name__}")
         try:
             module_members = inspect.getmembers(module, inspect.isclass)
@@ -116,8 +104,7 @@ class CommandManager:
 
                     if missing_methods:
                         self._logger.debug(
-                            f"Command {name} is missing required methods: {missing_methods} "
-                            "and will be skipped."
+                            f"Command {name} is missing required methods: {missing_methods} and will be skipped."
                         )
                         continue
 
@@ -125,10 +112,8 @@ class CommandManager:
         except Exception as e:
             raise CommandLoadError(module_name=module.__name__, error=e) from e
 
-    def _add_to_hierarchy(self, entity: Union[Type[BaseCommand], ModuleType]):
-        """
-        Adds a command class to the hierarchy based on its domain and subdomain.
-        """
+    def _add_to_hierarchy(self, entity: type[BaseCommand] | ModuleType):
+        """Adds a command class to the hierarchy based on its domain and subdomain."""
         try:
             if isinstance(entity, type) and issubclass(entity, BaseCommand):
                 name_parts = entity.__module__.split(".")
@@ -155,9 +140,7 @@ class CommandManager:
             raise CommandLoadError(module_name=entity.__module__, error=e) from e
 
     def build_parser(self) -> ArgumentParser:
-        """
-        Builds the ArgumentParser hierarchy from the loaded command structure.
-        """
+        """Builds the ArgumentParser hierarchy from the loaded command structure."""
         self._logger.debug("Building argument parser hierarchy")
         try:
             parser = ArgumentParser(
@@ -173,23 +156,15 @@ class CommandManager:
 
             return parser
         except Exception as e:
-            raise CommandManagerError(
-                message="Failed to build argument parser hierarchy", error=e
-            )
+            raise CommandManagerError(message="Failed to build argument parser hierarchy", error=e)
 
-    def _add_subparser(
-        self, subparsers: _SubParsersAction, name: str, substructure: Dict
-    ):
-        """
-        Recursively adds subparsers for domains, subdomains, and commands.
-        """
+    def _add_subparser(self, subparsers: _SubParsersAction, name: str, substructure: dict):
+        """Recursively adds subparsers for domains, subdomains, and commands."""
         self._logger.debug(f"Creating parser for: {name}")
         try:
             if isinstance(substructure, dict) and "class" not in substructure:
                 parser = subparsers.add_parser(name, help=f"{name} commands")
-                parser_subparsers = parser.add_subparsers(
-                    dest="subdomain_or_command", help=f"{name} subcommands"
-                )
+                parser_subparsers = parser.add_subparsers(dest="subdomain_or_command", help=f"{name} subcommands")
 
                 for key, value in substructure.items():
                     self._add_subparser(parser_subparsers, key, value)

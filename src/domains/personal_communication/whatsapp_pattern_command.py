@@ -1,14 +1,15 @@
 from argparse import ArgumentParser, Namespace
-from typing import List, Dict, Any
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from utils.file_manager import FileManager
-from utils.data.json_manager import JSONManager
+from typing import Any
+
 from domains.personal_communication.whatsapp_pattern_service import (
-    WhatsAppPatternService,
     WhatsAppMessage,
+    WhatsAppPatternService,
 )
+from utils.command.base_command import BaseCommand
+from utils.data.json_manager import JSONManager
+from utils.env_loader import ensure_env_loaded
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class WhatsAppPatternCommand(BaseCommand):
@@ -58,24 +59,14 @@ File format: WhatsApp chat export (.txt format)
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--file", required=True, help="Path to WhatsApp chat export file (.txt)"
-        )
+        parser.add_argument("--file", required=True, help="Path to WhatsApp chat export file (.txt)")
 
         # Search options (mutually exclusive group)
         search_group = parser.add_mutually_exclusive_group()
-        search_group.add_argument(
-            "--domain", help="Find messages with links from specific domain"
-        )
-        search_group.add_argument(
-            "--pattern", help="Find messages containing text pattern"
-        )
-        search_group.add_argument(
-            "--stats", action="store_true", help="Show domain statistics"
-        )
-        search_group.add_argument(
-            "--all-urls", action="store_true", help="Extract all URLs from messages"
-        )
+        search_group.add_argument("--domain", help="Find messages with links from specific domain")
+        search_group.add_argument("--pattern", help="Find messages containing text pattern")
+        search_group.add_argument("--stats", action="store_true", help="Show domain statistics")
+        search_group.add_argument("--all-urls", action="store_true", help="Extract all URLs from messages")
 
         # Additional options
         parser.add_argument(
@@ -83,15 +74,9 @@ File format: WhatsApp chat export (.txt format)
             action="store_true",
             help="Treat pattern as regex (use with --pattern)",
         )
-        parser.add_argument(
-            "--start-date", help="Start date for filtering (format: DD/MM/YY)"
-        )
-        parser.add_argument(
-            "--end-date", help="End date for filtering (format: DD/MM/YY)"
-        )
-        parser.add_argument(
-            "--output", help="Output file path for results (JSON format)"
-        )
+        parser.add_argument("--start-date", help="Start date for filtering (format: DD/MM/YY)")
+        parser.add_argument("--end-date", help="End date for filtering (format: DD/MM/YY)")
+        parser.add_argument("--output", help="Output file path for results (JSON format)")
         parser.add_argument(
             "--limit",
             type=int,
@@ -128,36 +113,22 @@ File format: WhatsApp chat export (.txt format)
 
             # Apply date filtering if specified
             if args.start_date and args.end_date:
-                messages = service.find_messages_by_date_range(
-                    messages, args.start_date, args.end_date
-                )
+                messages = service.find_messages_by_date_range(messages, args.start_date, args.end_date)
                 logger.info(f"Filtered to {len(messages)} messages in date range")
 
             # Execute the requested operation
             results = []
 
             if args.domain:
-                matching_messages = service.find_messages_with_domain(
-                    messages, args.domain
-                )
-                results = WhatsAppPatternCommand._format_messages(
-                    matching_messages, args.include_content, args.limit
-                )
-                print(
-                    f"\nFound {len(matching_messages)} messages with domain '{args.domain}':"
-                )
+                matching_messages = service.find_messages_with_domain(messages, args.domain)
+                results = WhatsAppPatternCommand._format_messages(matching_messages, args.include_content, args.limit)
+                print(f"\nFound {len(matching_messages)} messages with domain '{args.domain}':")
 
             elif args.pattern:
-                matching_messages = service.find_messages_with_pattern(
-                    messages, args.pattern, args.regex
-                )
-                results = WhatsAppPatternCommand._format_messages(
-                    matching_messages, args.include_content, args.limit
-                )
+                matching_messages = service.find_messages_with_pattern(messages, args.pattern, args.regex)
+                results = WhatsAppPatternCommand._format_messages(matching_messages, args.include_content, args.limit)
                 pattern_type = "regex" if args.regex else "text"
-                print(
-                    f"\nFound {len(matching_messages)} messages matching {pattern_type} pattern '{args.pattern}':"
-                )
+                print(f"\nFound {len(matching_messages)} messages matching {pattern_type} pattern '{args.pattern}':")
 
             elif args.stats:
                 domain_stats = service.get_domain_statistics(messages)
@@ -214,18 +185,14 @@ File format: WhatsApp chat export (.txt format)
             if isinstance(results, list) and results:
                 WhatsAppPatternCommand._display_messages(results[: args.limit])
                 if len(results) > args.limit:
-                    print(
-                        f"\n... showing {args.limit} of {len(results)} results (use --limit to see more)"
-                    )
+                    print(f"\n... showing {args.limit} of {len(results)} results (use --limit to see more)")
 
         except Exception as e:
             logger.error(f"Command failed: {e}")
             exit(1)
 
     @staticmethod
-    def _format_messages(
-        messages: List[WhatsAppMessage], include_content: bool, limit: int
-    ) -> List[Dict[str, Any]]:
+    def _format_messages(messages: list[WhatsAppMessage], include_content: bool, limit: int) -> list[dict[str, Any]]:
         """Format messages for output"""
         results = []
         for message in messages:
@@ -250,7 +217,7 @@ File format: WhatsApp chat export (.txt format)
         return results
 
     @staticmethod
-    def _display_messages(results: List[Dict[str, Any]]):
+    def _display_messages(results: list[dict[str, Any]]):
         """Display formatted messages"""
         for i, result in enumerate(results, 1):
             print(f"\n{i}. {result['timestamp']} - {result['sender']}")

@@ -1,5 +1,4 @@
-"""
-LinearB Knowledge Sharing Metrics Service.
+"""LinearB Knowledge Sharing Metrics Service.
 
 This service analyzes PR review patterns and knowledge distribution metrics
 using LinearB API data.
@@ -7,14 +6,13 @@ using LinearB API data.
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from utils.cache_manager.cache_manager import CacheManager
 from utils.data.json_manager import JSONManager
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
-
-from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 
 from .linearb_api_client import (
     LinearBApiClient,
@@ -29,21 +27,18 @@ class KnowledgeSharingMetricsService:
 
     def __init__(self):
         """Initialize the Knowledge Sharing Metrics service."""
-        self.logger = LogManager.get_instance().get_logger(
-            "KnowledgeSharingMetricsService"
-        )
+        self.logger = LogManager.get_instance().get_logger("KnowledgeSharingMetricsService")
         self.linearb_client = LinearBApiClient()
         self.cache = CacheManager.get_instance()
 
     def get_knowledge_sharing_metrics(
         self,
-        team_ids: List[str],
+        team_ids: list[str],
         time_range: str,
         pr_threshold: int = 5,
         verbose: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Get knowledge sharing metrics for teams.
+    ) -> dict[str, Any]:
+        """Get knowledge sharing metrics for teams.
 
         Args:
             team_ids: List of LinearB team IDs
@@ -61,21 +56,17 @@ class KnowledgeSharingMetricsService:
                 start_date, end_date = time_parser.parse_time_period(time_range)
             except ValueError as e:
                 raise ValueError(
-                    f"Invalid time range format: {time_range}. Supported formats: 'last-week', 'last-2-weeks', 'last-month', or 'YYYY-MM-DD to YYYY-MM-DD' for custom ranges. Error: {str(e)}"
+                    f"Invalid time range format: {time_range}. Supported formats: 'last-week', 'last-2-weeks', 'last-month', or 'YYYY-MM-DD to YYYY-MM-DD' for custom ranges. Error: {e!s}"
                 )
 
             # Convert team IDs to integers
             try:
                 team_ids_int = [int(tid) for tid in team_ids]
             except ValueError as e:
-                raise ValueError(
-                    f"Invalid team IDs format. Please provide comma-separated integers. Error: {str(e)}"
-                )
+                raise ValueError(f"Invalid team IDs format. Please provide comma-separated integers. Error: {e!s}")
 
             # Create cache key
-            cache_key = (
-                f"knowledge_metrics_{','.join(team_ids)}_{time_range}_{pr_threshold}"
-            )
+            cache_key = f"knowledge_metrics_{','.join(team_ids)}_{time_range}_{pr_threshold}"
             cached_data = self.cache.load(cache_key, expiration_minutes=60)
 
             if cached_data is not None:
@@ -83,9 +74,7 @@ class KnowledgeSharingMetricsService:
                 return cached_data
 
             # Fetch PR metrics from LinearB API
-            metrics_data = self._fetch_pr_metrics(
-                team_ids_int, start_date, end_date, pr_threshold
-            )
+            metrics_data = self._fetch_pr_metrics(team_ids_int, start_date, end_date, pr_threshold)
 
             # Process metrics to calculate knowledge sharing indicators
             results = self._calculate_knowledge_sharing_metrics(
@@ -99,20 +88,17 @@ class KnowledgeSharingMetricsService:
             return results
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to get knowledge sharing metrics: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to get knowledge sharing metrics: {e}", exc_info=True)
             raise
 
     def _fetch_pr_metrics(
         self,
-        team_ids: List[int],
+        team_ids: list[int],
         start_date: datetime,
         end_date: datetime,
         pr_threshold: int,
-    ) -> Dict[str, Any]:
-        """
-        Fetch PR metrics from LinearB API.
+    ) -> dict[str, Any]:
+        """Fetch PR metrics from LinearB API.
 
         Args:
             team_ids: List of LinearB team IDs
@@ -163,9 +149,8 @@ class KnowledgeSharingMetricsService:
             self.logger.error(f"Failed to fetch PR metrics: {e}", exc_info=True)
             raise
 
-    def _debug_api_response(self, metrics_data: Dict[str, Any]):
-        """
-        Debug the API response to understand the data structure.
+    def _debug_api_response(self, metrics_data: dict[str, Any]):
+        """Debug the API response to understand the data structure.
 
         Args:
             metrics_data: Raw metrics data from LinearB API
@@ -177,21 +162,14 @@ class KnowledgeSharingMetricsService:
             if isinstance(metrics_data, list):
                 self.logger.debug(f"Response is list with {len(metrics_data)} items")
                 for i, item in enumerate(metrics_data[:2]):  # Only show first 2 items
-                    self.logger.debug(
-                        f"Item {i} keys: {list(item.keys()) if isinstance(item, dict) else 'Not a dict'}"
-                    )
+                    self.logger.debug(f"Item {i} keys: {list(item.keys()) if isinstance(item, dict) else 'Not a dict'}")
                     if isinstance(item, dict) and "metrics" in item:
                         self.logger.debug(
                             f"Item {i} metrics count: {len(item['metrics']) if isinstance(item['metrics'], list) else 'Not a list'}"
                         )
-                        if (
-                            isinstance(item["metrics"], list)
-                            and len(item["metrics"]) > 0
-                        ):
+                        if isinstance(item["metrics"], list) and len(item["metrics"]) > 0:
                             sample_contributor = item["metrics"][0]
-                            self.logger.debug(
-                                f"Sample contributor keys: {list(sample_contributor.keys())}"
-                            )
+                            self.logger.debug(f"Sample contributor keys: {list(sample_contributor.keys())}")
                             # Log a few key fields
                             for key in [
                                 "name",
@@ -201,24 +179,16 @@ class KnowledgeSharingMetricsService:
                                 "branch.review_time",
                             ]:
                                 if key in sample_contributor:
-                                    self.logger.debug(
-                                        f"  {key}: {sample_contributor[key]}"
-                                    )
+                                    self.logger.debug(f"  {key}: {sample_contributor[key]}")
             elif isinstance(metrics_data, dict):
-                self.logger.debug(
-                    f"Response is dict with keys: {list(metrics_data.keys())}"
-                )
+                self.logger.debug(f"Response is dict with keys: {list(metrics_data.keys())}")
                 if "metrics" in metrics_data:
                     self.logger.debug(f"Metrics type: {type(metrics_data['metrics'])}")
                     if isinstance(metrics_data["metrics"], list):
-                        self.logger.debug(
-                            f"Metrics count: {len(metrics_data['metrics'])}"
-                        )
+                        self.logger.debug(f"Metrics count: {len(metrics_data['metrics'])}")
                         if len(metrics_data["metrics"]) > 0:
                             sample_contributor = metrics_data["metrics"][0]
-                            self.logger.debug(
-                                f"Sample contributor keys: {list(sample_contributor.keys())}"
-                            )
+                            self.logger.debug(f"Sample contributor keys: {list(sample_contributor.keys())}")
                             # Log a few key fields
                             for key in [
                                 "name",
@@ -228,9 +198,7 @@ class KnowledgeSharingMetricsService:
                                 "branch.review_time",
                             ]:
                                 if key in sample_contributor:
-                                    self.logger.debug(
-                                        f"  {key}: {sample_contributor[key]}"
-                                    )
+                                    self.logger.debug(f"  {key}: {sample_contributor[key]}")
 
             self.logger.debug("=== END API RESPONSE DEBUG INFO ===")
         except Exception as e:
@@ -238,14 +206,13 @@ class KnowledgeSharingMetricsService:
 
     def _calculate_knowledge_sharing_metrics(
         self,
-        metrics_data: Dict[str, Any],
-        team_ids: List[str],
+        metrics_data: dict[str, Any],
+        team_ids: list[str],
         time_range: str,
         start_date: datetime,
         end_date: datetime,
-    ) -> Dict[str, Any]:
-        """
-        Calculate knowledge sharing metrics from raw data.
+    ) -> dict[str, Any]:
+        """Calculate knowledge sharing metrics from raw data.
 
         Args:
             metrics_data: Raw metrics data from LinearB API
@@ -304,9 +271,7 @@ class KnowledgeSharingMetricsService:
                 name = contributor.get("name", "Unknown")
                 if name == "Unknown" or not name or name.lower() == "unknown":
                     unknown_names_count += 1
-                    name = (
-                        f"Reviewer-{len(reviewers) + 1}"  # Give them a placeholder name
-                    )
+                    name = f"Reviewer-{len(reviewers) + 1}"  # Give them a placeholder name
 
                 reviews_given = contributor.get("pr.reviews", 0)
                 reviews_received = contributor.get("pr.reviewed", 0)
@@ -314,13 +279,8 @@ class KnowledgeSharingMetricsService:
 
                 # Calculate average response time if available
                 avg_response_time = None
-                if (
-                    "branch.review_time" in contributor
-                    and contributor["branch.review_time"] is not None
-                ):
-                    avg_response_time_hours = (
-                        contributor["branch.review_time"] / 3600
-                    )  # Convert seconds to hours
+                if "branch.review_time" in contributor and contributor["branch.review_time"] is not None:
+                    avg_response_time_hours = contributor["branch.review_time"] / 3600  # Convert seconds to hours
                     avg_response_time = round(avg_response_time_hours, 1)
                     total_review_time += avg_response_time_hours
                     review_time_count += 1
@@ -346,26 +306,17 @@ class KnowledgeSharingMetricsService:
                     f"Notice: {unknown_names_count} contributors have anonymized names due to privacy settings"
                 )
 
-            if (
-                null_review_times == len(contributors_data)
-                and len(contributors_data) > 0
-            ):
+            if null_review_times == len(contributors_data) and len(contributors_data) > 0:
                 results["insights"].append(
                     "Notice: Review time data unavailable - may require different API permissions or metrics"
                 )
 
             # Calculate overall metrics
             unique_reviewers = len(reviewers)
-            average_review_time_hours = (
-                round(total_review_time / review_time_count, 1)
-                if review_time_count > 0
-                else 0
-            )
+            average_review_time_hours = round(total_review_time / review_time_count, 1) if review_time_count > 0 else 0
 
             # Simple bus factor calculation (top 20% of reviewers by reviews given)
-            reviewers_sorted = sorted(
-                reviewers, key=lambda x: x["reviews_given"], reverse=True
-            )
+            reviewers_sorted = sorted(reviewers, key=lambda x: x["reviews_given"], reverse=True)
             top_reviewers_count = max(1, int(len(reviewers_sorted) * 0.2))
             bus_factor = min(top_reviewers_count, len(reviewers_sorted))
 
@@ -375,15 +326,10 @@ class KnowledgeSharingMetricsService:
                 if total_reviews > 0:
                     # Calculate distribution evenness (0-1 scale, 1 is perfectly even)
                     avg_reviews_per_reviewer = total_reviews / len(reviewers)
-                    variance = sum(
-                        abs(r["reviews_given"] - avg_reviews_per_reviewer)
-                        for r in reviewers
-                    ) / len(reviewers)
-                    normalized_variance = (
-                        variance / avg_reviews_per_reviewer
-                        if avg_reviews_per_reviewer > 0
-                        else 0
+                    variance = sum(abs(r["reviews_given"] - avg_reviews_per_reviewer) for r in reviewers) / len(
+                        reviewers
                     )
+                    normalized_variance = variance / avg_reviews_per_reviewer if avg_reviews_per_reviewer > 0 else 0
                     knowledge_distribution_score = max(0, 1 - normalized_variance)
                 else:
                     knowledge_distribution_score = 0
@@ -405,71 +351,45 @@ class KnowledgeSharingMetricsService:
             # Generate insights
             insights = []
             if bus_factor <= 2:
-                insights.append(
-                    "Bus factor of 2 or less indicates potential knowledge risk"
-                )
+                insights.append("Bus factor of 2 or less indicates potential knowledge risk")
             elif bus_factor <= 3:
-                insights.append(
-                    "Moderate bus factor - some knowledge concentration risk"
-                )
+                insights.append("Moderate bus factor - some knowledge concentration risk")
             else:
                 insights.append("Healthy bus factor - good knowledge distribution")
 
             # Only provide review time insights if we have data
             if review_time_count > 0:
                 if average_review_time_hours > 8:
-                    insights.append(
-                        "Review response time is higher than recommended (> 8 hours)"
-                    )
+                    insights.append("Review response time is higher than recommended (> 8 hours)")
                 elif average_review_time_hours > 0:
-                    insights.append(
-                        "Review response time within healthy range (< 8 hours)"
-                    )
+                    insights.append("Review response time within healthy range (< 8 hours)")
             else:
-                insights.append(
-                    "Review time data not available from API - may require different permissions"
-                )
+                insights.append("Review time data not available from API - may require different permissions")
 
             if knowledge_distribution_score < 0.5:
-                insights.append(
-                    "Low knowledge distribution score indicates high concentration"
-                )
+                insights.append("Low knowledge distribution score indicates high concentration")
             elif knowledge_distribution_score > 0.8:
-                insights.append(
-                    "High knowledge distribution score indicates good sharing"
-                )
+                insights.append("High knowledge distribution score indicates good sharing")
             else:
                 insights.append("Moderate knowledge distribution - balanced sharing")
 
             # Add data quality insights
             if unknown_names_count > 0:
-                insights.append(
-                    f"{unknown_names_count} contributors have anonymized names due to privacy settings"
-                )
+                insights.append(f"{unknown_names_count} contributors have anonymized names due to privacy settings")
 
-            if (
-                null_review_times == len(contributors_data)
-                and len(contributors_data) > 0
-            ):
-                insights.append(
-                    "Review time data unavailable - may require different API permissions or metrics"
-                )
+            if null_review_times == len(contributors_data) and len(contributors_data) > 0:
+                insights.append("Review time data unavailable - may require different API permissions or metrics")
 
             results["insights"] = insights
 
             return results
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to calculate knowledge sharing metrics: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to calculate knowledge sharing metrics: {e}", exc_info=True)
             raise
 
-    def save_results(
-        self, results: Dict[str, Any], output_file: Optional[str] = None
-    ) -> str:
-        """
-        Save results to a JSON file.
+    def save_results(self, results: dict[str, Any], output_file: str | None = None) -> str:
+        """Save results to a JSON file.
 
         Args:
             results: Results data to save

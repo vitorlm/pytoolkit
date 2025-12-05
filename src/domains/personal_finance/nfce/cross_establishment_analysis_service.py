@@ -1,24 +1,21 @@
 #!/usr/bin/env python3
-"""
-Cross-Establishment Analysis Service - Analyze products across multiple establishments
-"""
+"""Cross-Establishment Analysis Service - Analyze products across multiple establishments"""
 
-from typing import Dict, List, Any
+from collections import Counter, defaultdict
 from datetime import datetime
-from collections import defaultdict, Counter
+from typing import Any
+
 import pandas as pd
 
-from utils.logging.logging_manager import LogManager
 from domains.personal_finance.nfce.database.nfce_database_manager import (
     NFCeDatabaseManager,
 )
+from utils.logging.logging_manager import LogManager
 
 
 class CrossEstablishmentAnalysisService:
     def __init__(self):
-        self.logger = LogManager.get_instance().get_logger(
-            "CrossEstablishmentAnalysisService"
-        )
+        self.logger = LogManager.get_instance().get_logger("CrossEstablishmentAnalysisService")
         self.db_manager = NFCeDatabaseManager()
 
     def analyze_cross_establishment_products(
@@ -27,9 +24,8 @@ class CrossEstablishmentAnalysisService:
         include_prices: bool = False,
         detailed: bool = False,
         category_focus: str = "all",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Analyze products that appear across multiple establishments"""
-
         self.logger.info("Starting cross-establishment product analysis")
 
         # Load products with establishment info
@@ -39,25 +35,17 @@ class CrossEstablishmentAnalysisService:
         product_groups = self._group_products_by_description(products_data)
 
         # Filter cross-establishment products
-        cross_establishment_products = self._filter_cross_establishment_products(
-            product_groups, min_establishments
-        )
+        cross_establishment_products = self._filter_cross_establishment_products(product_groups, min_establishments)
 
         # Apply category filter if specified
         if category_focus != "all":
-            cross_establishment_products = self._filter_by_category(
-                cross_establishment_products, category_focus
-            )
+            cross_establishment_products = self._filter_by_category(cross_establishment_products, category_focus)
 
         # Calculate statistics
-        statistics = self._calculate_statistics(
-            products_data, cross_establishment_products, min_establishments
-        )
+        statistics = self._calculate_statistics(products_data, cross_establishment_products, min_establishments)
 
         # Analyze establishments
-        establishment_analysis = self._analyze_establishments(
-            cross_establishment_products
-        )
+        establishment_analysis = self._analyze_establishments(cross_establishment_products)
 
         # Category analysis
         category_analysis = self._analyze_categories(cross_establishment_products)
@@ -68,9 +56,7 @@ class CrossEstablishmentAnalysisService:
             price_analysis = self._analyze_prices(cross_establishment_products)
 
         # Generate insights
-        insights = self._generate_insights(
-            cross_establishment_products, statistics, establishment_analysis
-        )
+        insights = self._generate_insights(cross_establishment_products, statistics, establishment_analysis)
 
         # Prepare results
         results = {
@@ -99,9 +85,8 @@ class CrossEstablishmentAnalysisService:
 
         return results
 
-    def _load_products_with_establishments(self) -> List[Dict[str, Any]]:
+    def _load_products_with_establishments(self) -> list[dict[str, Any]]:
         """Load all products with establishment information"""
-
         self.logger.info("Loading products with establishment information")
 
         query = """
@@ -144,12 +129,9 @@ class CrossEstablishmentAnalysisService:
         self.logger.info(f"Loaded {len(products)} products with establishment info")
         return products
 
-    def _group_products_by_description(
-        self, products: List[Dict[str, Any]]
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    def _group_products_by_description(self, products: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
         """Group products by normalized description"""
-
-        groups: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
         for product in products:
             normalized_desc = self._normalize_description(product["description"])
@@ -159,7 +141,6 @@ class CrossEstablishmentAnalysisService:
 
     def _normalize_description(self, description: str) -> str:
         """Normalize product description for grouping"""
-
         import re
 
         # Convert to uppercase and strip
@@ -185,10 +166,9 @@ class CrossEstablishmentAnalysisService:
         return normalized
 
     def _filter_cross_establishment_products(
-        self, product_groups: Dict[str, List[Dict[str, Any]]], min_establishments: int
-    ) -> List[Dict[str, Any]]:
+        self, product_groups: dict[str, list[dict[str, Any]]], min_establishments: int
+    ) -> list[dict[str, Any]]:
         """Filter products that appear in multiple establishments"""
-
         cross_establishment_products = []
 
         for normalized_desc, products in product_groups.items():
@@ -197,23 +177,16 @@ class CrossEstablishmentAnalysisService:
 
             if len(establishments) >= min_establishments:
                 # Create consolidated product entry
-                cross_product = self._consolidate_product_group(
-                    products, normalized_desc
-                )
+                cross_product = self._consolidate_product_group(products, normalized_desc)
                 cross_establishment_products.append(cross_product)
 
         # Sort by establishment count (descending)
-        cross_establishment_products.sort(
-            key=lambda x: x["establishment_count"], reverse=True
-        )
+        cross_establishment_products.sort(key=lambda x: x["establishment_count"], reverse=True)
 
         return cross_establishment_products
 
-    def _consolidate_product_group(
-        self, products: List[Dict[str, Any]], normalized_desc: str
-    ) -> Dict[str, Any]:
+    def _consolidate_product_group(self, products: list[dict[str, Any]], normalized_desc: str) -> dict[str, Any]:
         """Consolidate a group of similar products into one entry"""
-
         # Get unique establishments
         establishments = {}
         for product in products:
@@ -258,7 +231,6 @@ class CrossEstablishmentAnalysisService:
 
     def _determine_category(self, description: str) -> str:
         """Determine product category based on description"""
-
         desc_upper = description.upper()
 
         # Category keywords
@@ -295,11 +267,8 @@ class CrossEstablishmentAnalysisService:
 
         return "uncategorized"
 
-    def _calculate_quality_score(
-        self, products: List[Dict[str, Any]], establishments: Dict[str, Any]
-    ) -> float:
+    def _calculate_quality_score(self, products: list[dict[str, Any]], establishments: dict[str, Any]) -> float:
         """Calculate quality score for cross-establishment product"""
-
         # Base score
         score = 0.5
 
@@ -323,33 +292,25 @@ class CrossEstablishmentAnalysisService:
 
         return min(score, 1.0)
 
-    def _filter_by_category(
-        self, cross_products: List[Dict[str, Any]], category: str
-    ) -> List[Dict[str, Any]]:
+    def _filter_by_category(self, cross_products: list[dict[str, Any]], category: str) -> list[dict[str, Any]]:
         """Filter products by category"""
-
         return [p for p in cross_products if p["category"] == category]
 
     def _calculate_statistics(
         self,
-        all_products: List[Dict[str, Any]],
-        cross_products: List[Dict[str, Any]],
+        all_products: list[dict[str, Any]],
+        cross_products: list[dict[str, Any]],
         min_establishments: int,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Calculate cross-establishment statistics"""
-
         total_products = len(all_products)
         cross_count = len(cross_products)
         cross_rate = (cross_count / total_products * 100) if total_products > 0 else 0
 
         if cross_products:
-            avg_establishments = sum(
-                p["establishment_count"] for p in cross_products
-            ) / len(cross_products)
+            avg_establishments = sum(p["establishment_count"] for p in cross_products) / len(cross_products)
             max_establishments = max(p["establishment_count"] for p in cross_products)
-            total_cross_occurrences = sum(
-                p["total_occurrences"] for p in cross_products
-            )
+            total_cross_occurrences = sum(p["total_occurrences"] for p in cross_products)
         else:
             avg_establishments = 0
             max_establishments = 0
@@ -365,12 +326,9 @@ class CrossEstablishmentAnalysisService:
             "total_cross_establishment_occurrences": total_cross_occurrences,
         }
 
-    def _analyze_establishments(
-        self, cross_products: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _analyze_establishments(self, cross_products: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze establishment patterns in cross products"""
-
-        establishment_stats: Dict[str, int] = defaultdict(int)
+        establishment_stats: dict[str, int] = defaultdict(int)
         establishment_info = {}
 
         for product in cross_products:
@@ -404,32 +362,24 @@ class CrossEstablishmentAnalysisService:
             "establishment_distribution": dict(Counter(establishment_stats.values())),
         }
 
-    def _analyze_categories(
-        self, cross_products: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def _analyze_categories(self, cross_products: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze category distribution in cross products"""
-
         category_counts = Counter(p["category"] for p in cross_products)
 
         category_establishment_avg = {}
         for category in category_counts:
             category_products = [p for p in cross_products if p["category"] == category]
-            avg_establishments = sum(
-                p["establishment_count"] for p in category_products
-            ) / len(category_products)
+            avg_establishments = sum(p["establishment_count"] for p in category_products) / len(category_products)
             category_establishment_avg[category] = round(avg_establishments, 2)
 
         return {
             "cross_establishment_by_category": dict(category_counts),
             "avg_establishments_per_category": category_establishment_avg,
-            "most_distributed_category": category_counts.most_common(1)[0][0]
-            if category_counts
-            else None,
+            "most_distributed_category": category_counts.most_common(1)[0][0] if category_counts else None,
         }
 
-    def _analyze_prices(self, cross_products: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _analyze_prices(self, cross_products: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze price variations across establishments"""
-
         # Note: This is a placeholder for price analysis
         # In a real implementation, you would query invoice_items for price data
 
@@ -440,10 +390,9 @@ class CrossEstablishmentAnalysisService:
         }
 
     def _get_top_cross_establishment_products(
-        self, cross_products: List[Dict[str, Any]], limit: int = 20
-    ) -> List[Dict[str, Any]]:
+        self, cross_products: list[dict[str, Any]], limit: int = 20
+    ) -> list[dict[str, Any]]:
         """Get top cross-establishment products"""
-
         # Already sorted by establishment count
         top_products = []
         for product in cross_products[:limit]:
@@ -462,12 +411,11 @@ class CrossEstablishmentAnalysisService:
 
     def _generate_insights(
         self,
-        cross_products: List[Dict[str, Any]],
-        statistics: Dict[str, Any],
-        establishment_analysis: Dict[str, Any],
-    ) -> List[str]:
+        cross_products: list[dict[str, Any]],
+        statistics: dict[str, Any],
+        establishment_analysis: dict[str, Any],
+    ) -> list[str]:
         """Generate analytical insights"""
-
         insights = []
 
         cross_rate = statistics["cross_establishment_rate"]
@@ -476,9 +424,7 @@ class CrossEstablishmentAnalysisService:
                 f"Low cross-establishment rate ({cross_rate:.1f}%) indicates high product specialization by establishment"
             )
         elif cross_rate > 30:
-            insights.append(
-                f"High cross-establishment rate ({cross_rate:.1f}%) suggests many common/standard products"
-            )
+            insights.append(f"High cross-establishment rate ({cross_rate:.1f}%) suggests many common/standard products")
 
         if cross_products:
             top_product = cross_products[0]
@@ -488,24 +434,17 @@ class CrossEstablishmentAnalysisService:
 
         avg_establishments = statistics["avg_establishments_per_cross_product"]
         if avg_establishments > 5:
-            insights.append(
-                "High cross-establishment products suggest strong brand presence or commodity items"
-            )
+            insights.append("High cross-establishment products suggest strong brand presence or commodity items")
 
         total_establishments = establishment_analysis["total_establishments"]
         if total_establishments > 15:
-            insights.append(
-                f"Large establishment network ({total_establishments}) provides good geographic coverage"
-            )
+            insights.append(f"Large establishment network ({total_establishments}) provides good geographic coverage")
 
         return insights
 
-    def export_to_csv(self, results: Dict[str, Any], output_path: str):
+    def export_to_csv(self, results: dict[str, Any], output_path: str):
         """Export cross-establishment analysis to CSV"""
-
-        self.logger.info(
-            f"Exporting cross-establishment analysis to CSV: {output_path}"
-        )
+        self.logger.info(f"Exporting cross-establishment analysis to CSV: {output_path}")
 
         # Prepare data for CSV
         top_products = results["top_cross_establishment_products"]
@@ -528,12 +467,9 @@ class CrossEstablishmentAnalysisService:
 
         self.logger.info(f"CSV export completed: {output_path}")
 
-    def export_to_excel(self, results: Dict[str, Any], output_path: str):
+    def export_to_excel(self, results: dict[str, Any], output_path: str):
         """Export cross-establishment analysis to Excel with multiple sheets"""
-
-        self.logger.info(
-            f"Exporting cross-establishment analysis to Excel: {output_path}"
-        )
+        self.logger.info(f"Exporting cross-establishment analysis to Excel: {output_path}")
 
         with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
             # Cross-establishment products sheet
@@ -543,24 +479,18 @@ class CrossEstablishmentAnalysisService:
 
             # Establishment analysis sheet
             est_analysis = results["establishment_analysis"]
-            df_establishments = pd.DataFrame(
-                est_analysis["top_establishments_by_cross_products"]
-            )
+            df_establishments = pd.DataFrame(est_analysis["top_establishments_by_cross_products"])
             df_establishments.to_excel(writer, sheet_name="Establishments", index=False)
 
             # Category analysis sheet
             cat_analysis = results["category_analysis"]
             cat_data = []
-            for category, count in cat_analysis[
-                "cross_establishment_by_category"
-            ].items():
+            for category, count in cat_analysis["cross_establishment_by_category"].items():
                 cat_data.append(
                     {
                         "category": category,
                         "cross_products_count": count,
-                        "avg_establishments": cat_analysis[
-                            "avg_establishments_per_category"
-                        ].get(category, 0),
+                        "avg_establishments": cat_analysis["avg_establishments_per_category"].get(category, 0),
                     }
                 )
             df_categories = pd.DataFrame(cat_data)

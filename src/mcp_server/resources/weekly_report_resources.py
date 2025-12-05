@@ -1,5 +1,4 @@
-"""
-Weekly Report Resources for MCP Integration.
+"""Weekly Report Resources for MCP Integration.
 
 This module provides weekly report resources that aggregate data exactly like run_reports.sh
 and format it to be compatible with report_template.md structure.
@@ -14,13 +13,11 @@ from pydantic import AnyUrl
 from ..adapters.jira_adapter import JiraAdapter
 from ..adapters.linearb_adapter import LinearBAdapter
 from ..adapters.sonarqube_adapter import SonarQubeAdapter
-
 from .base_resource import BaseResourceHandler
 
 
 class WeeklyReportResourceHandler(BaseResourceHandler):
-    """
-    Handler for weekly report resources.
+    """Handler for weekly report resources.
 
     Replicates run_reports.sh functionality by aggregating data from:
     - JIRA: Bug & Support, Task completion, Cycle time, Open issues
@@ -95,28 +92,16 @@ class WeeklyReportResourceHandler(BaseResourceHandler):
 
             data_sources = {
                 # JIRA Reports - replicating run_reports.sh commands
-                "jira_bugs_support_2weeks": lambda: self._get_jira_bugs_support_combined(
-                    date_ranges["two_weeks"]
-                ),
-                "jira_bugs_support_lastweek": lambda: self._get_jira_bugs_support_week(
-                    date_ranges["last_week"]
-                ),
-                "jira_bugs_support_weekbefore": lambda: self._get_jira_bugs_support_week(
-                    date_ranges["week_before"]
-                ),
-                "jira_tasks_2weeks": lambda: self._get_jira_tasks_completion(
-                    date_ranges["two_weeks"]
-                ),
+                "jira_bugs_support_2weeks": lambda: self._get_jira_bugs_support_combined(date_ranges["two_weeks"]),
+                "jira_bugs_support_lastweek": lambda: self._get_jira_bugs_support_week(date_ranges["last_week"]),
+                "jira_bugs_support_weekbefore": lambda: self._get_jira_bugs_support_week(date_ranges["week_before"]),
+                "jira_tasks_2weeks": lambda: self._get_jira_tasks_completion(date_ranges["two_weeks"]),
                 "jira_open_issues": lambda: self._get_jira_open_issues(),
-                "jira_cycle_time_lastweek": lambda: self._get_jira_cycle_time(
-                    date_ranges["last_week"]
-                ),
+                "jira_cycle_time_lastweek": lambda: self._get_jira_cycle_time(date_ranges["last_week"]),
                 # SonarQube Report
                 "sonarqube_quality_metrics": lambda: self.sonarqube_adapter.get_all_projects_with_metrics(),
                 # LinearB Report
-                "linearb_engineering_metrics": lambda: self._get_linearb_weekly_metrics(
-                    date_ranges["linearb_range"]
-                ),
+                "linearb_engineering_metrics": lambda: self._get_linearb_weekly_metrics(date_ranges["linearb_range"]),
             }
 
             # Aggregate all data (JIRA is mandatory)
@@ -176,12 +161,8 @@ Compatible with report_template.md structure""",
             date_ranges = self._calculate_weekly_date_ranges()
 
             return {
-                "bugs_support_analysis": self._get_bugs_support_analysis_data(
-                    date_ranges
-                ),
-                "cycle_time_summary": self._get_cycle_time_summary_data(
-                    date_ranges["last_week"]
-                ),
+                "bugs_support_analysis": self._get_bugs_support_analysis_data(date_ranges),
+                "cycle_time_summary": self._get_cycle_time_summary_data(date_ranges["last_week"]),
                 "adherence_analysis": self._get_adherence_analysis_data(date_ranges),
                 "open_issues_summary": self._get_open_issues_analysis_data(),
                 "formatted_for_template": True,
@@ -214,9 +195,7 @@ Compatible with report_template.md structure""",
             formatted_data = {
                 "sonarqube_raw_data": quality_data,
                 "projects_summary": self._format_sonarqube_for_template(quality_data),
-                "weekly_health_status": self._assess_sonarqube_weekly_health(
-                    quality_data
-                ),
+                "weekly_health_status": self._assess_sonarqube_weekly_health(quality_data),
                 "template_ready": True,
             }
 
@@ -247,19 +226,13 @@ Compatible with report_template.md structure""",
             date_ranges = self._calculate_weekly_date_ranges()
 
             # Replicate LinearB command from run_reports.sh
-            current_week_metrics = self.linearb_adapter.get_engineering_metrics(
-                "last-week"
-            )
-            previous_week_metrics = self.linearb_adapter.get_engineering_metrics(
-                "week-before-last"
-            )
+            current_week_metrics = self.linearb_adapter.get_engineering_metrics("last-week")
+            previous_week_metrics = self.linearb_adapter.get_engineering_metrics("week-before-last")
 
             return {
                 "current_week_metrics": current_week_metrics,
                 "previous_week_metrics": previous_week_metrics,
-                "comparison_analysis": self._generate_linearb_comparison(
-                    current_week_metrics, previous_week_metrics
-                ),
+                "comparison_analysis": self._generate_linearb_comparison(current_week_metrics, previous_week_metrics),
                 "template_formatted": True,
                 "linearb_time_range": date_ranges["linearb_range"],
             }
@@ -296,12 +269,8 @@ Compatible with report_template.md structure""",
                     "comparison_period": f"Week {date_ranges['last_week']['week_num']} vs. Week {date_ranges['week_before']['week_num']}",
                     "report_date": datetime.now().strftime("%B %d, %Y"),
                 },
-                "bugs_support_overview": self._get_template_bugs_support_data(
-                    date_ranges
-                ),
-                "cycle_time_summary": self._get_template_cycle_time_data(
-                    date_ranges["last_week"]
-                ),
+                "bugs_support_overview": self._get_template_bugs_support_data(date_ranges),
+                "cycle_time_summary": self._get_template_cycle_time_data(date_ranges["last_week"]),
                 "adherence_data": self._get_template_adherence_data(date_ranges),
                 "linearb_metrics": self._get_template_linearb_data(),
                 "sonarqube_health": self._get_template_sonarqube_data(),
@@ -431,9 +400,7 @@ Compatible with report_template.md structure""",
         # Simplified logic - in real implementation would analyze the data
         return "GOOD"  # CRITICAL, MEDIUM, GOOD
 
-    def _generate_linearb_comparison(
-        self, _current: Any, _previous: Any
-    ) -> dict[str, Any]:
+    def _generate_linearb_comparison(self, _current: Any, _previous: Any) -> dict[str, Any]:
         """Generates LinearB comparison for template."""
         return {
             "cycle_time_change": "placeholder_change",
@@ -443,9 +410,7 @@ Compatible with report_template.md structure""",
             "deploy_time_change": "placeholder_change",
         }
 
-    def _generate_weekly_comparison_analysis(
-        self, _data: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _generate_weekly_comparison_analysis(self, _data: dict[str, Any]) -> dict[str, Any]:
         """Generates weekly comparison analysis."""
         return {
             "key_improvements": [

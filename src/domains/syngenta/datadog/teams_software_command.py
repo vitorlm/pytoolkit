@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 from argparse import ArgumentParser, Namespace
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Mapping, Optional, TypedDict, cast
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any, TypedDict, cast
 
 import requests
+
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -19,24 +21,24 @@ class TeamStats(TypedDict):
 
 
 class ServiceEntry(TypedDict, total=False):
-    id: Optional[str]
-    name: Optional[str]
+    id: str | None
+    name: str | None
     owner: str
-    links: Dict[str, str]
-    env_facets: List[str]
-    notes: List[str]
+    links: dict[str, str]
+    env_facets: list[str]
+    notes: list[str]
 
 
 class TeamReport(TypedDict):
     team: str
-    services: List[ServiceEntry]
+    services: list[ServiceEntry]
     stats: TeamStats
 
 
 class ReportPayload(TypedDict):
     site: str
-    queried_teams: List[str]
-    teams: List[TeamReport]
+    queried_teams: list[str]
+    teams: list[TeamReport]
     generated_at: str
 
 
@@ -46,8 +48,7 @@ class TeamSummary(TypedDict):
 
 
 class TeamsSoftwareCommand(BaseCommand):
-    """
-    Datadog Software Catalog — List kind=service entities owned by teams.
+    """Datadog Software Catalog — List kind=service entities owned by teams.
 
     Input: --teams "teamA,teamB" and optional --site, --use-cache, --out (json|md)
     Behavior:
@@ -139,18 +140,18 @@ class TeamsSoftwareCommand(BaseCommand):
                 cache_ttl_minutes=30,
             )
 
-            teams_payload: List[TeamReport] = []
+            teams_payload: list[TeamReport] = []
             payload: ReportPayload = {
                 "site": site,
                 "queried_teams": list(teams),
                 "teams": teams_payload,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
 
             total_services = 0
             teams_found = 0
-            fallbacks_used: List[str] = []
-            per_team_stats: List[TeamSummary] = []
+            fallbacks_used: list[str] = []
+            per_team_stats: list[TeamSummary] = []
 
             for handle in teams:
                 team_info = None if args.no_validate_teams else service.get_team(handle)
@@ -160,12 +161,12 @@ class TeamsSoftwareCommand(BaseCommand):
                     teams_found += 1
 
                 services_raw, meta_raw = service.list_services_for_team(handle)
-                services = cast(List[Mapping[str, Any]], services_raw)
-                meta = cast(Dict[str, Any], meta_raw)
+                services = cast(list[Mapping[str, Any]], services_raw)
+                meta = cast(dict[str, Any], meta_raw)
                 if meta.get("fallback") is not None:
                     fallbacks_used.append(str(meta["fallback"]))
 
-                normalized: List[ServiceEntry] = []
+                normalized: list[ServiceEntry] = []
                 for service_record in services:
                     identifier = service_record.get("id")
                     service_id = str(identifier) if identifier is not None else None
@@ -177,7 +178,7 @@ class TeamsSoftwareCommand(BaseCommand):
                     owner = str(owner_value) if isinstance(owner_value, str) and owner_value else handle
 
                     raw_links = service_record.get("links")
-                    links: Dict[str, str] = {}
+                    links: dict[str, str] = {}
                     if isinstance(raw_links, Mapping):
                         links = {
                             str(key): str(value)
@@ -186,12 +187,12 @@ class TeamsSoftwareCommand(BaseCommand):
                         }
 
                     raw_env_facets = service_record.get("env_facets")
-                    env_facets: List[str] = []
+                    env_facets: list[str] = []
                     if isinstance(raw_env_facets, list):
                         env_facets = [str(item) for item in raw_env_facets if isinstance(item, str)]
 
                     raw_notes = service_record.get("notes")
-                    notes: List[str] = []
+                    notes: list[str] = []
                     if isinstance(raw_notes, list):
                         notes = [str(note) for note in raw_notes if isinstance(note, str)]
 
@@ -270,11 +271,11 @@ class TeamsSoftwareCommand(BaseCommand):
 
     # ---- helpers ----
     @staticmethod
-    def _parse_teams_arg(raw: str) -> List[str]:
+    def _parse_teams_arg(raw: str) -> list[str]:
         parts = [t.strip() for t in (raw or "").split(",") if t and t.strip()]
         # Deduplicate preserving order
         seen = set()
-        out: List[str] = []
+        out: list[str] = []
         for p in parts:
             if p not in seen:
                 seen.add(p)
@@ -283,7 +284,7 @@ class TeamsSoftwareCommand(BaseCommand):
 
     @staticmethod
     def _to_markdown(payload: ReportPayload) -> str:
-        lines: List[str] = []
+        lines: list[str] = []
         site = payload["site"]
         teams = payload["teams"]
 
@@ -305,7 +306,7 @@ class TeamsSoftwareCommand(BaseCommand):
                 resolved_name = service_entry.get("name") or service_entry.get("id") or "-"
                 owner = service_entry.get("owner") or team_handle
                 links = service_entry.get("links", {})
-                link_md_parts: List[str] = []
+                link_md_parts: list[str] = []
                 for key in ("docs", "repo", "runbook"):
                     url = links.get(key)
                     if isinstance(url, str) and url:
@@ -324,8 +325,8 @@ class TeamsSoftwareCommand(BaseCommand):
         queried: int,
         valid: int,
         total_services: int,
-        fallbacks: List[str],
-        per_team: List[TeamSummary],
+        fallbacks: list[str],
+        per_team: list[TeamSummary],
     ):
         header = f"📡 DATADOG TEAMS → SOFTWARE (site: {site})"
         print("\n" + "=" * len(header))

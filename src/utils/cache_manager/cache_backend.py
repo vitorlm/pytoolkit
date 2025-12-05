@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 
 class CacheBackend(ABC):
     @abstractmethod
-    def load(self, key: str, expiration_minutes: Optional[int] = None) -> Optional[Any]:
+    def load(self, key: str, expiration_minutes: int | None = None) -> Any | None:
         pass
 
     @abstractmethod

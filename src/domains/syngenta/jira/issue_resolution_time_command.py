@@ -1,5 +1,4 @@
-"""
-JIRA Issue Resolution Time Analysis Command
+"""JIRA Issue Resolution Time Analysis Command
 
 This command analyzes issue resolution time for bugs and support tickets with improved
 SLA calculation logic and clean output structure.
@@ -101,16 +100,16 @@ ENHANCED FEATURES:
 - Enhanced CSV output with all metrics and buckets
 """
 
-from argparse import ArgumentParser, Namespace
 import hashlib
 import os
+from argparse import ArgumentParser, Namespace
 from datetime import datetime
 
-from domains.syngenta.jira.issue_resolution_time_service import (
-    IssueResolutionTimeService,
-)
 from domains.syngenta.jira.issue_resolution_time_chart_service import (
     IssueResolutionTimeChartService,
+)
+from domains.syngenta.jira.issue_resolution_time_service import (
+    IssueResolutionTimeService,
 )
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
@@ -233,8 +232,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute issue resolution time analysis.
+        """Main function to execute issue resolution time analysis.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -263,9 +261,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
             # Create parameter hash for uniqueness
-            param_string = "_".join(
-                [f"{k}={v}" for k, v in run_params.items() if v is not None]
-            )
+            param_string = "_".join([f"{k}={v}" for k, v in run_params.items() if v is not None])
             param_hash = hashlib.md5(param_string.encode()).hexdigest()[:8]
 
             # Create unique run identifier
@@ -279,9 +275,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
             if not output_file:
                 from utils.output_manager import OutputManager
 
-                output_file = OutputManager.get_output_path(
-                    "issue-resolution-time", f"resolution_time_{run_id}"
-                )
+                output_file = OutputManager.get_output_path("issue-resolution-time", f"resolution_time_{run_id}")
 
             # Run resolution time analysis
             result = service.analyze_resolution_time(
@@ -312,9 +306,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
                 CalculateResolutionTimeCommand._generate_charts(result, args, run_id)
 
             # Print summary results after charts (or immediately if no charts)
-            CalculateResolutionTimeCommand._print_summary_results(
-                result, args, issue_types
-            )
+            CalculateResolutionTimeCommand._print_summary_results(result, args, issue_types)
 
         except Exception as e:
             logger.error(f"Failed to analyze resolution time: {e}")
@@ -322,8 +314,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
 
     @staticmethod
     def _print_summary_results(result: dict, args: Namespace, issue_types: list):
-        """
-        Print the summary results of the resolution time analysis.
+        """Print the summary results of the resolution time analysis.
 
         Args:
             result (dict): Analysis results
@@ -347,9 +338,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
         if args.assignee:
             print(f"Assignee: {args.assignee}")
         if args.exclude_outliers:
-            actual_strategy = result.get("query_info", {}).get(
-                "outlier_strategy", args.outlier_strategy
-            )
+            actual_strategy = result.get("query_info", {}).get("outlier_strategy", args.outlier_strategy)
             print(f"Outlier Exclusion: Enabled (strategy: {actual_strategy})")
         print()
 
@@ -375,10 +364,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
                     f"{'Priority':<12} {'Count':<6} {'Median':<8} {'P80':<8} "
                     f"{'P90':<8} {'P95':<8} {'SLA':<6} {'Max':<10} {'SLA%':<7}"
                 )
-                print(
-                    f"{'=' * 12} {'=' * 6} {'=' * 8} {'=' * 8} "
-                    f"{'=' * 8} {'=' * 8} {'=' * 6} {'=' * 10} {'=' * 7}"
-                )
+                print(f"{'=' * 12} {'=' * 6} {'=' * 8} {'=' * 8} {'=' * 8} {'=' * 8} {'=' * 6} {'=' * 10} {'=' * 7}")
 
                 # Print each priority
                 for priority, stats in priorities.items():
@@ -423,8 +409,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
                 percentage = summary_data.get("outlier_percentage", 0)
                 threshold = summary_data.get("outlier_threshold_days", 0)
                 print(
-                    f"{issue_type}: {excluded}/{total} outliers excluded "
-                    f"({percentage:.1f}%) above {threshold:.1f} days"
+                    f"{issue_type}: {excluded}/{total} outliers excluded ({percentage:.1f}%) above {threshold:.1f} days"
                 )
 
         # Show file export information
@@ -435,8 +420,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
 
     @staticmethod
     def _generate_charts(result: dict, args: Namespace, run_id: str):
-        """
-        Generate charts for the resolution time analysis.
+        """Generate charts for the resolution time analysis.
 
         Args:
             result (dict): Analysis results
@@ -452,16 +436,12 @@ class CalculateResolutionTimeCommand(BaseCommand):
             from utils.output_manager import OutputManager
 
             # Use OutputManager's project root detection logic
-            base_output_dir = os.path.join(
-                OutputManager.PROJECT_ROOT, "output", "issue-resolution-time", "charts"
-            )
+            base_output_dir = os.path.join(OutputManager.PROJECT_ROOT, "output", "issue-resolution-time", "charts")
             chart_output_path = os.path.join(base_output_dir, run_id)
             FileManager.create_folder(chart_output_path)
 
             # Initialize chart service
-            chart_service = IssueResolutionTimeChartService(
-                output_path=chart_output_path
-            )
+            chart_service = IssueResolutionTimeChartService(output_path=chart_output_path)
 
             # Parse chart types if specified
             chart_types = None

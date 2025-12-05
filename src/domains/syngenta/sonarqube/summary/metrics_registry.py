@@ -1,11 +1,9 @@
-"""
-SonarQube Metrics Registry
+"""SonarQube Metrics Registry
 
 Central registry for SonarQube metric definitions, providing standardized
 naming, descriptions, and validation schemas for all SonarQube operations.
 """
 
-from typing import Dict, List, Set
 from dataclasses import dataclass
 from enum import Enum
 
@@ -46,15 +44,14 @@ class MetricDefinition:
 
 
 class SonarQubeMetricsRegistry:
-    """
-    Central registry for SonarQube metric definitions.
+    """Central registry for SonarQube metric definitions.
 
     Provides standardized metric naming, descriptions, and validation
     for all SonarQube operations across the PyToolkit framework.
     """
 
     # Core quality metrics (most commonly used)
-    CORE_QUALITY_METRICS: Dict[str, MetricDefinition] = {
+    CORE_QUALITY_METRICS: dict[str, MetricDefinition] = {
         "alert_status": MetricDefinition(
             key="alert_status",
             name="Quality Gate Status",
@@ -116,7 +113,7 @@ class SonarQubeMetricsRegistry:
     }
 
     # Security metrics
-    SECURITY_METRICS: Dict[str, MetricDefinition] = {
+    SECURITY_METRICS: dict[str, MetricDefinition] = {
         "security_rating": MetricDefinition(
             key="security_rating",
             name="Security Rating",
@@ -155,7 +152,7 @@ class SonarQubeMetricsRegistry:
     }
 
     # Reliability metrics
-    RELIABILITY_METRICS: Dict[str, MetricDefinition] = {
+    RELIABILITY_METRICS: dict[str, MetricDefinition] = {
         "reliability_rating": MetricDefinition(
             key="reliability_rating",
             name="Reliability Rating",
@@ -176,7 +173,7 @@ class SonarQubeMetricsRegistry:
     }
 
     # Maintainability metrics
-    MAINTAINABILITY_METRICS: Dict[str, MetricDefinition] = {
+    MAINTAINABILITY_METRICS: dict[str, MetricDefinition] = {
         "sqale_rating": MetricDefinition(
             key="sqale_rating",
             name="Maintainability Rating",
@@ -205,7 +202,7 @@ class SonarQubeMetricsRegistry:
     }
 
     # Size and complexity metrics
-    SIZE_COMPLEXITY_METRICS: Dict[str, MetricDefinition] = {
+    SIZE_COMPLEXITY_METRICS: dict[str, MetricDefinition] = {
         "lines": MetricDefinition(
             key="lines",
             name="Total Lines",
@@ -242,7 +239,7 @@ class SonarQubeMetricsRegistry:
     }
 
     # Coverage metrics
-    COVERAGE_METRICS: Dict[str, MetricDefinition] = {
+    COVERAGE_METRICS: dict[str, MetricDefinition] = {
         "line_coverage": MetricDefinition(
             key="line_coverage",
             name="Line Coverage",
@@ -273,7 +270,7 @@ class SonarQubeMetricsRegistry:
     }
 
     @classmethod
-    def get_all_metrics(cls) -> Dict[str, MetricDefinition]:
+    def get_all_metrics(cls) -> dict[str, MetricDefinition]:
         """Get all registered metrics."""
         all_metrics = {}
         all_metrics.update(cls.CORE_QUALITY_METRICS)
@@ -286,8 +283,7 @@ class SonarQubeMetricsRegistry:
 
     @classmethod
     def get_metric_definition(cls, metric_key: str) -> MetricDefinition:
-        """
-        Get metric definition by key.
+        """Get metric definition by key.
 
         Args:
             metric_key: SonarQube metric key
@@ -311,21 +307,14 @@ class SonarQubeMetricsRegistry:
         )
 
     @classmethod
-    def get_metrics_by_type(
-        cls, metric_type: MetricType
-    ) -> Dict[str, MetricDefinition]:
+    def get_metrics_by_type(cls, metric_type: MetricType) -> dict[str, MetricDefinition]:
         """Get all metrics of a specific type."""
         all_metrics = cls.get_all_metrics()
-        return {
-            key: definition
-            for key, definition in all_metrics.items()
-            if definition.type == metric_type
-        }
+        return {key: definition for key, definition in all_metrics.items() if definition.type == metric_type}
 
     @classmethod
-    def get_default_quality_metrics(cls) -> List[str]:
-        """
-        Get the default set of quality metrics used in SonarQube commands.
+    def get_default_quality_metrics(cls) -> list[str]:
+        """Get the default set of quality metrics used in SonarQube commands.
 
         Returns:
             List of metric keys for comprehensive quality analysis
@@ -350,9 +339,8 @@ class SonarQubeMetricsRegistry:
         ]
 
     @classmethod
-    def get_essential_metrics(cls) -> List[str]:
-        """
-        Get essential metrics for quick analysis.
+    def get_essential_metrics(cls) -> list[str]:
+        """Get essential metrics for quick analysis.
 
         Returns:
             List of most important metric keys
@@ -367,9 +355,8 @@ class SonarQubeMetricsRegistry:
         ]
 
     @classmethod
-    def validate_metric_keys(cls, metric_keys: List[str]) -> Dict[str, bool]:
-        """
-        Validate if metric keys are known.
+    def validate_metric_keys(cls, metric_keys: list[str]) -> dict[str, bool]:
+        """Validate if metric keys are known.
 
         Args:
             metric_keys: List of metric keys to validate
@@ -381,25 +368,19 @@ class SonarQubeMetricsRegistry:
         return {key: key in all_metrics for key in metric_keys}
 
     @classmethod
-    def get_numeric_metrics(cls) -> Set[str]:
+    def get_numeric_metrics(cls) -> set[str]:
         """Get set of numeric metric keys."""
         all_metrics = cls.get_all_metrics()
         return {key for key, definition in all_metrics.items() if definition.numeric}
 
     @classmethod
-    def get_rating_metrics(cls) -> Set[str]:
+    def get_rating_metrics(cls) -> set[str]:
         """Get set of rating metric keys (A-E scale)."""
         all_metrics = cls.get_all_metrics()
-        return {
-            key
-            for key, definition in all_metrics.items()
-            if definition.unit == "rating"
-        }
+        return {key for key, definition in all_metrics.items() if definition.unit == "rating"}
 
     @classmethod
-    def get_percentage_metrics(cls) -> Set[str]:
+    def get_percentage_metrics(cls) -> set[str]:
         """Get set of percentage metric keys."""
         all_metrics = cls.get_all_metrics()
-        return {
-            key for key, definition in all_metrics.items() if definition.unit == "%"
-        }
+        return {key for key, definition in all_metrics.items() if definition.unit == "%"}

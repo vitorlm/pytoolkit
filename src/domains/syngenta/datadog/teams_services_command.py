@@ -2,20 +2,17 @@ from __future__ import annotations
 
 import os
 from argparse import ArgumentParser, Namespace
-from datetime import datetime, timezone
-from typing import Dict, List
+from datetime import UTC, datetime
 
+from domains.syngenta.datadog.datadog_service import DatadogService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
 
-from domains.syngenta.datadog.datadog_service import DatadogService
-
 
 class TeamsServicesCommand(BaseCommand):
-    """
-    Datadog Audit MVP — List teams and their services from Service Catalog (v2).
+    """Datadog Audit MVP — List teams and their services from Service Catalog (v2).
 
     Input: --teams "teamA,teamB" and optional --site, --use-cache, --out (json|md)
     Output: JSON (default) or Markdown tables, saved under output/ with timestamp.
@@ -119,7 +116,7 @@ class TeamsServicesCommand(BaseCommand):
                 "site": site,
                 "queried_teams": teams,
                 "teams": [],
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": datetime.now(UTC).isoformat(),
             }
 
             valid_teams = 0
@@ -129,9 +126,7 @@ class TeamsServicesCommand(BaseCommand):
             for handle in teams:
                 info = None if args.no_validate_teams else service.get_team(handle)
                 if not info and not args.no_validate_teams:
-                    logger.warning(
-                        f"Team handle not found or inaccessible: {handle}. Skipping."
-                    )
+                    logger.warning(f"Team handle not found or inaccessible: {handle}. Skipping.")
                     if args.verbose:
                         print(f"[debug] Team not resolved: {handle}")
                     continue
@@ -140,19 +135,15 @@ class TeamsServicesCommand(BaseCommand):
 
                 services = service.list_services_for_team(handle)
                 # Filter services actually belonging to the team and mark missing linkage
-                normalized, missing_count = (
-                    TeamsServicesCommand._normalize_services_for_team(handle, services)
-                )
+                normalized, missing_count = TeamsServicesCommand._normalize_services_for_team(handle, services)
                 total_services += len(normalized)
                 total_missing += missing_count
                 if args.verbose:
                     ok_count = sum(1 for s in normalized if s.get("team_link_ok"))
                     miss_count = sum(1 for s in normalized if not s.get("team_link_ok"))
-                    print(
-                        f"[debug] {handle}: services={len(normalized)}, ok={ok_count}, missing_linkage={miss_count}"
-                    )
+                    print(f"[debug] {handle}: services={len(normalized)}, ok={ok_count}, missing_linkage={miss_count}")
 
-                team_entry: Dict[str, object] = {
+                team_entry: dict[str, object] = {
                     "team": handle,
                     "services": normalized,
                     "notes": [f"{missing_count} services missing team linkage"]
@@ -181,14 +172,10 @@ class TeamsServicesCommand(BaseCommand):
                     out_path = (
                         args.output_file
                         if args.output_file
-                        else OutputManager.get_output_path(
-                            sub_dir, output_basename, "json"
-                        )
+                        else OutputManager.get_output_path(sub_dir, output_basename, "json")
                     )
                     print(f"\nOutput file:\n- {out_path}")
-                    OutputManager.save_json_report(
-                        result, sub_dir, output_basename, output_path=out_path
-                    )
+                    OutputManager.save_json_report(result, sub_dir, output_basename, output_path=out_path)
                     result["output_file"] = out_path
                     print("✅ Detailed report saved in JSON format")
                 else:
@@ -196,14 +183,10 @@ class TeamsServicesCommand(BaseCommand):
                     out_path = (
                         args.output_file
                         if args.output_file
-                        else OutputManager.get_output_path(
-                            sub_dir, output_basename, "md"
-                        )
+                        else OutputManager.get_output_path(sub_dir, output_basename, "md")
                     )
                     print(f"\nOutput file:\n- {out_path}")
-                    OutputManager.save_markdown_report(
-                        md_content, sub_dir, output_basename, output_path=out_path
-                    )
+                    OutputManager.save_markdown_report(md_content, sub_dir, output_basename, output_path=out_path)
                     result["output_file"] = out_path
                     print("📄 Detailed report saved in MD format")
 
@@ -232,14 +215,12 @@ class TeamsServicesCommand(BaseCommand):
 
     # ---- helpers (also used by smoke tests) ----
     @staticmethod
-    def _parse_teams_arg(raw: str) -> List[str]:
+    def _parse_teams_arg(raw: str) -> list[str]:
         return [t.strip() for t in (raw or "").split(",") if t and t.strip()]
 
     @staticmethod
-    def _normalize_services_for_team(
-        team_handle: str, services: List[Dict]
-    ) -> tuple[List[Dict], int]:
-        normalized: List[Dict] = []
+    def _normalize_services_for_team(team_handle: str, services: list[dict]) -> tuple[list[dict], int]:
+        normalized: list[dict] = []
         missing = 0
         for svc in services or []:
             name = svc.get("name")
@@ -247,8 +228,7 @@ class TeamsServicesCommand(BaseCommand):
             links = svc.get("links") or {}
             contacts = svc.get("contacts") or []
             ok = bool(svc.get("team_link_ok")) and (
-                str(svc.get("team") or "").lower() == team_handle.lower()
-                or svc.get("team_link_ok") is True
+                str(svc.get("team") or "").lower() == team_handle.lower() or svc.get("team_link_ok") is True
             )
             if not ok:
                 missing += 1
@@ -264,8 +244,8 @@ class TeamsServicesCommand(BaseCommand):
         return normalized, missing
 
     @staticmethod
-    def _to_markdown(payload: Dict) -> str:
-        lines: List[str] = []
+    def _to_markdown(payload: dict) -> str:
+        lines: list[str] = []
         site = payload.get("site", "-")
         generated_at = payload.get("generated_at", "")
         teams = payload.get("teams", [])
@@ -323,7 +303,7 @@ class TeamsServicesCommand(BaseCommand):
         valid: int,
         total_services: int,
         total_missing: int,
-        per_team: List[Dict],
+        per_team: list[dict],
     ) -> None:
         header = f"📡 DATADOG TEAMS → SERVICES (site: {site})"
         print("\n" + "=" * len(header))

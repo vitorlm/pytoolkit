@@ -5,8 +5,7 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from datetime import UTC, datetime, timedelta
 
 from utils.logging.logging_manager import LogManager
 
@@ -56,14 +55,14 @@ class ClassificationResult:
 
     classification: CycleClassification
     confidence: float  # 0.0 - 1.0
-    reasons: List[str] = field(default_factory=list)
-    metadata: Dict[str, any] = field(default_factory=dict)
+    reasons: list[str] = field(default_factory=list)
+    metadata: dict[str, any] = field(default_factory=dict)
 
 
 class AlertCycleClassifier:
     """Classifier for distinguishing alert cycle types based on behavior patterns."""
 
-    def __init__(self, config: Optional[ClassificationConfig] = None):
+    def __init__(self, config: ClassificationConfig | None = None):
         self.config = config or ClassificationConfig()
         self.logger = LogManager.get_instance().get_logger("AlertCycleClassifier")
 
@@ -92,9 +91,9 @@ class AlertCycleClassifier:
     def classify_monitor_cycles(
         self,
         monitor_id: str,
-        cycles: List[EnhancedAlertCycle],
+        cycles: list[EnhancedAlertCycle],
         time_window_hours: int = 24,
-    ) -> Dict[str, ClassificationResult]:
+    ) -> dict[str, ClassificationResult]:
         """Classify all cycles for a monitor, considering temporal patterns."""
         results = {}
 
@@ -102,14 +101,10 @@ class AlertCycleClassifier:
             return results
 
         # Sort cycles by timestamp
-        sorted_cycles = sorted(
-            cycles, key=lambda c: c.start or datetime.min.replace(tzinfo=timezone.utc)
-        )
+        sorted_cycles = sorted(cycles, key=lambda c: c.start or datetime.min.replace(tzinfo=UTC))
 
         # Check for monitor-level flapping patterns
-        monitor_flapping = self._detect_monitor_flapping(
-            sorted_cycles, time_window_hours
-        )
+        monitor_flapping = self._detect_monitor_flapping(sorted_cycles, time_window_hours)
 
         for cycle in sorted_cycles:
             # Classify individual cycle
@@ -142,9 +137,7 @@ class AlertCycleClassifier:
 
         return results
 
-    def _check_benign_transient(
-        self, cycle: EnhancedAlertCycle
-    ) -> ClassificationResult:
+    def _check_benign_transient(self, cycle: EnhancedAlertCycle) -> ClassificationResult:
         """Check if cycle qualifies as benign transient."""
         reasons = []
         confidence_factors = []
@@ -158,9 +151,7 @@ class AlertCycleClassifier:
                 reasons=["Duration exceeds benign transient threshold"],
             )
 
-        reasons.append(
-            f"Short duration: {duration:.1f}s (< {self.config.transient_max_duration_seconds}s)"
-        )
+        reasons.append(f"Short duration: {duration:.1f}s (< {self.config.transient_max_duration_seconds}s)")
         confidence_factors.append(0.3)
 
         # Check state transitions (should be simple: alert -> recover)
@@ -191,9 +182,7 @@ class AlertCycleClassifier:
         if ttr and duration:
             ratio = abs(ttr - duration) / max(duration, 1)
             if ratio < 0.2:  # TTR ≈ cycle duration
-                reasons.append(
-                    "Resolution time matches cycle duration (automatic recovery)"
-                )
+                reasons.append("Resolution time matches cycle duration (automatic recovery)")
                 confidence_factors.append(0.15)
             else:
                 confidence_factors.append(-0.1)  # Penalty for mismatch
@@ -280,9 +269,7 @@ class AlertCycleClassifier:
         # Duration indicates substantial issue
         duration = cycle.duration_seconds
         if duration and duration >= self.config.actionable_min_duration_seconds:
-            reasons.append(
-                f"Substantial duration: {duration:.1f}s (≥ {self.config.actionable_min_duration_seconds}s)"
-            )
+            reasons.append(f"Substantial duration: {duration:.1f}s (≥ {self.config.actionable_min_duration_seconds}s)")
             confidence_factors.append(0.3)
 
         # Human action involvement
@@ -316,9 +303,7 @@ class AlertCycleClassifier:
             },
         )
 
-    def _detect_monitor_flapping(
-        self, cycles: List[EnhancedAlertCycle], time_window_hours: int
-    ) -> Dict[str, any]:
+    def _detect_monitor_flapping(self, cycles: list[EnhancedAlertCycle], time_window_hours: int) -> dict[str, any]:
         """Detect flapping at monitor level across cycles."""
         if len(cycles) < self.config.flap_min_cycles:
             return {"is_flapping": False, "confidence": 0.0, "cycles_in_window": 0}
@@ -355,15 +340,11 @@ class AlertCycleClassifier:
         # Calculate confidence based on cycle density
         if is_flapping:
             # Higher density = higher confidence
-            confidence = min(
-                1.0, (max_cycles_in_window - self.config.flap_min_cycles) / 10.0 + 0.6
-            )
+            confidence = min(1.0, (max_cycles_in_window - self.config.flap_min_cycles) / 10.0 + 0.6)
 
             # Additional confidence from duration patterns
             short_cycles = sum(
-                1
-                for cycle in cycles[-max_cycles_in_window:]
-                if cycle.duration_seconds and cycle.duration_seconds < 300
+                1 for cycle in cycles[-max_cycles_in_window:] if cycle.duration_seconds and cycle.duration_seconds < 300
             )
             if short_cycles >= max_cycles_in_window * 0.7:
                 confidence = min(1.0, confidence + 0.2)
@@ -377,7 +358,7 @@ class AlertCycleClassifier:
             "window_hours": time_window_hours,
         }
 
-    def _calculate_oscillation_score(self, state_sequence: List[str]) -> float:
+    def _calculate_oscillation_score(self, state_sequence: list[str]) -> float:
         """Calculate oscillation score based on state sequence pattern."""
         if len(state_sequence) < 3:
             return 0.0
@@ -385,10 +366,7 @@ class AlertCycleClassifier:
         # Count state reversals (A->B->A patterns)
         reversals = 0
         for i in range(len(state_sequence) - 2):
-            if (
-                state_sequence[i] == state_sequence[i + 2]
-                and state_sequence[i] != state_sequence[i + 1]
-            ):
+            if state_sequence[i] == state_sequence[i + 2] and state_sequence[i] != state_sequence[i + 1]:
                 reversals += 1
 
         # Normalize by sequence length
@@ -396,8 +374,8 @@ class AlertCycleClassifier:
         return reversals / max_possible_reversals
 
     def generate_classification_summary(
-        self, classification_results: Dict[str, ClassificationResult]
-    ) -> Dict[str, any]:
+        self, classification_results: dict[str, ClassificationResult]
+    ) -> dict[str, any]:
         """Generate summary statistics from classification results."""
         if not classification_results:
             return {
@@ -410,24 +388,16 @@ class AlertCycleClassifier:
 
         total_cycles = len(classification_results)
         flapping_cycles = sum(
-            1
-            for r in classification_results.values()
-            if r.classification == CycleClassification.FLAPPING
+            1 for r in classification_results.values() if r.classification == CycleClassification.FLAPPING
         )
         benign_transient_cycles = sum(
-            1
-            for r in classification_results.values()
-            if r.classification == CycleClassification.BENIGN_TRANSIENT
+            1 for r in classification_results.values() if r.classification == CycleClassification.BENIGN_TRANSIENT
         )
         actionable_cycles = sum(
-            1
-            for r in classification_results.values()
-            if r.classification == CycleClassification.ACTIONABLE
+            1 for r in classification_results.values() if r.classification == CycleClassification.ACTIONABLE
         )
 
-        avg_confidence = statistics.mean(
-            [r.confidence for r in classification_results.values()]
-        )
+        avg_confidence = statistics.mean([r.confidence for r in classification_results.values()])
 
         return {
             "total_cycles": total_cycles,
@@ -443,9 +413,9 @@ class AlertCycleClassifier:
     def generate_recommendations(
         self,
         monitor_id: str,
-        classification_results: Dict[str, ClassificationResult],
-        monitor_metadata: Optional[Dict[str, any]] = None,
-    ) -> List[Dict[str, any]]:
+        classification_results: dict[str, ClassificationResult],
+        monitor_metadata: dict[str, any] | None = None,
+    ) -> list[dict[str, any]]:
         """Generate actionable recommendations based on classification results."""
         recommendations = []
         summary = self.generate_classification_summary(classification_results)

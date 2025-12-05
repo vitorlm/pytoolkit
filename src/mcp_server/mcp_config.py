@@ -4,16 +4,14 @@ from pathlib import Path
 
 
 class MCPConfig:
-    """
-    MCP Server specific configuration.
+    """MCP Server specific configuration.
 
     Resolves relative path issues when executed by Claude Desktop.
     """
 
     @classmethod
     def get_project_root(cls):
-        """
-        Get the project root directory based on this file's location.
+        """Get the project root directory based on this file's location.
 
         Returns:
             Path: The project root directory path.
@@ -21,17 +19,14 @@ class MCPConfig:
         current_file = Path(__file__).resolve()
         # Navigate until finding the directory that contains pyproject.toml or requirements.txt
         for parent in current_file.parents:
-            if (parent / "pyproject.toml").exists() or (
-                parent / "requirements.txt"
-            ).exists():
+            if (parent / "pyproject.toml").exists() or (parent / "requirements.txt").exists():
                 return parent
         # Fallback to 2 levels above mcp_server
         return current_file.parent.parent.parent
 
     @classmethod
     def get_log_dir(cls):
-        """
-        Get the logs directory - uses temp if cannot create in project.
+        """Get the logs directory - uses temp if cannot create in project.
 
         Returns:
             str: The logs directory path.
@@ -54,8 +49,7 @@ class MCPConfig:
 
     @classmethod
     def get_cache_dir(cls):
-        """
-        Get the cache directory.
+        """Get the cache directory.
 
         Attempts to create a cache directory in the project root. Falls back to
         a temporary directory if project cache directory cannot be created.
@@ -79,8 +73,7 @@ class MCPConfig:
 
     @classmethod
     def setup_environment(cls):
-        """
-        Configure environment variables for the MCP server.
+        """Configure environment variables for the MCP server.
 
         Sets up logging, caching, and Python path configuration required
         for the MCP server to operate correctly with PyToolkit integration.

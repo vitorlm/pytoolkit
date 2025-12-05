@@ -1,19 +1,17 @@
 #!/usr/bin/env python3
-"""
-Cross-Establishment Product Analysis Command - Analyze products that appear across multiple establishments
-"""
+"""Cross-Establishment Product Analysis Command - Analyze products that appear across multiple establishments"""
 
 from argparse import ArgumentParser, Namespace
-from typing import Dict, Any
 from datetime import datetime
+from typing import Any
 
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
 from domains.personal_finance.nfce.cross_establishment_analysis_service import (
     CrossEstablishmentAnalysisService,
 )
+from utils.command.base_command import BaseCommand
+from utils.data.json_manager import JSONManager
+from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 
 
 class CrossEstablishmentAnalysisCommand(BaseCommand):
@@ -70,9 +68,7 @@ Examples:
             help="Generate detailed analysis with establishment breakdowns",
         )
 
-        parser.add_argument(
-            "--export-csv", action="store_true", help="Export results to CSV format"
-        )
+        parser.add_argument("--export-csv", action="store_true", help="Export results to CSV format")
 
         parser.add_argument(
             "--export-excel",
@@ -95,9 +91,7 @@ Examples:
     @staticmethod
     def main(args: Namespace):
         ensure_env_loaded()
-        logger = LogManager.get_instance().get_logger(
-            "CrossEstablishmentAnalysisCommand"
-        )
+        logger = LogManager.get_instance().get_logger("CrossEstablishmentAnalysisCommand")
 
         try:
             logger.info("Starting cross-establishment product analysis")
@@ -122,14 +116,10 @@ Examples:
 
             # Export to additional formats if requested
             if args.export_csv:
-                service.export_to_csv(
-                    analysis_results, output_path.replace(".json", ".csv")
-                )
+                service.export_to_csv(analysis_results, output_path.replace(".json", ".csv"))
 
             if args.export_excel:
-                service.export_to_excel(
-                    analysis_results, output_path.replace(".json", ".xlsx")
-                )
+                service.export_to_excel(analysis_results, output_path.replace(".json", ".xlsx"))
 
             # Print summary
             CrossEstablishmentAnalysisCommand._print_analysis_summary(analysis_results)
@@ -147,9 +137,8 @@ Examples:
             exit(1)
 
     @staticmethod
-    def _print_analysis_summary(results: Dict[str, Any]):
+    def _print_analysis_summary(results: dict[str, Any]):
         """Print analysis summary to console"""
-
         metadata = results["metadata"]
         stats = results["statistics"]
         top_products = results.get("top_cross_establishment_products", [])
@@ -160,9 +149,7 @@ Examples:
         print(f"Total Products Analyzed: {metadata['total_products']}")
         print(f"Cross-Establishment Products: {stats['cross_establishment_products']}")
         print(f"Cross-Establishment Rate: {stats['cross_establishment_rate']:.1f}%")
-        print(
-            f"Average Establishments per Cross Product: {stats['avg_establishments_per_cross_product']:.1f}"
-        )
+        print(f"Average Establishments per Cross Product: {stats['avg_establishments_per_cross_product']:.1f}")
 
         print("\n🏆 TOP CROSS-ESTABLISHMENT PRODUCTS:")
         for i, product in enumerate(top_products[:10], 1):
@@ -174,14 +161,10 @@ Examples:
             est_analysis = results["establishment_analysis"]
             print("\n🏢 ESTABLISHMENT ANALYSIS:")
             print(f"Total Establishments: {est_analysis['total_establishments']}")
-            print(
-                f"Avg Cross Products per Establishment: {est_analysis['avg_cross_products_per_establishment']:.1f}"
-            )
+            print(f"Avg Cross Products per Establishment: {est_analysis['avg_cross_products_per_establishment']:.1f}")
 
             print("\n🏪 TOP ESTABLISHMENTS BY CROSS PRODUCTS:")
-            top_establishments = est_analysis.get(
-                "top_establishments_by_cross_products", []
-            )
+            top_establishments = est_analysis.get("top_establishments_by_cross_products", [])
             for i, est in enumerate(top_establishments[:5], 1):
                 name = est["business_name"][:40]
                 count = est["cross_product_count"]
@@ -191,9 +174,7 @@ Examples:
             cat_analysis = results["category_analysis"]
             print("\n📦 CATEGORY DISTRIBUTION (Cross-Establishment):")
             categories = cat_analysis.get("cross_establishment_by_category", {})
-            sorted_categories = sorted(
-                categories.items(), key=lambda x: x[1], reverse=True
-            )
+            sorted_categories = sorted(categories.items(), key=lambda x: x[1], reverse=True)
             for category, count in sorted_categories[:8]:
                 print(f"  {category.title()}: {count}")
 

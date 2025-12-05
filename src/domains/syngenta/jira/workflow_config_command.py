@@ -1,5 +1,4 @@
-"""
-JIRA Workflow Configuration Management Command
+"""JIRA Workflow Configuration Management Command
 
 This command provides utilities to manage, validate, and test workflow configurations.
 
@@ -44,9 +43,7 @@ class WorkflowConfigCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Manage and validate JIRA workflow configurations for different projects."
-        )
+        return "Manage and validate JIRA workflow configurations for different projects."
 
     @staticmethod
     def get_help() -> str:
@@ -85,8 +82,7 @@ class WorkflowConfigCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute workflow configuration operations.
+        """Main function to execute workflow configuration operations.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -101,33 +97,25 @@ class WorkflowConfigCommand(BaseCommand):
             workflow_service = WorkflowConfigService()
 
             if args.operation == "list":
-                WorkflowConfigCommand._list_configurations(
-                    workflow_service, args.verbose
-                )
+                WorkflowConfigCommand._list_configurations(workflow_service, args.verbose)
 
             elif args.operation == "validate":
                 if not args.project_key:
                     logger.error("--project-key is required for validate operation")
                     exit(1)
-                WorkflowConfigCommand._validate_configuration(
-                    workflow_service, args.project_key, args.verbose
-                )
+                WorkflowConfigCommand._validate_configuration(workflow_service, args.project_key, args.verbose)
 
             elif args.operation == "test":
                 if not args.project_key:
                     logger.error("--project-key is required for test operation")
                     exit(1)
-                WorkflowConfigCommand._test_configuration(
-                    workflow_service, args.project_key, args.verbose
-                )
+                WorkflowConfigCommand._test_configuration(workflow_service, args.project_key, args.verbose)
 
             elif args.operation == "show":
                 if not args.project_key:
                     logger.error("--project-key is required for show operation")
                     exit(1)
-                WorkflowConfigCommand._show_configuration(
-                    workflow_service, args.project_key, args.verbose
-                )
+                WorkflowConfigCommand._show_configuration(workflow_service, args.project_key, args.verbose)
 
             elif args.operation == "clear-cache":
                 WorkflowConfigCommand._clear_cache(workflow_service, args.project_key)
@@ -171,9 +159,7 @@ class WorkflowConfigCommand(BaseCommand):
         print(f"\nTotal configurations: {len(available_projects)}")
 
     @staticmethod
-    def _validate_configuration(
-        workflow_service: WorkflowConfigService, project_key: str, verbose: bool
-    ):
+    def _validate_configuration(workflow_service: WorkflowConfigService, project_key: str, verbose: bool):
         """Validate workflow configuration for a project."""
         print("\n" + "=" * 60)
         print(f"VALIDATING WORKFLOW CONFIGURATION: {project_key}")
@@ -219,9 +205,7 @@ class WorkflowConfigCommand(BaseCommand):
                 print(f"  Error loading additional details: {e}")
 
     @staticmethod
-    def _test_configuration(
-        workflow_service: WorkflowConfigService, project_key: str, verbose: bool
-    ):
+    def _test_configuration(workflow_service: WorkflowConfigService, project_key: str, verbose: bool):
         """Test workflow configuration functionality."""
         print("\n" + "=" * 60)
         print(f"TESTING WORKFLOW CONFIGURATION: {project_key}")
@@ -264,17 +248,13 @@ class WorkflowConfigCommand(BaseCommand):
             # Test flow metrics
             print("\n📊 TESTING FLOW METRICS:")
             try:
-                cycle_start, cycle_end = workflow_service.get_cycle_time_statuses(
-                    project_key
-                )
+                cycle_start, cycle_end = workflow_service.get_cycle_time_statuses(project_key)
                 print(f"  Cycle Time: '{cycle_start}' -> '{cycle_end}'")
             except Exception as e:
                 print(f"  Cycle Time: ERROR - {e}")
 
             try:
-                lead_start, lead_end = workflow_service.get_lead_time_statuses(
-                    project_key
-                )
+                lead_start, lead_end = workflow_service.get_lead_time_statuses(project_key)
                 print(f"  Lead Time: '{lead_start}' -> '{lead_end}'")
             except Exception as e:
                 print(f"  Lead Time: ERROR - {e}")
@@ -299,9 +279,7 @@ class WorkflowConfigCommand(BaseCommand):
 
                 print(f"  WIP Statuses ({len(wip_statuses)}): {wip_statuses}")
                 print(f"  Done Statuses ({len(done_statuses)}): {done_statuses}")
-                print(
-                    f"  Backlog Statuses ({len(backlog_statuses)}): {backlog_statuses}"
-                )
+                print(f"  Backlog Statuses ({len(backlog_statuses)}): {backlog_statuses}")
 
             print("\n✅ TESTING COMPLETED")
 
@@ -309,9 +287,7 @@ class WorkflowConfigCommand(BaseCommand):
             print(f"\n❌ TESTING FAILED: {e}")
 
     @staticmethod
-    def _show_configuration(
-        workflow_service: WorkflowConfigService, project_key: str, verbose: bool
-    ):
+    def _show_configuration(workflow_service: WorkflowConfigService, project_key: str, verbose: bool):
         """Show detailed workflow configuration."""
         print("\n" + "=" * 60)
         print(f"WORKFLOW CONFIGURATION: {project_key}")
@@ -363,9 +339,7 @@ class WorkflowConfigCommand(BaseCommand):
                 for gate_name, gate_config in quality_gates.items():
                     print(f"  {gate_name}: {gate_config.get('status')}")
                     if verbose:
-                        print(
-                            f"    Description: {gate_config.get('description', 'N/A')}"
-                        )
+                        print(f"    Description: {gate_config.get('description', 'N/A')}")
 
             # Custom fields
             custom_fields = config.get("custom_fields", {})
@@ -380,9 +354,7 @@ class WorkflowConfigCommand(BaseCommand):
                 if transitions:
                     print(f"\nTransitions ({len(transitions)}):")
                     for transition in transitions:
-                        print(
-                            f"  {transition.get('from')} -> {transition.get('to')} ({transition.get('name')})"
-                        )
+                        print(f"  {transition.get('from')} -> {transition.get('to')} ({transition.get('name')})")
 
         except Exception as e:
             print(f"\n❌ Failed to show configuration: {e}")

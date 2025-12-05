@@ -3,15 +3,12 @@ from argparse import ArgumentParser, Namespace
 
 
 class BaseCommand(ABC):
-    """
-    Abstract base class for all CLI commands, supporting hierarchical structure.
-    """
+    """Abstract base class for all CLI commands, supporting hierarchical structure."""
 
     @staticmethod
     @abstractmethod
     def get_name() -> str:
-        """
-        Returns the name of the command (or domain/subdomain).
+        """Returns the name of the command (or domain/subdomain).
 
         Returns:
             str: The name of the command.
@@ -20,8 +17,7 @@ class BaseCommand(ABC):
 
     @staticmethod
     def get_description() -> str:
-        """
-        Returns a description of the command (or domain/subdomain).
+        """Returns a description of the command (or domain/subdomain).
 
         Returns:
             str: The description of the command.
@@ -30,8 +26,7 @@ class BaseCommand(ABC):
 
     @staticmethod
     def get_help() -> str:
-        """
-        Returns help text for the command (or domain/subdomain).
+        """Returns help text for the command (or domain/subdomain).
 
         Returns:
             str: The help text of the command.
@@ -40,8 +35,7 @@ class BaseCommand(ABC):
 
     @classmethod
     def register_command(cls, parent_parser):
-        """
-        Registers the command or subdomain in the given parent parser/subparsers.
+        """Registers the command or subdomain in the given parent parser/subparsers.
 
         Args:
             parent_parser (ArgumentParser or _SubParsersAction): The parser or subparsers to add
@@ -60,8 +54,7 @@ class BaseCommand(ABC):
     @staticmethod
     @abstractmethod
     def get_arguments(parser: ArgumentParser):
-        """
-        Adds arguments to the parser.
+        """Adds arguments to the parser.
 
         Args:
             parser (ArgumentParser): The parser to which arguments are added.
@@ -70,8 +63,7 @@ class BaseCommand(ABC):
 
     @staticmethod
     def add_subcommands(parser: ArgumentParser):
-        """
-        Adds subcommands to the given parser. Override this method if subcommands exist.
+        """Adds subcommands to the given parser. Override this method if subcommands exist.
 
         Args:
             parser (ArgumentParser): The parser to which subcommands are added.
@@ -81,8 +73,7 @@ class BaseCommand(ABC):
     @staticmethod
     @abstractmethod
     def main(args: Namespace):
-        """
-        Executes the main logic of the command.
+        """Executes the main logic of the command.
 
         Args:
             args (Namespace): Parsed arguments from the CLI.

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
-from typing import Any, Dict, List, Optional, Tuple
-
 import json
+import os
+from typing import Any
+
 import requests
 
 from utils.cache_manager.cache_manager import CacheManager
@@ -13,8 +13,7 @@ from .datadog_service import DatadogService
 
 
 class DatadogSoftwareService:
-    """
-    Wrapper for Datadog Software Catalog (v2) and Teams APIs.
+    """Wrapper for Datadog Software Catalog (v2) and Teams APIs.
 
     Responsibilities:
     - Validate/resolve team handles (via Teams v2 using existing DatadogService)
@@ -30,8 +29,8 @@ class DatadogSoftwareService:
         self,
         *,
         site: str,
-        api_key: Optional[str] = None,
-        app_key: Optional[str] = None,
+        api_key: str | None = None,
+        app_key: str | None = None,
         use_cache: bool = False,
         cache_ttl_minutes: int = 30,
     ) -> None:
@@ -51,7 +50,7 @@ class DatadogSoftwareService:
 
         # Reuse Teams API helpers from existing service, but tolerate missing SDK
         try:
-            self._teams: Optional[DatadogService] = DatadogService(
+            self._teams: DatadogService | None = DatadogService(
                 site=self.site,
                 api_key=self.api_key,
                 app_key=self.app_key,
@@ -66,7 +65,7 @@ class DatadogSoftwareService:
             self._teams = None
 
     # -------- Public API --------
-    def get_team(self, handle: str) -> Optional[Dict[str, Any]]:
+    def get_team(self, handle: str) -> dict[str, Any] | None:
         """Resolve a team by handle via Teams v2 (SDK path reused)."""
         if self._teams is None:
             return None
@@ -76,24 +75,17 @@ class DatadogSoftwareService:
             self.logger.warning(f"Team validation failed for '{handle}': {e}")
             return None
 
-    def list_services_for_team(
-        self, handle: str
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        """
-        Return a tuple: (services, meta) where services are normalized service entities
+    def list_services_for_team(self, handle: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Return a tuple: (services, meta) where services are normalized service entities
         and meta captures details like fallbacks used.
         """
-        cache_key = self.cache.generate_cache_key(
-            prefix="dd_software_services_for_team", site=self.site, team=handle
-        )
+        cache_key = self.cache.generate_cache_key(prefix="dd_software_services_for_team", site=self.site, team=handle)
         if self.use_cache:
-            cached = self.cache.load(
-                cache_key, expiration_minutes=self.cache_ttl_minutes
-            )
+            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
             if cached is not None:
                 return cached, {"cache": True}
 
-        meta: Dict[str, Any] = {"fallback": None, "pages": 0}
+        meta: dict[str, Any] = {"fallback": None, "pages": 0}
 
         # 1) Try server-side owner filter
         try:
@@ -115,14 +107,10 @@ class DatadogSoftwareService:
                 )
                 meta["fallback"] = f"client_filtering_http_{status}"
             else:
-                self.logger.warning(
-                    f"Owner filter request failed: {e}. Falling back to client-side filtering."
-                )
+                self.logger.warning(f"Owner filter request failed: {e}. Falling back to client-side filtering.")
                 meta["fallback"] = "client_filtering_error"
         except Exception as e:
-            self.logger.warning(
-                f"Owner filter path errored: {e}. Falling back to client-side filtering."
-            )
+            self.logger.warning(f"Owner filter path errored: {e}. Falling back to client-side filtering.")
             meta["fallback"] = "client_filtering_error"
 
         # 2) Fallback: fetch all service entities and filter by owner attributes client-side
@@ -144,22 +132,14 @@ class DatadogSoftwareService:
                 or attrs.get("team")
                 or (attrs.get("annotations") or {}).get("owner")
             )
-            if (
-                isinstance(candidate, str)
-                and candidate.strip().lower() == handle.lower()
-            ):
+            if isinstance(candidate, str) and candidate.strip().lower() == handle.lower():
                 filtered.append(norm)
                 continue
 
-            tags = (
-                (attrs.get("tags") or []) if isinstance(attrs.get("tags"), list) else []
-            )
+            tags = (attrs.get("tags") or []) if isinstance(attrs.get("tags"), list) else []
             if any(
                 isinstance(t, str)
-                and (
-                    t.lower() == f"dd_team:{handle}".lower()
-                    or t.lower() == f"team:{handle}".lower()
-                )
+                and (t.lower() == f"dd_team:{handle}".lower() or t.lower() == f"team:{handle}".lower())
                 for t in tags
             ):
                 filtered.append(norm)
@@ -175,7 +155,7 @@ class DatadogSoftwareService:
             host = f"api.{host}"
         return f"https://{host}"
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -183,14 +163,11 @@ class DatadogSoftwareService:
             "DD-APPLICATION-KEY": self.app_key,
         }
 
-    def _list_entities(
-        self, *, kind: str, owner: Optional[str]
-    ) -> Tuple[List[Dict[str, Any]], int]:
-        """
-        Page through /api/v2/catalog/entity with optional server-side filters.
+    def _list_entities(self, *, kind: str, owner: str | None) -> tuple[list[dict[str, Any]], int]:
+        """Page through /api/v2/catalog/entity with optional server-side filters.
         Returns (entities, total_pages_visited).
         """
-        all_items: List[Dict[str, Any]] = []
+        all_items: list[dict[str, Any]] = []
         page_number = 0
         page_size = 100
         total_pages = 0
@@ -218,9 +195,7 @@ class DatadogSoftwareService:
                     raise
 
             data = resp.json() or {}
-            items = (
-                (data.get("data") or []) if isinstance(data.get("data"), list) else []
-            )
+            items = (data.get("data") or []) if isinstance(data.get("data"), list) else []
             total_pages += 1
             if not items:
                 break
@@ -232,15 +207,13 @@ class DatadogSoftwareService:
 
             # Safety cap to avoid infinite loops
             if page_number > 1000:
-                self.logger.warning(
-                    "Pagination safety cap reached (1000 pages) for /catalog/entity"
-                )
+                self.logger.warning("Pagination safety cap reached (1000 pages) for /catalog/entity")
                 break
 
         return all_items, total_pages
 
     # -------- Normalization --------
-    def _normalize_entity(self, entity: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_entity(self, entity: dict[str, Any]) -> dict[str, Any]:
         attrs = entity.get("attributes") or {}
         # Id and name
         eid = entity.get("id") or attrs.get("id") or ""
@@ -270,8 +243,8 @@ class DatadogSoftwareService:
         }
 
     @staticmethod
-    def _extract_links(raw: Any) -> Dict[str, str]:
-        out: Dict[str, str] = {}
+    def _extract_links(raw: Any) -> dict[str, str]:
+        out: dict[str, str] = {}
         if not raw:
             return out
         # If dict with common keys
@@ -290,9 +263,7 @@ class DatadogSoftwareService:
             for item in raw:
                 if not isinstance(item, dict):
                     continue
-                title = (
-                    item.get("name") or item.get("title") or item.get("type") or "link"
-                )
+                title = item.get("name") or item.get("title") or item.get("type") or "link"
                 url = item.get("url") or item.get("href")
                 if isinstance(url, str) and url:
                     key = title.lower().strip()
@@ -307,7 +278,7 @@ class DatadogSoftwareService:
         return out
 
     @staticmethod
-    def _extract_env_facets(attrs: Dict[str, Any]) -> List[str]:
+    def _extract_env_facets(attrs: dict[str, Any]) -> list[str]:
         # Known fields
         envs = []
         for key in ("environments", "env", "envs"):
@@ -326,7 +297,7 @@ class DatadogSoftwareService:
 
         # Deduplicate while preserving order
         seen = set()
-        deduped: List[str] = []
+        deduped: list[str] = []
         for v in envs:
             if v not in seen:
                 seen.add(v)

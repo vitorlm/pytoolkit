@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""
-Hybrid Similarity Engine - Combines SBERT embeddings with Brazilian token rules
-"""
+"""Hybrid Similarity Engine - Combines SBERT embeddings with Brazilian token rules"""
 
 import math
 import re
-from typing import List, Tuple
 from dataclasses import dataclass
+
 import numpy as np
-from utils.logging.logging_manager import LogManager
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
 
 try:
     from sentence_transformers import SentenceTransformer
@@ -29,9 +28,9 @@ class HybridSimilarityResult:
     final_similarity: float
 
     # Detailed analysis
-    matching_tokens: List[str]
-    brazilian_tokens: List[str]
-    quantity_matches: List[str]
+    matching_tokens: list[str]
+    brazilian_tokens: list[str]
+    quantity_matches: list[str]
     brand_similarity: float
 
     # Confidence metrics
@@ -40,8 +39,7 @@ class HybridSimilarityResult:
 
 
 class HybridSimilarityEngine:
-    """
-    Advanced similarity engine combining:
+    """Advanced similarity engine combining:
     - SBERT Portuguese embeddings (semantic similarity)
     - Brazilian product token rules (domain-specific patterns)
     - Quantity and unit matching
@@ -53,14 +51,12 @@ class HybridSimilarityEngine:
         model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
         cache_enabled: bool = True,
     ):
-        """
-        Initialize hybrid similarity engine
+        """Initialize hybrid similarity engine
 
         Args:
             model_name: SBERT model name (default: Legal-BERTimbau for Portuguese)
             cache_enabled: Whether to cache embeddings
         """
-
         self.logger = LogManager.get_instance().get_logger("HybridSimilarityEngine")
         self.cache_enabled = cache_enabled
 
@@ -205,9 +201,7 @@ class HybridSimilarityEngine:
         """Lazy loading of SBERT model"""
         if self._model is None:
             if not SBERT_AVAILABLE:
-                self.logger.warning(
-                    "sentence-transformers not available, using fallback"
-                )
+                self.logger.warning("sentence-transformers not available, using fallback")
                 return None
 
             try:
@@ -218,23 +212,16 @@ class HybridSimilarityEngine:
                 self.logger.error(f"Failed to load SBERT model: {e}")
                 # Fallback to a smaller model
                 try:
-                    self.logger.info(
-                        "Trying fallback model: paraphrase-multilingual-MiniLM-L12-v2"
-                    )
-                    self._model = SentenceTransformer(
-                        "paraphrase-multilingual-MiniLM-L12-v2"
-                    )
+                    self.logger.info("Trying fallback model: paraphrase-multilingual-MiniLM-L12-v2")
+                    self._model = SentenceTransformer("paraphrase-multilingual-MiniLM-L12-v2")
                 except Exception as e2:
                     self.logger.error(f"Failed to load fallback model: {e2}")
                     return None
 
         return self._model
 
-    def calculate_similarity(
-        self, product1: str, product2: str
-    ) -> HybridSimilarityResult:
-        """
-        Calculate hybrid similarity between two products
+    def calculate_similarity(self, product1: str, product2: str) -> HybridSimilarityResult:
+        """Calculate hybrid similarity between two products
 
         Args:
             product1: First product description
@@ -243,10 +230,7 @@ class HybridSimilarityEngine:
         Returns:
             HybridSimilarityResult with detailed analysis
         """
-
-        self.logger.debug(
-            f"Calculating hybrid similarity: '{product1}' vs '{product2}'"
-        )
+        self.logger.debug(f"Calculating hybrid similarity: '{product1}' vs '{product2}'")
 
         # Normalize products
         norm1 = self._normalize_product(product1)
@@ -256,14 +240,10 @@ class HybridSimilarityEngine:
         embedding_sim = self._calculate_embedding_similarity(norm1, norm2)
 
         # Calculate token rule similarity
-        token_sim, matching_tokens, brazilian_tokens = self._calculate_token_similarity(
-            norm1, norm2
-        )
+        token_sim, matching_tokens, brazilian_tokens = self._calculate_token_similarity(norm1, norm2)
 
         # Calculate quantity matching
-        quantity_sim, quantity_matches = self._calculate_quantity_similarity(
-            product1, product2
-        )
+        quantity_sim, quantity_matches = self._calculate_quantity_similarity(product1, product2)
 
         # Calculate brand similarity
         brand_sim = self._calculate_brand_similarity(norm1, norm2)
@@ -277,9 +257,7 @@ class HybridSimilarityEngine:
         )
 
         # Calculate confidence score
-        confidence = self._calculate_confidence(
-            embedding_sim, token_sim, quantity_sim, brand_sim
-        )
+        confidence = self._calculate_confidence(embedding_sim, token_sim, quantity_sim, brand_sim)
 
         # Generate explanation
         explanation = self._generate_explanation(
@@ -304,9 +282,7 @@ class HybridSimilarityEngine:
             explanation=explanation,
         )
 
-        self.logger.debug(
-            f"Hybrid similarity result: {final_sim:.3f} (confidence: {confidence:.3f})"
-        )
+        self.logger.debug(f"Hybrid similarity result: {final_sim:.3f} (confidence: {confidence:.3f})")
 
         return result
 
@@ -328,7 +304,6 @@ class HybridSimilarityEngine:
 
     def _calculate_embedding_similarity(self, product1: str, product2: str) -> float:
         """Calculate semantic similarity using SBERT embeddings"""
-
         if not self.model or not product1 or not product2:
             return 0.0
 
@@ -367,11 +342,8 @@ class HybridSimilarityEngine:
             self.logger.error(f"Error calculating embedding similarity: {e}")
             return 0.0
 
-    def _calculate_token_similarity(
-        self, product1: str, product2: str
-    ) -> Tuple[float, List[str], List[str]]:
+    def _calculate_token_similarity(self, product1: str, product2: str) -> tuple[float, list[str], list[str]]:
         """Calculate similarity based on Brazilian token rules"""
-
         if not product1 or not product2:
             return 0.0, [], []
 
@@ -397,16 +369,9 @@ class HybridSimilarityEngine:
                 for abbrev, full_forms in self.brazilian_tokens.items():
                     # Check if one token is abbreviation and other is full form
                     if (
-                        (
-                            token1 == abbrev
-                            and any(form in token2 for form in full_forms)
-                        )
-                        or (
-                            token2 == abbrev
-                            and any(form in token1 for form in full_forms)
-                        )
-                        or any(form in token1 for form in full_forms)
-                        and any(form in token2 for form in full_forms)
+                        (token1 == abbrev and any(form in token2 for form in full_forms))
+                        or (token2 == abbrev and any(form in token1 for form in full_forms))
+                        or (any(form in token1 for form in full_forms) and any(form in token2 for form in full_forms))
                     ):
                         rule_matches += 1
                         brazilian_tokens.append(f"{token1}↔{token2}")
@@ -427,11 +392,8 @@ class HybridSimilarityEngine:
 
         return token_similarity, matching_tokens, brazilian_tokens
 
-    def _calculate_quantity_similarity(
-        self, product1: str, product2: str
-    ) -> Tuple[float, List[str]]:
+    def _calculate_quantity_similarity(self, product1: str, product2: str) -> tuple[float, list[str]]:
         """Calculate similarity based on quantities and units"""
-
         quantities1 = self._extract_quantities(product1)
         quantities2 = self._extract_quantities(product2)
 
@@ -454,7 +416,7 @@ class HybridSimilarityEngine:
 
         return similarity, matches
 
-    def _extract_quantities(self, product: str) -> List[str]:
+    def _extract_quantities(self, product: str) -> list[str]:
         """Extract quantities and units from product description"""
         quantities = []
 
@@ -490,7 +452,6 @@ class HybridSimilarityEngine:
 
     def _calculate_brand_similarity(self, product1: str, product2: str) -> float:
         """Calculate brand similarity"""
-
         # Extract potential brand names (capitalized words, common brands)
         brands1 = self._extract_brands(product1)
         brands2 = self._extract_brands(product2)
@@ -507,9 +468,8 @@ class HybridSimilarityEngine:
 
         return matches / total if total > 0 else 0.0
 
-    def _extract_brands(self, product: str) -> List[str]:
+    def _extract_brands(self, product: str) -> list[str]:
         """Extract brand names from product description"""
-
         common_brands = [
             "coca",
             "cola",
@@ -545,7 +505,6 @@ class HybridSimilarityEngine:
         brand_sim: float,
     ) -> float:
         """Calculate confidence score for the similarity result"""
-
         # Higher confidence when multiple methods agree
         similarities = [embedding_sim, token_sim, quantity_sim, brand_sim]
 
@@ -565,28 +524,23 @@ class HybridSimilarityEngine:
         token_sim: float,
         quantity_sim: float,
         brand_sim: float,
-        matching_tokens: List[str],
-        brazilian_tokens: List[str],
-        quantity_matches: List[str],
+        matching_tokens: list[str],
+        brazilian_tokens: list[str],
+        quantity_matches: list[str],
     ) -> str:
         """Generate human-readable explanation of similarity"""
-
         explanations = []
 
         if embedding_sim > 0.7:
             explanations.append(f"Alta similaridade semântica ({embedding_sim:.2f})")
         elif embedding_sim > 0.4:
-            explanations.append(
-                f"Similaridade semântica moderada ({embedding_sim:.2f})"
-            )
+            explanations.append(f"Similaridade semântica moderada ({embedding_sim:.2f})")
 
         if token_sim > 0.5:
             explanations.append(f"Tokens similares: {', '.join(matching_tokens[:3])}")
 
         if brazilian_tokens:
-            explanations.append(
-                f"Padrões brasileiros: {', '.join(brazilian_tokens[:2])}"
-            )
+            explanations.append(f"Padrões brasileiros: {', '.join(brazilian_tokens[:2])}")
 
         if quantity_matches:
             explanations.append(f"Quantidades similares: {', '.join(quantity_matches)}")

@@ -1,17 +1,16 @@
-from utils.error.error_manager import handle_generic_exception
-from log_config import LogManager
 import os
+
+from log_config import LogManager
 from utils.command.command_manager import CommandManager
+from utils.error.error_manager import handle_generic_exception
 
 logger = LogManager.get_instance().get_logger("CLI")
 
 
 def main():
-    """
-    Entry point for the CLI application. Loads commands dynamically and executes
+    """Entry point for the CLI application. Loads commands dynamically and executes
     the requested command.
     """
-
     command_manager = CommandManager(os.path.join(os.path.dirname(__file__), "domains"))
     command_manager.load_commands()
     parser = command_manager.build_parser()

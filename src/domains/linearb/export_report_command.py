@@ -1,6 +1,4 @@
-"""
-LinearB Export Performance Report Command.
-"""
+"""LinearB Export Performance Report Command."""
 
 from argparse import ArgumentParser, Namespace
 
@@ -21,8 +19,7 @@ class ExportReportCommand(BaseCommand):
     @staticmethod
     def get_description() -> str:
         return (
-            "Export comprehensive performance reports from LinearB including "
-            "review time, deploy metrics, PR analytics"
+            "Export comprehensive performance reports from LinearB including review time, deploy metrics, PR analytics"
         )
 
     @staticmethod
@@ -93,18 +90,13 @@ Note: Reports are automatically downloaded to the specified output folder with
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--team-ids", type=str, help="Comma-separated team IDs to filter by"
-        )
+        parser.add_argument("--team-ids", type=str, help="Comma-separated team IDs to filter by")
 
         parser.add_argument(
             "--time-range",
             type=str,
             required=True,
-            help=(
-                "Time range for the report (last-week, last-2-weeks, last-month, "
-                "N-days, or YYYY-MM-DD,YYYY-MM-DD)"
-            ),
+            help=("Time range for the report (last-week, last-2-weeks, last-month, N-days, or YYYY-MM-DD,YYYY-MM-DD)"),
         )
 
         parser.add_argument(
@@ -276,17 +268,14 @@ Note: Reports are automatically downloaded to the specified output folder with
                 elif download_error:
                     logger.warning("⚠️  Export succeeded but download failed:")
                     logger.warning(f"Error: {download_error}")
-                    logger.info(
-                        "You can still download the report manually using the URL above."
-                    )
+                    logger.info("You can still download the report manually using the URL above.")
                 else:
                     logger.info("You can download the report using the provided URL.")
                     logger.info("The report will be available for a limited time.")
             else:
                 logger.info(f"Export initiated: {detail}")
                 logger.info(
-                    "The report may still be processing. Check back later or "
-                    "monitor your LinearB notifications."
+                    "The report may still be processing. Check back later or monitor your LinearB notifications."
                 )
 
             logger.info("Export report command completed successfully")

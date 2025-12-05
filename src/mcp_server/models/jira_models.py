@@ -1,9 +1,7 @@
-"""
-Pydantic models for JIRA MCP tools validation.
-"""
+"""Pydantic models for JIRA MCP tools validation."""
 
-from typing import Optional
 from enum import Enum
+
 from pydantic import Field, field_validator
 
 from .base import BaseMCPModel, OutputFileModel
@@ -57,7 +55,7 @@ class JiraEpicMonitoringArgs(BaseMCPModel, OutputFileModel):
         max_length=10,
     )
 
-    team: Optional[str] = Field(
+    team: str | None = Field(
         None,
         description="Team name to filter (optional). If not provided, returns data from all teams",
         min_length=1,
@@ -83,23 +81,23 @@ class JiraCycleTimeArgs(BaseMCPModel, OutputFileModel):
         ),
     )
 
-    issue_types: Optional[str] = Field(
+    issue_types: str | None = Field(
         "Bug",
         description="Comma-separated list of issue types (e.g., 'Bug,Story,Task')",
     )
 
-    team: Optional[str] = Field(
+    team: str | None = Field(
         None,
         description="Team name to filter using Squad[Dropdown] field (optional)",
         min_length=1,
     )
 
-    priorities: Optional[str] = Field(
+    priorities: str | None = Field(
         None,
         description="Comma-separated list of priorities (e.g., 'Critical,High,Medium,Low')",
     )
 
-    status_categories: Optional[str] = Field(
+    status_categories: str | None = Field(
         "Done",
         description="Comma-separated list of status categories to include",
     )
@@ -142,9 +140,7 @@ class JiraCycleTimeArgs(BaseMCPModel, OutputFileModel):
 
         for priority in priorities:
             if priority not in valid_priorities:
-                raise ValueError(
-                    f"Invalid priority: {priority}. Valid: {valid_priorities}"
-                )
+                raise ValueError(f"Invalid priority: {priority}. Valid: {valid_priorities}")
 
         return v
 
@@ -164,17 +160,17 @@ class JiraTeamVelocityArgs(BaseMCPModel, OutputFileModel):
         description="Analysis period: 'last-6-months', 'last-3-months', 'last-month', or date range",
     )
 
-    issue_types: Optional[str] = Field(
+    issue_types: str | None = Field(
         None,
         description="Comma-separated list of issue types (e.g., 'Story,Task,Epic,Technical Debt,Improvement')",
     )
 
-    aggregation: Optional[str] = Field(
+    aggregation: str | None = Field(
         "week",
         description="Aggregation level: 'day', 'week', 'month'",
     )
 
-    team: Optional[str] = Field(
+    team: str | None = Field(
         None,
         description="Team name to filter (optional)",
         min_length=1,
@@ -191,18 +187,18 @@ class JiraOpenIssuesArgs(BaseMCPModel, OutputFileModel):
         max_length=10,
     )
 
-    issue_types: Optional[str] = Field(
+    issue_types: str | None = Field(
         "Bug,Story,Task",
         description="Comma-separated list of issue types to include",
     )
 
-    team: Optional[str] = Field(
+    team: str | None = Field(
         None,
         description="Team name to filter (optional)",
         min_length=1,
     )
 
-    status_categories: Optional[str] = Field(
+    status_categories: str | None = Field(
         "To Do,In Progress",
         description="Comma-separated list of status categories (default: 'To Do,In Progress')",
     )

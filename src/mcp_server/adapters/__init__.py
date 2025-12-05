@@ -1,5 +1,4 @@
-"""
-MCP Adapters Package.
+"""MCP Adapters Package.
 
 This package contains adapters that integrate PyToolkit services with MCP.
 Each adapter provides an MCP-compatible interface for specific services.
@@ -12,12 +11,11 @@ from .jira_adapter import JiraAdapter
 from .linearb_adapter import LinearBAdapter
 from .sonarqube_adapter import SonarQubeAdapter
 
-
 __all__ = [
-    "BaseAdapter",
-    "JiraAdapter",
-    "SonarQubeAdapter",
-    "CircleCIAdapter",
-    "LinearBAdapter",
     "AdapterManager",
+    "BaseAdapter",
+    "CircleCIAdapter",
+    "JiraAdapter",
+    "LinearBAdapter",
+    "SonarQubeAdapter",
 ]

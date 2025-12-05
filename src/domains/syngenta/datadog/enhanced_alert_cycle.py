@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 
 class CycleClassification(Enum):
@@ -21,28 +20,28 @@ class CycleClassification(Enum):
 class EnhancedLifecycleEvent:
     """Enhanced lifecycle event with additional metadata for classification."""
 
-    raw: Dict[str, Any]
-    timestamp: Optional[datetime]
-    timestamp_epoch: Optional[float]
+    raw: dict[str, Any]
+    timestamp: datetime | None
+    timestamp_epoch: float | None
     monitor_id: str
-    monitor_name: Optional[str]
+    monitor_name: str | None
     alert_cycle_key: str
-    source_state: Optional[str]
-    destination_state: Optional[str]
-    transition_type: Optional[str]
-    status: Optional[str]
-    team: Optional[str]
-    env: Optional[str]
-    duration_seconds: Optional[float]
-    priority: Optional[int]
+    source_state: str | None
+    destination_state: str | None
+    transition_type: str | None
+    status: str | None
+    team: str | None
+    env: str | None
+    duration_seconds: float | None
+    priority: int | None
 
     # Enhanced metadata for classification
-    was_paged: Optional[bool] = None
-    human_action_taken: Optional[bool] = None
-    correlation_id: Optional[str] = None
-    severity_level: Optional[str] = None
+    was_paged: bool | None = None
+    human_action_taken: bool | None = None
+    correlation_id: str | None = None
+    severity_level: str | None = None
 
-    def state_label(self) -> Optional[str]:
+    def state_label(self) -> str | None:
         return self.destination_state or self.status
 
     def is_business_hours(self) -> bool:
@@ -68,33 +67,31 @@ class EnhancedAlertCycle:
 
     key: str
     monitor_id: str
-    monitor_name: Optional[str]
-    events: List[EnhancedLifecycleEvent] = field(default_factory=list)
+    monitor_name: str | None
+    events: list[EnhancedLifecycleEvent] = field(default_factory=list)
 
     # Enhanced classification fields
-    cycle_classification: Optional[CycleClassification] = None
-    classification_confidence: Optional[float] = None
-    classification_reasons: List[str] = field(default_factory=list)
+    cycle_classification: CycleClassification | None = None
+    classification_confidence: float | None = None
+    classification_reasons: list[str] = field(default_factory=list)
 
     # Additional metadata
-    root_cause_hint: Optional[str] = None
-    correlation_group: Optional[str] = None
+    root_cause_hint: str | None = None
+    correlation_group: str | None = None
 
     def __post_init__(self) -> None:
-        self.events.sort(
-            key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=timezone.utc)
-        )
+        self.events.sort(key=lambda evt: evt.timestamp or datetime.min.replace(tzinfo=UTC))
 
     @property
-    def start(self) -> Optional[datetime]:
+    def start(self) -> datetime | None:
         return self.events[0].timestamp if self.events else None
 
     @property
-    def end(self) -> Optional[datetime]:
+    def end(self) -> datetime | None:
         return self.events[-1].timestamp if self.events else None
 
     @property
-    def duration_seconds(self) -> Optional[float]:
+    def duration_seconds(self) -> float | None:
         if self.start and self.end:
             return max((self.end - self.start).total_seconds(), 0.0)
         if self.events and self.events[0].duration_seconds is not None:
@@ -102,17 +99,15 @@ class EnhancedAlertCycle:
         return None
 
     @property
-    def duration_minutes(self) -> Optional[float]:
+    def duration_minutes(self) -> float | None:
         """Get cycle duration in minutes."""
         duration_s = self.duration_seconds
         return duration_s / 60.0 if duration_s is not None else None
 
-    def state_sequence(self) -> List[str]:
-        sequence: List[str] = []
+    def state_sequence(self) -> list[str]:
+        sequence: list[str] = []
         for event in self.events:
-            if event.source_state and (
-                not sequence or sequence[-1] != event.source_state
-            ):
+            if event.source_state and (not sequence or sequence[-1] != event.source_state):
                 sequence.append(event.source_state)
             destination = event.destination_state or event.status
             if destination and (not sequence or sequence[-1] != destination):
@@ -152,13 +147,13 @@ class EnhancedAlertCycle:
         business_events = sum(1 for evt in self.events if evt.is_business_hours())
         return business_events > len(self.events) / 2
 
-    def teams(self) -> List[str]:
+    def teams(self) -> list[str]:
         return sorted({event.team for event in self.events if event.team})
 
-    def environments(self) -> List[str]:
+    def environments(self) -> list[str]:
         return sorted({event.env for event in self.events if event.env})
 
-    def time_to_resolution_seconds(self) -> Optional[float]:
+    def time_to_resolution_seconds(self) -> float | None:
         if not self.start:
             return None
         for event in self.events:
@@ -198,7 +193,7 @@ class WeeklyMonitorSnapshot:
     """Weekly snapshot of monitor metrics for trend analysis."""
 
     monitor_id: str
-    monitor_name: Optional[str]
+    monitor_name: str | None
     iso_week: str  # Format: "2025-W42"
     year: int
     week: int
@@ -207,8 +202,8 @@ class WeeklyMonitorSnapshot:
     noise_score: float
     self_heal_rate: float
     actionable_rate: float
-    mttr_seconds: Optional[float]
-    mtbf_seconds: Optional[float]
+    mttr_seconds: float | None
+    mtbf_seconds: float | None
     cycles_count: int
     events_count: int
 
@@ -219,21 +214,21 @@ class WeeklyMonitorSnapshot:
     business_hours_events_pct: float
 
     # Additional metadata
-    teams: List[str] = field(default_factory=list)
-    environments: List[str] = field(default_factory=list)
-    avg_cycle_duration_minutes: Optional[float] = None
-    health_score: Optional[float] = None
+    teams: list[str] = field(default_factory=list)
+    environments: list[str] = field(default_factory=list)
+    avg_cycle_duration_minutes: float | None = None
+    health_score: float | None = None
 
     @classmethod
     def from_monitor_metrics(
         cls,
         monitor_id: str,
-        monitor_name: Optional[str],
+        monitor_name: str | None,
         iso_week: str,
         year: int,
         week: int,
-        metrics: Dict[str, Any],
-    ) -> "WeeklyMonitorSnapshot":
+        metrics: dict[str, Any],
+    ) -> WeeklyMonitorSnapshot:
         """Create snapshot from computed monitor metrics."""
         return cls(
             monitor_id=monitor_id,
@@ -251,9 +246,7 @@ class WeeklyMonitorSnapshot:
             flapping_cycles=int(metrics.get("flapping_cycles", 0)),
             benign_transient_cycles=int(metrics.get("benign_transient_cycles", 0)),
             actionable_cycles=int(metrics.get("actionable_cycles", 0)),
-            business_hours_events_pct=float(
-                metrics.get("business_hours_percentage", 0.0)
-            ),
+            business_hours_events_pct=float(metrics.get("business_hours_percentage", 0.0)),
             teams=metrics.get("teams", []),
             environments=metrics.get("environments", []),
             avg_cycle_duration_minutes=metrics.get("avg_cycle_duration_minutes"),
@@ -279,7 +272,7 @@ class WeeklySummarySnapshot:
     avg_noise_score: float
     avg_self_heal_rate: float
     avg_actionable_rate: float
-    avg_health_score: Optional[float]
+    avg_health_score: float | None
 
     # Classification totals
     total_flapping_cycles: int
@@ -297,8 +290,8 @@ class WeeklySummarySnapshot:
         iso_week: str,
         year: int,
         week: int,
-        monitor_snapshots: List[WeeklyMonitorSnapshot],
-    ) -> "WeeklySummarySnapshot":
+        monitor_snapshots: list[WeeklyMonitorSnapshot],
+    ) -> WeeklySummarySnapshot:
         """Create summary from individual monitor snapshots."""
         if not monitor_snapshots:
             return cls(
@@ -323,19 +316,11 @@ class WeeklySummarySnapshot:
 
         # Calculate averages
         avg_noise_score = sum(s.noise_score for s in monitor_snapshots) / total_monitors
-        avg_self_heal_rate = (
-            sum(s.self_heal_rate for s in monitor_snapshots) / total_monitors
-        )
-        avg_actionable_rate = (
-            sum(s.actionable_rate for s in monitor_snapshots) / total_monitors
-        )
+        avg_self_heal_rate = sum(s.self_heal_rate for s in monitor_snapshots) / total_monitors
+        avg_actionable_rate = sum(s.actionable_rate for s in monitor_snapshots) / total_monitors
 
-        health_scores = [
-            s.health_score for s in monitor_snapshots if s.health_score is not None
-        ]
-        avg_health_score = (
-            sum(health_scores) / len(health_scores) if health_scores else None
-        )
+        health_scores = [s.health_score for s in monitor_snapshots if s.health_score is not None]
+        avg_health_score = sum(health_scores) / len(health_scores) if health_scores else None
 
         return cls(
             iso_week=iso_week,
@@ -349,8 +334,6 @@ class WeeklySummarySnapshot:
             avg_actionable_rate=avg_actionable_rate,
             avg_health_score=avg_health_score,
             total_flapping_cycles=sum(s.flapping_cycles for s in monitor_snapshots),
-            total_benign_transient_cycles=sum(
-                s.benign_transient_cycles for s in monitor_snapshots
-            ),
+            total_benign_transient_cycles=sum(s.benign_transient_cycles for s in monitor_snapshots),
             total_actionable_cycles=sum(s.actionable_cycles for s in monitor_snapshots),
         )

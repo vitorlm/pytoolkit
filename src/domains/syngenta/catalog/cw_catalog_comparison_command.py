@@ -1,15 +1,16 @@
-"""
-CW Catalog API Comparison Command
+"""CW Catalog API Comparison Command
 
 Command to compare CSV data against CW Catalog API products by downloading products
 by country and performing detailed matching analysis.
 """
 
 from argparse import ArgumentParser, Namespace
+
 from utils.cache_manager.cache_manager import CacheManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+
 from .config import CatalogConfig
 
 
@@ -85,10 +86,7 @@ class CWCatalogComparisonCommand(BaseCommand):
             "--cache-duration",
             type=int,
             default=CatalogConfig.DEFAULT_CACHE_DURATION,
-            help=(
-                f"Cache duration for API responses in minutes "
-                f"(default: {CatalogConfig.DEFAULT_CACHE_DURATION})"
-            ),
+            help=(f"Cache duration for API responses in minutes (default: {CatalogConfig.DEFAULT_CACHE_DURATION})"),
         )
         parser.add_argument(
             "--country",
@@ -102,24 +100,15 @@ class CWCatalogComparisonCommand(BaseCommand):
         parser.add_argument(
             "--simplified-output",
             action="store_true",
-            help=(
-                "Show simplified output with only country, already deleted, "
-                "and need to delete columns"
-            ),
+            help=("Show simplified output with only country, already deleted, and need to delete columns"),
         )
         parser.add_argument(
             "--simplified-csv",
-            help=(
-                "Path to save simplified CSV with only country, already deleted, "
-                "and need to delete columns"
-            ),
+            help=("Path to save simplified CSV with only country, already deleted, and need to delete columns"),
         )
         parser.add_argument(
             "--ids-to-delete-path",
-            help=(
-                "Path to save CSV file with IDs of products that still exist "
-                "in API and need to be deleted"
-            ),
+            help=("Path to save CSV file with IDs of products that still exist in API and need to be deleted"),
         )
         parser.add_argument(
             "--bulk-delete-csv",
@@ -173,9 +162,7 @@ class CWCatalogComparisonCommand(BaseCommand):
             logger.info("Starting CW Catalog API comparison")
             logger.info(f"CSV file: {args.csv_path}")
             logger.info(f"API base URL: {args.api_base_url}")
-            logger.info(
-                f"Organization ID: {args.org_id or 'None (canonical products only)'}"
-            )
+            logger.info(f"Organization ID: {args.org_id or 'None (canonical products only)'}")
             logger.info(f"Source: {args.source}")
             logger.info(f"Include deleted: {args.include_deleted}")
             logger.info(f"Batch size: {args.batch_size}")
@@ -236,40 +223,22 @@ class CWCatalogComparisonCommand(BaseCommand):
 
                 print("\nDeletion Analysis:")
                 print(f"  Products Found in API: {summary['products_found_in_api']:,}")
-                print(
-                    f"  Products NOT Found in API: {summary['products_not_found_in_api']:,}"
-                )
-                print(
-                    f"  Products Ready for Deletion: {summary['products_ready_for_deletion']:,}"
-                )
-                print(
-                    f"  Products Already Deleted: {summary['products_already_deleted']:,}"
-                )
+                print(f"  Products NOT Found in API: {summary['products_not_found_in_api']:,}")
+                print(f"  Products Ready for Deletion: {summary['products_ready_for_deletion']:,}")
+                print(f"  Products Already Deleted: {summary['products_already_deleted']:,}")
 
                 ready_pct = (
-                    (
-                        summary["products_ready_for_deletion"]
-                        / summary["total_csv_products"]
-                        * 100
-                    )
+                    (summary["products_ready_for_deletion"] / summary["total_csv_products"] * 100)
                     if summary["total_csv_products"] > 0
                     else 0
                 )
                 deleted_pct = (
-                    (
-                        summary["products_already_deleted"]
-                        / summary["total_csv_products"]
-                        * 100
-                    )
+                    (summary["products_already_deleted"] / summary["total_csv_products"] * 100)
                     if summary["total_csv_products"] > 0
                     else 0
                 )
                 not_found_pct = (
-                    (
-                        summary["products_not_found_in_api"]
-                        / summary["total_csv_products"]
-                        * 100
-                    )
+                    (summary["products_not_found_in_api"] / summary["total_csv_products"] * 100)
                     if summary["total_csv_products"] > 0
                     else 0
                 )
@@ -292,9 +261,7 @@ class CWCatalogComparisonCommand(BaseCommand):
                 print("\nMatching Results:")
                 print(f"  Exact ID Matches: {overall['matched_by_id']:,}")
                 print(f"  Name+Country Matches: {overall['matched_by_name_country']:,}")
-                total_matches = (
-                    overall["matched_by_id"] + overall["matched_by_name_country"]
-                )
+                total_matches = overall["matched_by_id"] + overall["matched_by_name_country"]
                 print(f"  Total Matches: {total_matches:,}")
                 print(f"  CSV-only Products: {overall['csv_only']:,}")
                 print(f"  API-only Products: {overall['api_only']:,}")
@@ -316,36 +283,23 @@ class CWCatalogComparisonCommand(BaseCommand):
                         country_data.append(
                             {
                                 "country": country,
-                                "ready_for_deletion": comparison["summary"][
-                                    "products_ready_for_deletion"
-                                ],
-                                "already_deleted": comparison["summary"][
-                                    "products_already_deleted"
-                                ],
-                                "not_found": comparison["summary"][
-                                    "products_not_found_in_api"
-                                ],
-                                "total_csv": comparison["summary"][
-                                    "total_csv_products"
-                                ],
+                                "ready_for_deletion": comparison["summary"]["products_ready_for_deletion"],
+                                "already_deleted": comparison["summary"]["products_already_deleted"],
+                                "not_found": comparison["summary"]["products_not_found_in_api"],
+                                "total_csv": comparison["summary"]["total_csv_products"],
                             }
                         )
 
                 country_data.sort(key=lambda x: x["ready_for_deletion"], reverse=True)
 
                 if country_data:
-                    header = (
-                        f"{'Country':<8} {'Ready':<8} {'Deleted':<8} "
-                        f"{'NotFound':<10} {'Total':<8} {'%Ready':<8}"
-                    )
+                    header = f"{'Country':<8} {'Ready':<8} {'Deleted':<8} {'NotFound':<10} {'Total':<8} {'%Ready':<8}"
                     print(header)
                     print("-" * 60)
 
                     for data in country_data:
                         ready_pct = (
-                            (data["ready_for_deletion"] / data["total_csv"] * 100)
-                            if data["total_csv"] > 0
-                            else 0
+                            (data["ready_for_deletion"] / data["total_csv"] * 100) if data["total_csv"] > 0 else 0
                         )
                         row = (
                             f"{data['country']:<8} {data['ready_for_deletion']:<8} "
@@ -355,33 +309,18 @@ class CWCatalogComparisonCommand(BaseCommand):
                         print(row)
 
                     # Show countries with products ready for deletion
-                    countries_with_deletions = [
-                        data for data in country_data if data["ready_for_deletion"] > 0
-                    ]
+                    countries_with_deletions = [data for data in country_data if data["ready_for_deletion"] > 0]
                     if countries_with_deletions:
-                        total_to_delete = sum(
-                            data["ready_for_deletion"]
-                            for data in countries_with_deletions
-                        )
+                        total_to_delete = sum(data["ready_for_deletion"] for data in countries_with_deletions)
                         print("\n📊 DELETION SUMMARY:")
-                        print(
-                            f"   Total countries with products to delete: "
-                            f"{len(countries_with_deletions)}"
-                        )
-                        print(
-                            f"   Total products ready for deletion: {total_to_delete:,}"
-                        )
+                        print(f"   Total countries with products to delete: {len(countries_with_deletions)}")
+                        print(f"   Total products ready for deletion: {total_to_delete:,}")
                         country_list = ", ".join(
-                            [
-                                f"{d['country']} ({d['ready_for_deletion']})"
-                                for d in countries_with_deletions[:10]
-                            ]
+                            [f"{d['country']} ({d['ready_for_deletion']})" for d in countries_with_deletions[:10]]
                         )
                         print(f"   Countries: {country_list}")
                         if len(countries_with_deletions) > 10:
-                            print(
-                                f"   ... and {len(countries_with_deletions) - 10} more countries"
-                            )
+                            print(f"   ... and {len(countries_with_deletions) - 10} more countries")
 
             # Analysis recommendations
             if "summary" in result:
@@ -389,37 +328,24 @@ class CWCatalogComparisonCommand(BaseCommand):
                 summary = result["summary"]
                 if summary["products_ready_for_deletion"] > 0:
                     print(
-                        f"\n🔄 ACTION REQUIRED: "
-                        f"{summary['products_ready_for_deletion']:,} products ready for deletion"
+                        f"\n🔄 ACTION REQUIRED: {summary['products_ready_for_deletion']:,} products ready for deletion"
                     )
                 if summary["products_already_deleted"] > 0:
-                    print(
-                        f"\n✅ INFO: "
-                        f"{summary['products_already_deleted']:,} products already deleted"
-                    )
+                    print(f"\n✅ INFO: {summary['products_already_deleted']:,} products already deleted")
                 if summary["products_not_found_in_api"] > 0:
-                    print(
-                        f"\n❓ INFO: "
-                        f"{summary['products_not_found_in_api']:,} products not found in API"
-                    )
+                    print(f"\n❓ INFO: {summary['products_not_found_in_api']:,} products not found in API")
             else:
                 # Original comparison analysis
                 overall = result["overall_comparison"]
                 if overall["id_match_rate"] > 80:
-                    print(
-                        "\n✅ EXCELLENT: High ID match rate indicates good data consistency"
-                    )
+                    print("\n✅ EXCELLENT: High ID match rate indicates good data consistency")
                 elif overall["id_match_rate"] > 50:
-                    print(
-                        "\n⚠️  MODERATE: Decent ID match rate, but room for improvement"
-                    )
+                    print("\n⚠️  MODERATE: Decent ID match rate, but room for improvement")
                 else:
-                    print(
-                        "\n🔍 INVESTIGATION NEEDED: Low ID match rate suggests data inconsistencies"
-                    )
+                    print("\n🔍 INVESTIGATION NEEDED: Low ID match rate suggests data inconsistencies")
 
                 # Top countries by volume
-                if "country_summary" in result and result["country_summary"]:
+                if result.get("country_summary"):
                     top_countries = result["country_summary"][:5]
                     print("\nTop Countries by CSV Volume:")
                     for i, country_info in enumerate(top_countries, 1):
@@ -431,9 +357,7 @@ class CWCatalogComparisonCommand(BaseCommand):
 
                 # Error handling summary
                 error_countries = [
-                    country
-                    for country, data in result["country_comparisons"].items()
-                    if "error" in data
+                    country for country, data in result["country_comparisons"].items() if "error" in data
                 ]
                 if error_countries:
                     print(f"\n❌ Countries with Errors: {', '.join(error_countries)}")
@@ -455,47 +379,28 @@ class CWCatalogComparisonCommand(BaseCommand):
                 deleted_count = summary["products_already_deleted"]
 
                 if ready_count > 0:
-                    print(
-                        f"🔄 DELETION READY: {ready_count:,} products can be deleted from the API"
-                    )
-                    print(
-                        "   Review the detailed report before proceeding with deletion."
-                    )
+                    print(f"🔄 DELETION READY: {ready_count:,} products can be deleted from the API")
+                    print("   Review the detailed report before proceeding with deletion.")
                 if deleted_count > 0:
-                    print(
-                        f"✅ ALREADY PROCESSED: {deleted_count:,} products already deleted"
-                    )
+                    print(f"✅ ALREADY PROCESSED: {deleted_count:,} products already deleted")
                 if summary["products_not_found_in_api"] > 0:
-                    print(
-                        f"❓ INVESTIGATION: "
-                        f"{summary['products_not_found_in_api']:,} products not found in API"
-                    )
-                    print(
-                        "   These may have been deleted previously or never uploaded."
-                    )
+                    print(f"❓ INVESTIGATION: {summary['products_not_found_in_api']:,} products not found in API")
+                    print("   These may have been deleted previously or never uploaded.")
             else:
                 # Original comparison recommendations
                 overall = result["overall_comparison"]
                 if overall["total_match_rate"] > 90:
                     print("✅ EXCELLENT DATA CONSISTENCY:")
                     print("   The API and CSV data are highly aligned.")
-                    print(
-                        "   Focus on the small percentage of mismatches for final cleanup."
-                    )
+                    print("   Focus on the small percentage of mismatches for final cleanup.")
                 elif overall["total_match_rate"] > 70:
                     print("⚠️  GOOD ALIGNMENT WITH ROOM FOR IMPROVEMENT:")
                     print("   Most products are matched between API and CSV.")
-                    print(
-                        "   Investigate countries with low match rates for data quality issues."
-                    )
+                    print("   Investigate countries with low match rates for data quality issues.")
                 else:
                     print("🔍 SIGNIFICANT DATA INCONSISTENCIES DETECTED:")
-                    print(
-                        "   Large gaps between API and CSV data require investigation."
-                    )
-                    print(
-                        "   Consider data source validation and synchronization improvements."
-                    )
+                    print("   Large gaps between API and CSV data require investigation.")
+                    print("   Consider data source validation and synchronization improvements.")
                     print("   Review API filtering and CSV data generation processes.")
 
         except Exception as e:

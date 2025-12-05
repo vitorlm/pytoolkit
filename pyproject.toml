@@ -1,0 +1,123 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pytoolkit"
+version = "1.0.0"
+description = "Domain-driven CLI framework for enterprise data processing and automation"
+authors = [{name = "PyToolkit Team"}]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "pandas>=2.0.0",
+    "duckdb>=0.9.0",
+    "pyarrow>=14.0.0",
+    "openpyxl>=3.1.0",
+    "pdfplumber>=0.10.0",
+    "pydantic>=2.4.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "matplotlib>=3.8.0",
+    "altair>=5.0.0",
+    "selenium>=4.15.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.14.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src", "tests"]
+extend-exclude = [
+    "__pycache__/*",
+    ".venv/*",
+    "venv/*",
+    "cache/*",
+    "logs/*",
+    "output/*",
+    "data/*",
+    "snapshots/*",
+]
+fix = true  # Enable auto-fix for editor integration
+unsafe-fixes = false
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # bugbear
+    "C90", # mccabe
+    "N",   # pep8-naming
+    "D",   # pydocstyle
+    "PL",  # pylint
+    "RUF", # ruff-specific rules
+    "TID"  # tidy imports
+]
+ignore = [
+    "D100",  # Missing docstring in public module
+    "D104",  # Missing docstring in public package
+    "D107",  # Missing docstring in __init__
+    "D203",  # One blank line before class docstring (conflicts with D211)
+    "D213",  # Multi-line docstring summary should start at the second line
+    "D401",  # First line should be in imperative mood
+    "PLR2004",  # Magic value used in comparison
+    "PLR0913",  # Too many arguments in function definition
+    "N806",  # Variable in function should be lowercase (conflicts with pandas conventions)
+]
+
+[tool.ruff.lint.pep8-naming]
+ignore-names = ["visit_*"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "PLR2004", "N806", "F841", "PLR0915"]
+"src/domains/**/processors/*.py" = ["PLR0913", "PLR0915", "PLR0912", "C901"]
+"src/domains/**/services/*.py" = ["PLR0913", "PLR0915", "PLR0912", "C901"]
+"src/utils/*.py" = ["PLR0913", "D417"]
+"src/config.py" = ["PLR0913"]
+"src/main.py" = ["D100"]
+"test_*.py" = ["D", "PLR2004", "N806", "F841", "PLR0915"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+include = ["src"]
+exclude = [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/node_modules",
+    ".venv",
+    "venv",
+    "**/cache",
+    "**/logs",
+    "**/output",
+    "**/data"
+]
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportGeneralTypeIssues = "none"
+reportOptionalMemberAccess = "none"
+reportOptionalSubscript = "none"
+reportPrivateImportUsage = "none"
+pythonVersion = "3.13"
+pythonPlatform = "Darwin"

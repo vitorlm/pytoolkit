@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""
-Product Analysis Command - Analyze existing products for similarity patterns
-"""
+"""Product Analysis Command - Analyze existing products for similarity patterns"""
 
 from argparse import ArgumentParser, Namespace
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
+
 from domains.personal_finance.nfce.product_analysis_service import (
     ProductAnalysisService,
 )
+from utils.command.base_command import BaseCommand
+from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 
 
 class ProductAnalysisCommand(BaseCommand):
@@ -19,9 +18,7 @@ class ProductAnalysisCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Analyze existing products for similarity patterns and potential duplicates"
-        )
+        return "Analyze existing products for similarity patterns and potential duplicates"
 
     @staticmethod
     def get_help() -> str:
@@ -73,9 +70,7 @@ Output includes:
             help="Generate detailed analysis with extended statistics and examples",
         )
 
-        parser.add_argument(
-            "--cnpj", help="Analyze products from specific establishment (CNPJ)"
-        )
+        parser.add_argument("--cnpj", help="Analyze products from specific establishment (CNPJ)")
 
         parser.add_argument(
             "--category-filter",
@@ -154,9 +149,7 @@ Output includes:
                     # Run enhanced analysis with similarity engine
                     analysis_results = service.analyze_products_with_similarity(
                         cnpj_filter=args.cnpj,
-                        category_filter=args.category_filter.split(",")
-                        if args.category_filter
-                        else None,
+                        category_filter=args.category_filter.split(",") if args.category_filter else None,
                         similarity_threshold=args.similarity_threshold,
                         min_frequency=args.min_frequency,
                         sample_size=args.sample_size,
@@ -168,9 +161,7 @@ Output includes:
                 logger.info("Using traditional analysis method")
                 analysis_results = service.analyze_products(
                     cnpj_filter=args.cnpj,
-                    category_filter=args.category_filter.split(",")
-                    if args.category_filter
-                    else None,
+                    category_filter=args.category_filter.split(",") if args.category_filter else None,
                     similarity_threshold=args.similarity_threshold,
                     min_frequency=args.min_frequency,
                     sample_size=args.sample_size,
@@ -208,9 +199,7 @@ Output includes:
             print(f"Error: Invalid input - {e}")
             exit(1)
         except Exception as e:
-            logger.error(
-                f"Unexpected error during product analysis: {e}", exc_info=True
-            )
+            logger.error(f"Unexpected error during product analysis: {e}", exc_info=True)
             print(f"Error: An unexpected error occurred - {e}")
             print("Please check the logs for more details.")
             exit(1)
@@ -218,7 +207,6 @@ Output includes:
     @staticmethod
     def _validate_arguments(args: Namespace, logger) -> None:
         """Validate command arguments"""
-
         # Validate similarity threshold
         if not 0.0 <= args.similarity_threshold <= 1.0:
             raise ValueError("Similarity threshold must be between 0.0 and 1.0")
@@ -238,6 +226,4 @@ Output includes:
             if len(clean_cnpj) != 14:
                 raise ValueError("CNPJ must have exactly 14 digits")
 
-        logger.info(
-            f"Arguments validated: threshold={args.similarity_threshold}, min_freq={args.min_frequency}"
-        )
+        logger.info(f"Arguments validated: threshold={args.similarity_threshold}, min_freq={args.min_frequency}")

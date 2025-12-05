@@ -1,14 +1,10 @@
-"""
-Base Pydantic models for MCP tool validation.
-"""
+"""Base Pydantic models for MCP tool validation."""
 
-from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class BaseMCPModel(BaseModel):
-    """
-    Base Pydantic model for all MCP tool arguments.
+    """Base Pydantic model for all MCP tool arguments.
 
     Provides common configuration and validation patterns
     for all MCP tool parameter validation.
@@ -31,13 +27,13 @@ class BaseMCPModel(BaseModel):
 class OutputFileModel(BaseModel):
     """Common output file parameters."""
 
-    output_file: Optional[str] = Field(
+    output_file: str | None = Field(
         None,
         description="Optional file path to save results in JSON format",
         min_length=1,
     )
 
-    verbose: Optional[bool] = Field(
+    verbose: bool | None = Field(
         False,
         description="Enable verbose output with detailed information",
     )
@@ -46,7 +42,7 @@ class OutputFileModel(BaseModel):
 class CacheControlModel(BaseModel):
     """Common cache control parameters."""
 
-    clear_cache: Optional[bool] = Field(
+    clear_cache: bool | None = Field(
         False,
         description="Clear cache before executing operation to get fresh data",
     )

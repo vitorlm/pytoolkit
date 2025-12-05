@@ -1,81 +1,92 @@
 from pathlib import Path
-from typing import Union, Dict, Optional, Any
+from typing import Any
+
 import pandas as pd
 
 from utils.base_processor import BaseProcessor
-from ..core.indicators import Indicator
-from ..core.validations import ValidationHelper
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 
+from ..core.indicators import Indicator
+from ..core.validations import ValidationHelper
+
 
 class FeedbackProcessor(BaseProcessor):
-    """
-    Processor for extracting and validating competency data from Excel files.
-    """
+    """Processor for extracting and validating competency data from Excel files."""
 
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsx"])
 
-    def process_file(self, file_path: Union[str, Path], **kwargs) -> Dict[str, Any]:
-        """
-        Processes a single file to extract competency data.
+    def process_file(self, file_path: str | Path, **kwargs) -> dict[str, Any]:
+        """Processes a single file to extract competency data.
 
         Args:
             file_path (Union[str, Path]): Path to the Excel file.
-            **kwargs: Additional keyword arguments.
+            **kwargs: Additional keyword arguments including:
+                - period_metadata (dict): Optional metadata about evaluation period
+                  (year, period_name, timestamp)
 
         Returns:
             Dict[str, Any]: Processed competency data structured by evaluatee and evaluator.
         """
-        competency_matrix: Dict[str, Dict] = {}
-        evaluator_name = self._extract_evaluator_name(
-            FileManager.get_file_name(str(file_path))
-        )
+        competency_matrix: dict[str, dict] = {}
+        evaluator_name = self._extract_evaluator_name(FileManager.get_file_name(str(file_path)))
+
+        # Extract period metadata if provided
+        period_metadata = kwargs.get("period_metadata", None)
 
         excel_data = ExcelManager.read_excel(str(file_path))
         for sheet_name in excel_data.sheet_names[1:]:
             df = pd.read_excel(str(file_path), sheet_name=sheet_name)
             evaluatee_name = sheet_name.strip()
-            self.logger.debug(
-                f"Processing sheet: {sheet_name} for evaluatee: {evaluatee_name}"
-            )
+
+            # Handle self-evaluation: if sheet is "Self-Evaluation", use evaluator name as evaluatee
+            if evaluatee_name.lower() == "self-evaluation":
+                evaluatee_name = evaluator_name
+                self.logger.debug(f"Processing self-evaluation sheet → evaluatee: {evaluatee_name}")
+            else:
+                self.logger.debug(f"Processing sheet: {sheet_name} → evaluatee: {evaluatee_name}")
+
             self.process_sheet(
                 df,
                 evaluatee=evaluatee_name,
                 evaluator=evaluator_name,
                 competency_matrix=competency_matrix,
+                period_metadata=period_metadata,
             )
 
         ValidationHelper.validate_competency_matrix(competency_matrix)
         self.logger.info(f"Validation completed for file: {file_path}")
+
+        # Period metadata is already embedded in evaluator_data
+        # No need to wrap the entire result
         return competency_matrix
 
     def process_sheet(self, sheet_data: pd.DataFrame, **kwargs):
-        """
-        Processes a single sheet from an Excel file.
+        """Processes a single sheet from an Excel file.
 
         Args:
             sheet_data (pd.DataFrame): DataFrame containing sheet data.
-            **kwargs: Keyword arguments containing evaluatee, evaluator, and competency_matrix.
+            **kwargs: Keyword arguments containing evaluatee, evaluator, competency_matrix,
+                     and optional period_metadata.
         """
-        evaluatee: Optional[str] = kwargs.get("evaluatee")
-        evaluator: Optional[str] = kwargs.get("evaluator")
-        competency_matrix: Optional[Dict[str, Dict[str, Any]]] = kwargs.get(
-            "competency_matrix"
-        )
+        evaluatee: str | None = kwargs.get("evaluatee")
+        evaluator: str | None = kwargs.get("evaluator")
+        competency_matrix: dict[str, dict[str, Any]] | None = kwargs.get("competency_matrix")
+        period_metadata: dict | None = kwargs.get("period_metadata")
 
         if not evaluatee or not evaluator or competency_matrix is None:
-            raise ValueError(
-                "Missing required arguments: evaluatee, evaluator, or competency_matrix"
-            )
+            raise ValueError("Missing required arguments: evaluatee, evaluator, or competency_matrix")
 
         if evaluatee not in competency_matrix:
             competency_matrix[evaluatee] = {}
 
-        evaluator_data: Dict[str, Any] = competency_matrix[evaluatee].setdefault(
-            evaluator, {}
-        )
+        evaluator_data: dict[str, Any] = competency_matrix[evaluatee].setdefault(evaluator, {})
+
+        # Add period metadata to evaluator data if provided
+        if period_metadata:
+            evaluator_data["_period_metadata"] = period_metadata
+
         last_criterion = None
 
         for _, row in sheet_data.iterrows():
@@ -87,11 +98,8 @@ class FeedbackProcessor(BaseProcessor):
                     if indicator_data:
                         evaluator_data.setdefault(criterion, []).append(indicator_data)
 
-    def _process_row(
-        self, row: pd.Series, last_criterion: Optional[str]
-    ) -> Optional[tuple[str, Optional[Indicator]]]:
-        """
-        Processes a single row from a sheet.
+    def _process_row(self, row: pd.Series, last_criterion: str | None) -> tuple[str, Indicator | None] | None:
+        """Processes a single row from a sheet.
 
         Args:
             row (pd.Series): Row data.
@@ -115,17 +123,11 @@ class FeedbackProcessor(BaseProcessor):
         # Ensure proper types for Indicator creation
         if indicator and level is not None and isinstance(criterion, str):
             # Ensure indicator is a string
-            indicator_str = (
-                str(indicator) if not isinstance(indicator, str) else indicator
-            )
+            indicator_str = str(indicator) if not isinstance(indicator, str) else indicator
             # Ensure level is an integer
             level_int = int(level) if not isinstance(level, int) else level
             # Ensure evidence is a string or None
-            evidence_str = (
-                str(evidence)
-                if evidence is not None and not isinstance(evidence, str)
-                else evidence
-            )
+            evidence_str = str(evidence) if evidence is not None and not isinstance(evidence, str) else evidence
 
             return (
                 criterion,
@@ -138,8 +140,7 @@ class FeedbackProcessor(BaseProcessor):
             return None
 
     def _extract_evaluator_name(self, file_name: str) -> str:
-        """
-        Extracts evaluator name from Excel file name.
+        """Extracts evaluator name from Excel file name.
 
         Args:
             file_name (str): Name of the Excel file.
@@ -149,11 +150,8 @@ class FeedbackProcessor(BaseProcessor):
         """
         return file_name.split(" - ")[1].replace(".xlsx", "").strip()
 
-    def _validate_field(
-        self, field: Any, allow_digits: bool = False
-    ) -> Optional[Union[str, int]]:
-        """
-        Validates and processes a single field value from the Excel data.
+    def _validate_field(self, field: Any, allow_digits: bool = False) -> str | int | None:
+        """Validates and processes a single field value from the Excel data.
 
         Args:
             field (Any): The value to validate.

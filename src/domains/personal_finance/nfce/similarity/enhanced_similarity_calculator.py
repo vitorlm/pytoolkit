@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""
-Enhanced Similarity Calculator - Integrates SBERT embeddings with Brazilian token rules
-"""
+"""Enhanced Similarity Calculator - Integrates SBERT embeddings with Brazilian token rules"""
 
 import math
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Dict, List
 from dataclasses import dataclass
+
 from utils.logging.logging_manager import LogManager
+
 from .feature_extractor import ProductFeatures
 from .hybrid_similarity_engine import HybridSimilarityEngine
 
@@ -37,17 +36,17 @@ class EnhancedSimilarityResult:
     confidence_score: float
 
     # Matching details
-    matching_tokens: List[str]
-    matching_bigrams: List[str]
-    brazilian_tokens: List[str]
-    quantity_matches: List[str]
+    matching_tokens: list[str]
+    matching_bigrams: list[str]
+    brazilian_tokens: list[str]
+    quantity_matches: list[str]
     brand_match: bool
     category_match: bool
 
     # Explanation
     explanation: str
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "product1_description": self.product1.original_description,
@@ -77,8 +76,7 @@ class EnhancedSimilarityResult:
 
 
 class EnhancedSimilarityCalculator:
-    """
-    Enhanced similarity calculator that combines:
+    """Enhanced similarity calculator that combines:
     - Traditional algorithms (Jaccard, Cosine, Levenshtein)
     - SBERT embeddings for semantic similarity
     - Brazilian product token rules
@@ -91,18 +89,14 @@ class EnhancedSimilarityCalculator:
         use_hybrid: bool = True,
         sbert_model: str = "rufimelo/Legal-BERTimbau-large",
     ):
-        """
-        Initialize enhanced similarity calculator
+        """Initialize enhanced similarity calculator
 
         Args:
             similarity_threshold: Optimal threshold for similarity matching
             use_hybrid: Whether to use hybrid SBERT + rules approach
             sbert_model: SBERT model name for Portuguese embeddings
         """
-
-        self.logger = LogManager.get_instance().get_logger(
-            "EnhancedSimilarityCalculator"
-        )
+        self.logger = LogManager.get_instance().get_logger("EnhancedSimilarityCalculator")
         self.similarity_threshold = similarity_threshold
         self.use_hybrid = use_hybrid
 
@@ -159,11 +153,8 @@ class EnhancedSimilarityCalculator:
             f"Enhanced similarity calculator initialized (hybrid: {use_hybrid}, threshold: {similarity_threshold})"
         )
 
-    def calculate_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> EnhancedSimilarityResult:
-        """
-        Calculate enhanced similarity between two product features
+    def calculate_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> EnhancedSimilarityResult:
+        """Calculate enhanced similarity between two product features
 
         Args:
             features1: First product features
@@ -172,7 +163,6 @@ class EnhancedSimilarityCalculator:
         Returns:
             EnhancedSimilarityResult with detailed analysis
         """
-
         self.logger.debug(
             f"Calculating enhanced similarity: '{features1.original_description}' vs '{features2.original_description}'"
         )
@@ -217,7 +207,7 @@ class EnhancedSimilarityCalculator:
 
                 embedding_similarity = hybrid_result.embedding_similarity
                 token_rule_similarity = hybrid_result.token_rule_similarity
-                quantity_similarity = hybrid_result.quantity_matches and 1.0 or 0.0
+                quantity_similarity = (hybrid_result.quantity_matches and 1.0) or 0.0
                 brand_similarity = hybrid_result.brand_similarity
                 brazilian_tokens = hybrid_result.brazilian_tokens
                 quantity_matches = hybrid_result.quantity_matches
@@ -281,21 +271,18 @@ class EnhancedSimilarityCalculator:
             explanation=explanation,
         )
 
-        self.logger.debug(
-            f"Enhanced similarity result: {final_score:.3f} (confidence: {confidence_score:.3f})"
-        )
+        self.logger.debug(f"Enhanced similarity result: {final_score:.3f} (confidence: {confidence_score:.3f})")
 
         return result
 
     def calculate_batch_similarity(
         self,
-        features_list: List[ProductFeatures],
+        features_list: list[ProductFeatures],
         threshold: float = None,
         use_parallel: bool = True,
         max_workers: int = None,
-    ) -> List[EnhancedSimilarityResult]:
-        """
-        Calculate enhanced similarity for all pairs in a batch with optimizations
+    ) -> list[EnhancedSimilarityResult]:
+        """Calculate enhanced similarity for all pairs in a batch with optimizations
 
         Args:
             features_list: List of ProductFeatures to compare
@@ -306,14 +293,11 @@ class EnhancedSimilarityCalculator:
         Returns:
             List of EnhancedSimilarityResult objects above threshold
         """
-
         if threshold is None:
             threshold = self.similarity_threshold
 
         n_products = len(features_list)
-        self.logger.info(
-            f"Calculating enhanced batch similarity for {n_products} products (threshold: {threshold})"
-        )
+        self.logger.info(f"Calculating enhanced batch similarity for {n_products} products (threshold: {threshold})")
 
         # Quick exit for small datasets
         if n_products < 2:
@@ -321,9 +305,7 @@ class EnhancedSimilarityCalculator:
 
         # Apply fast filters first to reduce comparison space
         filtered_features = self._apply_fast_filters(features_list, threshold)
-        self.logger.info(
-            f"After fast filtering: {len(filtered_features)} products remain"
-        )
+        self.logger.info(f"After fast filtering: {len(filtered_features)} products remain")
 
         if len(filtered_features) < 2:
             return []
@@ -337,11 +319,8 @@ class EnhancedSimilarityCalculator:
         else:
             return self._calculate_sequential(filtered_features, threshold)
 
-    def _apply_fast_filters(
-        self, features_list: List[ProductFeatures], threshold: float
-    ) -> List[ProductFeatures]:
+    def _apply_fast_filters(self, features_list: list[ProductFeatures], threshold: float) -> list[ProductFeatures]:
         """Apply fast pre-filters to reduce comparison space"""
-
         # Filter 1: Remove products with very short descriptions (likely noise)
         filtered = [f for f in features_list if len(f.normalized_description) >= 3]
 
@@ -364,12 +343,11 @@ class EnhancedSimilarityCalculator:
 
     def _calculate_parallel(
         self,
-        features_list: List[ProductFeatures],
+        features_list: list[ProductFeatures],
         threshold: float,
         max_workers: int = None,
-    ) -> List[EnhancedSimilarityResult]:
+    ) -> list[EnhancedSimilarityResult]:
         """Calculate similarity using parallel processing"""
-
         if max_workers is None:
             max_workers = min(mp.cpu_count(), 8)  # Limit to 8 to avoid overwhelming
 
@@ -377,14 +355,9 @@ class EnhancedSimilarityCalculator:
 
         # Split features into chunks for parallel processing
         chunk_size = max(10, len(features_list) // (max_workers * 4))
-        chunks = [
-            features_list[i : i + chunk_size]
-            for i in range(0, len(features_list), chunk_size)
-        ]
+        chunks = [features_list[i : i + chunk_size] for i in range(0, len(features_list), chunk_size)]
 
-        self.logger.info(
-            f"Split into {len(chunks)} chunks of ~{chunk_size} products each"
-        )
+        self.logger.info(f"Split into {len(chunks)} chunks of ~{chunk_size} products each")
 
         # Prepare arguments for parallel processing
         args_list = []
@@ -409,8 +382,7 @@ class EnhancedSimilarityCalculator:
         # Process chunks in parallel
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             future_to_chunk = {
-                executor.submit(_calculate_similarity_chunk, args): i
-                for i, args in enumerate(args_list)
+                executor.submit(_calculate_similarity_chunk, args): i for i, args in enumerate(args_list)
             }
 
             for future in as_completed(future_to_chunk):
@@ -432,16 +404,13 @@ class EnhancedSimilarityCalculator:
         results = self._deduplicate_results(results)
         results.sort(key=lambda x: (x.final_score, x.confidence_score), reverse=True)
 
-        self.logger.info(
-            f"Parallel processing complete: {len(results)} unique matches found"
-        )
+        self.logger.info(f"Parallel processing complete: {len(results)} unique matches found")
         return results
 
     def _calculate_sequential(
-        self, features_list: List[ProductFeatures], threshold: float
-    ) -> List[EnhancedSimilarityResult]:
+        self, features_list: list[ProductFeatures], threshold: float
+    ) -> list[EnhancedSimilarityResult]:
         """Calculate similarity sequentially with progress reporting"""
-
         results = []
         total_comparisons = len(features_list) * (len(features_list) - 1) // 2
         processed = 0
@@ -449,9 +418,7 @@ class EnhancedSimilarityCalculator:
 
         # Calculate progress reporting interval
         progress_interval = max(1000, total_comparisons // 50)
-        self.logger.info(
-            f"Sequential processing - reporting every {progress_interval:,} comparisons"
-        )
+        self.logger.info(f"Sequential processing - reporting every {progress_interval:,} comparisons")
 
         for i in range(len(features_list)):
             for j in range(i + 1, len(features_list)):
@@ -475,17 +442,12 @@ class EnhancedSimilarityCalculator:
                     )
 
         results.sort(key=lambda x: (x.final_score, x.confidence_score), reverse=True)
-        self.logger.info(
-            f"Sequential processing complete: {len(results)} matches found"
-        )
+        self.logger.info(f"Sequential processing complete: {len(results)} matches found")
 
         return results
 
-    def _quick_dissimilarity_check(
-        self, feat1: ProductFeatures, feat2: ProductFeatures
-    ) -> bool:
+    def _quick_dissimilarity_check(self, feat1: ProductFeatures, feat2: ProductFeatures) -> bool:
         """Quick check to identify obviously dissimilar products"""
-
         # Check 1: Very different description lengths
         len1, len2 = (
             len(feat1.normalized_description),
@@ -512,9 +474,7 @@ class EnhancedSimilarityCalculator:
             is_related = False
 
             for main_cat, sub_cats in related_categories.items():
-                if (cat1 == main_cat and cat2 in sub_cats) or (
-                    cat2 == main_cat and cat1 in sub_cats
-                ):
+                if (cat1 == main_cat and cat2 in sub_cats) or (cat2 == main_cat and cat1 in sub_cats):
                     is_related = True
                     break
 
@@ -523,11 +483,8 @@ class EnhancedSimilarityCalculator:
 
         return False
 
-    def _deduplicate_results(
-        self, results: List[EnhancedSimilarityResult]
-    ) -> List[EnhancedSimilarityResult]:
+    def _deduplicate_results(self, results: list[EnhancedSimilarityResult]) -> list[EnhancedSimilarityResult]:
         """Remove duplicate pairs from results"""
-
         seen = set()
         unique_results = []
 
@@ -544,10 +501,9 @@ class EnhancedSimilarityCalculator:
         return unique_results
 
     def find_duplicates(
-        self, features_list: List[ProductFeatures], duplicate_threshold: float = None
-    ) -> List[EnhancedSimilarityResult]:
-        """
-        Find likely duplicate products using enhanced similarity
+        self, features_list: list[ProductFeatures], duplicate_threshold: float = None
+    ) -> list[EnhancedSimilarityResult]:
+        """Find likely duplicate products using enhanced similarity
 
         Args:
             features_list: List of ProductFeatures to analyze
@@ -556,13 +512,10 @@ class EnhancedSimilarityCalculator:
         Returns:
             List of high-confidence duplicate pairs
         """
-
         if duplicate_threshold is None:
             duplicate_threshold = self.similarity_threshold
 
-        self.logger.info(
-            f"Finding enhanced duplicates with threshold {duplicate_threshold}"
-        )
+        self.logger.info(f"Finding enhanced duplicates with threshold {duplicate_threshold}")
 
         duplicates = self.calculate_batch_similarity(features_list, duplicate_threshold)
 
@@ -574,24 +527,16 @@ class EnhancedSimilarityCalculator:
             if (
                 result.final_score >= duplicate_threshold
                 and result.confidence_score >= 0.6
-                and (
-                    result.category_match
-                    or len(result.matching_tokens) >= 2
-                    or result.embedding_similarity >= 0.7
-                )
+                and (result.category_match or len(result.matching_tokens) >= 2 or result.embedding_similarity >= 0.7)
             ):
                 high_confidence_duplicates.append(result)
 
-        self.logger.info(
-            f"Found {len(high_confidence_duplicates)} high-confidence enhanced duplicates"
-        )
+        self.logger.info(f"Found {len(high_confidence_duplicates)} high-confidence enhanced duplicates")
 
         return high_confidence_duplicates
 
     # Traditional similarity methods (inherited from original SimilarityCalculator)
-    def _jaccard_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
+    def _jaccard_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
         """Calculate Jaccard similarity based on token sets"""
         set1 = set(features1.tokens)
         set2 = set(features2.tokens)
@@ -606,9 +551,7 @@ class EnhancedSimilarityCalculator:
 
         return len(intersection) / len(union)
 
-    def _cosine_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
+    def _cosine_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
         """Calculate cosine similarity based on token frequency vectors"""
         all_tokens = set(features1.tokens + features2.tokens)
 
@@ -631,9 +574,7 @@ class EnhancedSimilarityCalculator:
 
         return dot_product / (magnitude1 * magnitude2)
 
-    def _levenshtein_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
+    def _levenshtein_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
         """Calculate normalized Levenshtein similarity"""
         text1 = features1.normalized_description
         text2 = features2.normalized_description
@@ -671,9 +612,7 @@ class EnhancedSimilarityCalculator:
 
         return previous_row[-1]
 
-    def _token_overlap_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
+    def _token_overlap_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
         """Calculate token overlap similarity with position weighting"""
         tokens1 = features1.tokens
         tokens2 = features2.tokens
@@ -693,33 +632,25 @@ class EnhancedSimilarityCalculator:
 
         return overlap_count / total_tokens if total_tokens > 0 else 0.0
 
-    def _get_matching_tokens(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> List[str]:
+    def _get_matching_tokens(self, features1: ProductFeatures, features2: ProductFeatures) -> list[str]:
         """Get list of matching tokens between two products"""
         set1 = set(features1.tokens)
         set2 = set(features2.tokens)
         return list(set1.intersection(set2))
 
-    def _get_matching_bigrams(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> List[str]:
+    def _get_matching_bigrams(self, features1: ProductFeatures, features2: ProductFeatures) -> list[str]:
         """Get list of matching bigrams between two products"""
         set1 = set(features1.bigrams)
         set2 = set(features2.bigrams)
         return list(set1.intersection(set2))
 
-    def _is_brand_match(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> bool:
+    def _is_brand_match(self, features1: ProductFeatures, features2: ProductFeatures) -> bool:
         """Check if brands match"""
         if features1.brand is None or features2.brand is None:
             return False
         return features1.brand == features2.brand
 
-    def _is_category_match(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> bool:
+    def _is_category_match(self, features1: ProductFeatures, features2: ProductFeatures) -> bool:
         """Check if categories match"""
         return features1.category == features2.category
 
@@ -728,13 +659,12 @@ class EnhancedSimilarityCalculator:
         base_score: float,
         brand_match: bool,
         category_match: bool,
-        matching_tokens: List[str],
+        matching_tokens: list[str],
         confidence_score: float,
         features1: ProductFeatures,
         features2: ProductFeatures,
     ) -> float:
         """Apply bonuses and penalties to the base score"""
-
         score = base_score
 
         # Apply bonuses
@@ -746,9 +676,7 @@ class EnhancedSimilarityCalculator:
 
         # Core key matching bonus
         if features1.core_key and features2.core_key:
-            core_similarity = self._jaccard_similarity_text(
-                features1.core_key, features2.core_key
-            )
+            core_similarity = self._jaccard_similarity_text(features1.core_key, features2.core_key)
             if core_similarity > 0.7:
                 score += self.bonuses["core_key_match"]
 
@@ -784,9 +712,8 @@ class EnhancedSimilarityCalculator:
         return len(intersection) / len(union) if union else 0.0
 
 
-def _calculate_similarity_chunk(args) -> List[EnhancedSimilarityResult]:
-    """
-    Helper function for parallel similarity calculation
+def _calculate_similarity_chunk(args) -> list[EnhancedSimilarityResult]:
+    """Helper function for parallel similarity calculation
     This needs to be a top-level function for multiprocessing to work
     """
     (

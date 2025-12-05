@@ -1,0 +1,31 @@
+{
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.mypy_cache",
+    "**/node_modules",
+    ".venv",
+    "venv",
+    "**/cache",
+    "**/logs",
+    "**/output",
+    "**/data"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false,
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportPrivateImportUsage": "none",
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Darwin",
+  "executionEnvironments": [
+    {
+      "root": "src"
+    }
+  ]
+}

@@ -1,5 +1,4 @@
-"""
-SonarQube-specific summary metrics management.
+"""SonarQube-specific summary metrics management.
 
 This module provides SonarQube domain-specific implementation of the SummaryManager,
 handling code quality metrics, security assessments, and project analysis with
@@ -10,15 +9,14 @@ import os
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from utils.summary.summary_manager import SummaryManager
 from utils.output_manager import OutputManager
+from utils.summary.summary_manager import SummaryManager
 
 
 class SonarQubeSummaryManager(SummaryManager):
-    """
-    SonarQube-specific summary metrics management.
+    """SonarQube-specific summary metrics management.
 
     Handles all SonarQube command summary generation with support for:
     - Code quality metrics (bugs, vulnerabilities, code smells)
@@ -31,9 +29,8 @@ class SonarQubeSummaryManager(SummaryManager):
     def __init__(self):
         super().__init__("sonarqube")
 
-    def build_metrics(self, data: Any, args: Namespace) -> Dict[str, Any]:
-        """
-        Build SonarQube-specific metrics from command result data.
+    def build_metrics(self, data: Any, args: Namespace) -> dict[str, Any]:
+        """Build SonarQube-specific metrics from command result data.
 
         Args:
             data: SonarQube command result dictionary
@@ -55,9 +52,7 @@ class SonarQubeSummaryManager(SummaryManager):
             dimensions = self._build_sonarqube_dimensions(metadata, args)
 
             # Build metrics list based on operation type
-            metrics_list = self._build_operation_metrics(
-                result, operation, period_info, dimensions, args
-            )
+            metrics_list = self._build_operation_metrics(result, operation, period_info, dimensions, args)
 
             return {
                 "period": period_info,
@@ -81,13 +76,12 @@ class SonarQubeSummaryManager(SummaryManager):
 
     def emit_summary_compatible(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         summary_mode: str,
-        existing_output_path: Optional[str],
+        existing_output_path: str | None,
         args: Namespace,
-    ) -> Optional[str]:
-        """
-        Emit summary with full compatibility to existing SonarQube command structure.
+    ) -> str | None:
+        """Emit summary with full compatibility to existing SonarQube command structure.
 
         Args:
             result: SonarQube command result dictionary
@@ -125,9 +119,7 @@ class SonarQubeSummaryManager(SummaryManager):
             self.logger.error(f"Failed to emit SonarQube summary: {e}", exc_info=True)
             return None
 
-    def _build_period_info(
-        self, metadata: Dict[str, Any], args: Namespace
-    ) -> Dict[str, Any]:
+    def _build_period_info(self, metadata: dict[str, Any], args: Namespace) -> dict[str, Any]:
         """Build period information for the analysis."""
         return {
             "start_date": None,  # SonarQube doesn't use time windows like JIRA
@@ -136,9 +128,7 @@ class SonarQubeSummaryManager(SummaryManager):
             "analysis_type": "code_quality_snapshot",
         }
 
-    def _build_sonarqube_dimensions(
-        self, metadata: Dict[str, Any], args: Namespace
-    ) -> Dict[str, Any]:
+    def _build_sonarqube_dimensions(self, metadata: dict[str, Any], args: Namespace) -> dict[str, Any]:
         """Build SonarQube-specific dimensions."""
         dimensions = {}
 
@@ -162,12 +152,12 @@ class SonarQubeSummaryManager(SummaryManager):
 
     def _build_operation_metrics(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         operation: str,
-        period_info: Dict[str, Any],
-        dimensions: Dict[str, Any],
+        period_info: dict[str, Any],
+        dimensions: dict[str, Any],
         args: Namespace,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Build metrics based on operation type."""
         if operation == "list-projects":
             return self._build_projects_metrics(result, args)
@@ -182,9 +172,7 @@ class SonarQubeSummaryManager(SummaryManager):
         else:
             return self._build_generic_metrics(result, args)
 
-    def _build_projects_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_projects_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build metrics for list-projects operation."""
         metrics = []
         data = result.get("data", {})
@@ -241,41 +229,25 @@ class SonarQubeSummaryManager(SummaryManager):
             # Quality gate metrics
             total_with_quality_gate = quality_gate_pass + quality_gate_fail
             if total_with_quality_gate > 0:
-                self.append_metric_safe(
-                    metrics, "Quality Gate Pass", quality_gate_pass, "projects"
-                )
-                self.append_metric_safe(
-                    metrics, "Quality Gate Fail", quality_gate_fail, "projects"
-                )
+                self.append_metric_safe(metrics, "Quality Gate Pass", quality_gate_pass, "projects")
+                self.append_metric_safe(metrics, "Quality Gate Fail", quality_gate_fail, "projects")
                 pass_rate = (quality_gate_pass / total_with_quality_gate) * 100
-                self.append_metric_safe(
-                    metrics, "Quality Gate Pass Rate", f"{pass_rate:.1f}", "%"
-                )
+                self.append_metric_safe(metrics, "Quality Gate Pass Rate", f"{pass_rate:.1f}", "%")
 
             # Quality metrics
             self.append_metric_safe(metrics, "Total Bugs", total_bugs, "issues")
-            self.append_metric_safe(
-                metrics, "Total Vulnerabilities", total_vulnerabilities, "issues"
-            )
-            self.append_metric_safe(
-                metrics, "Total Code Smells", total_code_smells, "issues"
-            )
+            self.append_metric_safe(metrics, "Total Vulnerabilities", total_vulnerabilities, "issues")
+            self.append_metric_safe(metrics, "Total Code Smells", total_code_smells, "issues")
 
             # Coverage statistics
             if coverage_values:
                 avg_coverage = sum(coverage_values) / len(coverage_values)
-                self.append_metric_safe(
-                    metrics, "Average Coverage", f"{avg_coverage:.1f}", "%"
-                )
-                self.append_metric_safe(
-                    metrics, "Projects with Coverage", len(coverage_values), "projects"
-                )
+                self.append_metric_safe(metrics, "Average Coverage", f"{avg_coverage:.1f}", "%")
+                self.append_metric_safe(metrics, "Projects with Coverage", len(coverage_values), "projects")
 
         return metrics
 
-    def _build_measures_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_measures_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build metrics for single project measures operation."""
         metrics = []
         data = result.get("data", {})
@@ -284,9 +256,7 @@ class SonarQubeSummaryManager(SummaryManager):
 
         # Project info
         project_key = component.get("key", "unknown")
-        self.append_metric_safe(
-            metrics, "Project Key", project_key, "", "Analyzed project"
-        )
+        self.append_metric_safe(metrics, "Project Key", project_key, "", "Analyzed project")
 
         # Process measures
         for measure in measures:
@@ -301,9 +271,7 @@ class SonarQubeSummaryManager(SummaryManager):
 
         return metrics
 
-    def _build_batch_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_batch_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build metrics for batch measures operation."""
         metrics = []
         data = result.get("data", {})
@@ -348,18 +316,12 @@ class SonarQubeSummaryManager(SummaryManager):
                 total = data["total"]
                 average = total / len(values)
 
-                self.append_metric_safe(
-                    metrics, f"Total {readable_name}", f"{total:.1f}", unit
-                )
-                self.append_metric_safe(
-                    metrics, f"Average {readable_name}", f"{average:.1f}", unit
-                )
+                self.append_metric_safe(metrics, f"Total {readable_name}", f"{total:.1f}", unit)
+                self.append_metric_safe(metrics, f"Average {readable_name}", f"{average:.1f}", unit)
 
         return metrics
 
-    def _build_issues_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_issues_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build metrics for issues operation."""
         metrics = []
         data = result.get("data", [])
@@ -385,15 +347,11 @@ class SonarQubeSummaryManager(SummaryManager):
 
             # By type
             for issue_type, count in type_counts.items():
-                self.append_metric_safe(
-                    metrics, f"{issue_type} Issues", count, "issues"
-                )
+                self.append_metric_safe(metrics, f"{issue_type} Issues", count, "issues")
 
         return metrics
 
-    def _build_all_projects_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_all_projects_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build metrics for projects operation (list all projects)."""
         metrics = []
         data = result.get("data", [])
@@ -408,23 +366,17 @@ class SonarQubeSummaryManager(SummaryManager):
                 visibility_counts[visibility] = visibility_counts.get(visibility, 0) + 1
 
             for visibility, count in visibility_counts.items():
-                self.append_metric_safe(
-                    metrics, f"{visibility} Projects", count, "projects"
-                )
+                self.append_metric_safe(metrics, f"{visibility} Projects", count, "projects")
 
         return metrics
 
-    def _build_generic_metrics(
-        self, result: Dict[str, Any], args: Namespace
-    ) -> List[Dict[str, Any]]:
+    def _build_generic_metrics(self, result: dict[str, Any], args: Namespace) -> list[dict[str, Any]]:
         """Build generic metrics for unknown operations."""
         metrics = []
 
         # Basic result info
         operation = result.get("operation", "unknown")
-        self.append_metric_safe(
-            metrics, "Operation", operation, "", "SonarQube operation performed"
-        )
+        self.append_metric_safe(metrics, "Operation", operation, "", "SonarQube operation performed")
 
         data = result.get("data")
         if isinstance(data, list):

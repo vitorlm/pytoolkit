@@ -1,5 +1,4 @@
-"""
-CircleCI Performance Analysis Command
+"""CircleCI Performance Analysis Command
 Command interface for CircleCI pipeline performance analysis
 """
 
@@ -60,9 +59,7 @@ Setup:
             type=str,
             help="CircleCI API token (or set CIRCLECI_TOKEN env var)",
         )
-        parser.add_argument(
-            "--project-slug", type=str, help="Project slug (e.g., gh/org/repo)"
-        )
+        parser.add_argument("--project-slug", type=str, help="Project slug (e.g., gh/org/repo)")
         parser.add_argument(
             "--list-projects",
             action="store_true",
@@ -112,28 +109,20 @@ Setup:
 
         # Debug: Check if token is loaded
         token_from_env = os.getenv("CIRCLECI_TOKEN")
-        logger.info(
-            f"Token from environment: {'***FOUND***' if token_from_env else 'NOT FOUND'}"
-        )
+        logger.info(f"Token from environment: {'***FOUND***' if token_from_env else 'NOT FOUND'}")
 
         # Get CircleCI token
         token = args.token or token_from_env
         if not token:
-            logger.error(
-                "❌ CircleCI token required. Use --token or set CIRCLECI_TOKEN env var"
-            )
-            logger.info(
-                "   Get token from: https://app.circleci.com/settings/user/tokens"
-            )
+            logger.error("❌ CircleCI token required. Use --token or set CIRCLECI_TOKEN env var")
+            logger.info("   Get token from: https://app.circleci.com/settings/user/tokens")
             exit(1)
 
         logger.info("✅ CircleCI token found, proceeding with API calls...")
 
         try:
             # Initialize service
-            service = CircleCIService(
-                token, args.project_slug if args.project_slug else ""
-            )
+            service = CircleCIService(token, args.project_slug if args.project_slug else "")
 
             # Handle list projects option
             if args.list_projects:
@@ -183,9 +172,7 @@ Setup:
         print(f"   Jobs analyzed: {summary['total_jobs']}")
 
         print("\\n⏱️  Pipeline Performance:")
-        print(
-            f"   Average duration: {perf['avg_duration']}s ({perf['avg_duration'] / 60:.1f}m)"
-        )
+        print(f"   Average duration: {perf['avg_duration']}s ({perf['avg_duration'] / 60:.1f}m)")
         print(f"   Success rate: {perf['success_rate']}%")
         print(f"   Failure rate: {perf['failure_rate']}%")
 
@@ -235,9 +222,7 @@ Setup:
             if projects:
                 first_project = projects[0]
                 example_slug = first_project.get("slug", "unknown")
-                print(
-                    f"   python src/main.py circleci circleci-analyze --project-slug {example_slug}"
-                )
+                print(f"   python src/main.py circleci circleci-analyze --project-slug {example_slug}")
 
         except Exception as e:
             logger.error(f"Error listing projects: {e}")
@@ -267,33 +252,22 @@ Setup:
             )
 
         print("\\n🚀 Optimization Plan:")
-        current_time = plan.get("estimated_final_time", 0) + plan.get(
-            "estimated_savings", 0
-        )
-        print(
-            f"   Current avg pipeline time: {current_time}s ({current_time / 60:.1f}m)"
-        )
+        current_time = plan.get("estimated_final_time", 0) + plan.get("estimated_savings", 0)
+        print(f"   Current avg pipeline time: {current_time}s ({current_time / 60:.1f}m)")
         print(f"   Estimated savings: {plan['estimated_savings']}s")
-        print(
-            f"   Target pipeline time: {plan['estimated_final_time']}s "
-            f"({plan['estimated_final_time'] / 60:.1f}m)"
-        )
+        print(f"   Target pipeline time: {plan['estimated_final_time']}s ({plan['estimated_final_time'] / 60:.1f}m)")
 
         if plan["immediate_actions"]:
             print("\\n⚡ Immediate Actions:")
             for action in plan["immediate_actions"]:
                 print(f"   • {action['action']} ({action['job']})")
-                print(
-                    f"     Current: {action['current_time']}, Savings: {action['estimated_savings']}"
-                )
+                print(f"     Current: {action['current_time']}, Savings: {action['estimated_savings']}")
 
         if plan["medium_term"]:
             print("\\n🔄 Medium-term Actions:")
             for action in plan["medium_term"]:
                 print(f"   • {action['action']} ({action['job']})")
-                print(
-                    f"     Current: {action['current_time']}, Savings: {action['estimated_savings']}"
-                )
+                print(f"     Current: {action['current_time']}, Savings: {action['estimated_savings']}")
 
         print(f"\\n📁 Results saved to: {result['output_dir']}/")
         print("   Files created:")

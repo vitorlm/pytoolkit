@@ -1,14 +1,12 @@
-"""
-JIRA Issue Snapshot Service
+"""JIRA Issue Snapshot Service
 
 This service provides functionality to fetch a snapshot of issues within a specific time window,
 with comprehensive filtering options and optional comment retrieval.
 """
 
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from collections import defaultdict
 
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
@@ -24,15 +22,15 @@ class IssueSnapshot:
     issue_type: str
     status: str
     status_category: str
-    due_date: Optional[str]
-    resolution_date: Optional[str]
-    assignee: Optional[str]
-    team: Optional[str]
-    created_date: Optional[str]
-    labels: List[str]
-    components: List[str]
-    description: Optional[str] = None
-    comments: Optional[List[Dict]] = None
+    due_date: str | None
+    resolution_date: str | None
+    assignee: str | None
+    team: str | None
+    created_date: str | None
+    labels: list[str]
+    components: list[str]
+    description: str | None = None
+    comments: list[dict] | None = None
 
 
 class IssueSnapshotService:
@@ -48,19 +46,18 @@ class IssueSnapshotService:
         self,
         project_key: str,
         issue_type: str,
-        end_date: Optional[str] = None,
+        end_date: str | None = None,
         window_days: int = 7,
-        teams: Optional[List[str]] = None,
-        status: Optional[List[str]] = None,
-        status_categories: Optional[List[str]] = None,
+        teams: list[str] | None = None,
+        status: list[str] | None = None,
+        status_categories: list[str] | None = None,
         include_comments: bool = False,
         text_format: str = "adf",
         verbose: bool = False,
-        output_file: Optional[str] = None,
-        output_formats: Optional[List[str]] = None,
-    ) -> Dict:
-        """
-        Fetch a snapshot of issues within a specific time window.
+        output_file: str | None = None,
+        output_formats: list[str] | None = None,
+    ) -> dict:
+        """Fetch a snapshot of issues within a specific time window.
 
         Args:
             project_key (str): The JIRA project key
@@ -176,9 +173,8 @@ class IssueSnapshotService:
             self.logger.error(f"Failed to fetch issue snapshot: {e}", exc_info=True)
             raise
 
-    def _parse_time_window(self, end_date: Optional[str], window_days: int) -> tuple[datetime, datetime, str]:
-        """
-        Parse time window parameters.
+    def _parse_time_window(self, end_date: str | None, window_days: int) -> tuple[datetime, datetime, str]:
+        """Parse time window parameters.
 
         Returns:
             Tuple of (start_date, end_date, end_date_string)
@@ -211,9 +207,9 @@ class IssueSnapshotService:
         issue_type: str,
         start_date: datetime,
         end_date: datetime,
-        teams: Optional[List[str]],
-        status: Optional[List[str]],
-        status_categories: Optional[List[str]],
+        teams: list[str] | None,
+        status: list[str] | None,
+        status_categories: list[str] | None,
     ) -> str:
         """Build JQL query based on filters."""
         jql_parts = [
@@ -259,7 +255,7 @@ class IssueSnapshotService:
 
         return jql_query
 
-    def _process_issue(self, issue: Dict, include_comments: bool, text_format: str = "adf") -> IssueSnapshot:
+    def _process_issue(self, issue: dict, include_comments: bool, text_format: str = "adf") -> IssueSnapshot:
         """Process a single issue into IssueSnapshot data class."""
         fields = issue.get("fields", {})
 
@@ -320,9 +316,8 @@ class IssueSnapshotService:
             comments=comments,
         )
 
-    def _fetch_issue_comments(self, issue_key: str, comments_format: str = "adf") -> List[Dict]:
-        """
-        Fetch comments for a specific issue.
+    def _fetch_issue_comments(self, issue_key: str, comments_format: str = "adf") -> list[dict]:
+        """Fetch comments for a specific issue.
 
         Args:
             issue_key (str): Issue key
@@ -352,14 +347,12 @@ class IssueSnapshotService:
             self.logger.warning(f"Failed to fetch comments for {issue_key}: {e}")
             return []
 
-    def _calculate_metrics(self, issues: List[IssueSnapshot]) -> Dict:
+    def _calculate_metrics(self, issues: list[IssueSnapshot]) -> dict:
         """Calculate summary metrics from issues."""
-        from typing import DefaultDict
-
-        status_breakdown: DefaultDict[str, int] = defaultdict(int)
-        status_category_breakdown: DefaultDict[str, int] = defaultdict(int)
-        team_breakdown: DefaultDict[str, int] = defaultdict(int)
-        assignee_breakdown: DefaultDict[str, int] = defaultdict(int)
+        status_breakdown: defaultdict[str, int] = defaultdict(int)
+        status_category_breakdown: defaultdict[str, int] = defaultdict(int)
+        team_breakdown: defaultdict[str, int] = defaultdict(int)
+        assignee_breakdown: defaultdict[str, int] = defaultdict(int)
 
         with_due_date = 0
         without_due_date = 0
@@ -409,11 +402,11 @@ class IssueSnapshotService:
 
         return metrics
 
-    def _issue_to_dict(self, issue: IssueSnapshot) -> Dict:
+    def _issue_to_dict(self, issue: IssueSnapshot) -> dict:
         """Convert IssueSnapshot to dictionary."""
         from typing import Any
 
-        issue_dict: Dict[str, Any] = {
+        issue_dict: dict[str, Any] = {
             "issue_key": issue.issue_key,
             "summary": issue.summary,
             "issue_type": issue.issue_type,
@@ -435,7 +428,7 @@ class IssueSnapshotService:
 
         return issue_dict
 
-    def _save_json_output(self, result: Dict, output_file: Optional[str] = None) -> str:
+    def _save_json_output(self, result: dict, output_file: str | None = None) -> str:
         """Save results to JSON file using OutputManager."""
         project_key = result["project_key"]
         issue_type = result["issue_type"].lower()
@@ -455,7 +448,7 @@ class IssueSnapshotService:
         self.logger.info(f"JSON output saved to: {json_path}")
         return json_path
 
-    def _save_markdown_output(self, result: Dict, output_file: Optional[str] = None) -> str:
+    def _save_markdown_output(self, result: dict, output_file: str | None = None) -> str:
         """Save results to Markdown file using OutputManager."""
         project_key = result["project_key"]
         issue_type = result["issue_type"].lower()
@@ -478,7 +471,7 @@ class IssueSnapshotService:
         self.logger.info(f"Markdown output saved to: {md_path}")
         return md_path
 
-    def _generate_markdown(self, result: Dict) -> str:
+    def _generate_markdown(self, result: dict) -> str:
         """Generate Markdown content from results."""
         lines = []
 
@@ -602,7 +595,7 @@ class IssueSnapshotService:
 
         return "\n".join(lines)
 
-    def _print_console_output(self, result: Dict, verbose: bool):
+    def _print_console_output(self, result: dict, verbose: bool):
         """Print results to console."""
         print("\n" + "=" * 80)
         print(f"JIRA Issue Snapshot - {result['project_key']}")

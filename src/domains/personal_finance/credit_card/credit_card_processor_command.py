@@ -1,19 +1,17 @@
 from argparse import ArgumentParser, Namespace
+
 from domains.personal_finance.credit_card.credit_card_processor import (
     CreditCardProcessor,
 )
 from utils.command.base_command import BaseCommand
 from utils.logging.logging_manager import LogManager
 
-
 # Configure logger
 logger = LogManager.get_instance().get_logger("CreditCardProcessorCommand")
 
 
 class CreditCardProcessorCommand(BaseCommand):
-    """
-    Command to process credit card statements and classify expenses.
-    """
+    """Command to process credit card statements and classify expenses."""
 
     @staticmethod
     def get_name() -> str:
@@ -21,10 +19,7 @@ class CreditCardProcessorCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Processes credit card statement CSV file and classifies expenses "
-            "based on transaction descriptions."
-        )
+        return "Processes credit card statement CSV file and classifies expenses based on transaction descriptions."
 
     @staticmethod
     def get_help() -> str:
@@ -50,8 +45,7 @@ class CreditCardProcessorCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace) -> None:
-        """
-        Main function to process the credit card statement and generate categorized report.
+        """Main function to process the credit card statement and generate categorized report.
 
         Args:
             args (Namespace): Parsed command-line arguments.
@@ -70,9 +64,7 @@ class CreditCardProcessorCommand(BaseCommand):
 
             processor = CreditCardProcessor(args.input_file, args.output)
             processor.run()
-            logger.info(
-                f"Expense report successfully generated and saved to {args.output}"
-            )
+            logger.info(f"Expense report successfully generated and saved to {args.output}")
 
         except FileNotFoundError as fnfe:
             logger.error(f"File not found: {fnfe}", exc_info=True)

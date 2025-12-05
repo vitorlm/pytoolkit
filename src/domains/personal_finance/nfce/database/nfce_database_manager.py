@@ -1,27 +1,25 @@
 import os
 import uuid
-from typing import List, Dict, Optional, Any, Tuple
 from pathlib import Path
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
-from utils.data.duckdb_manager import DuckDBManager
-from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
 from domains.personal_finance.nfce.models.invoice_data import (
-    InvoiceData,
     EstablishmentData,
+    InvoiceData,
     ProductData,
 )
+from domains.personal_finance.nfce.utils.cnae_classifier import CNAEClassifier
+from utils.data.duckdb_manager import DuckDBManager
+from utils.logging.logging_manager import LogManager
 
 
 class NFCeDatabaseManager:
-    """
-    Database manager for NFCe data storage and retrieval
+    """Database manager for NFCe data storage and retrieval
     Handles all database operations with duplicate prevention and data integrity
     """
 
     def __init__(self, database_path: str = "data/nfce_processor.duckdb"):
-        """
-        Initialize NFCe database manager
+        """Initialize NFCe database manager
 
         Args:
             database_path: Path to DuckDB database file
@@ -38,9 +36,7 @@ class NFCeDatabaseManager:
 
         # Initialize DuckDB manager
         self.db_manager = DuckDBManager()
-        self.db_manager.add_connection_config(
-            {"name": "nfce_db", "path": database_path, "read_only": False}
-        )
+        self.db_manager.add_connection_config({"name": "nfce_db", "path": database_path, "read_only": False})
 
         # Initialize schema
         self._initialize_schema()
@@ -64,7 +60,7 @@ class NFCeDatabaseManager:
 
             # Read schema file
             schema_path = Path(__file__).parent / "schema.sql"
-            with open(schema_path, "r", encoding="utf-8") as f:
+            with open(schema_path, encoding="utf-8") as f:
                 schema_sql = f.read()
 
             # Execute schema creation
@@ -74,11 +70,7 @@ class NFCeDatabaseManager:
             try:
                 # Remove comments and empty lines for cleaner execution
                 clean_sql = "\n".join(
-                    [
-                        line
-                        for line in schema_sql.split("\n")
-                        if line.strip() and not line.strip().startswith("--")
-                    ]
+                    [line for line in schema_sql.split("\n") if line.strip() and not line.strip().startswith("--")]
                 )
                 conn.execute(clean_sql)
                 self.logger.info("Schema executed successfully as batch")
@@ -94,8 +86,7 @@ class NFCeDatabaseManager:
             raise
 
     def store_invoice_data(self, invoice_data: InvoiceData) -> bool:
-        """
-        Store complete invoice data with all related entities
+        """Store complete invoice data with all related entities
 
         Args:
             invoice_data: Complete invoice data object
@@ -112,9 +103,7 @@ class NFCeDatabaseManager:
             try:
                 # Check if invoice already exists
                 if self._invoice_exists(conn, invoice_data.access_key):
-                    self.logger.debug(
-                        f"Invoice {invoice_data.access_key} already exists, skipping"
-                    )
+                    self.logger.debug(f"Invoice {invoice_data.access_key} already exists, skipping")
                     self.stats["invoices_skipped"] += 1
                     conn.rollback()
                     return False
@@ -122,17 +111,14 @@ class NFCeDatabaseManager:
                 # Store establishment first (required for foreign key)
                 establishment_id = None
                 if invoice_data.establishment:
-                    establishment_id = self._store_establishment(
-                        conn, invoice_data.establishment
-                    )
+                    establishment_id = self._store_establishment(conn, invoice_data.establishment)
 
                 # If no establishment or establishment couldn't be stored (empty CNPJ), create minimal one
                 if establishment_id is None:
                     # Create minimal establishment from access key to satisfy foreign key constraint
                     cnpj_from_key = (
                         invoice_data.access_key[6:20]
-                        if invoice_data.access_key
-                        and len(invoice_data.access_key) >= 20
+                        if invoice_data.access_key and len(invoice_data.access_key) >= 20
                         else "00000000000000"
                     )
 
@@ -153,9 +139,7 @@ class NFCeDatabaseManager:
                         phone=None,
                         email=None,
                     )
-                    establishment_id = self._store_establishment(
-                        conn, minimal_establishment
-                    )
+                    establishment_id = self._store_establishment(conn, minimal_establishment)
 
                 # Store/update products and get product IDs
                 product_mappings = {}
@@ -189,9 +173,7 @@ class NFCeDatabaseManager:
                 conn.commit()
 
                 self.stats["invoices_inserted"] += 1
-                self.logger.info(
-                    f"Successfully stored invoice {invoice_data.access_key}"
-                )
+                self.logger.info(f"Successfully stored invoice {invoice_data.access_key}")
                 return True
 
             except Exception as e:
@@ -217,19 +199,13 @@ class NFCeDatabaseManager:
 
     def _invoice_exists(self, conn, access_key: str) -> bool:
         """Check if invoice already exists in database"""
-        result = conn.execute(
-            "SELECT COUNT(*) FROM invoices WHERE access_key = ?", [access_key]
-        ).fetchone()
+        result = conn.execute("SELECT COUNT(*) FROM invoices WHERE access_key = ?", [access_key]).fetchone()
         return result[0] > 0
 
-    def _store_establishment(
-        self, conn, establishment: EstablishmentData
-    ) -> Optional[str]:
+    def _store_establishment(self, conn, establishment: EstablishmentData) -> str | None:
         """Store or update establishment data"""
         if not establishment.cnpj or not establishment.cnpj.strip():
-            self.logger.warning(
-                f"Establishment has empty CNPJ, cannot store: {establishment.business_name}"
-            )
+            self.logger.warning(f"Establishment has empty CNPJ, cannot store: {establishment.business_name}")
             return None
 
         # Normalizar CNPJ para evitar duplicações
@@ -254,23 +230,16 @@ class NFCeDatabaseManager:
             if not existing or not existing[1]:  # New establishment or missing type
                 # Verificar cache de sessão primeiro
                 if establishment.cnpj in self._cnae_session_cache:
-                    self.logger.info(
-                        f"Using session cache for CNPJ: {establishment.cnpj}"
-                    )
+                    self.logger.info(f"Using session cache for CNPJ: {establishment.cnpj}")
                     cnae_data = self._cnae_session_cache[establishment.cnpj]
                 else:
                     # Verificar se existe cache para a matriz da empresa (mesma raiz CNPJ)
-                    cnpj_root = establishment.cnpj[
-                        :8
-                    ]  # Primeiros 8 dígitos (raiz da empresa)
+                    cnpj_root = establishment.cnpj[:8]  # Primeiros 8 dígitos (raiz da empresa)
                     cached_root_data = None
 
                     # Primeiro verificar session cache
                     for cached_cnpj, cached_data in self._cnae_session_cache.items():
-                        if (
-                            cached_cnpj.startswith(cnpj_root)
-                            and cached_data is not None
-                        ):
+                        if cached_cnpj.startswith(cnpj_root) and cached_data is not None:
                             self.logger.info(
                                 f"Using related company session cache for CNPJ: {establishment.cnpj} (from {cached_cnpj})"
                             )
@@ -299,12 +268,8 @@ class NFCeDatabaseManager:
                         # Salvar no cache de sessão para este CNPJ específico
                         self._cnae_session_cache[establishment.cnpj] = cnae_data
                     else:
-                        self.logger.info(
-                            f"Getting CNAE classification for CNPJ: {establishment.cnpj}"
-                        )
-                        cnae_data = self.cnae_classifier.get_establishment_info(
-                            establishment.cnpj
-                        )
+                        self.logger.info(f"Getting CNAE classification for CNPJ: {establishment.cnpj}")
+                        cnae_data = self.cnae_classifier.get_establishment_info(establishment.cnpj)
 
                         # Salvar no cache de sessão
                         self._cnae_session_cache[establishment.cnpj] = cnae_data
@@ -314,10 +279,7 @@ class NFCeDatabaseManager:
                     cnae_code = cnae_data.get("cnae_principal")
 
                     # Update establishment data with API data if more complete
-                    if (
-                        cnae_data.get("business_name")
-                        and not establishment.business_name
-                    ):
+                    if cnae_data.get("business_name") and not establishment.business_name:
                         establishment.business_name = cnae_data["business_name"]
                     if cnae_data.get("address") and not establishment.address:
                         establishment.address = cnae_data["address"]
@@ -365,12 +327,8 @@ class NFCeDatabaseManager:
                 establishment_id = self._generate_id()
 
                 # Calculate CNPJ components for relationship tracking
-                cnpj_root = establishment.cnpj[
-                    :8
-                ]  # First 8 digits identify the company
-                branch_number = establishment.cnpj[
-                    8:12
-                ]  # Branch number (0001 = main office)
+                cnpj_root = establishment.cnpj[:8]  # First 8 digits identify the company
+                branch_number = establishment.cnpj[8:12]  # Branch number (0001 = main office)
                 is_main_office = branch_number == "0001"
                 company_group_id = cnpj_root  # Use cnpj_root as group identifier
 
@@ -399,9 +357,7 @@ class NFCeDatabaseManager:
                 self.stats["establishments_inserted"] += 1
 
                 # Create or update company group
-                business_name_str = (
-                    establishment.business_name or establishment.cnpj
-                )  # Fallback to CNPJ if no name
+                business_name_str = establishment.business_name or establishment.cnpj  # Fallback to CNPJ if no name
                 self._manage_company_group(
                     conn,
                     cnpj_root,
@@ -420,9 +376,7 @@ class NFCeDatabaseManager:
             self.logger.error(f"Error storing establishment {establishment.cnpj}: {e}")
             raise
 
-    def _store_product(
-        self, conn, item: ProductData, establishment_id: str
-    ) -> Optional[str]:
+    def _store_product(self, conn, item: ProductData, establishment_id: str) -> str | None:
         """Store or update product data with deduplication within the same establishment"""
         if not item.description:
             return None
@@ -479,14 +433,10 @@ class NFCeDatabaseManager:
             return product_id
 
         except Exception as e:
-            self.logger.error(
-                f"Error storing product {item.description}: {e}", exc_info=True
-            )
+            self.logger.error(f"Error storing product {item.description}: {e}", exc_info=True)
             raise
 
-    def _store_invoice(
-        self, conn, invoice_data: InvoiceData, establishment_id: str
-    ) -> str:
+    def _store_invoice(self, conn, invoice_data: InvoiceData, establishment_id: str) -> str:
         """Store main invoice record"""
         try:
             invoice_id = self._generate_id()
@@ -499,9 +449,7 @@ class NFCeDatabaseManager:
             # Calculate full invoice number
             full_invoice_number = None
             if invoice_data.series and invoice_data.invoice_number:
-                full_invoice_number = (
-                    f"{invoice_data.series}-{invoice_data.invoice_number}"
-                )
+                full_invoice_number = f"{invoice_data.series}-{invoice_data.invoice_number}"
 
             # Convert scraping errors to JSON array string
             scraping_errors = None
@@ -522,9 +470,7 @@ class NFCeDatabaseManager:
                     invoice_data.series,
                     establishment_cnpj,
                     invoice_data.issue_date,
-                    float(invoice_data.total_amount)
-                    if invoice_data.total_amount
-                    else None,
+                    float(invoice_data.total_amount) if invoice_data.total_amount else None,
                     invoice_data.items_count,
                 ],
             )
@@ -532,14 +478,10 @@ class NFCeDatabaseManager:
             return invoice_id
 
         except Exception as e:
-            self.logger.error(
-                f"Error storing invoice {invoice_data.access_key}: {e}", exc_info=True
-            )
+            self.logger.error(f"Error storing invoice {invoice_data.access_key}: {e}", exc_info=True)
             raise
 
-    def _store_invoice_items(
-        self, conn, invoice_data: InvoiceData, product_mappings: Dict[Tuple, int]
-    ) -> None:
+    def _store_invoice_items(self, conn, invoice_data: InvoiceData, product_mappings: dict[tuple, int]) -> None:
         """Store invoice line items"""
         if not invoice_data.items:
             return
@@ -591,18 +533,10 @@ class NFCeDatabaseManager:
                 [
                     tax_id,
                     invoice_data.access_key,
-                    float(invoice_data.taxes.total_taxes)
-                    if invoice_data.taxes.total_taxes
-                    else None,
-                    float(invoice_data.taxes.icms_total)
-                    if invoice_data.taxes.icms_total
-                    else None,
-                    float(invoice_data.taxes.pis_total)
-                    if invoice_data.taxes.pis_total
-                    else None,
-                    float(invoice_data.taxes.cofins_total)
-                    if invoice_data.taxes.cofins_total
-                    else None,
+                    float(invoice_data.taxes.total_taxes) if invoice_data.taxes.total_taxes else None,
+                    float(invoice_data.taxes.icms_total) if invoice_data.taxes.icms_total else None,
+                    float(invoice_data.taxes.pis_total) if invoice_data.taxes.pis_total else None,
+                    float(invoice_data.taxes.cofins_total) if invoice_data.taxes.cofins_total else None,
                 ],
             )
 
@@ -615,7 +549,7 @@ class NFCeDatabaseManager:
         conn,
         invoice_data: InvoiceData,
         status: str,
-        error_message: Optional[str],
+        error_message: str | None,
         processing_time_ms: int,
     ) -> None:
         """Log processing result for audit trail"""
@@ -646,7 +580,7 @@ class NFCeDatabaseManager:
         """Generate unique ID using UUID4"""
         return str(uuid.uuid4())
 
-    def _normalize_cnpj(self, cnpj: str) -> Optional[str]:
+    def _normalize_cnpj(self, cnpj: str) -> str | None:
         """Normalize CNPJ to prevent duplicates"""
         if not cnpj:
             return None
@@ -690,9 +624,7 @@ class NFCeDatabaseManager:
 
             if not result:
                 # Create new company group
-                company_name = business_name.split(" - ")[
-                    0
-                ]  # Take main business name before any "-"
+                company_name = business_name.split(" - ")[0]  # Take main business name before any "-"
 
                 conn.execute(
                     """
@@ -708,9 +640,7 @@ class NFCeDatabaseManager:
                     ],
                 )
 
-                self.logger.info(
-                    f"Created new company group: {company_name} (CNPJ root: {cnpj_root})"
-                )
+                self.logger.info(f"Created new company group: {company_name} (CNPJ root: {cnpj_root})")
             else:
                 # Update existing company group
                 update_sql = "UPDATE company_groups SET updated_at = CURRENT_TIMESTAMP"
@@ -732,7 +662,7 @@ class NFCeDatabaseManager:
         except Exception as e:
             self.logger.error(f"Error managing company group for {cnpj_root}: {e}")
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get database statistics"""
         try:
             conn = self.db_manager.get_connection("nfce_db")
@@ -783,7 +713,7 @@ class NFCeDatabaseManager:
             self.logger.error(f"Error getting statistics: {e}")
             return self.stats
 
-    def get_duplicate_invoices(self) -> List[str]:
+    def get_duplicate_invoices(self) -> list[str]:
         """Get list of duplicate invoice access keys"""
         try:
             conn = self.db_manager.get_connection("nfce_db")

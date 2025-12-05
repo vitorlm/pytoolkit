@@ -1,6 +1,7 @@
-import time
 import random
-from typing import Optional, Dict, Any
+import time
+from typing import Any
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -9,14 +10,12 @@ from utils.logging.logging_manager import LogManager
 
 
 class RateLimitedHTTPClient:
-    """
-    HTTP client with rate limiting, retry logic, and session management
+    """HTTP client with rate limiting, retry logic, and session management
     Generic implementation for ethical web scraping with rate limiting
     """
 
     def __init__(self, rate_limit_seconds: float = 3.0, max_retries: int = 3):
-        """
-        Initialize HTTP client
+        """Initialize HTTP client
 
         Args:
             rate_limit_seconds: Minimum seconds between requests
@@ -57,7 +56,7 @@ class RateLimitedHTTPClient:
 
         return session
 
-    def _get_browser_headers(self) -> Dict[str, str]:
+    def _get_browser_headers(self) -> dict[str, str]:
         """Get browser-like headers to avoid detection"""
         return {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -91,8 +90,7 @@ class RateLimitedHTTPClient:
         self.last_request_time = time.time()
 
     def get(self, url: str, timeout: int = 30, **kwargs) -> requests.Response:
-        """
-        Make GET request with rate limiting
+        """Make GET request with rate limiting
 
         Args:
             url: URL to request
@@ -117,9 +115,7 @@ class RateLimitedHTTPClient:
             self._handle_response_status(response)
 
             self.successful_requests += 1
-            self.logger.debug(
-                f"Successful GET request: {url} (status: {response.status_code})"
-            )
+            self.logger.debug(f"Successful GET request: {url} (status: {response.status_code})")
 
             return response
 
@@ -131,13 +127,12 @@ class RateLimitedHTTPClient:
     def post(
         self,
         url: str,
-        data: Optional[Dict[str, Any]] = None,
-        json: Optional[Dict[str, Any]] = None,
+        data: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
         timeout: int = 30,
         **kwargs,
     ) -> requests.Response:
-        """
-        Make POST request with rate limiting
+        """Make POST request with rate limiting
 
         Args:
             url: URL to request
@@ -158,17 +153,13 @@ class RateLimitedHTTPClient:
             self.logger.debug(f"Making POST request to: {url}")
             self.requests_made += 1
 
-            response = self.session.post(
-                url, data=data, json=json, timeout=timeout, **kwargs
-            )
+            response = self.session.post(url, data=data, json=json, timeout=timeout, **kwargs)
 
             # Handle response status
             self._handle_response_status(response)
 
             self.successful_requests += 1
-            self.logger.debug(
-                f"Successful POST request: {url} (status: {response.status_code})"
-            )
+            self.logger.debug(f"Successful POST request: {url} (status: {response.status_code})")
 
             return response
 
@@ -182,46 +173,35 @@ class RateLimitedHTTPClient:
         if response.status_code == 429:
             # Rate limited - increase delay for next request
             self.rate_limit = min(self.rate_limit * 1.5, 10.0)
-            self.logger.warning(
-                f"Rate limited (429). Increasing delay to {self.rate_limit:.2f}s"
-            )
+            self.logger.warning(f"Rate limited (429). Increasing delay to {self.rate_limit:.2f}s")
             raise requests.exceptions.HTTPError(f"Rate limited: {response.status_code}")
 
         elif response.status_code == 403:
             self.logger.warning(f"Access forbidden (403) for URL: {response.url}")
-            raise requests.exceptions.HTTPError(
-                f"Access forbidden: {response.status_code}"
-            )
+            raise requests.exceptions.HTTPError(f"Access forbidden: {response.status_code}")
 
         elif response.status_code == 404:
             self.logger.warning(f"Page not found (404) for URL: {response.url}")
-            raise requests.exceptions.HTTPError(
-                f"Page not found: {response.status_code}"
-            )
+            raise requests.exceptions.HTTPError(f"Page not found: {response.status_code}")
 
         elif response.status_code >= 500:
-            self.logger.warning(
-                f"Server error ({response.status_code}) for URL: {response.url}"
-            )
+            self.logger.warning(f"Server error ({response.status_code}) for URL: {response.url}")
             raise requests.exceptions.HTTPError(f"Server error: {response.status_code}")
 
         elif response.status_code >= 400:
-            self.logger.warning(
-                f"Client error ({response.status_code}) for URL: {response.url}"
-            )
+            self.logger.warning(f"Client error ({response.status_code}) for URL: {response.url}")
             raise requests.exceptions.HTTPError(f"Client error: {response.status_code}")
 
         # Check for successful status codes
         response.raise_for_status()
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get client statistics"""
         return {
             "requests_made": self.requests_made,
             "successful_requests": self.successful_requests,
             "failed_requests": self.failed_requests,
-            "success_rate": (self.successful_requests / max(self.requests_made, 1))
-            * 100,
+            "success_rate": (self.successful_requests / max(self.requests_made, 1)) * 100,
             "rate_limit_delays": self.rate_limit_delays,
             "current_rate_limit": self.rate_limit,
         }

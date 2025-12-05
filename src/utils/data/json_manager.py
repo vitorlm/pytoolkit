@@ -1,13 +1,44 @@
 import json
 import os
-from typing import Any, Dict
+from typing import Any
+
+import numpy as np
 from filelock import FileLock
 from pydantic import BaseModel
 
 
-class JSONManager:
+def convert_numpy_types(obj: Any) -> Any:
+    """Recursively converts numpy types to native Python types.
+
+    This prevents Pydantic serialization warnings when serializing data
+    that comes from pandas DataFrames or numpy operations.
+
+    Args:
+        obj: The object to convert (can be any type)
+
+    Returns:
+        The same object structure with numpy types converted to Python types
     """
-    JSON file-specific operations including reading, writing, appending, and deleting.
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(convert_numpy_types(item) for item in obj)
+    elif isinstance(obj, BaseModel):
+        # For Pydantic models, convert the dumped dict
+        return convert_numpy_types(obj.model_dump())
+    return obj
+
+
+class JSONManager:
+    """JSON file-specific operations including reading, writing, appending, and deleting.
 
     Example Usage:
         >>> JSONManager.read_json("example.json", default={})
@@ -19,8 +50,7 @@ class JSONManager:
 
     @staticmethod
     def read_json(file_path: str, default: Any = None) -> Any:
-        """
-        Reads and returns content from a JSON file. Returns a default value if file does not exist.
+        """Reads and returns content from a JSON file. Returns a default value if file does not exist.
 
         Args:
             file_path (str): Path to the JSON file.
@@ -33,15 +63,16 @@ class JSONManager:
             if default is not None:
                 return default
             raise FileNotFoundError(f"JSON file not found: {file_path}")
-        with open(file_path, "r", encoding="utf-8") as file:
+        with open(file_path, encoding="utf-8") as file:
             return json.load(file)
 
     @staticmethod
     def create_json(data: Any, **kwargs) -> str:
-        """
-        Convert a Python object into a JSON string.
+        """Convert a Python object into a JSON string.
+
         Args:
             data (Any): The Python object to be converted into JSON format.
+
         Returns:
             str: A JSON formatted string representation of the input data.
         """
@@ -54,14 +85,15 @@ class JSONManager:
             kwargs["sort_keys"] = True
 
         try:
+            # Convert numpy types to native Python types to avoid Pydantic warnings
+            data = convert_numpy_types(data)
             return json.dumps(data, **kwargs)
         except TypeError as e:
             raise ValueError(f"Error in JSON serialization parameters: {e}")
 
     @staticmethod
     def write_json(data: Any, file_path: str) -> bool:
-        """
-        Writes data to a JSON file. Creates a backup of the file if it already exists.
+        """Writes data to a JSON file. Creates a backup of the file if it already exists.
 
         Args:
             data (Any): Data to be written in JSON format.
@@ -74,11 +106,12 @@ class JSONManager:
         def pydantic_encoder(obj):
             if isinstance(obj, BaseModel):
                 return obj.model_dump()
-            raise TypeError(
-                f"Object of type {type(obj).__name__} is not JSON serializable"
-            )
+            raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
         try:
+            # Convert numpy types to native Python types to avoid Pydantic warnings
+            data = convert_numpy_types(data)
+
             if os.path.exists(file_path):
                 backup_path = f"{file_path}.bak"
                 os.replace(file_path, backup_path)
@@ -97,9 +130,8 @@ class JSONManager:
             raise
 
     @staticmethod
-    def append_or_update_json(file_path: str, updates: Dict) -> bool:
-        """
-        Appends or updates JSON data without overwriting the entire file.
+    def append_or_update_json(file_path: str, updates: dict) -> bool:
+        """Appends or updates JSON data without overwriting the entire file.
 
         Args:
             file_path (str): Path to the JSON file.
@@ -123,8 +155,7 @@ class JSONManager:
 
     @staticmethod
     def delete_json(file_path: str) -> bool:
-        """
-        Deletes a JSON file.
+        """Deletes a JSON file.
 
         Args:
             file_path (str): Path to the JSON file to be deleted.

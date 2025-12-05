@@ -1,5 +1,4 @@
-"""
-Datadog metrics registry.
+"""Datadog metrics registry.
 
 Provides centralized definitions and light metadata for Datadog summary
 metrics to promote consistency across producers and consumers.
@@ -8,7 +7,6 @@ metrics to promote consistency across producers and consumers.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 
 @dataclass(frozen=True)
@@ -18,7 +16,7 @@ class MetricDef:
     description: str
 
 
-REGISTRY: Dict[str, MetricDef] = {
+REGISTRY: dict[str, MetricDef] = {
     # Quality metrics
     "datadog.events.quality.overall_noise_score": MetricDef(
         name="datadog.events.quality.overall_noise_score",

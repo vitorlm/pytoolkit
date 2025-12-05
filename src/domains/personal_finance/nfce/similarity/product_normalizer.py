@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""
-Product Normalizer - Normalize product descriptions for comparison
-"""
+"""Product Normalizer - Normalize product descriptions for comparison"""
 
 import re
 import unicodedata
-from typing import Dict, List, Optional, Union
+
 from utils.logging.logging_manager import LogManager
 
 
 class ProductNormalizer:
-    """
-    Normalize product descriptions for better matching and comparison.
+    """Normalize product descriptions for better matching and comparison.
 
     This class handles various normalization tasks:
     - Text cleaning and standardization
@@ -466,8 +463,7 @@ class ProductNormalizer:
         }
 
     def normalize(self, description: str, preserve_brand: bool = True) -> str:
-        """
-        Main normalization method that applies all transformations.
+        """Main normalization method that applies all transformations.
 
         Args:
             description: Raw product description
@@ -502,7 +498,6 @@ class ProductNormalizer:
 
     def _clean_text(self, text: str) -> str:
         """Basic text cleaning and standardization"""
-
         # Convert to uppercase
         text = text.upper()
 
@@ -520,7 +515,6 @@ class ProductNormalizer:
 
     def _remove_units_and_quantities(self, text: str) -> str:
         """Remove weight, volume, and quantity specifications"""
-
         # Apply all unit removal patterns
         for pattern in self.units_to_remove:
             text = re.sub(pattern, "", text, flags=re.IGNORECASE)
@@ -535,7 +529,6 @@ class ProductNormalizer:
 
     def _expand_abbreviations(self, text: str) -> str:
         """Expand common abbreviations to full words"""
-
         words = text.split()
         expanded_words = []
 
@@ -548,7 +541,6 @@ class ProductNormalizer:
 
     def _standardize_brands(self, text: str) -> str:
         """Standardize brand names for better matching"""
-
         for standard_brand, variations in self.brand_patterns.items():
             for variation in variations:
                 # Replace brand variations with standard form
@@ -559,7 +551,6 @@ class ProductNormalizer:
 
     def _final_cleanup(self, text: str) -> str:
         """Final cleanup and standardization"""
-
         # Remove extra spaces
         text = re.sub(r"\s+", " ", text)
 
@@ -571,9 +562,8 @@ class ProductNormalizer:
 
         return " ".join(words)
 
-    def extract_features(self, description: str) -> Dict[str, Union[str, int, None]]:
-        """
-        Extract structured features from product description.
+    def extract_features(self, description: str) -> dict[str, str | int | None]:
+        """Extract structured features from product description.
 
         Args:
             description: Product description
@@ -597,9 +587,8 @@ class ProductNormalizer:
 
         return features
 
-    def _extract_brand(self, text: str) -> Optional[str]:
+    def _extract_brand(self, text: str) -> str | None:
         """Extract brand name from normalized text"""
-
         words = text.split()
         if not words:
             return None
@@ -614,9 +603,8 @@ class ProductNormalizer:
         # This would require frequency analysis from the database
         return words[0] if len(words) > 1 else None
 
-    def _extract_product_type(self, text: str) -> Optional[str]:
+    def _extract_product_type(self, text: str) -> str | None:
         """Extract main product type"""
-
         # Look for product keywords after potential brand
         words = text.split()
         if len(words) < 2:
@@ -632,9 +620,8 @@ class ProductNormalizer:
         # Fallback to second word
         return words[1] if len(words) > 1 else None
 
-    def _extract_category(self, text: str) -> Optional[str]:
+    def _extract_category(self, text: str) -> str | None:
         """Extract product category"""
-
         for category, keywords in self.category_keywords.items():
             for keyword in keywords:
                 if keyword in text:
@@ -642,9 +629,8 @@ class ProductNormalizer:
 
         return "other"
 
-    def _extract_variant(self, text: str) -> Optional[str]:
+    def _extract_variant(self, text: str) -> str | None:
         """Extract product variant (flavor, type, etc.)"""
-
         words = text.split()
         if len(words) <= 2:
             return None
@@ -656,13 +642,11 @@ class ProductNormalizer:
         return " ".join(variant_words) if variant_words else None
 
     def similarity_score(self, text1: str, text2: str) -> float:
-        """
-        Calculate basic similarity score between two normalized texts.
+        """Calculate basic similarity score between two normalized texts.
 
         This is a simple implementation for Phase 2.
         More sophisticated algorithms will be added later.
         """
-
         if not text1 or not text2:
             return 0.0
 
@@ -684,11 +668,8 @@ class ProductNormalizer:
 
         return len(intersection) / len(union) if union else 0.0
 
-    def get_normalization_stats(
-        self, descriptions: List[str]
-    ) -> Dict[str, Union[int, float, str]]:
-        """
-        Get statistics about normalization effectiveness.
+    def get_normalization_stats(self, descriptions: list[str]) -> dict[str, int | float | str]:
+        """Get statistics about normalization effectiveness.
 
         Args:
             descriptions: List of product descriptions
@@ -696,7 +677,6 @@ class ProductNormalizer:
         Returns:
             Statistics dictionary
         """
-
         if not descriptions:
             return {}
 
@@ -709,18 +689,14 @@ class ProductNormalizer:
         categories = [f["category"] for f in features_list if f["category"]]
 
         # Calculate average word count safely
-        word_counts = [
-            f["word_count"] for f in features_list if isinstance(f["word_count"], int)
-        ]
+        word_counts = [f["word_count"] for f in features_list if isinstance(f["word_count"], int)]
         avg_word_count = sum(word_counts) / len(word_counts) if word_counts else 0
 
         stats = {
             "total_descriptions": len(descriptions),
             "original_unique": original_unique,
             "normalized_unique": normalized_unique,
-            "reduction_ratio": (original_unique - normalized_unique) / original_unique
-            if original_unique > 0
-            else 0,
+            "reduction_ratio": (original_unique - normalized_unique) / original_unique if original_unique > 0 else 0,
             "unique_brands": len(set(brands)),
             "unique_categories": len(set(categories)),
             "avg_word_count": avg_word_count,

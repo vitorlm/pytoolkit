@@ -5,7 +5,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from requests import Session
@@ -17,8 +17,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class BulkProductDeleteService:
-    """
-    Service for bulk deleting products from Cropwise Catalog API.
+    """Service for bulk deleting products from Cropwise Catalog API.
 
     This service provides comprehensive bulk deletion functionality with:
     - CSV data loading and validation
@@ -30,18 +29,14 @@ class BulkProductDeleteService:
     """
 
     def __init__(self) -> None:
-        """
-        Initialize the bulk product delete service.
-        """
+        """Initialize the bulk product delete service."""
         self.logger = LogManager.get_instance().get_logger("BulkProductDeleteService")
 
         # These will be set per execution
-        self.session: Optional[Session] = None
+        self.session: Session | None = None
 
     def _setup_session(self) -> None:
-        """
-        Setup HTTP session with retry strategy.
-        """
+        """Setup HTTP session with retry strategy."""
         self.session = requests.Session()
         retry_strategy = Retry(
             total=self.retry_attempts,
@@ -62,11 +57,8 @@ class BulkProductDeleteService:
             }
         )
 
-    def load_products_from_csv(
-        self, csv_path: str, country_filter: Optional[str] = None
-    ) -> list[dict[str, Any]]:
-        """
-        Load product data from CSV file with validation and optional country filtering.
+    def load_products_from_csv(self, csv_path: str, country_filter: str | None = None) -> list[dict[str, Any]]:
+        """Load product data from CSV file with validation and optional country filtering.
 
         Args:
             csv_path: Path to the CSV file containing product data
@@ -92,20 +84,16 @@ class BulkProductDeleteService:
         country_filter_upper = country_filter.upper() if country_filter else None
 
         try:
-            with open(csv_path, "r", encoding="utf-8") as file:
+            with open(csv_path, encoding="utf-8") as file:
                 reader = csv.DictReader(file)
 
                 # Validate required columns exist
                 if reader.fieldnames is None:
                     raise ValueError("CSV file appears to be empty or malformed")
 
-                fieldnames = (
-                    reader.fieldnames
-                )  # Store to avoid repeated attribute access
+                fieldnames = reader.fieldnames  # Store to avoid repeated attribute access
                 if not all(col in fieldnames for col in required_columns):
-                    missing_cols = [
-                        col for col in required_columns if col not in fieldnames
-                    ]
+                    missing_cols = [col for col in required_columns if col not in fieldnames]
                     raise ValueError(f"Missing required columns in CSV: {missing_cols}")
 
                 for row_num, row in enumerate(reader, start=2):
@@ -117,9 +105,7 @@ class BulkProductDeleteService:
                         # Validate country code
                         country = row["country"].strip().upper()
                         if not country or len(country) != 2:
-                            self.logger.warning(
-                                f"Row {row_num}: Invalid country code '{country}', using as-is"
-                            )
+                            self.logger.warning(f"Row {row_num}: Invalid country code '{country}', using as-is")
 
                         countries_found.add(country)
 
@@ -139,9 +125,7 @@ class BulkProductDeleteService:
                         )
 
                     except ValueError as e:
-                        self.logger.error(
-                            f"Row {row_num}: Invalid product_id format - {e}"
-                        )
+                        self.logger.error(f"Row {row_num}: Invalid product_id format - {e}")
                         continue
                     except Exception as e:
                         self.logger.error(f"Row {row_num}: Error processing row - {e}")
@@ -161,25 +145,18 @@ class BulkProductDeleteService:
 
         if not products:
             if country_filter_upper:
-                raise ValueError(
-                    f"No valid products found for country '{country_filter_upper}' in CSV file"
-                )
+                raise ValueError(f"No valid products found for country '{country_filter_upper}' in CSV file")
             else:
                 raise ValueError("No valid products found in CSV file")
 
         self.logger.info(f"Loaded {len(products)} valid products from CSV")
         if country_filter_upper:
-            self.logger.info(
-                f"Filtered to {len(products)} products for country: {country_filter_upper}"
-            )
+            self.logger.info(f"Filtered to {len(products)} products for country: {country_filter_upper}")
 
         return products
 
-    def delete_single_product(
-        self, product: dict[str, Any], dry_run: bool = False
-    ) -> dict[str, Any]:
-        """
-        Delete a single product via API call.
+    def delete_single_product(self, product: dict[str, Any], dry_run: bool = False) -> dict[str, Any]:
+        """Delete a single product via API call.
 
         Args:
             product: Product data dictionary
@@ -223,9 +200,7 @@ class BulkProductDeleteService:
 
             # Make DELETE request
             if self.session is None:
-                raise RuntimeError(
-                    "Session not initialized. Call _setup_session() first."
-                )
+                raise RuntimeError("Session not initialized. Call _setup_session() first.")
             response = self.session.delete(delete_url, timeout=30)
 
             end_time = time.time()
@@ -241,14 +216,11 @@ class BulkProductDeleteService:
                 result["success"] = False
                 result["error"] = "Product not found in API (404)"
                 self.logger.warning(
-                    f"Product {product_id} not found - this is unexpected "
-                    f"for products confirmed to exist"
+                    f"Product {product_id} not found - this is unexpected for products confirmed to exist"
                 )
             else:
                 result["error"] = f"HTTP {response.status_code}: {response.text[:200]}"
-                self.logger.error(
-                    f"Failed to delete product {product_id}: {result['error']}"
-                )
+                self.logger.error(f"Failed to delete product {product_id}: {result['error']}")
 
         except requests.exceptions.Timeout:
             result["error"] = "Request timeout"
@@ -265,8 +237,7 @@ class BulkProductDeleteService:
     def delete_batch(
         self, products: list[dict[str, Any]], batch_num: int, dry_run: bool = False
     ) -> list[dict[str, Any]]:
-        """
-        Delete a batch of products using concurrent requests.
+        """Delete a batch of products using concurrent requests.
 
         Args:
             products: list of product dictionaries to delete
@@ -280,13 +251,10 @@ class BulkProductDeleteService:
 
         results = []
 
-        with ThreadPoolExecutor(
-            max_workers=min(self.max_workers, len(products))
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=min(self.max_workers, len(products))) as executor:
             # Submit all deletion tasks
             future_to_product = {
-                executor.submit(self.delete_single_product, product, dry_run): product
-                for product in products
+                executor.submit(self.delete_single_product, product, dry_run): product for product in products
             }
 
             # Collect results as they complete
@@ -296,9 +264,7 @@ class BulkProductDeleteService:
                     results.append(result)
                 except Exception as e:
                     product = future_to_product[future]
-                    self.logger.error(
-                        f"Failed to process product {product['product_id']}: {e}"
-                    )
+                    self.logger.error(f"Failed to process product {product['product_id']}: {e}")
                     results.append(
                         {
                             "product_id": product["product_id"],
@@ -315,17 +281,14 @@ class BulkProductDeleteService:
         successful = len([r for r in results if r["success"]])
         failed = len(results) - successful
 
-        self.logger.info(
-            f"Batch {batch_num} completed: {successful} successful, {failed} failed"
-        )
+        self.logger.info(f"Batch {batch_num} completed: {successful} successful, {failed} failed")
 
         return results
 
     def generate_reports(
         self, all_results: list[dict[str, Any]], execution_summary: dict[str, Any]
     ) -> dict[str, str | None]:
-        """
-        Generate comprehensive reports in JSON and CSV formats.
+        """Generate comprehensive reports in JSON and CSV formats.
 
         Args:
             all_results: list of all deletion results
@@ -337,33 +300,19 @@ class BulkProductDeleteService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # Generate detailed JSON report
-        json_report_path = os.path.join(
-            self.output_dir, f"bulk_delete_report_{timestamp}.json"
-        )
+        json_report_path = os.path.join(self.output_dir, f"bulk_delete_report_{timestamp}.json")
         json_report = {
             "execution_summary": execution_summary,
             "detailed_results": all_results,
             "statistics": {
                 "total_processed": len(all_results),
                 "successful_deletions": len(
-                    [
-                        r
-                        for r in all_results
-                        if r["success"] and r["status_code"] in [200, 204]
-                    ]
+                    [r for r in all_results if r["success"] and r["status_code"] in [200, 204]]
                 ),
-                "products_not_found_404": len(
-                    [r for r in all_results if r["status_code"] == 404]
-                ),
+                "products_not_found_404": len([r for r in all_results if r["status_code"] == 404]),
                 "failed_deletions": len([r for r in all_results if not r["success"]]),
                 "success_rate": round(
-                    len(
-                        [
-                            r
-                            for r in all_results
-                            if r["success"] and r["status_code"] in [200, 204]
-                        ]
-                    )
+                    len([r for r in all_results if r["success"] and r["status_code"] in [200, 204]])
                     / len(all_results)
                     * 100,
                     2,
@@ -371,11 +320,7 @@ class BulkProductDeleteService:
                 if all_results
                 else 0,
                 "average_response_time_ms": round(
-                    sum(
-                        r.get("response_time_ms", 0)
-                        for r in all_results
-                        if r.get("response_time_ms")
-                    )
+                    sum(r.get("response_time_ms", 0) for r in all_results if r.get("response_time_ms"))
                     / len([r for r in all_results if r.get("response_time_ms")]),
                     2,
                 )
@@ -388,9 +333,7 @@ class BulkProductDeleteService:
             json.dump(json_report, f, indent=2, ensure_ascii=False)
 
         # Generate CSV report
-        csv_report_path = os.path.join(
-            self.output_dir, f"bulk_delete_results_{timestamp}.csv"
-        )
+        csv_report_path = os.path.join(self.output_dir, f"bulk_delete_results_{timestamp}.csv")
         if all_results:
             with open(csv_report_path, "w", newline="", encoding="utf-8") as f:
                 fieldnames = all_results[0].keys()
@@ -402,13 +345,9 @@ class BulkProductDeleteService:
         failures = [r for r in all_results if not r["success"]]
         failures_csv_path = None
         if failures:
-            failures_csv_path = os.path.join(
-                self.output_dir, f"failed_deletions_{timestamp}.csv"
-            )
+            failures_csv_path = os.path.join(self.output_dir, f"failed_deletions_{timestamp}.csv")
             with open(failures_csv_path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(
-                    f, fieldnames=["country", "product_id", "product_name", "error"]
-                )
+                writer = csv.DictWriter(f, fieldnames=["country", "product_id", "product_name", "error"])
                 writer.writeheader()
                 for failure in failures:
                     writer.writerow(
@@ -435,7 +374,7 @@ class BulkProductDeleteService:
     def execute_bulk_delete(
         self,
         csv_path: str,
-        country_filter: Optional[str],
+        country_filter: str | None,
         api_base_url: str,
         api_key: str,
         batch_size: int = 100,
@@ -446,8 +385,7 @@ class BulkProductDeleteService:
         dry_run: bool = False,
         skip_confirmation: bool = False,
     ) -> dict[str, Any]:
-        """
-        Execute the complete bulk deletion process.
+        """Execute the complete bulk deletion process.
 
         Args:
             csv_path: Path to CSV file containing products to delete
@@ -486,20 +424,14 @@ class BulkProductDeleteService:
             # Load products from CSV
             products = self.load_products_from_csv(csv_path, country_filter)
 
-            self.logger.info(
-                f"Loaded {len(products)} products for {'simulation' if dry_run else 'deletion'}"
-            )
+            self.logger.info(f"Loaded {len(products)} products for {'simulation' if dry_run else 'deletion'}")
             if country_filter:
                 self.logger.info(f"Country filter applied: {country_filter.upper()}")
 
             # Show confirmation unless skipped
             if not skip_confirmation and not dry_run:
-                filter_text = (
-                    f" from country {country_filter.upper()}" if country_filter else ""
-                )
-                print(
-                    f"\n🚨 WARNING: About to delete {len(products)} products{filter_text}!"
-                )
+                filter_text = f" from country {country_filter.upper()}" if country_filter else ""
+                print(f"\n🚨 WARNING: About to delete {len(products)} products{filter_text}!")
                 print(f"API Base URL: {self.api_base_url}")
                 print(f"Batch size: {self.batch_size}")
                 print(f"Output directory: {self.output_dir}")
@@ -513,9 +445,7 @@ class BulkProductDeleteService:
             all_results = []
             total_batches = (len(products) + self.batch_size - 1) // self.batch_size
 
-            self.logger.info(
-                f"Processing {len(products)} products in {total_batches} batches"
-            )
+            self.logger.info(f"Processing {len(products)} products in {total_batches} batches")
 
             for i in range(0, len(products), self.batch_size):
                 batch_num = (i // self.batch_size) + 1
@@ -533,13 +463,7 @@ class BulkProductDeleteService:
             execution_time = (end_time - start_time).total_seconds()
 
             # Calculate statistics
-            successful_deletions = len(
-                [
-                    r
-                    for r in all_results
-                    if r["success"] and r["status_code"] in [200, 204]
-                ]
-            )
+            successful_deletions = len([r for r in all_results if r["success"] and r["status_code"] in [200, 204]])
             not_found_404 = len([r for r in all_results if r["status_code"] == 404])
             failed = len([r for r in all_results if not r["success"]])
 
@@ -553,11 +477,7 @@ class BulkProductDeleteService:
                 "successful_deletions": successful_deletions,
                 "products_not_found_404": not_found_404,
                 "failed_deletions": failed,
-                "success_rate_percent": round(
-                    successful_deletions / len(all_results) * 100, 2
-                )
-                if all_results
-                else 0,
+                "success_rate_percent": round(successful_deletions / len(all_results) * 100, 2) if all_results else 0,
                 "dry_run": dry_run,
                 "api_base_url": self.api_base_url,
             }
@@ -566,13 +486,9 @@ class BulkProductDeleteService:
             report_paths = self.generate_reports(all_results, execution_summary)
 
             # Log final summary
-            self.logger.info(
-                f"Bulk deletion {'simulation' if dry_run else 'process'} completed"
-            )
+            self.logger.info(f"Bulk deletion {'simulation' if dry_run else 'process'} completed")
             self.logger.info(f"Execution time: {execution_time:.2f} seconds")
-            self.logger.info(
-                f"Success rate: {execution_summary['success_rate_percent']:.2f}%"
-            )
+            self.logger.info(f"Success rate: {execution_summary['success_rate_percent']:.2f}%")
 
             return {
                 "success": True,

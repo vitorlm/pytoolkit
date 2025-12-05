@@ -1,14 +1,15 @@
-"""
-AWS S3 Download Service
+"""AWS S3 Download Service
 Handles downloading files from S3 buckets with pagination and progress tracking.
 """
 
 import os
+from typing import Any
+
 import boto3  # type: ignore
-from typing import List, Dict, Any, Optional
 from botocore.exceptions import ClientError, NoCredentialsError  # type: ignore
-from utils.logging.logging_manager import LogManager
+
 from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class S3DownloadService:
@@ -17,7 +18,7 @@ class S3DownloadService:
     def __init__(self):
         """Initialize the S3 download service."""
         self.logger = LogManager.get_instance().get_logger("S3DownloadService")
-        self.s3_client: Optional[Any] = None
+        self.s3_client: Any | None = None
 
     def _initialize_s3_client(self) -> bool:
         """Initialize S3 client with AWS credentials."""
@@ -29,9 +30,7 @@ class S3DownloadService:
             return True
         except NoCredentialsError:
             self.logger.error("❌ AWS credentials not found!")
-            self.logger.error(
-                "Please configure AWS credentials using one of these methods:"
-            )
+            self.logger.error("Please configure AWS credentials using one of these methods:")
             self.logger.error("1. AWS CLI: run 'aws configure'")
             self.logger.error("2. Environment variables:")
             self.logger.error("   export AWS_ACCESS_KEY_ID=your_access_key")
@@ -48,9 +47,7 @@ class S3DownloadService:
             elif error_code == "SignatureDoesNotMatch":
                 self.logger.error("Your AWS Secret Access Key is invalid")
             elif error_code == "AccessDenied":
-                self.logger.error(
-                    "Your AWS credentials don't have permission to access S3"
-                )
+                self.logger.error("Your AWS credentials don't have permission to access S3")
             self.logger.error("Please check your AWS credentials and permissions")
             return False
         except Exception as e:
@@ -58,9 +55,8 @@ class S3DownloadService:
             self.logger.error("This might be a network connectivity issue")
             return False
 
-    def list_s3_objects(self, bucket: str, prefix: str) -> List[Dict[str, Any]]:
-        """
-        List all objects in S3 bucket with given prefix, handling pagination.
+    def list_s3_objects(self, bucket: str, prefix: str) -> list[dict[str, Any]]:
+        """List all objects in S3 bucket with given prefix, handling pagination.
 
         Args:
             bucket: S3 bucket name
@@ -93,9 +89,7 @@ class S3DownloadService:
                 # Add objects to list
                 if "Contents" in response:
                     objects.extend(response["Contents"])
-                    self.logger.info(
-                        f"Found {len(response['Contents'])} objects in this page"
-                    )
+                    self.logger.info(f"Found {len(response['Contents'])} objects in this page")
 
                 # Check if there are more objects
                 if response.get("IsTruncated", False):
@@ -115,8 +109,7 @@ class S3DownloadService:
             raise
 
     def download_file(self, bucket: str, key: str, local_path: str) -> bool:
-        """
-        Download a single file from S3.
+        """Download a single file from S3.
 
         Args:
             bucket: S3 bucket name
@@ -150,12 +143,11 @@ class S3DownloadService:
         prefix: str,
         local_dir: str = "downloads",
         recursive: bool = True,
-        max_files: Optional[int] = None,
-        file_extensions: Optional[List[str]] = None,
+        max_files: int | None = None,
+        file_extensions: list[str] | None = None,
         skip_existing: bool = True,
-    ) -> Dict[str, Any]:
-        """
-        Download all files from S3 bucket with given prefix.
+    ) -> dict[str, Any]:
+        """Download all files from S3 bucket with given prefix.
 
         Args:
             bucket: S3 bucket name
@@ -177,13 +169,9 @@ class S3DownloadService:
         self.logger.info(f"Created local directory: {local_dir}")
 
         # List all objects
-        self.logger.info(
-            f"Listing objects in bucket '{bucket}' with prefix '{prefix}'..."
-        )
+        self.logger.info(f"Listing objects in bucket '{bucket}' with prefix '{prefix}'...")
         if not recursive:
-            self.logger.info(
-                "Non-recursive mode: will only download files at the current prefix level"
-            )
+            self.logger.info("Non-recursive mode: will only download files at the current prefix level")
         if max_files:
             self.logger.info(f"Limited to maximum {max_files} files")
         if file_extensions:
@@ -215,9 +203,7 @@ class S3DownloadService:
 
             # Apply file extension filter
             if file_extensions:
-                if not any(
-                    key.lower().endswith(ext.lower()) for ext in file_extensions
-                ):
+                if not any(key.lower().endswith(ext.lower()) for ext in file_extensions):
                     continue
 
             filtered_objects.append(obj)
@@ -257,27 +243,20 @@ class S3DownloadService:
                 local_size = os.path.getsize(local_path)
                 if local_size == size:
                     self.logger.info(
-                        f"[{i}/{len(filtered_objects)}] File already exists "
-                        f"with same size, skipping: {key}"
+                        f"[{i}/{len(filtered_objects)}] File already exists with same size, skipping: {key}"
                     )
                     stats["skipped"] += 1
                     continue
 
             # Download file
-            self.logger.info(
-                f"[{i}/{len(filtered_objects)}] Downloading: {key} ({size:,} bytes)"
-            )
+            self.logger.info(f"[{i}/{len(filtered_objects)}] Downloading: {key} ({size:,} bytes)")
 
             if self.download_file(bucket, key, local_path):
                 stats["downloaded"] += 1
-                self.logger.info(
-                    f"[{i}/{len(filtered_objects)}] ✅ Successfully downloaded: {key}"
-                )
+                self.logger.info(f"[{i}/{len(filtered_objects)}] ✅ Successfully downloaded: {key}")
             else:
                 stats["failed"] += 1
-                self.logger.error(
-                    f"[{i}/{len(filtered_objects)}] ❌ Failed to download: {key}"
-                )
+                self.logger.error(f"[{i}/{len(filtered_objects)}] ❌ Failed to download: {key}")
 
         # Log summary
         self.logger.info("=" * 60)

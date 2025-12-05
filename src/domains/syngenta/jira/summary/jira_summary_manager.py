@@ -1,5 +1,4 @@
-"""
-JIRA-specific summary metrics management.
+"""JIRA-specific summary metrics management.
 
 This module provides JIRA domain-specific implementation of the SummaryManager,
 handling cycle time, issue adherence, and net flow metrics with full compatibility
@@ -10,8 +9,9 @@ import os
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
+from utils.output_manager import OutputManager
 from utils.summary.summary_manager import SummaryManager
 from utils.summary_helpers import (
     _extract_metric_value,
@@ -19,12 +19,10 @@ from utils.summary_helpers import (
     _isoz,
     build_standard_period,
 )
-from utils.output_manager import OutputManager
 
 
 class JiraSummaryManager(SummaryManager):
-    """
-    JIRA-specific summary metrics management.
+    """JIRA-specific summary metrics management.
 
     Handles all JIRA command summary generation with support for:
     - Cycle time metrics
@@ -37,9 +35,8 @@ class JiraSummaryManager(SummaryManager):
     def __init__(self):
         super().__init__("jira")
 
-    def build_metrics(self, data: Any, args: Namespace) -> Dict[str, Any]:
-        """
-        Build JIRA-specific metrics from command result data.
+    def build_metrics(self, data: Any, args: Namespace) -> dict[str, Any]:
+        """Build JIRA-specific metrics from command result data.
 
         Args:
             data: JIRA command result dictionary
@@ -61,9 +58,7 @@ class JiraSummaryManager(SummaryManager):
             dimensions = self._build_jira_dimensions(metadata, args)
 
             # Build metrics list
-            metrics_list = self._build_jira_metrics_list(
-                result, metrics_block, period_info, dimensions, args
-            )
+            metrics_list = self._build_jira_metrics_list(result, metrics_block, period_info, dimensions, args)
 
             return {
                 "period": period_info,
@@ -85,13 +80,12 @@ class JiraSummaryManager(SummaryManager):
 
     def emit_summary_compatible(
         self,
-        result: Dict[str, Any],
+        result: dict[str, Any],
         summary_mode: str,
-        existing_output_path: Optional[str],
+        existing_output_path: str | None,
         args: Namespace,
-    ) -> Optional[str]:
-        """
-        Emit summary with full compatibility to existing JIRA command structure.
+    ) -> str | None:
+        """Emit summary with full compatibility to existing JIRA command structure.
 
         This method provides drop-in replacement for existing _emit_summary methods.
 
@@ -109,20 +103,16 @@ class JiraSummaryManager(SummaryManager):
                 return None
 
             # Get raw data path for compatibility
-            raw_data_path = (
-                os.path.abspath(existing_output_path) if existing_output_path else None
-            )
+            raw_data_path = os.path.abspath(existing_output_path) if existing_output_path else None
 
             # Build metrics using legacy format for compatibility
-            metrics_payload = self._build_legacy_summary_metrics(
-                result, raw_data_path, args
-            )
+            metrics_payload = self._build_legacy_summary_metrics(result, raw_data_path, args)
             if not metrics_payload:
                 return None
 
             # Use existing output patterns
             sub_dir, base_name = self._get_output_defaults(args, result)
-            summary_path: Optional[str] = None
+            summary_path: str | None = None
 
             if existing_output_path:
                 target_path = self._get_summary_path_for_existing(existing_output_path)
@@ -154,9 +144,7 @@ class JiraSummaryManager(SummaryManager):
             self.logger.error(f"Failed to emit compatible summary: {e}", exc_info=True)
             return None
 
-    def _build_period_info(
-        self, metadata: Dict[str, Any], args: Namespace
-    ) -> Dict[str, Any]:
+    def _build_period_info(self, metadata: dict[str, Any], args: Namespace) -> dict[str, Any]:
         """Build period information from metadata and args."""
         period_start = _isoz(metadata.get("start_date"))
         period_end = _isoz(metadata.get("end_date"))
@@ -175,9 +163,7 @@ class JiraSummaryManager(SummaryManager):
 
         return {"description": "Period not specified"}
 
-    def _build_jira_dimensions(
-        self, metadata: Dict[str, Any], args: Namespace
-    ) -> Dict[str, Any]:
+    def _build_jira_dimensions(self, metadata: dict[str, Any], args: Namespace) -> dict[str, Any]:
         """Build JIRA-specific dimensions."""
         dimensions = {}
 
@@ -208,12 +194,12 @@ class JiraSummaryManager(SummaryManager):
 
     def _build_jira_metrics_list(
         self,
-        result: Dict[str, Any],
-        metrics_block: Dict[str, Any],
-        period_info: Dict[str, Any],
-        dimensions: Dict[str, Any],
+        result: dict[str, Any],
+        metrics_block: dict[str, Any],
+        period_info: dict[str, Any],
+        dimensions: dict[str, Any],
         args: Namespace,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Build comprehensive JIRA metrics list."""
         metrics_list = []
 
@@ -221,10 +207,7 @@ class JiraSummaryManager(SummaryManager):
         command_name = getattr(args, "command_name", "jira-unknown")
 
         # Core metrics based on command type
-        if (
-            "cycle_time" in str(command_name)
-            or "average_cycle_time_hours" in metrics_block
-        ):
+        if "cycle_time" in str(command_name) or "average_cycle_time_hours" in metrics_block:
             self._add_cycle_time_metrics(metrics_list, metrics_block)
 
         if "adherence" in str(command_name) or "adherence_stats" in metrics_block:
@@ -241,9 +224,7 @@ class JiraSummaryManager(SummaryManager):
 
         return metrics_list
 
-    def _add_cycle_time_metrics(
-        self, metrics_list: List[Dict[str, Any]], metrics_block: Dict[str, Any]
-    ):
+    def _add_cycle_time_metrics(self, metrics_list: list[dict[str, Any]], metrics_block: dict[str, Any]):
         """Add cycle time specific metrics."""
         cycle_time_metrics = [
             ("average_cycle_time_hours", "Average Cycle Time", "hours"),
@@ -261,17 +242,11 @@ class JiraSummaryManager(SummaryManager):
                 self.append_metric_safe(metrics_list, name, value, unit)
 
         # SLE compliance
-        sle_value = _extract_metric_value(
-            metrics_block, ("sle_adherence", "compliance_rate")
-        )
+        sle_value = _extract_metric_value(metrics_block, ("sle_adherence", "compliance_rate"))
         if _has_value(sle_value):
-            self.append_metric_safe(
-                metrics_list, "SLE Compliance", sle_value, "percent"
-            )
+            self.append_metric_safe(metrics_list, "SLE Compliance", sle_value, "percent")
 
-    def _add_adherence_metrics(
-        self, metrics_list: List[Dict[str, Any]], metrics_block: Dict[str, Any]
-    ):
+    def _add_adherence_metrics(self, metrics_list: list[dict[str, Any]], metrics_block: dict[str, Any]):
         """Add issue adherence specific metrics."""
         adherence_metrics = [
             ("adherence_rate", "Overall Adherence Rate", "percent"),
@@ -287,9 +262,7 @@ class JiraSummaryManager(SummaryManager):
             if _has_value(value):
                 self.append_metric_safe(metrics_list, name, value, unit)
 
-    def _add_net_flow_metrics(
-        self, metrics_list: List[Dict[str, Any]], metrics_block: Dict[str, Any]
-    ):
+    def _add_net_flow_metrics(self, metrics_list: list[dict[str, Any]], metrics_block: dict[str, Any]):
         """Add net flow specific metrics."""
         flow_metrics = [
             ("net_flow", "Net Flow", "issues"),
@@ -308,10 +281,10 @@ class JiraSummaryManager(SummaryManager):
 
     def _add_segmentation_metrics(
         self,
-        metrics_list: List[Dict[str, Any]],
-        result: Dict[str, Any],
-        period_info: Dict[str, Any],
-        dimensions: Dict[str, Any],
+        metrics_list: list[dict[str, Any]],
+        result: dict[str, Any],
+        period_info: dict[str, Any],
+        dimensions: dict[str, Any],
     ):
         """Add team/type segmentation metrics."""
         # Extract segmentation data
@@ -330,15 +303,11 @@ class JiraSummaryManager(SummaryManager):
             ]:
                 value = segment_metrics.get(metric_key)
                 if _has_value(value):
-                    metric_name = (
-                        f"{segment_name} - {metric_key.replace('_', ' ').title()}"
-                    )
+                    metric_name = f"{segment_name} - {metric_key.replace('_', ' ').title()}"
                     unit = "hours" if "time" in metric_key else "issues"
                     self.append_metric_safe(metrics_list, metric_name, value, unit)
 
-    def _add_trending_metrics(
-        self, metrics_list: List[Dict[str, Any]], result: Dict[str, Any]
-    ):
+    def _add_trending_metrics(self, metrics_list: list[dict[str, Any]], result: dict[str, Any]):
         """Add trending and comparative metrics."""
         trending = result.get("trending", {})
         if not trending:
@@ -357,10 +326,9 @@ class JiraSummaryManager(SummaryManager):
                 self.append_metric_safe(metrics_list, name, value, unit)
 
     def _build_legacy_summary_metrics(
-        self, result: Dict[str, Any], raw_data_path: Optional[str], args: Namespace
-    ) -> List[Dict[str, Any]]:
-        """
-        Build summary metrics in legacy format for full compatibility.
+        self, result: dict[str, Any], raw_data_path: str | None, args: Namespace
+    ) -> list[dict[str, Any]]:
+        """Build summary metrics in legacy format for full compatibility.
 
         This maintains the exact structure expected by existing integrations.
         """
@@ -375,7 +343,7 @@ class JiraSummaryManager(SummaryManager):
         base_dimensions = self._legacy_base_dimensions(metadata)
         metrics_block = result.get("metrics") or {}
 
-        summary_metrics: List[Dict[str, Any]] = []
+        summary_metrics: list[dict[str, Any]] = []
         command_name = getattr(args, "command_name", "jira-command")
 
         # Core metrics in legacy format
@@ -413,9 +381,7 @@ class JiraSummaryManager(SummaryManager):
         )
 
         # SLE compliance
-        sle_value = _extract_metric_value(
-            metrics_block, ("sle_adherence", "compliance_rate")
-        )
+        sle_value = _extract_metric_value(metrics_block, ("sle_adherence", "compliance_rate"))
         self._append_legacy_metric(
             summary_metrics,
             "jira.cycle_time.sle_compliance_percent",
@@ -448,14 +414,14 @@ class JiraSummaryManager(SummaryManager):
 
     def _append_legacy_metric(
         self,
-        container: List[Dict[str, Any]],
+        container: list[dict[str, Any]],
         metric_name: str,
         value: Any,
         unit: str,
-        period: Dict[str, str],
-        dimensions: Dict[str, Any],
+        period: dict[str, str],
+        dimensions: dict[str, Any],
         source_command: str,
-        raw_data_path: Optional[str],
+        raw_data_path: str | None,
     ) -> None:
         """Append metric in legacy format for compatibility."""
         if not _has_value(value):
@@ -466,9 +432,7 @@ class JiraSummaryManager(SummaryManager):
         except (TypeError, ValueError):
             return
 
-        cleaned_dimensions = {
-            k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()
-        }
+        cleaned_dimensions = {k: v for k, v in dimensions.items() if _has_value(v) and str(v).strip()}
 
         container.append(
             {
@@ -482,10 +446,10 @@ class JiraSummaryManager(SummaryManager):
             }
         )
 
-    def _legacy_base_dimensions(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    def _legacy_base_dimensions(self, metadata: dict[str, Any]) -> dict[str, Any]:
         """Build base dimensions in legacy format."""
         project_key = metadata.get("project_key")
-        dimensions: Dict[str, Any] = {}
+        dimensions: dict[str, Any] = {}
         if project_key:
             dimensions["project"] = project_key
 
@@ -493,7 +457,7 @@ class JiraSummaryManager(SummaryManager):
         dimensions["team"] = team_value or "overall"
         return dimensions
 
-    def _normalize_team_metadata(self, metadata: Dict[str, Any]) -> Optional[str]:
+    def _normalize_team_metadata(self, metadata: dict[str, Any]) -> str | None:
         """Normalize team metadata from various sources."""
         team_candidates = [
             metadata.get("team"),
@@ -509,14 +473,10 @@ class JiraSummaryManager(SummaryManager):
 
         return None
 
-    def _get_output_defaults(
-        self, args: Namespace, result: Dict[str, Any]
-    ) -> Tuple[str, str]:
+    def _get_output_defaults(self, args: Namespace, result: dict[str, Any]) -> tuple[str, str]:
         """Get output directory and filename defaults."""
         metadata = result.get("analysis_metadata") or {}
-        project_key = metadata.get("project_key") or getattr(
-            args, "project_key", "unknown"
-        )
+        project_key = metadata.get("project_key") or getattr(args, "project_key", "unknown")
         date_str = datetime.now().strftime("%Y%m%d")
 
         # Determine command type for subdirectory

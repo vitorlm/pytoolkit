@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""
-Generic Product Manager - Manages product deduplication and similarity matching
-"""
+"""Generic Product Manager - Manages product deduplication and similarity matching"""
 
 import json
 import uuid
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
-from utils.data.duckdb_manager import DuckDBManager
 from domains.personal_finance.nfce.similarity.enhanced_similarity_calculator import (
     EnhancedSimilarityCalculator,
 )
 from domains.personal_finance.nfce.similarity.feature_extractor import FeatureExtractor
+from utils.data.duckdb_manager import DuckDBManager
+from utils.logging.logging_manager import LogManager
 
 
 @dataclass
@@ -25,18 +23,18 @@ class GenericProduct:
     id: str
     normalized_name: str
     canonical_description: str
-    alternative_descriptions: List[str]
-    category: Optional[str]
-    brand: Optional[str]
-    unit: Optional[str]
+    alternative_descriptions: list[str]
+    category: str | None
+    brand: str | None
+    unit: str | None
     similarity_features: str  # JSON string
     confidence_score: float
     total_occurrences: int
     establishments_count: int
-    avg_price: Optional[Decimal]
-    min_price: Optional[Decimal]
-    max_price: Optional[Decimal]
-    price_variance: Optional[Decimal]
+    avg_price: Decimal | None
+    min_price: Decimal | None
+    max_price: Decimal | None
+    price_variance: Decimal | None
     first_seen: datetime
     last_seen: datetime
 
@@ -49,9 +47,9 @@ class ProductMatchResult:
     similarity_score: float
     confidence_score: float
     match_method: str  # 'exact', 'similarity', 'manual'
-    matching_tokens: List[str]
-    brazilian_patterns: List[str]
-    quantity_matches: List[str]
+    matching_tokens: list[str]
+    brazilian_patterns: list[str]
+    quantity_matches: list[str]
     is_new_product: bool = False
 
 
@@ -65,8 +63,7 @@ class GenericProductManager:
         use_sbert: bool = False,
         sbert_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
     ):
-        """
-        Initialize generic product manager
+        """Initialize generic product manager
 
         Args:
             db_manager: Database manager instance
@@ -74,7 +71,6 @@ class GenericProductManager:
             use_sbert: Whether to use SBERT embeddings
             sbert_model: SBERT model name
         """
-
         self.logger = LogManager.get_instance().get_logger("GenericProductManager")
         self.db_manager = db_manager
 
@@ -100,12 +96,11 @@ class GenericProductManager:
         self,
         description: str,
         establishment_id: str,
-        unit_price: Optional[Decimal] = None,
-        unit: Optional[str] = None,
-        product_code: Optional[str] = None,
+        unit_price: Decimal | None = None,
+        unit: str | None = None,
+        product_code: str | None = None,
     ) -> ProductMatchResult:
-        """
-        Find existing generic product or create new one if no similar product exists
+        """Find existing generic product or create new one if no similar product exists
 
         Args:
             description: Product description from invoice
@@ -117,7 +112,6 @@ class GenericProductManager:
         Returns:
             ProductMatchResult with match information
         """
-
         self.logger.debug(f"Finding or creating generic product for: '{description}'")
 
         try:
@@ -125,19 +119,13 @@ class GenericProductManager:
             exact_match = self._find_exact_match(description)
             if exact_match:
                 self.logger.debug(f"Found exact match: {exact_match['id']}")
-                return self._create_match_result(
-                    exact_match, 1.0, 1.0, "exact", [], [], []
-                )
+                return self._create_match_result(exact_match, 1.0, 1.0, "exact", [], [], [])
 
             # Step 2: Try similarity matching if enabled
             if self.similarity_enabled:
-                similarity_match = self._find_similarity_match(
-                    description, establishment_id
-                )
+                similarity_match = self._find_similarity_match(description, establishment_id)
                 if similarity_match:
-                    self.logger.debug(
-                        f"Found similarity match: {similarity_match['result']['generic_product_id']}"
-                    )
+                    self.logger.debug(f"Found similarity match: {similarity_match['result']['generic_product_id']}")
                     return similarity_match["result"]
 
             # Step 3: No match found, create new generic product
@@ -161,9 +149,8 @@ class GenericProductManager:
             self.logger.error(f"Error finding/creating generic product: {e}")
             raise
 
-    def _find_exact_match(self, description: str) -> Optional[Dict[str, Any]]:
+    def _find_exact_match(self, description: str) -> dict[str, Any] | None:
         """Find exact match by canonical description or alternative descriptions"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -182,9 +169,7 @@ class GenericProductManager:
                 return {
                     "id": result[0],
                     "canonical_description": result[1],
-                    "alternative_descriptions": json.loads(result[2])
-                    if result[2]
-                    else [],
+                    "alternative_descriptions": json.loads(result[2]) if result[2] else [],
                     "category": result[3],
                     "brand": result[4],
                     "unit": result[5],
@@ -199,11 +184,8 @@ class GenericProductManager:
             self.logger.error(f"Error in exact match search: {e}")
             return None
 
-    def _find_similarity_match(
-        self, description: str, establishment_id: str
-    ) -> Optional[Dict[str, Any]]:
+    def _find_similarity_match(self, description: str, establishment_id: str) -> dict[str, Any] | None:
         """Find similar product using similarity calculator"""
-
         if not self.similarity_enabled:
             return None
 
@@ -221,14 +203,10 @@ class GenericProductManager:
             existing_features_list = []
             for product in existing_products:
                 try:
-                    features = self.feature_extractor.extract(
-                        product["canonical_description"]
-                    )
+                    features = self.feature_extractor.extract(product["canonical_description"])
                     existing_features_list.append((product, features))
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to extract features for '{product['canonical_description']}': {e}"
-                    )
+                    self.logger.warning(f"Failed to extract features for '{product['canonical_description']}': {e}")
                     continue
 
             if not existing_features_list:
@@ -240,9 +218,7 @@ class GenericProductManager:
 
             for product_data, features in existing_features_list:
                 try:
-                    result = self.similarity_calculator.calculate_similarity(
-                        input_features, features
-                    )
+                    result = self.similarity_calculator.calculate_similarity(input_features, features)
 
                     if result.final_score > best_score:
                         best_score = result.final_score
@@ -256,10 +232,7 @@ class GenericProductManager:
                     continue
 
             # Check if best match meets threshold
-            if (
-                best_match
-                and best_score >= self.similarity_calculator.similarity_threshold
-            ):
+            if best_match and best_score >= self.similarity_calculator.similarity_threshold:
                 # Log similarity match for auditing
                 self._log_similarity_match(
                     description,
@@ -280,9 +253,8 @@ class GenericProductManager:
             self.logger.error(f"Error in similarity matching: {e}")
             return None
 
-    def _get_all_generic_products_for_similarity(self) -> List[Dict[str, Any]]:
+    def _get_all_generic_products_for_similarity(self) -> list[dict[str, Any]]:
         """Get all generic products for similarity comparison"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -321,12 +293,11 @@ class GenericProductManager:
         self,
         description: str,
         establishment_id: str,
-        unit_price: Optional[Decimal],
-        unit: Optional[str],
-        product_code: Optional[str],
-    ) -> Dict[str, Any]:
+        unit_price: Decimal | None,
+        unit: str | None,
+        product_code: str | None,
+    ) -> dict[str, Any]:
         """Create new generic product"""
-
         try:
             # Generate ID
             product_id = str(uuid.uuid4())
@@ -390,9 +361,7 @@ class GenericProductManager:
                 ],
             )
 
-            self.logger.info(
-                f"Created new generic product: {product_id} - '{description}'"
-            )
+            self.logger.info(f"Created new generic product: {product_id} - '{description}'")
 
             return {
                 "id": product_id,
@@ -408,16 +377,15 @@ class GenericProductManager:
 
     def _create_match_result(
         self,
-        product: Dict[str, Any],
+        product: dict[str, Any],
         similarity_score: float,
         confidence_score: float,
         match_method: str,
-        matching_tokens: List[str],
-        brazilian_patterns: List[str],
-        quantity_matches: List[str],
+        matching_tokens: list[str],
+        brazilian_patterns: list[str],
+        quantity_matches: list[str],
     ) -> ProductMatchResult:
         """Create ProductMatchResult from product data"""
-
         return ProductMatchResult(
             generic_product_id=product["id"],
             similarity_score=similarity_score,
@@ -428,11 +396,8 @@ class GenericProductManager:
             quantity_matches=quantity_matches,
         )
 
-    def _create_match_result_from_similarity(
-        self, product: Dict[str, Any], similarity_result
-    ) -> ProductMatchResult:
+    def _create_match_result_from_similarity(self, product: dict[str, Any], similarity_result) -> ProductMatchResult:
         """Create ProductMatchResult from similarity calculation result"""
-
         return ProductMatchResult(
             generic_product_id=product["id"],
             similarity_score=similarity_result.final_score,
@@ -451,7 +416,6 @@ class GenericProductManager:
         establishment_id: str,
     ):
         """Log similarity match for auditing and improvement"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -487,10 +451,9 @@ class GenericProductManager:
         self,
         generic_product_id: str,
         establishment_id: str,
-        unit_price: Optional[Decimal],
+        unit_price: Decimal | None,
     ):
         """Update statistics for generic product after new occurrence"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -513,12 +476,7 @@ class GenericProductManager:
             WHERE generic_product_id = ? AND establishment_id = ?
             """
 
-            is_new_establishment = (
-                conn.execute(
-                    est_query, [generic_product_id, establishment_id]
-                ).fetchone()[0]
-                == 0
-            )
+            is_new_establishment = conn.execute(est_query, [generic_product_id, establishment_id]).fetchone()[0] == 0
 
             # Update counters
             new_total_occ = total_occ + 1
@@ -534,18 +492,12 @@ class GenericProductManager:
                     new_max_price = price_float
                 else:
                     # Calculate new average
-                    new_avg_price = (
-                        (avg_price * (total_occ - 1)) + price_float
-                    ) / total_occ
+                    new_avg_price = ((avg_price * (total_occ - 1)) + price_float) / total_occ
                     new_min_price = min(min_price or price_float, price_float)
                     new_max_price = max(max_price or price_float, price_float)
 
                 # Calculate price variance
-                price_variance = (
-                    ((new_max_price - new_min_price) / new_min_price * 100)
-                    if new_min_price > 0
-                    else 0
-                )
+                price_variance = ((new_max_price - new_min_price) / new_min_price * 100) if new_min_price > 0 else 0
             else:
                 new_avg_price = avg_price
                 new_min_price = min_price
@@ -582,9 +534,7 @@ class GenericProductManager:
                 ],
             )
 
-            self.logger.debug(
-                f"Updated statistics for generic product {generic_product_id}"
-            )
+            self.logger.debug(f"Updated statistics for generic product {generic_product_id}")
 
         except Exception as e:
             self.logger.error(f"Error updating generic product statistics: {e}")
@@ -594,12 +544,11 @@ class GenericProductManager:
         generic_product_id: str,
         establishment_id: str,
         local_description: str,
-        unit_price: Optional[Decimal],
-        local_product_code: Optional[str] = None,
-        local_unit: Optional[str] = None,
+        unit_price: Decimal | None,
+        local_product_code: str | None = None,
+        local_unit: str | None = None,
     ) -> str:
         """Create or update establishment-specific product data"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 
@@ -610,9 +559,7 @@ class GenericProductManager:
             WHERE generic_product_id = ? AND establishment_id = ?
             """
 
-            existing = conn.execute(
-                check_query, [generic_product_id, establishment_id]
-            ).fetchone()
+            existing = conn.execute(check_query, [generic_product_id, establishment_id]).fetchone()
 
             if existing:
                 # Update existing establishment product
@@ -623,9 +570,7 @@ class GenericProductManager:
                 if unit_price:
                     price_float = float(unit_price)
                     new_avg_price = (
-                        ((avg_price * occ_count) + price_float) / new_occ_count
-                        if avg_price
-                        else price_float
+                        ((avg_price * occ_count) + price_float) / new_occ_count if avg_price else price_float
                     )
                     new_min_price = min(min_price or price_float, price_float)
                     new_max_price = max(max_price or price_float, price_float)
@@ -708,9 +653,8 @@ class GenericProductManager:
             self.logger.error(f"Error creating/updating establishment product: {e}")
             raise
 
-    def get_generic_product_analytics(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_generic_product_analytics(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get analytics for generic products"""
-
         try:
             conn = self.db_manager.get_connection("main_db")
 

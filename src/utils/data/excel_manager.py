@@ -1,19 +1,19 @@
 import os
 import re
-from typing import List, Optional, Tuple, Union
+import warnings
 
 import pandas as pd
 
+# Suppress openpyxl Data Validation warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
+
 
 class ExcelManager:
-    """
-    Excel file-specific operations including reading, writing, and listing sheets.
-    """
+    """Excel file-specific operations including reading, writing, and listing sheets."""
 
     @staticmethod
     def read_excel(file_path: str) -> pd.DataFrame:
-        """
-        Reads an Excel file and returns the specified sheet as a DataFrame.
+        """Reads an Excel file and returns the specified sheet as a DataFrame.
 
         Args:
             file_path (str): Path to the Excel file.
@@ -32,11 +32,8 @@ class ExcelManager:
         return pd.ExcelFile(file_path, engine="calamine")
 
     @staticmethod
-    def write_excel(
-        data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1"
-    ) -> None:
-        """
-        Writes a DataFrame to an Excel file.
+    def write_excel(data: pd.DataFrame, file_path: str, sheet_name: str = "Sheet1") -> None:
+        """Writes a DataFrame to an Excel file.
 
         Args:
             data (pd.DataFrame): Data to be written to Excel.
@@ -47,9 +44,8 @@ class ExcelManager:
             data.to_excel(writer, index=False, sheet_name=sheet_name)
 
     @staticmethod
-    def list_excel_sheets(file_path: str) -> List[str]:
-        """
-        Lists all sheet names in an Excel file.
+    def list_excel_sheets(file_path: str) -> list[str]:
+        """Lists all sheet names in an Excel file.
 
         Args:
             file_path (str): Path to the Excel file.
@@ -66,10 +62,9 @@ class ExcelManager:
 
     @staticmethod
     def load_multiple_excel_files(
-        folder_path: str, file_extension: Optional[str] = ".xlsx"
-    ) -> List[Tuple[str, pd.ExcelFile]]:
-        """
-        Loads all Excel files from the specified directory.
+        folder_path: str, file_extension: str | None = ".xlsx"
+    ) -> list[tuple[str, pd.ExcelFile]]:
+        """Loads all Excel files from the specified directory.
 
         Args:
             folder_path (str): Path to the folder containing Excel files.
@@ -102,16 +97,13 @@ class ExcelManager:
                 print(f"Error loading file '{file_name}': {error_message}")
 
         if not excel_files:
-            raise ValueError(
-                f"No valid Excel files found in '{folder_path}' with extension '{file_extension}'."
-            )
+            raise ValueError(f"No valid Excel files found in '{folder_path}' with extension '{file_extension}'.")
 
         return excel_files
 
     @staticmethod
-    def filter_sheets_by_pattern(file_path: str, pattern: str) -> List[str]:
-        """
-        Filters sheet names in an Excel file based on a regex pattern.
+    def filter_sheets_by_pattern(file_path: str, pattern: str) -> list[str]:
+        """Filters sheet names in an Excel file based on a regex pattern.
         Supports inclusion or exclusion patterns.
 
         Args:
@@ -134,8 +126,7 @@ class ExcelManager:
     def extract_range_by_indices(
         df: pd.DataFrame, start_row: int, end_row: int, start_col: int, end_col: int
     ) -> pd.DataFrame:
-        """
-        Extracts a range of data from a DataFrame using row and column indices.
+        """Extracts a range of data from a DataFrame using row and column indices.
 
         Args:
             df (pd.DataFrame): DataFrame to extract data from.
@@ -150,11 +141,8 @@ class ExcelManager:
         return df.iloc[start_row:end_row, start_col:end_col].dropna(how="all")
 
     @staticmethod
-    def get_non_empty_values(
-        df: pd.DataFrame, row_start: int, col_start: int, col_end: int
-    ) -> List[str]:
-        """
-        Extracts non-empty values from a specific row range in the DataFrame.
+    def get_non_empty_values(df: pd.DataFrame, row_start: int, col_start: int, col_end: int) -> list[str]:
+        """Extracts non-empty values from a specific row range in the DataFrame.
 
         Args:
             df (pd.DataFrame): DataFrame to extract from.
@@ -165,19 +153,11 @@ class ExcelManager:
         Returns:
             List[str]: List of non-empty values.
         """
-        return (
-            df.iloc[row_start:, col_start:col_end]
-            .dropna(axis=1)
-            .values.flatten()
-            .tolist()
-        )
+        return df.iloc[row_start:, col_start:col_end].dropna(axis=1).values.flatten().tolist()
 
     @staticmethod
-    def read_excel_as_list(
-        file_path: str, sheet_name: str
-    ) -> List[List[Union[str, None]]]:
-        """
-        Reads an Excel sheet and returns its data as a list of lists.
+    def read_excel_as_list(file_path: str, sheet_name: str) -> list[list[str | None]]:
+        """Reads an Excel sheet and returns its data as a list of lists.
 
         Args:
             file_path (str): Path to the Excel file.
@@ -186,8 +166,6 @@ class ExcelManager:
         Returns:
             List[List[Union[str, None]]]: Sheet data as rows of values.
         """
-        df = pd.read_excel(
-            file_path, sheet_name=sheet_name, header=None, engine="calamine"
-        )
+        df = pd.read_excel(file_path, sheet_name=sheet_name, header=None, engine="calamine")
         df_filled = df.fillna("")
         return df_filled.values.tolist()

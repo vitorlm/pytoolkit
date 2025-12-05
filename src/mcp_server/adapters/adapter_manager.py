@@ -1,5 +1,4 @@
-"""
-Adapter Manager for MCP Services.
+"""Adapter Manager for MCP Services.
 
 This module provides a centralized manager for all MCP adapters,
 enabling easy access and management of different service adapters.
@@ -17,8 +16,7 @@ from .sonarqube_adapter import SonarQubeAdapter
 
 
 class AdapterManager:
-    """
-    Centralized manager for all MCP service adapters.
+    """Centralized manager for all MCP service adapters.
 
     Provides singleton access to adapters with lazy initialization
     and centralized health monitoring.
@@ -36,9 +34,7 @@ class AdapterManager:
 
     def __init__(self) -> None:
         if AdapterManager._instance is not None:
-            raise RuntimeError(
-                "AdapterManager is a singleton. Use get_instance() instead."
-            )
+            raise RuntimeError("AdapterManager is a singleton. Use get_instance() instead.")
 
         self.logger = LogManager.get_instance().get_logger("AdapterManager")
         self._adapters: dict[str, BaseAdapter] = {}
@@ -53,8 +49,7 @@ class AdapterManager:
         return cls._instance
 
     def get_adapter(self, adapter_name: str) -> BaseAdapter:
-        """
-        Get adapter instance by name with lazy initialization.
+        """Get adapter instance by name with lazy initialization.
 
         Args:
             adapter_name: Name of the adapter (jira, sonarqube, circleci)
@@ -67,9 +62,7 @@ class AdapterManager:
         """
         if adapter_name not in self._adapter_registry:
             available = ", ".join(self._adapter_registry.keys())
-            raise ValueError(
-                f"Unknown adapter '{adapter_name}'. Available: {available}"
-            )
+            raise ValueError(f"Unknown adapter '{adapter_name}'. Available: {available}")
 
         # Lazy initialization
         if adapter_name not in self._adapters:
@@ -112,8 +105,7 @@ class AdapterManager:
         return adapter
 
     def get_available_adapters(self) -> dict[str, str]:
-        """
-        Get list of available adapters with their descriptions.
+        """Get list of available adapters with their descriptions.
 
         Returns:
             Dictionary mapping adapter names to descriptions
@@ -122,15 +114,12 @@ class AdapterManager:
 
         for name, adapter_class in self._adapter_registry.items():
             # Get class name as description since adapters don't take constructor args
-            descriptions[name] = (
-                f"{adapter_class.__name__} - {name.title()} Integration"
-            )
+            descriptions[name] = f"{adapter_class.__name__} - {name.title()} Integration"
 
         return descriptions
 
     def health_check_all(self) -> dict[str, Any]:
-        """
-        Perform health check on all initialized adapters.
+        """Perform health check on all initialized adapters.
 
         Returns:
             Health status for all adapters
@@ -163,8 +152,7 @@ class AdapterManager:
         healthy_adapters = sum(
             1
             for adapter_health in health_status["adapters"].values()
-            if isinstance(adapter_health, dict)
-            and adapter_health.get("status") == "healthy"
+            if isinstance(adapter_health, dict) and adapter_health.get("status") == "healthy"
         )
 
         health_status["adapter_manager"].update(
@@ -177,8 +165,7 @@ class AdapterManager:
         return health_status
 
     def clear_all_caches(self) -> dict[str, Any]:
-        """
-        Clear caches for all initialized adapters.
+        """Clear caches for all initialized adapters.
 
         Returns:
             Status of cache clearing operations
@@ -207,8 +194,7 @@ class AdapterManager:
         return clear_results
 
     def get_comprehensive_status(self) -> dict[str, Any]:
-        """
-        Get comprehensive status of all adapters and their capabilities.
+        """Get comprehensive status of all adapters and their capabilities.
 
         Returns:
             Comprehensive status information

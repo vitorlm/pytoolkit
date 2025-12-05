@@ -1,5 +1,4 @@
-"""
-Base Prompt Handler for MCP Integration with PyToolkit.
+"""Base Prompt Handler for MCP Integration with PyToolkit.
 
 This module provides the base prompt handler class that all prompt handlers must inherit from.
 It provides common functionality for generating parametrizable prompts with data integration.
@@ -17,8 +16,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class BasePromptHandler(ABC):
-    """
-    Base handler for specialized MCP prompts.
+    """Base handler for specialized MCP prompts.
 
     Provides:
     - Parametrizable templates
@@ -29,8 +27,7 @@ class BasePromptHandler(ABC):
     """
 
     def __init__(self, prompt_category: str) -> None:
-        """
-        Initialize base prompt handler.
+        """Initialize base prompt handler.
 
         Args:
             prompt_category: Category name for logging and caching
@@ -50,9 +47,7 @@ class BasePromptHandler(ABC):
         """Returns prompt definitions."""
 
     @abstractmethod
-    async def get_prompt_content(
-        self, name: str, arguments: dict[str, Any]
-    ) -> GetPromptResult:
+    async def get_prompt_content(self, name: str, arguments: dict[str, Any]) -> GetPromptResult:
         """Generates prompt content with parameters."""
 
     def get_cache_key(self, prompt_name: str, **kwargs) -> str:
@@ -60,11 +55,8 @@ class BasePromptHandler(ABC):
         params = "_".join([f"{k}_{v}" for k, v in sorted(kwargs.items())])
         return f"prompt_{self.prompt_category}_{prompt_name}_{params}"
 
-    def cached_prompt_generation(
-        self, prompt_name: str, func, expiration_minutes: int = 30, **kwargs
-    ) -> Any:
-        """
-        Generates prompt with cache (prompts are less durable than resources).
+    def cached_prompt_generation(self, prompt_name: str, func, expiration_minutes: int = 30, **kwargs) -> Any:
+        """Generates prompt with cache (prompts are less durable than resources).
 
         Args:
             prompt_name: Prompt name
@@ -75,9 +67,7 @@ class BasePromptHandler(ABC):
         cache_key = self.get_cache_key(prompt_name, **kwargs)
 
         # Try to load from cache
-        cached_result = self.cache.load(
-            cache_key, expiration_minutes=expiration_minutes
-        )
+        cached_result = self.cache.load(cache_key, expiration_minutes=expiration_minutes)
         if cached_result is not None:
             self.logger.debug(f"Prompt cache hit for {prompt_name}")
             return cached_result
@@ -99,15 +89,11 @@ class BasePromptHandler(ABC):
 
     def create_system_message(self, content: str) -> PromptMessage:
         """Creates standardized system message."""
-        return PromptMessage(
-            role="user", content=TextContent(type="text", text=f"System: {content}")
-        )
+        return PromptMessage(role="user", content=TextContent(type="text", text=f"System: {content}"))
 
     def create_user_message(self, content: str) -> PromptMessage:
         """Creates standardized user message."""
-        return PromptMessage(
-            role="user", content=TextContent(type="text", text=content)
-        )
+        return PromptMessage(role="user", content=TextContent(type="text", text=content))
 
     def format_data_for_prompt(self, data: dict[str, Any], title: str) -> str:
         """Formats data for inclusion in prompts."""
@@ -191,9 +177,7 @@ class BasePromptHandler(ABC):
 
         """
 
-    def create_quarterly_context(
-        self, quarter: int, cycle: int, timestamp: str | None = None
-    ) -> str:
+    def create_quarterly_context(self, quarter: int, cycle: int, timestamp: str | None = None) -> str:
         """Creates specific context for quarterly/cycle analysis."""
         timestamp = timestamp or datetime.now().isoformat()
 
@@ -224,8 +208,7 @@ class BasePromptHandler(ABC):
 """
 
     def parse_quarter_cycle(self, period: str) -> dict[str, Any]:
-        """
-        Analyzes period in Q1-C1, Q2-C2, etc. format.
+        """Analyzes period in Q1-C1, Q2-C2, etc. format.
 
         Args:
             period: Period in "Q1-C1" format or "current" for current period
@@ -262,9 +245,7 @@ class BasePromptHandler(ABC):
                 "is_current": False,
             }
         except (IndexError, ValueError):
-            self.logger.warning(
-                f"Invalid period format '{period}', using current period"
-            )
+            self.logger.warning(f"Invalid period format '{period}', using current period")
             return self.parse_quarter_cycle("current")
 
     def format_template_section(self, section_name: str, data: dict[str, Any]) -> str:

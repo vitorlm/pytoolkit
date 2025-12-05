@@ -1,23 +1,21 @@
 import re
-from typing import Optional, List
-from decimal import Decimal, InvalidOperation
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
+
 from bs4 import BeautifulSoup, Tag
 
-from utils.logging.logging_manager import LogManager
 from domains.personal_finance.nfce.models.invoice_data import (
-    InvoiceData,
-    EstablishmentData,
     ConsumerData,
+    EstablishmentData,
+    InvoiceData,
     ProductData,
     TaxData,
 )
+from utils.logging.logging_manager import LogManager
 
 
 class NFCeDataExtractor:
-    """
-    Extracts structured data from Portal SPED NFCe HTML pages
-    """
+    """Extracts structured data from Portal SPED NFCe HTML pages"""
 
     def __init__(self):
         self.logger = LogManager.get_instance().get_logger("NFCeDataExtractor")
@@ -112,8 +110,7 @@ class NFCeDataExtractor:
         }
 
     def extract_invoice_data(self, html_content: str, url: str) -> InvoiceData:
-        """
-        Extract complete invoice data from HTML content
+        """Extract complete invoice data from HTML content
 
         Args:
             html_content: HTML content from Portal SPED page
@@ -155,19 +152,13 @@ class NFCeDataExtractor:
             # Check if this is an empty/expired NFCe page
             if self._is_empty_nfce_page(soup, invoice_data):
                 invoice_data.scraping_success = False
-                invoice_data.add_error(
-                    "NFCe appears to be expired or invalid - all data fields are empty"
-                )
-                self.logger.warning(
-                    f"NFCe page appears to be expired or invalid: {url}"
-                )
+                invoice_data.add_error("NFCe appears to be expired or invalid - all data fields are empty")
+                self.logger.warning(f"NFCe page appears to be expired or invalid: {url}")
                 return invoice_data
 
             # Mark as successful if we got basic data
             invoice_data.scraping_success = bool(
-                invoice_data.establishment
-                or invoice_data.items
-                or invoice_data.total_amount
+                invoice_data.establishment or invoice_data.items or invoice_data.total_amount
             )
 
             if invoice_data.scraping_success:
@@ -193,12 +184,8 @@ class NFCeDataExtractor:
             invoice_data.add_error(str(e))
             return invoice_data
 
-    def _extract_from_invoice_table(
-        self, soup: BeautifulSoup
-    ) -> tuple[Optional[str], Optional[str], Optional[str]]:
-        """
-        Extract invoice data from the specific table structure in "Informações gerais da Nota" section
-        """
+    def _extract_from_invoice_table(self, soup: BeautifulSoup) -> tuple[str | None, str | None, str | None]:
+        """Extract invoice data from the specific table structure in "Informações gerais da Nota" section"""
         try:
             # First, try to find the specific section "Informações gerais da Nota"
             info_section = None
@@ -207,10 +194,7 @@ class NFCeDataExtractor:
             panels = soup.find_all("div", class_="panel panel-default")
             for panel in panels:
                 panel_title = panel.find("h4", class_="panel-title")
-                if (
-                    panel_title
-                    and "Informações gerais da Nota" in panel_title.get_text()
-                ):
+                if panel_title and "Informações gerais da Nota" in panel_title.get_text():
                     info_section = panel
                     break
 
@@ -234,26 +218,10 @@ class NFCeDataExtractor:
                         and "Data Emissão" in header_texts
                     ):
                         # Find the indices of our target columns
-                        modelo_idx = (
-                            header_texts.index("Modelo")
-                            if "Modelo" in header_texts
-                            else None
-                        )
-                        serie_idx = (
-                            header_texts.index("Série")
-                            if "Série" in header_texts
-                            else None
-                        )
-                        numero_idx = (
-                            header_texts.index("Número")
-                            if "Número" in header_texts
-                            else None
-                        )
-                        data_idx = (
-                            header_texts.index("Data Emissão")
-                            if "Data Emissão" in header_texts
-                            else None
-                        )
+                        modelo_idx = header_texts.index("Modelo") if "Modelo" in header_texts else None
+                        serie_idx = header_texts.index("Série") if "Série" in header_texts else None
+                        numero_idx = header_texts.index("Número") if "Número" in header_texts else None
+                        data_idx = header_texts.index("Data Emissão") if "Data Emissão" in header_texts else None
 
                         # Find the data row (first tbody tr)
                         tbody = table.find("tbody")
@@ -293,9 +261,8 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from invoice table: {e}")
             return None, None, None
 
-    def _extract_from_page_header(self, soup: BeautifulSoup) -> Optional[dict]:
-        """
-        Extract establishment data from the header table at the top of the page
+    def _extract_from_page_header(self, soup: BeautifulSoup) -> dict | None:
+        """Extract establishment data from the header table at the top of the page
         Structure:
         <th>Nota Fiscal de Consumidor Eletrônica (NFC-e)</th>
         <th><b>ORGANIZACAO VERDEMAR LTDA</b></th>
@@ -309,9 +276,7 @@ class NFCeDataExtractor:
                 return None
 
             # Find the business name (in <b> tag within <th>)
-            business_name_th = main_table.find(
-                "th", class_="text-center text-uppercase"
-            )
+            business_name_th = main_table.find("th", class_="text-center text-uppercase")
             business_name = None
             if business_name_th:
                 business_name_b = business_name_th.find("b")
@@ -343,18 +308,13 @@ class NFCeDataExtractor:
 
                 # Extract address from text like "Rua do Ouro, 195, Serra, 3106200 - Belo Horizonte, MG"
                 if (
-                    any(
-                        keyword in text.lower()
-                        for keyword in ["rua", "av", "avenida", "estrada", "rodovia"]
-                    )
+                    any(keyword in text.lower() for keyword in ["rua", "av", "avenida", "estrada", "rodovia"])
                     and "," in text
                 ):
                     address = text.strip()
                     # Try to extract city and state from the end of address
                     # Pattern: "... - CIDADE, UF" or "... CIDADE, UF"
-                    city_state_match = re.search(
-                        r"[-,]\s*([^,]+),\s*([A-Z]{2})\s*$", text
-                    )
+                    city_state_match = re.search(r"[-,]\s*([^,]+),\s*([A-Z]{2})\s*$", text)
                     if city_state_match:
                         city = city_state_match.group(1).strip()
                         state = city_state_match.group(2).strip()
@@ -375,10 +335,8 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from page header: {e}")
             return None
 
-    def _extract_from_establishment_table(self, soup: BeautifulSoup) -> Optional[dict]:
-        """
-        Extract establishment data from the specific "Emitente" table in "Informações gerais da Nota" section
-        """
+    def _extract_from_establishment_table(self, soup: BeautifulSoup) -> dict | None:
+        """Extract establishment data from the specific "Emitente" table in "Informações gerais da Nota" section"""
         try:
             # First, try to find the specific section "Informações gerais da Nota"
             info_section = None
@@ -387,10 +345,7 @@ class NFCeDataExtractor:
             panels = soup.find_all("div", class_="panel panel-default")
             for panel in panels:
                 panel_title = panel.find("h4", class_="panel-title")
-                if (
-                    panel_title
-                    and "Informações gerais da Nota" in panel_title.get_text()
-                ):
+                if panel_title and "Informações gerais da Nota" in panel_title.get_text():
                     info_section = panel
                     break
 
@@ -398,9 +353,7 @@ class NFCeDataExtractor:
                 return None
 
             # Look for the "Emitente" table
-            emitente_heading = info_section.find(
-                "h5", text=lambda t: t and "Emitente" in t
-            )
+            emitente_heading = info_section.find("h5", text=lambda t: t and "Emitente" in t)
             if not emitente_heading:
                 return None
 
@@ -439,28 +392,18 @@ class NFCeDataExtractor:
                     establishment_data = {}
 
                     if nome_idx < len(cells):
-                        establishment_data["business_name"] = self._clean_text(
-                            cells[nome_idx].get_text()
-                        )
+                        establishment_data["business_name"] = self._clean_text(cells[nome_idx].get_text())
 
                     if cnpj_idx < len(cells):
-                        establishment_data["cnpj"] = self._clean_cnpj(
-                            cells[cnpj_idx].get_text()
-                        )
+                        establishment_data["cnpj"] = self._clean_cnpj(cells[cnpj_idx].get_text())
 
                     if ie_idx < len(cells):
-                        establishment_data["state_registration"] = self._clean_text(
-                            cells[ie_idx].get_text()
-                        )
+                        establishment_data["state_registration"] = self._clean_text(cells[ie_idx].get_text())
 
                     if uf_idx < len(cells):
-                        establishment_data["state"] = self._clean_text(
-                            cells[uf_idx].get_text()
-                        )
+                        establishment_data["state"] = self._clean_text(cells[uf_idx].get_text())
 
-                    self.logger.debug(
-                        f"Extracted establishment from table: {establishment_data}"
-                    )
+                    self.logger.debug(f"Extracted establishment from table: {establishment_data}")
                     return establishment_data
 
             return None
@@ -469,10 +412,8 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from establishment table: {e}")
             return None
 
-    def _extract_from_financial_table(self, soup: BeautifulSoup) -> Optional[dict]:
-        """
-        Extract financial data from the specific "Valor total do serviço" table in "Informações gerais da Nota" section
-        """
+    def _extract_from_financial_table(self, soup: BeautifulSoup) -> dict | None:
+        """Extract financial data from the specific "Valor total do serviço" table in "Informações gerais da Nota" section"""
         try:
             # First, try to find the specific section "Informações gerais da Nota"
             info_section = None
@@ -481,10 +422,7 @@ class NFCeDataExtractor:
             panels = soup.find_all("div", class_="panel panel-default")
             for panel in panels:
                 panel_title = panel.find("h4", class_="panel-title")
-                if (
-                    panel_title
-                    and "Informações gerais da Nota" in panel_title.get_text()
-                ):
+                if panel_title and "Informações gerais da Nota" in panel_title.get_text():
                     info_section = panel
                     break
 
@@ -524,25 +462,17 @@ class NFCeDataExtractor:
 
                         if total_idx < len(cells):
                             total_text = cells[total_idx].get_text().strip()
-                            financial_data["total_amount"] = self._parse_currency(
-                                total_text
-                            )
+                            financial_data["total_amount"] = self._parse_currency(total_text)
 
                         if base_icms_idx < len(cells):
                             base_text = cells[base_icms_idx].get_text().strip()
-                            financial_data["icms_base"] = self._parse_currency(
-                                base_text
-                            )
+                            financial_data["icms_base"] = self._parse_currency(base_text)
 
                         if valor_icms_idx < len(cells):
                             icms_text = cells[valor_icms_idx].get_text().strip()
-                            financial_data["icms_amount"] = self._parse_currency(
-                                icms_text
-                            )
+                            financial_data["icms_amount"] = self._parse_currency(icms_text)
 
-                        self.logger.debug(
-                            f"Extracted financial from table: {financial_data}"
-                        )
+                        self.logger.debug(f"Extracted financial from table: {financial_data}")
                         return financial_data
 
             return None
@@ -551,10 +481,8 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from financial table: {e}")
             return None
 
-    def _extract_from_consumer_table(self, soup: BeautifulSoup) -> Optional[dict]:
-        """
-        Extract consumer data from the specific "Consumidor" table
-        """
+    def _extract_from_consumer_table(self, soup: BeautifulSoup) -> dict | None:
+        """Extract consumer data from the specific "Consumidor" table"""
         try:
             # Look for the panel with "Consumidor"
             panels = soup.find_all("div", class_="panel panel-default")
@@ -600,14 +528,10 @@ class NFCeDataExtractor:
 
                             # Look for CPF in other tables in the same section
                             # (Sometimes CPF might be in a different table)
-                            consumer_data.update(
-                                self._find_cpf_in_consumer_section(panel)
-                            )
+                            consumer_data.update(self._find_cpf_in_consumer_section(panel))
 
                             if consumer_data:  # Only return if we found some data
-                                self.logger.debug(
-                                    f"Extracted consumer from table: {consumer_data}"
-                                )
+                                self.logger.debug(f"Extracted consumer from table: {consumer_data}")
                                 return consumer_data
 
             return None
@@ -617,9 +541,7 @@ class NFCeDataExtractor:
             return None
 
     def _find_cpf_in_consumer_section(self, consumer_panel) -> dict:
-        """
-        Look for CPF information in the consumer panel section
-        """
+        """Look for CPF information in the consumer panel section"""
         try:
             cpf_data = {}
 
@@ -652,15 +574,11 @@ class NFCeDataExtractor:
             self.logger.debug(f"Error finding CPF in consumer section: {e}")
             return {}
 
-    def _extract_basic_info(
-        self, soup: BeautifulSoup, invoice_data: InvoiceData
-    ) -> None:
+    def _extract_basic_info(self, soup: BeautifulSoup, invoice_data: InvoiceData) -> None:
         """Extract basic invoice information using Portuguese field names"""
         try:
             # First try to extract from the specific table structure
-            invoice_number, series, issue_date_text = self._extract_from_invoice_table(
-                soup
-            )
+            invoice_number, series, issue_date_text = self._extract_from_invoice_table(soup)
 
             # If table extraction failed, fall back to the general method
             if not invoice_number:
@@ -674,24 +592,18 @@ class NFCeDataExtractor:
                 invoice_data.series = self._clean_text(series)
 
             if not issue_date_text:
-                issue_date_text = self._find_text_by_portuguese_key(
-                    soup, "Data Emissão"
-                )
+                issue_date_text = self._find_text_by_portuguese_key(soup, "Data Emissão")
             if issue_date_text:
                 invoice_data.issue_date = self._parse_date(issue_date_text)
 
             # Log what we found with Portuguese keys
-            self.logger.debug(
-                f"Found invoice data: Número={invoice_number}, Série={series}, Data={issue_date_text}"
-            )
+            self.logger.debug(f"Found invoice data: Número={invoice_number}, Série={series}, Data={issue_date_text}")
 
         except Exception as e:
             self.logger.warning(f"Error extracting basic info: {e}")
             invoice_data.add_error(f"Failed to extract basic info: {e}")
 
-    def _extract_establishment_data(
-        self, soup: BeautifulSoup
-    ) -> Optional[EstablishmentData]:
+    def _extract_establishment_data(self, soup: BeautifulSoup) -> EstablishmentData | None:
         """Extract establishment/business data from the top of the page"""
         try:
             establishment = EstablishmentData(cnpj="")
@@ -712,13 +624,9 @@ class NFCeDataExtractor:
             if not establishment.cnpj:
                 establishment_data = self._extract_from_establishment_table(soup)
                 if establishment_data:
-                    establishment.business_name = establishment_data.get(
-                        "business_name"
-                    )
+                    establishment.business_name = establishment_data.get("business_name")
                     establishment.cnpj = establishment_data.get("cnpj")
-                    establishment.state_registration = establishment_data.get(
-                        "state_registration"
-                    )
+                    establishment.state_registration = establishment_data.get("state_registration")
                     establishment.state = establishment_data.get("state")
 
             # Fallback to the general method if specific table extraction failed
@@ -728,17 +636,13 @@ class NFCeDataExtractor:
                     establishment.cnpj = self._clean_cnpj(cnpj_text)
 
             if not establishment.business_name:
-                name_text = self._find_text_by_portuguese_key(
-                    soup, "Nome / Razão Social"
-                )
+                name_text = self._find_text_by_portuguese_key(soup, "Nome / Razão Social")
                 if name_text:
                     establishment.business_name = self._clean_text(name_text)
                     establishment.trade_name = establishment.business_name
 
             if not establishment.state_registration:
-                state_reg_text = self._find_text_by_portuguese_key(
-                    soup, "Inscrição Estadual"
-                )
+                state_reg_text = self._find_text_by_portuguese_key(soup, "Inscrição Estadual")
                 if state_reg_text:
                     establishment.state_registration = self._clean_text(state_reg_text)
 
@@ -750,9 +654,7 @@ class NFCeDataExtractor:
                     establishment.state = "MG"  # Default for Portal SPED MG
 
             # Try to find address from any text near CNPJ/company name
-            address_text = self._find_address_near_establishment(
-                soup, establishment.business_name
-            )
+            address_text = self._find_address_near_establishment(soup, establishment.business_name)
             if address_text:
                 establishment.address = self._clean_text(address_text)
                 establishment.city = self._extract_city_from_address(address_text)
@@ -772,7 +674,7 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting establishment data: {e}")
             return None
 
-    def _extract_consumer_data(self, soup: BeautifulSoup) -> Optional[ConsumerData]:
+    def _extract_consumer_data(self, soup: BeautifulSoup) -> ConsumerData | None:
         """Extract consumer data if available using Portuguese field names"""
         try:
             consumer = ConsumerData()
@@ -795,9 +697,7 @@ class NFCeDataExtractor:
                     consumer.cpf = self._clean_cpf(cpf_text)
 
             # Extract consumer final flag (using Portuguese key)
-            consumer_final_text = self._find_text_by_portuguese_key(
-                soup, "Consumidor final"
-            )
+            consumer_final_text = self._find_text_by_portuguese_key(soup, "Consumidor final")
             if consumer_final_text:
                 consumer.final_consumer = self._clean_text(consumer_final_text)
 
@@ -822,7 +722,7 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting consumer data: {e}")
             return None
 
-    def _extract_product_items(self, soup: BeautifulSoup) -> List[ProductData]:
+    def _extract_product_items(self, soup: BeautifulSoup) -> list[ProductData]:
         """Extract product/item data from tables using Portuguese field names"""
         items = []
 
@@ -831,9 +731,7 @@ class NFCeDataExtractor:
             specific_items = self._extract_from_specific_product_table(soup)
             if specific_items:
                 items.extend(specific_items)
-                self.logger.info(
-                    f"Extracted {len(specific_items)} items from specific table structure"
-                )
+                self.logger.info(f"Extracted {len(specific_items)} items from specific table structure")
 
             # If no items found, fallback to the general method
             if not items:
@@ -850,9 +748,7 @@ class NFCeDataExtractor:
                         item = self._extract_item_from_row_portuguese(row, i)
                         if item:
                             items.append(item)
-                            self.logger.debug(
-                                f"Extracted item {i}: {item.description[:50]}..."
-                            )
+                            self.logger.debug(f"Extracted item {i}: {item.description[:50]}...")
                     except Exception as e:
                         self.logger.warning(f"Error extracting item {i}: {e}")
                         continue
@@ -864,11 +760,8 @@ class NFCeDataExtractor:
 
         return items
 
-    def _extract_from_specific_product_table(
-        self, soup: BeautifulSoup
-    ) -> List[ProductData]:
-        """
-        Extract product items from the specific NFCe table structure:
+    def _extract_from_specific_product_table(self, soup: BeautifulSoup) -> list[ProductData]:
+        """Extract product items from the specific NFCe table structure:
         <table class="table table-striped">
             <tbody id="myTable">
                 <tr>
@@ -904,9 +797,7 @@ class NFCeDataExtractor:
                     item = self._extract_item_from_specific_row(row, i)
                     if item:
                         items.append(item)
-                        self.logger.debug(
-                            f"Extracted specific item {i}: {item.description[:30]}..."
-                        )
+                        self.logger.debug(f"Extracted specific item {i}: {item.description[:30]}...")
 
                 except Exception as e:
                     self.logger.warning(f"Error extracting specific item {i}: {e}")
@@ -918,11 +809,8 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting from specific product table: {e}")
             return items
 
-    def _extract_item_from_specific_row(
-        self, row: Tag, item_number: int
-    ) -> Optional[ProductData]:
-        """
-        Extract product data from the specific NFCe row structure:
+    def _extract_item_from_specific_row(self, row: Tag, item_number: int) -> ProductData | None:
+        """Extract product data from the specific NFCe row structure:
         <tr>
             <td><h7>PRODUCT NAME</h7>(Código: XXXX)</td>
             <td>Qtde total de ítens: X.XXXX</td>
@@ -990,9 +878,7 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting item from specific row: {e}")
             return None
 
-    def _extract_item_from_row(
-        self, row: Tag, item_number: int
-    ) -> Optional[ProductData]:
+    def _extract_item_from_row(self, row: Tag, item_number: int) -> ProductData | None:
         """Extract product data from table row"""
         try:
             cells = row.find_all(["td", "th"])
@@ -1028,7 +914,7 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting item from row: {e}")
             return None
 
-    def _extract_tax_information(self, soup: BeautifulSoup) -> Optional[TaxData]:
+    def _extract_tax_information(self, soup: BeautifulSoup) -> TaxData | None:
         """Extract tax information"""
         try:
             taxes = TaxData()
@@ -1064,19 +950,13 @@ class NFCeDataExtractor:
                         if value:
                             taxes.cofins_total = value
 
-            return (
-                taxes
-                if any([taxes.icms_total, taxes.pis_total, taxes.cofins_total])
-                else None
-            )
+            return taxes if any([taxes.icms_total, taxes.pis_total, taxes.cofins_total]) else None
 
         except Exception as e:
             self.logger.warning(f"Error extracting tax information: {e}")
             return None
 
-    def _extract_financial_data(
-        self, soup: BeautifulSoup, invoice_data: InvoiceData
-    ) -> None:
+    def _extract_financial_data(self, soup: BeautifulSoup, invoice_data: InvoiceData) -> None:
         """Extract financial totals using Portuguese field names"""
         try:
             # First try to extract from the specific financial table
@@ -1091,9 +971,7 @@ class NFCeDataExtractor:
 
             # Fallback to the general method if specific table extraction failed
             if not invoice_data.total_amount:
-                total_text = self._find_text_by_portuguese_key(
-                    soup, "Valor total do serviço"
-                )
+                total_text = self._find_text_by_portuguese_key(soup, "Valor total do serviço")
                 if total_text:
                     invoice_data.total_amount = self._parse_currency(total_text)
 
@@ -1123,9 +1001,7 @@ class NFCeDataExtractor:
             invoice_data.add_error(f"Failed to extract financial data: {e}")
 
     # Helper methods
-    def _find_text_by_selectors(
-        self, soup: BeautifulSoup, selectors: List[str]
-    ) -> Optional[str]:
+    def _find_text_by_selectors(self, soup: BeautifulSoup, selectors: list[str]) -> str | None:
         """Find text using multiple CSS selectors"""
         for selector in selectors:
             element = soup.select_one(selector)
@@ -1133,14 +1009,10 @@ class NFCeDataExtractor:
                 return element.get_text()
         return None
 
-    def _find_text_by_portuguese_key(
-        self, soup: BeautifulSoup, portuguese_key: str
-    ) -> Optional[str]:
+    def _find_text_by_portuguese_key(self, soup: BeautifulSoup, portuguese_key: str) -> str | None:
         """Find text using Portuguese field name with multiple selector patterns"""
         if portuguese_key not in self.portuguese_selectors:
-            self.logger.debug(
-                f"No selectors defined for Portuguese key: {portuguese_key}"
-            )
+            self.logger.debug(f"No selectors defined for Portuguese key: {portuguese_key}")
             return None
 
         selectors = self.portuguese_selectors[portuguese_key]
@@ -1149,15 +1021,11 @@ class NFCeDataExtractor:
             try:
                 # Handle :contains() selectors specially
                 if ":contains(" in selector:
-                    elements = soup.find_all(
-                        text=lambda text: text and portuguese_key in text
-                    )
+                    elements = soup.find_all(text=lambda text: text and portuguese_key in text)
                     for element in elements:
                         if element.parent:
                             # Get next sibling text or parent text
-                            next_text = self._get_associated_value(
-                                element.parent, portuguese_key
-                            )
+                            next_text = self._get_associated_value(element.parent, portuguese_key)
                             if next_text:
                                 return next_text
                 else:
@@ -1170,7 +1038,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _get_associated_value(self, element: Tag, field_name: str) -> Optional[str]:
+    def _get_associated_value(self, element: Tag, field_name: str) -> str | None:
         """Get the value associated with a field name in various HTML patterns"""
         try:
             # Pattern 1: Next sibling
@@ -1217,9 +1085,7 @@ class NFCeDataExtractor:
             self.logger.debug(f"Error getting associated value for {field_name}: {e}")
             return None
 
-    def _find_element_by_selectors(
-        self, soup: BeautifulSoup, selectors: List[str]
-    ) -> Optional[Tag]:
+    def _find_element_by_selectors(self, soup: BeautifulSoup, selectors: list[str]) -> Tag | None:
         """Find element using multiple CSS selectors"""
         for selector in selectors:
             element = soup.select_one(selector)
@@ -1227,7 +1093,7 @@ class NFCeDataExtractor:
                 return element
         return None
 
-    def _find_text_in_element(self, element: Tag, keywords: List[str]) -> Optional[str]:
+    def _find_text_in_element(self, element: Tag, keywords: list[str]) -> str | None:
         """Find text containing keywords in element"""
         text = element.get_text().lower()
         for keyword in keywords:
@@ -1235,9 +1101,7 @@ class NFCeDataExtractor:
                 return element.get_text()
         return None
 
-    def _find_product_table_by_portuguese_keys(
-        self, soup: BeautifulSoup
-    ) -> Optional[Tag]:
+    def _find_product_table_by_portuguese_keys(self, soup: BeautifulSoup) -> Tag | None:
         """Find product table using Portuguese keys and patterns"""
         # Look for tables containing product-related Portuguese terms
         product_terms = ["Descrição", "Código", "Quantidade", "Valor", "Total", "UN"]
@@ -1258,9 +1122,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _extract_item_from_row_portuguese(
-        self, row: Tag, item_number: int
-    ) -> Optional[ProductData]:
+    def _extract_item_from_row_portuguese(self, row: Tag, item_number: int) -> ProductData | None:
         """Extract product data from table row using Portuguese patterns"""
         try:
             cells = row.find_all(["td", "th"])
@@ -1310,18 +1172,14 @@ class NFCeDataExtractor:
             self.logger.warning(f"Error extracting item from row: {e}")
             return None
 
-    def _find_address_near_establishment(
-        self, soup: BeautifulSoup, company_name: str
-    ) -> Optional[str]:
+    def _find_address_near_establishment(self, soup: BeautifulSoup, company_name: str) -> str | None:
         """Find address text near company name"""
         if not company_name:
             return None
 
         try:
             # Look for text elements containing the company name
-            company_elements = soup.find_all(
-                text=lambda text: text and company_name in text
-            )
+            company_elements = soup.find_all(text=lambda text: text and company_name in text)
 
             for element in company_elements:
                 if element.parent:
@@ -1330,17 +1188,10 @@ class NFCeDataExtractor:
                     siblings = parent.find_next_siblings() if parent else []
 
                     for sibling in siblings[:3]:  # Check next 3 siblings
-                        sibling_text = (
-                            sibling.get_text()
-                            if hasattr(sibling, "get_text")
-                            else str(sibling)
-                        )
+                        sibling_text = sibling.get_text() if hasattr(sibling, "get_text") else str(sibling)
 
                         # Check if this looks like an address (contains street indicators)
-                        if any(
-                            word in sibling_text.upper()
-                            for word in ["RUA", "AV", "AVENIDA", "PRAC", "EST", "ROD"]
-                        ):
+                        if any(word in sibling_text.upper() for word in ["RUA", "AV", "AVENIDA", "PRAC", "EST", "ROD"]):
                             return sibling_text.strip()
 
             return None
@@ -1349,7 +1200,7 @@ class NFCeDataExtractor:
             self.logger.debug(f"Error finding address near establishment: {e}")
             return None
 
-    def _find_consumer_name(self, soup: BeautifulSoup) -> Optional[str]:
+    def _find_consumer_name(self, soup: BeautifulSoup) -> str | None:
         """Find consumer name in various contexts"""
         try:
             # Look for "Nome" in consumer/CPF context
@@ -1371,7 +1222,7 @@ class NFCeDataExtractor:
             self.logger.debug(f"Error finding consumer name: {e}")
             return None
 
-    def _find_any_total_value(self, soup: BeautifulSoup) -> Optional[str]:
+    def _find_any_total_value(self, soup: BeautifulSoup) -> str | None:
         """Find any total value as fallback"""
         try:
             # Look for "R$" patterns that might be totals
@@ -1430,7 +1281,7 @@ class NFCeDataExtractor:
         # Return only if it looks like a CPF (11 digits)
         return digits if len(digits) == 11 else ""
 
-    def _parse_currency(self, text: str) -> Optional[Decimal]:
+    def _parse_currency(self, text: str) -> Decimal | None:
         """Parse currency value from text"""
         if not text:
             return None
@@ -1450,7 +1301,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _parse_decimal(self, text: str) -> Optional[Decimal]:
+    def _parse_decimal(self, text: str) -> Decimal | None:
         """Parse decimal value from text"""
         if not text:
             return None
@@ -1468,7 +1319,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _parse_date(self, text: str) -> Optional[datetime]:
+    def _parse_date(self, text: str) -> datetime | None:
         """Parse date from text"""
         if not text:
             return None
@@ -1502,7 +1353,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _extract_currency_from_text(self, text: str) -> Optional[Decimal]:
+    def _extract_currency_from_text(self, text: str) -> Decimal | None:
         """Extract currency value from any text"""
         if not text:
             return None
@@ -1527,7 +1378,7 @@ class NFCeDataExtractor:
 
         return None
 
-    def _extract_city_from_address(self, address: str) -> Optional[str]:
+    def _extract_city_from_address(self, address: str) -> str | None:
         """Try to extract city from address text"""
         if not address:
             return None
@@ -1542,11 +1393,8 @@ class NFCeDataExtractor:
 
         return None
 
-    def _is_empty_nfce_page(
-        self, soup: BeautifulSoup, invoice_data: InvoiceData
-    ) -> bool:
-        """
-        Check if the NFCe page has valid structure but empty data (expired/invalid NFCe)
+    def _is_empty_nfce_page(self, soup: BeautifulSoup, invoice_data: InvoiceData) -> bool:
+        """Check if the NFCe page has valid structure but empty data (expired/invalid NFCe)
 
         Args:
             soup: BeautifulSoup object of the page
@@ -1558,13 +1406,8 @@ class NFCeDataExtractor:
         try:
             # Check if we have the NFCe page structure but empty data
             has_nfce_structure = (
-                soup.find(
-                    string=lambda text: text
-                    and "Nota Fiscal de Consumidor Eletrônica" in text
-                )
-                is not None
-                or soup.find("title", string=lambda text: text and "SEF" in text)
-                is not None
+                soup.find(string=lambda text: text and "Nota Fiscal de Consumidor Eletrônica" in text) is not None
+                or soup.find("title", string=lambda text: text and "SEF" in text) is not None
                 or soup.find("form", id="formPrincipal") is not None
             )
 
@@ -1573,18 +1416,10 @@ class NFCeDataExtractor:
 
             # Check if critical data fields are all empty
             critical_fields_empty = (
-                (
-                    not invoice_data.invoice_number
-                    or invoice_data.invoice_number.strip() == ""
-                )
+                (not invoice_data.invoice_number or invoice_data.invoice_number.strip() == "")
                 and (not invoice_data.series or invoice_data.series.strip() == "")
-                and (
-                    invoice_data.total_amount is None or invoice_data.total_amount == 0
-                )
-                and (
-                    not invoice_data.establishment
-                    or not invoice_data.establishment.business_name
-                )
+                and (invoice_data.total_amount is None or invoice_data.total_amount == 0)
+                and (not invoice_data.establishment or not invoice_data.establishment.business_name)
                 and (not invoice_data.items or len(invoice_data.items) == 0)
             )
 

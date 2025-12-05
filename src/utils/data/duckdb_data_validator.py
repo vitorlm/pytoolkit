@@ -1,7 +1,7 @@
 import datetime
 import json
 import uuid
-from typing import Any, Dict, List
+from typing import Any
 
 
 class DuckDBDataValidator:
@@ -137,7 +137,7 @@ class DuckDBDataValidator:
         else:
             return "VARCHAR"
 
-    def _infer_list_type(self, lst: List[Any]) -> str:
+    def _infer_list_type(self, lst: list[Any]) -> str:
         if not lst:
             return "VARCHAR[]"
         inner_types = {self._infer_value_type(item) for item in lst if item is not None}
@@ -147,15 +147,15 @@ class DuckDBDataValidator:
             inner_type = "VARCHAR"
         return f"{inner_type}[]"
 
-    def validate_record(self, record: Dict[str, Any], schema: Dict[str, str]) -> bool:
+    def validate_record(self, record: dict[str, Any], schema: dict[str, str]) -> bool:
         for col, dtype in schema.items():
             value = record.get(col)
             if not self._validate_value(value, dtype):
                 return False
         return True
 
-    def infer_schema(self, records: List[Dict[str, Any]]) -> Dict[str, str]:
-        schema: Dict[str, str] = {}
+    def infer_schema(self, records: list[dict[str, Any]]) -> dict[str, str]:
+        schema: dict[str, str] = {}
         if not records:
             return schema
 

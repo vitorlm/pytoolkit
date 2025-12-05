@@ -1,9 +1,7 @@
-"""
-Pydantic models for CircleCI MCP tools validation.
-"""
+"""Pydantic models for CircleCI MCP tools validation."""
 
-from typing import Optional
 from enum import Enum
+
 from pydantic import Field, field_validator
 
 from .base import BaseMCPModel, OutputFileModel
@@ -28,12 +26,12 @@ class CircleCIPipelineArgs(BaseMCPModel, OutputFileModel):
         min_length=1,
     )
 
-    branch: Optional[str] = Field(
+    branch: str | None = Field(
         None,
         description="Branch name to filter pipelines (optional, all branches if not specified)",
     )
 
-    status: Optional[str] = Field(
+    status: str | None = Field(
         None,
         description="Pipeline status to filter: 'success', 'failed', 'running', 'canceled' (optional)",
     )
@@ -97,17 +95,17 @@ class CircleCIWorkflowArgs(BaseMCPModel, OutputFileModel):
         min_length=1,
     )
 
-    workflow_name: Optional[str] = Field(
+    workflow_name: str | None = Field(
         None,
         description="Specific workflow name to analyze (optional, all workflows if not specified)",
     )
 
-    status: Optional[str] = Field(
+    status: str | None = Field(
         None,
         description="Workflow status to filter (optional)",
     )
 
-    branch: Optional[str] = Field(
+    branch: str | None = Field(
         None,
         description="Branch name to filter (optional)",
     )

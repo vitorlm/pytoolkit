@@ -1,16 +1,15 @@
-"""
-CircleCI Performance Analysis Service
+"""CircleCI Performance Analysis Service
 Converts the Node.js CircleCI analysis script into Python service
 """
 
 import json
 import os
-import requests
 import time
 from datetime import datetime
-from typing import Dict, List
-import pandas as pd
+
 import matplotlib.pyplot as plt
+import pandas as pd
+import requests
 
 from utils.logging.logging_manager import LogManager
 
@@ -19,8 +18,7 @@ class CircleCIService:
     """Service for analyzing CircleCI pipeline performance data"""
 
     def __init__(self, token: str, project_slug: str = ""):
-        """
-        Initialize CircleCI service
+        """Initialize CircleCI service
 
         Args:
             token: CircleCI API token
@@ -30,12 +28,10 @@ class CircleCIService:
         self.project_slug = project_slug
         self.base_url = "https://circleci.com/api/v2"
         self.session = requests.Session()
-        self.session.headers.update(
-            {"Circle-Token": token, "Accept": "application/json"}
-        )
+        self.session.headers.update({"Circle-Token": token, "Accept": "application/json"})
         self.logger = LogManager.get_instance().get_logger("CircleCIService")
 
-    def _make_request(self, endpoint: str) -> Dict:
+    def _make_request(self, endpoint: str) -> dict:
         """Make API request to CircleCI"""
         url = f"{self.base_url}{endpoint}"
 
@@ -47,9 +43,8 @@ class CircleCIService:
             self.logger.error(f"Failed to make request to {url}: {e}")
             raise
 
-    def list_projects(self) -> List[Dict]:
-        """
-        List all projects accessible to the user by getting organizations and their pipelines.
+    def list_projects(self) -> list[dict]:
+        """List all projects accessible to the user by getting organizations and their pipelines.
 
         Returns:
             List of project information
@@ -66,9 +61,7 @@ class CircleCIService:
             collab_response = requests.get(collab_url, headers=headers, timeout=30)
 
             if collab_response.status_code != 200:
-                self.logger.error(
-                    f"Failed to get collaborations. Status: {collab_response.status_code}"
-                )
+                self.logger.error(f"Failed to get collaborations. Status: {collab_response.status_code}")
                 return []
 
             collaborations = collab_response.json()
@@ -86,9 +79,7 @@ class CircleCIService:
                 pipeline_url = f"{self.base_url}/pipeline"
                 params = {"org-slug": org_slug}
 
-                pipeline_response = requests.get(
-                    pipeline_url, headers=headers, params=params, timeout=30
-                )
+                pipeline_response = requests.get(pipeline_url, headers=headers, params=params, timeout=30)
 
                 if pipeline_response.status_code == 200:
                     pipeline_data = pipeline_response.json()
@@ -99,18 +90,10 @@ class CircleCIService:
                             if project_slug and project_slug not in projects:
                                 # Extract project info from pipeline data
                                 vcs_info = pipeline.get("vcs", {})
-                                project_name = (
-                                    project_slug.split("/")[-1]
-                                    if "/" in project_slug
-                                    else project_slug
-                                )
+                                project_name = project_slug.split("/")[-1] if "/" in project_slug else project_slug
 
                                 # Determine VCS type from project_slug
-                                vcs_type = (
-                                    "GitHub"
-                                    if project_slug.startswith("gh/")
-                                    else "Bitbucket"
-                                )
+                                vcs_type = "GitHub" if project_slug.startswith("gh/") else "Bitbucket"
 
                                 # Use main branch as default, or get from first pipeline
                                 default_branch = "main"
@@ -119,9 +102,7 @@ class CircleCIService:
 
                                 projects[project_slug] = {
                                     "name": project_name,
-                                    "organization": project_slug.split("/")[1]
-                                    if "/" in project_slug
-                                    else "Unknown",
+                                    "organization": project_slug.split("/")[1] if "/" in project_slug else "Unknown",
                                     "slug": project_slug,
                                     "vcs_type": vcs_type,
                                     "url": vcs_info.get("target_repository_url", ""),
@@ -145,7 +126,7 @@ class CircleCIService:
             self.logger.error(f"Unexpected error listing projects: {e}")
             return []
 
-    def export_pipelines(self, limit: int = 100) -> List[Dict]:
+    def export_pipelines(self, limit: int = 100) -> list[dict]:
         """Export pipeline data"""
         self.logger.info("📊 Exporting pipeline data...")
 
@@ -167,9 +148,7 @@ class CircleCIService:
                         "updated_at": pipeline.get("updated_at"),
                         "vcs": {
                             "branch": pipeline.get("vcs", {}).get("branch"),
-                            "commit": pipeline.get("vcs", {})
-                            .get("commit", {})
-                            .get("subject"),
+                            "commit": pipeline.get("vcs", {}).get("commit", {}).get("subject"),
                             "revision": pipeline.get("vcs", {}).get("revision"),
                         },
                         "trigger": pipeline.get("trigger"),
@@ -183,7 +162,7 @@ class CircleCIService:
             self.logger.error(f"❌ Error exporting pipelines: {e}")
             return []
 
-    def export_workflows(self, pipelines: List[Dict], limit: int = 20) -> List[Dict]:
+    def export_workflows(self, pipelines: list[dict], limit: int = 20) -> list[dict]:
         """Export workflow data for pipelines"""
         self.logger.info("🔄 Exporting workflow data...")
 
@@ -196,12 +175,8 @@ class CircleCIService:
                 for workflow in data.get("items", []):
                     duration_seconds = None
                     if workflow.get("stopped_at") and workflow.get("created_at"):
-                        start = datetime.fromisoformat(
-                            workflow["created_at"].replace("Z", "+00:00")
-                        )
-                        stop = datetime.fromisoformat(
-                            workflow["stopped_at"].replace("Z", "+00:00")
-                        )
+                        start = datetime.fromisoformat(workflow["created_at"].replace("Z", "+00:00"))
+                        stop = datetime.fromisoformat(workflow["stopped_at"].replace("Z", "+00:00"))
                         duration_seconds = int((stop - start).total_seconds())
 
                     all_workflows.append(
@@ -221,14 +196,12 @@ class CircleCIService:
                 time.sleep(0.1)
 
             except Exception as e:
-                self.logger.warning(
-                    f"⚠️  Failed to get workflows for pipeline {pipeline['number']}: {e}"
-                )
+                self.logger.warning(f"⚠️  Failed to get workflows for pipeline {pipeline['number']}: {e}")
 
         self.logger.info(f"✅ Exported {len(all_workflows)} workflows")
         return all_workflows
 
-    def export_jobs(self, workflows: List[Dict], limit: int = 10) -> List[Dict]:
+    def export_jobs(self, workflows: list[dict], limit: int = 10) -> list[dict]:
         """Export job data for workflows"""
         self.logger.info("⚙️  Exporting job data...")
 
@@ -241,12 +214,8 @@ class CircleCIService:
                 for job in data.get("items", []):
                     duration_seconds = None
                     if job.get("stopped_at") and job.get("started_at"):
-                        start = datetime.fromisoformat(
-                            job["started_at"].replace("Z", "+00:00")
-                        )
-                        stop = datetime.fromisoformat(
-                            job["stopped_at"].replace("Z", "+00:00")
-                        )
+                        start = datetime.fromisoformat(job["started_at"].replace("Z", "+00:00"))
+                        stop = datetime.fromisoformat(job["stopped_at"].replace("Z", "+00:00"))
                         duration_seconds = int((stop - start).total_seconds())
 
                     all_jobs.append(
@@ -268,36 +237,26 @@ class CircleCIService:
                 time.sleep(0.1)
 
             except Exception as e:
-                self.logger.warning(
-                    f"⚠️  Failed to get jobs for workflow {workflow['id']}: {e}"
-                )
+                self.logger.warning(f"⚠️  Failed to get jobs for workflow {workflow['id']}: {e}")
 
         self.logger.info(f"✅ Exported {len(all_jobs)} jobs")
         return all_jobs
 
-    def generate_analysis(
-        self, pipelines: List[Dict], workflows: List[Dict], jobs: List[Dict]
-    ) -> Dict:
+    def generate_analysis(self, pipelines: list[dict], workflows: list[dict], jobs: list[dict]) -> dict:
         """Generate performance analysis"""
         self.logger.info("📈 Generating performance analysis...")
 
         # Calculate workflow averages
         valid_workflows = [w for w in workflows if w.get("duration_seconds")]
         avg_duration = (
-            sum(w["duration_seconds"] for w in valid_workflows) / len(valid_workflows)
-            if valid_workflows
-            else 0
+            sum(w["duration_seconds"] for w in valid_workflows) / len(valid_workflows) if valid_workflows else 0
         )
 
         success_workflows = [w for w in workflows if w.get("status") == "success"]
         failed_workflows = [w for w in workflows if w.get("status") == "failed"]
 
-        success_rate = (
-            (len(success_workflows) / len(workflows) * 100) if workflows else 0
-        )
-        failure_rate = (
-            (len(failed_workflows) / len(workflows) * 100) if workflows else 0
-        )
+        success_rate = (len(success_workflows) / len(workflows) * 100) if workflows else 0
+        failure_rate = (len(failed_workflows) / len(workflows) * 100) if workflows else 0
 
         # Calculate job performance
         job_performance = {}
@@ -317,25 +276,18 @@ class CircleCIService:
             job_performance[job_name]["total_runs"] += 1
             job_performance[job_name]["total_duration"] += job["duration_seconds"]
             job_performance[job_name]["avg_duration"] = round(
-                job_performance[job_name]["total_duration"]
-                / job_performance[job_name]["total_runs"]
+                job_performance[job_name]["total_duration"] / job_performance[job_name]["total_runs"]
             )
 
             if job.get("status") == "success":
                 job_performance[job_name]["successes"] += 1
 
             job_performance[job_name]["success_rate"] = round(
-                (
-                    job_performance[job_name]["successes"]
-                    / job_performance[job_name]["total_runs"]
-                )
-                * 100
+                (job_performance[job_name]["successes"] / job_performance[job_name]["total_runs"]) * 100
             )
 
         # Find slowest jobs
-        slowest_jobs = sorted(
-            valid_jobs, key=lambda x: x["duration_seconds"], reverse=True
-        )[:10]
+        slowest_jobs = sorted(valid_jobs, key=lambda x: x["duration_seconds"], reverse=True)[:10]
         slowest_jobs_data = [
             {
                 "name": job["name"],
@@ -366,9 +318,9 @@ class CircleCIService:
         self.logger.info("✅ Performance analysis generated")
         return analysis
 
-    def generate_recommendations(self, analysis: Dict) -> List[Dict]:
+    def generate_recommendations(self, analysis: dict) -> list[dict]:
         """Generate optimization recommendations"""
-        recommendations: List[Dict] = []
+        recommendations: list[dict] = []
         job_perf = analysis["job_performance"]
 
         for job_name, metrics in job_perf.items():
@@ -394,7 +346,7 @@ class CircleCIService:
 
         return recommendations
 
-    def identify_bottlenecks(self, analysis: Dict) -> List[Dict]:
+    def identify_bottlenecks(self, analysis: dict) -> list[dict]:
         """Identify performance bottlenecks"""
         self.logger.info("🔍 Identifying bottlenecks...")
 
@@ -402,9 +354,7 @@ class CircleCIService:
         job_perf = analysis["job_performance"]
 
         # Sort jobs by average duration
-        sorted_jobs = sorted(
-            job_perf.items(), key=lambda x: x[1]["avg_duration"], reverse=True
-        )
+        sorted_jobs = sorted(job_perf.items(), key=lambda x: x[1]["avg_duration"], reverse=True)
 
         for job_name, metrics in sorted_jobs[:5]:  # Top 5 slowest
             bottlenecks.append(
@@ -413,23 +363,19 @@ class CircleCIService:
                     "avg_duration_minutes": round(metrics["avg_duration"] / 60, 2),
                     "success_rate": metrics["success_rate"],
                     "total_runs": metrics["total_runs"],
-                    "optimization_potential": "HIGH"
-                    if metrics["avg_duration"] > 180
-                    else "MEDIUM",
+                    "optimization_potential": "HIGH" if metrics["avg_duration"] > 180 else "MEDIUM",
                 }
             )
 
         return bottlenecks
 
-    def generate_optimization_plan(
-        self, bottlenecks: List[Dict], analysis: Dict
-    ) -> Dict:
+    def generate_optimization_plan(self, bottlenecks: list[dict], analysis: dict) -> dict:
         """Generate detailed optimization plan"""
         self.logger.info("🛠️  Generating optimization plan...")
 
         # Initialize with explicit types
-        immediate_actions: List[Dict] = []
-        medium_term: List[Dict] = []
+        immediate_actions: list[dict] = []
+        medium_term: list[dict] = []
 
         plan = {
             "immediate_actions": immediate_actions,
@@ -489,25 +435,15 @@ class CircleCIService:
                 )
 
         # Calculate estimated total savings
-        immediate_savings = (
-            0.3 * total_pipeline_time / len(immediate_actions)
-            if immediate_actions
-            else 0
-        )
-        medium_savings = (
-            0.25 * total_pipeline_time / len(medium_term) if medium_term else 0
-        )
+        immediate_savings = 0.3 * total_pipeline_time / len(immediate_actions) if immediate_actions else 0
+        medium_savings = 0.25 * total_pipeline_time / len(medium_term) if medium_term else 0
 
         plan["estimated_savings"] = round(immediate_savings + medium_savings)
-        plan["estimated_final_time"] = round(
-            total_pipeline_time - plan["estimated_savings"]
-        )
+        plan["estimated_final_time"] = round(total_pipeline_time - plan["estimated_savings"])
 
         return plan
 
-    def create_visualizations(
-        self, workflows: List[Dict], jobs: List[Dict], output_path: str
-    ) -> bool:
+    def create_visualizations(self, workflows: list[dict], jobs: list[dict], output_path: str) -> bool:
         """Create performance visualizations"""
         self.logger.info("📊 Creating visualizations...")
 
@@ -525,12 +461,7 @@ class CircleCIService:
                 axes[0, 0].set_xlabel("Duration (seconds)")
 
                 # Job performance by name
-                job_perf = (
-                    df_jobs.groupby("name")["duration_seconds"]
-                    .mean()
-                    .sort_values(ascending=False)
-                    .head(8)
-                )
+                job_perf = df_jobs.groupby("name")["duration_seconds"].mean().sort_values(ascending=False).head(8)
                 job_perf.plot(kind="bar", ax=axes[0, 1])
                 axes[0, 1].set_title("Average Job Duration by Name")
                 axes[0, 1].set_ylabel("Duration (seconds)")
@@ -567,11 +498,11 @@ class CircleCIService:
     def save_data(
         self,
         output_dir: str,
-        pipelines: List[Dict],
-        workflows: List[Dict],
-        jobs: List[Dict],
-        analysis: Dict,
-        recommendations: List[Dict],
+        pipelines: list[dict],
+        workflows: list[dict],
+        jobs: list[dict],
+        analysis: dict,
+        recommendations: list[dict],
     ) -> None:
         """Save all data to files"""
         os.makedirs(output_dir, exist_ok=True)
@@ -590,7 +521,7 @@ class CircleCIService:
                 json.dump(data, f, indent=2)
             self.logger.info(f"✅ Saved {filename}")
 
-    def run_complete_analysis(self, output_dir: str = "./circleci-analysis") -> Dict:
+    def run_complete_analysis(self, output_dir: str = "./circleci-analysis") -> dict:
         """Run complete CircleCI performance analysis"""
         self.logger.info("🚀 Starting CircleCI performance analysis...")
 
@@ -606,9 +537,7 @@ class CircleCIService:
         optimization_plan = self.generate_optimization_plan(bottlenecks, analysis)
 
         # Save data
-        self.save_data(
-            output_dir, pipelines, workflows, jobs, analysis, recommendations
-        )
+        self.save_data(output_dir, pipelines, workflows, jobs, analysis, recommendations)
 
         # Create visualizations
         charts_path = os.path.join(output_dir, "performance_charts.png")

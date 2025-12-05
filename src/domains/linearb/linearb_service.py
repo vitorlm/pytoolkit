@@ -1,10 +1,8 @@
-"""
-LinearB Service for performance metrics and team analytics operations.
-"""
+"""LinearB Service for performance metrics and team analytics operations."""
 
 import os
 from argparse import Namespace
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
@@ -29,18 +27,16 @@ class LinearBService:
         self.api_client = LinearBApiClient()
         self.time_helper = LinearBTimeRangeHelper()
 
-    def test_connection(self) -> Dict[str, Any]:
-        """
-        Test the connection to LinearB API.
+    def test_connection(self) -> dict[str, Any]:
+        """Test the connection to LinearB API.
 
         Returns:
             Dictionary with connection test results.
         """
         return self.api_client.test_connection()
 
-    def get_performance_metrics(self, args: Namespace) -> Dict[str, Any]:
-        """
-        Get performance metrics from LinearB with simplified interface.
+    def get_performance_metrics(self, args: Namespace) -> dict[str, Any]:
+        """Get performance metrics from LinearB with simplified interface.
 
         Args:
             args: Command arguments containing time_range, filter_type, team_ids, etc.
@@ -76,9 +72,7 @@ class LinearBService:
             }
             roll_up = granularity_map.get(granularity, LinearBRollup.CUSTOM)
 
-            self.logger.info(
-                f"Fetching performance metrics for time range: {args.time_range}"
-            )
+            self.logger.info(f"Fetching performance metrics for time range: {args.time_range}")
             self.logger.info(f"Group by: {group_by}, Roll up: {roll_up}")
             if team_ids:
                 self.logger.info(f"Team IDs filter: {team_ids}")
@@ -105,18 +99,15 @@ class LinearBService:
                     "roll_up": roll_up,
                     "aggregation": aggregation,
                 },
-                "time_ranges": self.api_client.time_helper.parse_time_period(
-                    args.time_range
-                ),
+                "time_ranges": self.api_client.time_helper.parse_time_period(args.time_range),
             }
 
         except Exception as e:
             self.logger.error(f"Failed to get performance metrics: {e}", exc_info=True)
             raise
 
-    def get_teams_info(self, search_term: Optional[str] = None) -> Dict[str, Any]:
-        """
-        Get teams information from LinearB.
+    def get_teams_info(self, search_term: str | None = None) -> dict[str, Any]:
+        """Get teams information from LinearB.
 
         Args:
             search_term: Optional search term to filter teams
@@ -137,9 +128,8 @@ class LinearBService:
             self.logger.error(f"Failed to get teams information: {e}", exc_info=True)
             raise
 
-    def export_performance_report(self, args: Namespace) -> Dict[str, Any]:
-        """
-        Export performance metrics report from LinearB.
+    def export_performance_report(self, args: Namespace) -> dict[str, Any]:
+        """Export performance metrics report from LinearB.
 
         Args:
             args: Command arguments
@@ -189,9 +179,7 @@ class LinearBService:
                 },  # Deploy Time
                 {"name": LinearBMetrics.RELEASES_COUNT},  # Deploy frequency
                 {"name": LinearBMetrics.PR_MERGED_SIZE, "agg": aggregation},  # PR Size
-                {
-                    "name": LinearBMetrics.PR_MERGED_WITHOUT_REVIEW
-                },  # PRs merged w/o review
+                {"name": LinearBMetrics.PR_MERGED_WITHOUT_REVIEW},  # PRs merged w/o review
                 {"name": LinearBMetrics.PR_REVIEW_DEPTH},  # Review Depth
                 {"name": LinearBMetrics.PR_MATURITY},  # PR Maturity
                 # Additional useful metrics
@@ -231,15 +219,11 @@ class LinearBService:
             # Parse labels if provided
             labels = None
             if hasattr(args, "labels") and args.labels:
-                labels = [label.strip() for label in args.labels.split(",")][
-                    :3
-                ]  # Max 3 labels
+                labels = [label.strip() for label in args.labels.split(",")][:3]  # Max 3 labels
 
             file_format = getattr(args, "format", "json")
 
-            self.logger.info(
-                f"Exporting performance report for time range: {args.time_range}"
-            )
+            self.logger.info(f"Exporting performance report for time range: {args.time_range}")
             self.logger.info(f"Format: {file_format}, Group by: {group_by}")
 
             # Use dashboard-compatible parameters for better data quality
@@ -262,9 +246,7 @@ class LinearBService:
                 order_dir=getattr(args, "order_dir", "asc"),
             )
 
-            self.logger.info(
-                f"Export completed. Report URL: {export_result.get('report_url', 'N/A')}"
-            )
+            self.logger.info(f"Export completed. Report URL: {export_result.get('report_url', 'N/A')}")
 
             # If we have a report URL, download the file automatically
             report_url = export_result.get("report_url")
@@ -278,9 +260,7 @@ class LinearBService:
                         output_folder=output_folder,
                     )
                     export_result["downloaded_file"] = downloaded_file
-                    self.logger.info(
-                        f"Report downloaded and saved to: {downloaded_file}"
-                    )
+                    self.logger.info(f"Report downloaded and saved to: {downloaded_file}")
                 except Exception as download_error:
                     self.logger.error(f"Failed to download report: {download_error}")
                     # Don't fail the entire operation if download fails
@@ -289,20 +269,17 @@ class LinearBService:
             return export_result
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to export performance report: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to export performance report: {e}", exc_info=True)
             raise
 
     def download_and_save_report(
         self,
         report_url: str,
         file_format: str = "csv",
-        team_ids: Optional[List[int]] = None,
+        team_ids: list[int] | None = None,
         output_folder: str = "output",
     ) -> str:
-        """
-        Downloads a report from the provided URL and saves it locally.
+        """Downloads a report from the provided URL and saves it locally.
 
         Args:
             report_url: The URL to download the report from
@@ -343,9 +320,7 @@ class LinearBService:
                 timeout=60,  # Longer timeout for report downloads
             )
 
-            self.logger.info(
-                f"Report successfully downloaded and saved to: {downloaded_path}"
-            )
+            self.logger.info(f"Report successfully downloaded and saved to: {downloaded_path}")
 
             # Get file size for confirmation
             if FileManager.file_exists(downloaded_path):
@@ -358,11 +333,8 @@ class LinearBService:
             self.logger.error(f"Failed to download and save report: {e}", exc_info=True)
             raise
 
-    def save_metrics_to_file(
-        self, metrics_data: Dict[str, Any], output_file: Optional[str] = None
-    ) -> str:
-        """
-        Save metrics data to a JSON file.
+    def save_metrics_to_file(self, metrics_data: dict[str, Any], output_file: str | None = None) -> str:
+        """Save metrics data to a JSON file.
 
         Args:
             metrics_data: Metrics data to save
@@ -398,9 +370,8 @@ class LinearBService:
             self.logger.error(f"Failed to save metrics data: {e}", exc_info=True)
             raise
 
-    def get_available_metrics(self) -> Dict[str, List[str]]:
-        """
-        Get a list of available metrics organized by category.
+    def get_available_metrics(self) -> dict[str, list[str]]:
+        """Get a list of available metrics organized by category.
 
         Returns:
             Dictionary of available metrics by category
@@ -441,11 +412,8 @@ class LinearBService:
             ],
         }
 
-    def get_team_performance_summary(
-        self, metrics_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Generate a performance summary from metrics data.
+    def get_team_performance_summary(self, metrics_data: dict[str, Any]) -> dict[str, Any]:
+        """Generate a performance summary from metrics data.
 
         Args:
             metrics_data: Raw metrics data from LinearB
@@ -464,9 +432,7 @@ class LinearBService:
             # Process each time period
             for time_period in metrics_data.get("metrics", []):
                 period_info = {
-                    "period": (
-                        f"{time_period.get('after', 'Unknown')} to {time_period.get('before', 'Unknown')}"
-                    ),
+                    "period": (f"{time_period.get('after', 'Unknown')} to {time_period.get('before', 'Unknown')}"),
                     "teams_count": len(time_period.get("metrics", [])),
                     "metrics_available": [],
                 }
@@ -476,10 +442,7 @@ class LinearBService:
                     for key in metric_data.keys():
                         metrics_available = period_info["metrics_available"]
                         if isinstance(metrics_available, list):
-                            if (
-                                key not in ["id", "name", "type"]
-                                and key not in metrics_available
-                            ):
+                            if key not in ["id", "name", "type"] and key not in metrics_available:
                                 metrics_available.append(key)
 
                 summary["teams_summary"].append(period_info)
@@ -488,14 +451,11 @@ class LinearBService:
             return summary
 
         except Exception as e:
-            self.logger.error(
-                f"Failed to generate performance summary: {e}", exc_info=True
-            )
+            self.logger.error(f"Failed to generate performance summary: {e}", exc_info=True)
             raise
 
     def get_engineering_metrics(self, args: Namespace) -> None:
-        """
-        Retrieve software engineering metrics from LinearB API.
+        """Retrieve software engineering metrics from LinearB API.
 
         Args:
             args: Command arguments containing filters and options
@@ -614,9 +574,7 @@ class LinearBService:
                 period_end = time_period.get("before", "")
                 # Compare start and end dates, skip if they're the same
                 if period_start == period_end:
-                    self.logger.info(
-                        f"Skipping time period with identical start/end dates: {period_start}"
-                    )
+                    self.logger.info(f"Skipping time period with identical start/end dates: {period_start}")
                     continue
                 # Each time period contains metrics for teams/contributors
                 for team_metrics in time_period.get("metrics", []):

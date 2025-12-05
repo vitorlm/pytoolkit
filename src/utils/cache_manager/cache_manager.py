@@ -1,15 +1,15 @@
+import hashlib
 import os
-from typing import Any, Optional
+from typing import Any
+
 from log_config import log_manager
 from utils.cache_manager.error import CacheManagerError
 from utils.cache_manager.file_cache import FileCacheBackend
 from utils.data.json_manager import JSONManager
-import hashlib
 
 
 class CacheManager:
-    """
-    A flexible CacheManager for managing cache data with a singleton pattern.
+    """A flexible CacheManager for managing cache data with a singleton pattern.
     Supports file-based caching and is extensible for other backends (e.g., Redis).
     """
 
@@ -21,9 +21,8 @@ class CacheManager:
             cls._instance = super(CacheManager, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, cache_backend: str = "file", cache_dir: Optional[str] = None):
-        """
-        Initializes the CacheManager. This follows a singleton pattern.
+    def __init__(self, cache_backend: str = "file", cache_dir: str | None = None):
+        """Initializes the CacheManager. This follows a singleton pattern.
 
         Args:
             cache_backend (str): Backend type for caching (default: "file").
@@ -43,9 +42,8 @@ class CacheManager:
 
         self._initialized = True
 
-    def _initialize_backend(self, cache_backend: str, cache_dir: Optional[str] = None):
-        """
-        Initializes the specified cache backend.
+    def _initialize_backend(self, cache_backend: str, cache_dir: str | None = None):
+        """Initializes the specified cache backend.
 
         Args:
             cache_backend (str): Backend type (e.g., "file").
@@ -59,18 +57,14 @@ class CacheManager:
         """
         try:
             if cache_backend == "file":
-                cache_dir = cache_dir or os.path.join(
-                    os.path.dirname(__file__), "../../../cache"
-                )
+                cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "../../../cache")
 
                 # Ensure the cache directory exists
                 os.makedirs(cache_dir, exist_ok=True)
 
                 return FileCacheBackend(cache_dir)
 
-            raise CacheManagerError(
-                f"Unsupported cache backend: {cache_backend}", backend=cache_backend
-            )
+            raise CacheManagerError(f"Unsupported cache backend: {cache_backend}", backend=cache_backend)
         except Exception as e:
             self._logger.error(f"Failed to initialize backend '{cache_backend}': {e}")
             raise CacheManagerError(
@@ -82,8 +76,7 @@ class CacheManager:
 
     @classmethod
     def get_instance(cls, *args, **kwargs):
-        """
-        Get the singleton instance of the CacheManager.
+        """Get the singleton instance of the CacheManager.
 
         Args:
             *args: Positional arguments for CacheManager initialization.
@@ -96,9 +89,8 @@ class CacheManager:
             cls._instance = cls(*args, **kwargs)
         return cls._instance
 
-    def load(self, key: str, expiration_minutes: Optional[int] = None) -> Optional[Any]:
-        """
-        Load data from the cache using the provided key.
+    def load(self, key: str, expiration_minutes: int | None = None) -> Any | None:
+        """Load data from the cache using the provided key.
 
         Args:
             key (str): The cache key to retrieve data for.
@@ -112,13 +104,10 @@ class CacheManager:
             return self._backend.load(key, expiration_minutes)
         except Exception as e:
             self._logger.error(f"Failed to load cache for key '{key}': {e}")
-            raise CacheManagerError(
-                f"Error loading cache for key '{key}'", error=str(e)
-            )
+            raise CacheManagerError(f"Error loading cache for key '{key}'", error=str(e))
 
     def save(self, key: str, data: Any):
-        """
-        Save data to the cache using the provided key.
+        """Save data to the cache using the provided key.
 
         Args:
             key (str): The cache key to store data for.
@@ -132,8 +121,7 @@ class CacheManager:
             raise CacheManagerError(f"Error saving cache for key '{key}'", error=str(e))
 
     def invalidate(self, key: str):
-        """
-        Invalidate a specific cache entry.
+        """Invalidate a specific cache entry.
 
         Args:
             key (str): The cache key to invalidate.
@@ -143,14 +131,10 @@ class CacheManager:
             self._backend.invalidate(key)
         except Exception as e:
             self._logger.error(f"Failed to invalidate cache for key '{key}': {e}")
-            raise CacheManagerError(
-                f"Error invalidating cache for key '{key}'", error=str(e)
-            )
+            raise CacheManagerError(f"Error invalidating cache for key '{key}'", error=str(e))
 
     def clear_all(self):
-        """
-        Clears all cache entries for the backend.
-        """
+        """Clears all cache entries for the backend."""
         try:
             self._logger.debug("Clearing all cache entries")
             self._backend.clear_all()
@@ -159,8 +143,7 @@ class CacheManager:
             raise CacheManagerError("Error clearing all cache entries", error=str(e))
 
     def generate_cache_key(self, prefix: str, **kwargs) -> str:
-        """
-        Generates a cache key based on a prefix and additional parameters.
+        """Generates a cache key based on a prefix and additional parameters.
 
         Args:
             prefix (str): The base prefix for the cache key.

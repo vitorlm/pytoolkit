@@ -1,32 +1,30 @@
-"""
-TUBE_HOMOLOGA Investigation Service
+"""TUBE_HOMOLOGA Investigation Service
 
 Service class that handles the business logic for investigating deleted
 TUBE_HOMOLOGA products and their impact on our catalog database.
 """
 
 import csv
-from typing import Dict, List, Any, Optional
-from datetime import datetime
 import os
 import uuid
+from datetime import datetime
+from typing import Any
+
 import duckdb
-from utils.logging.logging_manager import LogManager
-from utils.file_manager import FileManager
+
 from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class TubeHomologaInvestigationService:
     """Service for investigating deleted TUBE_HOMOLOGA products."""
 
     def __init__(self):
-        self.logger = LogManager.get_instance().get_logger(
-            "TubeHomologaInvestigationService"
-        )
+        self.logger = LogManager.get_instance().get_logger("TubeHomologaInvestigationService")
 
-    def _validate_and_format_uuid(self, uuid_str: str) -> Optional[str]:
-        """
-        Validate and format UUID string to ensure it's in proper format.
+    def _validate_and_format_uuid(self, uuid_str: str) -> str | None:
+        """Validate and format UUID string to ensure it's in proper format.
 
         Args:
             uuid_str: String that should be a UUID
@@ -52,13 +50,12 @@ class TubeHomologaInvestigationService:
         self,
         csv_path: str,
         db_path: str,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
         summary_only: bool = False,
         batch_size: int = 1000,
         output_format: str = "json",
-    ) -> Dict[str, Any]:
-        """
-        Investigate deleted TUBE_HOMOLOGA products and their impact.
+    ) -> dict[str, Any]:
+        """Investigate deleted TUBE_HOMOLOGA products and their impact.
 
         Args:
             csv_path: Path to CSV file with deleted products
@@ -73,10 +70,7 @@ class TubeHomologaInvestigationService:
         """
         # Validate output format
         if output_format not in ["json", "csv"]:
-            raise ValueError(
-                f"Unsupported output format: {output_format}. "
-                f"Supported formats: json, csv"
-            )
+            raise ValueError(f"Unsupported output format: {output_format}. Supported formats: json, csv")
 
         self.logger.info("Starting deleted products investigation")
 
@@ -106,7 +100,7 @@ class TubeHomologaInvestigationService:
 
         return investigation_results
 
-    def _read_csv_data(self, csv_path: str) -> Dict[str, Any]:
+    def _read_csv_data(self, csv_path: str) -> dict[str, Any]:
         """Read and parse CSV file with deleted products."""
         self.logger.info(f"Reading CSV file: {csv_path}")
 
@@ -114,7 +108,7 @@ class TubeHomologaInvestigationService:
         invalid_uuids = []
         skipped_rows = 0
 
-        with open(csv_path, "r", encoding="utf-8") as file:
+        with open(csv_path, encoding="utf-8") as file:
             reader = csv.reader(file)
             for row_num, row in enumerate(reader, 1):
                 if len(row) >= 4:
@@ -157,10 +151,7 @@ class TubeHomologaInvestigationService:
             self.logger.warning(f"Found {len(invalid_uuids)} invalid UUIDs")
             # Log first few invalid UUIDs for debugging
             for invalid in invalid_uuids[:5]:
-                self.logger.warning(
-                    f"  Row {invalid['row_number']}: '{invalid['raw_pk']}' "
-                    f"({invalid['country_code']})"
-                )
+                self.logger.warning(f"  Row {invalid['row_number']}: '{invalid['raw_pk']}' ({invalid['country_code']})")
             if len(invalid_uuids) > 5:
                 self.logger.warning(f"  ... and {len(invalid_uuids) - 5} more")
 
@@ -171,15 +162,12 @@ class TubeHomologaInvestigationService:
                 "valid_products": len(deleted_products),
                 "invalid_uuids": len(invalid_uuids),
                 "skipped_rows": skipped_rows,
-                "invalid_uuid_details": invalid_uuids[
-                    :10
-                ],  # Keep first 10 for reference
+                "invalid_uuid_details": invalid_uuids[:10],  # Keep first 10 for reference
             },
         }
 
-    def _detect_table_format(self, conn: duckdb.DuckDBPyConnection) -> Dict[str, str]:
-        """
-        Detect which table format is available in the database.
+    def _detect_table_format(self, conn: duckdb.DuckDBPyConnection) -> dict[str, str]:
+        """Detect which table format is available in the database.
 
         Returns:
             Dict with table_name and format information
@@ -228,9 +216,7 @@ class TubeHomologaInvestigationService:
                 }
             else:
                 # Default fallback
-                self.logger.warning(
-                    "No recognized table format found, using catalog_items as fallback"
-                )
+                self.logger.warning("No recognized table format found, using catalog_items as fallback")
                 return {
                     "table_name": "catalog_items",
                     "format": "fallback",
@@ -259,11 +245,11 @@ class TubeHomologaInvestigationService:
     def _investigate_products(
         self,
         conn: duckdb.DuckDBPyConnection,
-        deleted_products: List[Dict[str, str]],
+        deleted_products: list[dict[str, str]],
         batch_size: int,
         summary_only: bool,
-        data_quality_info: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        data_quality_info: dict[str, Any],
+    ) -> dict[str, Any]:
         """Investigate products against the database."""
         self.logger.info("Starting database investigation")
 
@@ -288,17 +274,11 @@ class TubeHomologaInvestigationService:
         }
 
         # Process batches by country
-        unique_countries = list(
-            {product["country_code"] for product in deleted_products}
-        )
+        unique_countries = list({product["country_code"] for product in deleted_products})
         total_batches = len(unique_countries)
 
         for batch_idx, country in enumerate(unique_countries):
-            batch = [
-                product
-                for product in deleted_products
-                if product["country_code"] == country
-            ]
+            batch = [product for product in deleted_products if product["country_code"] == country]
 
             self.logger.info(
                 f"Processing country batch {batch_idx + 1}/{total_batches} "
@@ -316,18 +296,14 @@ class TubeHomologaInvestigationService:
     def _process_batch(
         self,
         conn: duckdb.DuckDBPyConnection,
-        batch: List[Dict[str, str]],
-        results: Dict[str, Any],
+        batch: list[dict[str, str]],
+        results: dict[str, Any],
         summary_only: bool,
-        table_config: Dict[str, str],
+        table_config: dict[str, str],
     ):
         """Process a batch of deleted products."""
         # Create a list of PKs for batch query
-        pk_list = [
-            product["pk"]
-            for product in batch
-            if self._validate_and_format_uuid(product["pk"]) is not None
-        ]
+        pk_list = [product["pk"] for product in batch if self._validate_and_format_uuid(product["pk"]) is not None]
         pk_placeholders = ",".join(["?" for _ in pk_list])
 
         # Query database for matching products using detected table format
@@ -407,7 +383,7 @@ class TubeHomologaInvestigationService:
                 if not summary_only:
                     results["not_found_products"].append(product)
 
-    def _calculate_final_statistics(self, results: Dict[str, Any]):
+    def _calculate_final_statistics(self, results: dict[str, Any]):
         """Calculate final statistics and match rates."""
         total = results["csv_total"]
         found = results["found_in_db"]
@@ -427,7 +403,7 @@ class TubeHomologaInvestigationService:
                 rate = (entity_stats["found"] / entity_stats["total"]) * 100
                 entity_stats["match_rate"] = rate
 
-    def _save_detailed_report(self, results: Dict[str, Any], output_path: str):
+    def _save_detailed_report(self, results: dict[str, Any], output_path: str):
         """Save detailed investigation report to JSON file."""
         self.logger.info(f"Saving detailed report to: {output_path}")
 
@@ -444,7 +420,7 @@ class TubeHomologaInvestigationService:
 
         self.logger.info("Detailed report saved successfully")
 
-    def _save_csv_report(self, results: Dict[str, Any], output_path: str):
+    def _save_csv_report(self, results: dict[str, Any], output_path: str):
         """Save investigation report to CSV format."""
         self.logger.info(f"Saving CSV report to: {output_path}")
 
@@ -522,7 +498,7 @@ class TubeHomologaInvestigationService:
         summary_path = output_path.replace(".csv", "_summary.csv")
         self._save_csv_summary(results, summary_path)
 
-    def _save_csv_summary(self, results: Dict[str, Any], output_path: str):
+    def _save_csv_summary(self, results: dict[str, Any], output_path: str):
         """Save investigation summary to CSV format."""
         self.logger.info(f"Saving CSV summary to: {output_path}")
 

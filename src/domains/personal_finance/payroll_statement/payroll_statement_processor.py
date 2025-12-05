@@ -1,27 +1,22 @@
-from typing import List, Dict
-from utils.file_manager import FileManager
 import re
+
 import pdfplumber
 
+from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 
 
 class PayrollStatementProcessor:
-    """
-    Processor for extracting relevant data from payroll statements for IRPF calculations.
-    """
+    """Processor for extracting relevant data from payroll statements for IRPF calculations."""
 
     _logger = LogManager.get_instance().get_logger("PayrollStatementProcessor")
-    LogManager.add_custom_handler(
-        logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2"
-    )
+    LogManager.add_custom_handler(logger_name="PyPDF2", replace_existing=True, handler_id="PyPDF2")
 
     def __init__(self):
         self.data = []
 
-    def process_pdf(self, file_path: str) -> List[Dict[str, str]]:
-        """
-        Processes a single PDF file to extract payroll statement data.
+    def process_pdf(self, file_path: str) -> list[dict[str, str]]:
+        """Processes a single PDF file to extract payroll statement data.
 
         Args:
             file_path (str): The path to the PDF file.
@@ -62,9 +57,8 @@ class PayrollStatementProcessor:
         # self._logger.info(f"Extracted {len(payroll_statements)} payroll statements from the PDF.")
         # return payroll_statements
 
-    def process_folder(self, folder_path: str) -> List[Dict[str, str]]:
-        """
-        Processes all PDF files in a folder to extract payroll statement data.
+    def process_folder(self, folder_path: str) -> list[dict[str, str]]:
+        """Processes all PDF files in a folder to extract payroll statement data.
 
         Args:
             folder_path (str): The path to the folder containing PDF files.
@@ -83,19 +77,13 @@ class PayrollStatementProcessor:
                 statements = self.process_pdf(pdf_file)
                 all_statements.extend(statements)
             except Exception as e:
-                self._logger.error(
-                    f"Error processing file {pdf_file}: {e}", exc_info=True
-                )
+                self._logger.error(f"Error processing file {pdf_file}: {e}", exc_info=True)
 
-        self._logger.info(
-            f"Processed {len(pdf_files)} files with {len(all_statements)} "
-            "payroll statements extracted."
-        )
+        self._logger.info(f"Processed {len(pdf_files)} files with {len(all_statements)} payroll statements extracted.")
         return all_statements
 
-    def _extract_statement_details(self, text: str) -> Dict[str, str]:
-        """
-        Extracts specific details from a payroll statement text.
+    def _extract_statement_details(self, text: str) -> dict[str, str]:
+        """Extracts specific details from a payroll statement text.
 
         Args:
             text (str): The text content of the payroll statement.
@@ -122,8 +110,7 @@ class PayrollStatementProcessor:
         return details
 
     def _extract_from_pdf(self, file_path: str) -> list:
-        """
-        Extracts payroll statement data from a PDF file.
+        """Extracts payroll statement data from a PDF file.
 
         Args:
             file_path (str): Path to the PDF file.
@@ -159,8 +146,7 @@ class PayrollStatementProcessor:
 
     @staticmethod
     def _parse_value(value: str) -> float:
-        """
-        Parses a string value into a float.
+        """Parses a string value into a float.
 
         Args:
             value (str): Value as a string.
@@ -174,8 +160,7 @@ class PayrollStatementProcessor:
             return 0.0
 
     def _is_valid_table(self, tables: list) -> bool:
-        """
-        Validates if the detected tables are meaningful.
+        """Validates if the detected tables are meaningful.
 
         Args:
             tables (list): List of extracted tables.
@@ -185,15 +170,12 @@ class PayrollStatementProcessor:
         """
         # Simple validation: check if tables contain at least one meaningful row
         for table in tables:
-            if len(table) > 1 and any(
-                row for row in table if any(cell.strip() for cell in row)
-            ):
+            if len(table) > 1 and any(row for row in table if any(cell.strip() for cell in row)):
                 return True
         return False
 
     def _process_table(self, tables: list) -> dict:
-        """
-        Processes table data and extracts key information.
+        """Processes table data and extracts key information.
 
         Args:
             tables (list): List of tables extracted from a page.
@@ -212,8 +194,7 @@ class PayrollStatementProcessor:
         return parsed_data
 
     def _process_text(self, text: str) -> dict:
-        """
-        Processes text data and extracts key information.
+        """Processes text data and extracts key information.
 
         Args:
             text (str): Text content of a page.

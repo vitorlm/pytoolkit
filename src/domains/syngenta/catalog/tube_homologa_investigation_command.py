@@ -1,5 +1,4 @@
-"""
-TUBE_HOMOLOGA Deleted Products Investigation Command
+"""TUBE_HOMOLOGA Deleted Products Investigation Command
 
 This command validates and investigates deleted TUBE_HOMOLOGA products by:
 1. Reading a CSV file with deleted product information
@@ -8,6 +7,7 @@ This command validates and investigates deleted TUBE_HOMOLOGA products by:
 """
 
 from argparse import ArgumentParser, Namespace
+
 from utils.cache_manager.cache_manager import CacheManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
@@ -50,17 +50,13 @@ class TubeHomologaInvestigationCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--csv-path", required=True, help="Path to CSV file with deleted products"
-        )
+        parser.add_argument("--csv-path", required=True, help="Path to CSV file with deleted products")
         parser.add_argument(
             "--db-path",
             default="data/dynamodb_export.duckdb",
             help="Path to DuckDB catalog database (default: data/dynamodb_export.duckdb)",
         )
-        parser.add_argument(
-            "--output-path", help="Path to save detailed report (optional)"
-        )
+        parser.add_argument("--output-path", help="Path to save detailed report (optional)")
         parser.add_argument(
             "--output-format",
             choices=["json", "csv"],
@@ -81,9 +77,7 @@ class TubeHomologaInvestigationCommand(BaseCommand):
     @staticmethod
     def main(args: Namespace):
         ensure_env_loaded()
-        logger = LogManager.get_instance().get_logger(
-            "TubeHomologaInvestigationCommand"
-        )
+        logger = LogManager.get_instance().get_logger("TubeHomologaInvestigationCommand")
 
         # Clear cache if requested
         if args.clear_cache:
@@ -154,15 +148,11 @@ class TubeHomologaInvestigationCommand(BaseCommand):
             if args.output_path:
                 format_info = f" ({args.output_format} format)"
                 if args.output_format == "csv":
-                    print(
-                        f"\nDetailed report saved to: {args.output_path}{format_info}"
-                    )
+                    print(f"\nDetailed report saved to: {args.output_path}{format_info}")
                     summary_path = args.output_path.replace(".csv", "_summary.csv")
                     print(f"Summary report saved to: {summary_path}")
                 else:
-                    print(
-                        f"\nDetailed report saved to: {args.output_path}{format_info}"
-                    )
+                    print(f"\nDetailed report saved to: {args.output_path}{format_info}")
 
         except Exception as e:
             logger.error(f"Investigation failed: {e}", exc_info=True)

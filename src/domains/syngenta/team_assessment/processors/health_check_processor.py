@@ -1,30 +1,29 @@
-from pathlib import Path
-from typing import Dict, List, Union, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
 from utils.base_processor import BaseProcessor
-from ..core.statistics import StatisticsHelper
-from ..core.health_check import (
-    FeedbackAssessment,
-    CorrelationSummary,
-    HealthCheckStatistics,
-    MemberHealthCheck,
-)
-from ..core.validations import ValidationHelper
 from utils.data.excel_manager import ExcelManager
 from utils.file_manager import FileManager
 
+from ..core.health_check import (
+    CorrelationSummary,
+    FeedbackAssessment,
+    HealthCheckStatistics,
+    MemberHealthCheck,
+)
+from ..core.statistics import StatisticsHelper
+from ..core.validations import ValidationHelper
+
 
 class HealthCheckProcessor(BaseProcessor):
-    """
-    Processor for extracting Health Check data from Excel files.
-    """
+    """Processor for extracting Health Check data from Excel files."""
 
     def __init__(self):
         super().__init__(allowed_extensions=[".xlsx"])
 
-    def process_file(self, file_path: Union[str, Path]) -> Dict[str, MemberHealthCheck]:
-        """
-        Processes a single file to extract Health Check data.
+    def process_file(self, file_path: str | Path) -> dict[str, MemberHealthCheck]:
+        """Processes a single file to extract Health Check data.
 
         Args:
             file_path (Union[str, Path]): Path to the Excel file.
@@ -37,30 +36,20 @@ class HealthCheckProcessor(BaseProcessor):
 
         FileManager.validate_file(file_path, allowed_extensions=[".xlsx"])
 
-        relevant_sheets = ExcelManager.filter_sheets_by_pattern(
-            file_path, pattern="^(?!Example$|Data$)"
-        )
+        relevant_sheets = ExcelManager.filter_sheets_by_pattern(file_path, pattern="^(?!Example$|Data$)")
 
-        members_health_check: Dict[str, MemberHealthCheck] = {}
+        members_health_check: dict[str, MemberHealthCheck] = {}
         for sheet_name in relevant_sheets:
             member_name = sheet_name.split(" ")[0]
-            self.logger.info(
-                f"Processing sheet: {sheet_name} for member: {member_name}"
-            )
-            sheet_data = ExcelManager.read_excel_as_list(
-                file_path, sheet_name=sheet_name
-            )
+            self.logger.info(f"Processing sheet: {sheet_name} for member: {member_name}")
+            sheet_data = ExcelManager.read_excel_as_list(file_path, sheet_name=sheet_name)
             feedback_data = self.process_sheet(sheet_data)
 
             # Validate feedback data
             ValidationHelper.validate_health_check_data(feedback_data)
 
             # Calculate statistics if there are enough records
-            statistics = (
-                self._calculate_statistics(feedback_data)
-                if len(feedback_data) > 3
-                else None
-            )
+            statistics = self._calculate_statistics(feedback_data) if len(feedback_data) > 3 else None
 
             members_health_check[member_name] = MemberHealthCheck(
                 feedback_data=feedback_data,
@@ -70,9 +59,8 @@ class HealthCheckProcessor(BaseProcessor):
         self.logger.info(f"Completed processing of file: {file_path}")
         return members_health_check
 
-    def process_sheet(self, sheet_data: List[List[Any]]) -> List[FeedbackAssessment]:
-        """
-        Processes a single sheet to extract feedback data.
+    def process_sheet(self, sheet_data: list[list[Any]]) -> list[FeedbackAssessment]:
+        """Processes a single sheet to extract feedback data.
 
         Args:
             sheet_data (List[List[Any]]): Sheet data as a list of rows.
@@ -99,20 +87,15 @@ class HealthCheckProcessor(BaseProcessor):
                     impact_comment=row[header_map.get("impact comment")],
                     morale=self._parse_optional_int(row[header_map.get("morale")]),
                     morale_comment=row[header_map.get("morale comment")],
-                    retention=self._parse_optional_int(
-                        row[header_map.get("retention")]
-                    ),
+                    retention=self._parse_optional_int(row[header_map.get("retention")]),
                     retention_comment=row[header_map.get("retention comment")],
                 )
             )
         self.logger.info(f"Extracted {len(feedback_data)} feedback entries from sheet.")
         return feedback_data
 
-    def _calculate_statistics(
-        self, feedback_data: List[FeedbackAssessment]
-    ) -> HealthCheckStatistics:
-        """
-        Calculates statistics for the feedback data.
+    def _calculate_statistics(self, feedback_data: list[FeedbackAssessment]) -> HealthCheckStatistics:
+        """Calculates statistics for the feedback data.
 
         Args:
             feedback_data (List[FeedbackAssessment]): List of feedback assessments.
@@ -143,16 +126,10 @@ class HealthCheckProcessor(BaseProcessor):
         correlations = CorrelationSummary(
             effort_vs_impact=StatisticsHelper.calculate_correlation(efforts, impacts),
             effort_vs_morale=StatisticsHelper.calculate_correlation(efforts, morales),
-            effort_vs_retention=StatisticsHelper.calculate_correlation(
-                efforts, retentions
-            ),
+            effort_vs_retention=StatisticsHelper.calculate_correlation(efforts, retentions),
             impact_vs_morale=StatisticsHelper.calculate_correlation(impacts, morales),
-            impact_vs_retention=StatisticsHelper.calculate_correlation(
-                impacts, retentions
-            ),
-            morale_vs_retention=StatisticsHelper.calculate_correlation(
-                morales, retentions
-            ),
+            impact_vs_retention=StatisticsHelper.calculate_correlation(impacts, retentions),
+            morale_vs_retention=StatisticsHelper.calculate_correlation(morales, retentions),
         )
 
         self.logger.info("Statistics calculation completed.")
@@ -170,5 +147,5 @@ class HealthCheckProcessor(BaseProcessor):
         return datetime.strptime(date_value, "%Y-%m-%d").strftime("%d/%m/%Y")
 
     @staticmethod
-    def _parse_optional_int(value: Any) -> Optional[int]:
+    def _parse_optional_int(value: Any) -> int | None:
         return value if isinstance(value, int) else None

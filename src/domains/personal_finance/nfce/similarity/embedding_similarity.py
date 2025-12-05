@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""
-Embedding Similarity - Calculate similarity using semantic embeddings
-"""
+"""Embedding Similarity - Calculate similarity using semantic embeddings"""
+
+from dataclasses import dataclass
 
 import numpy as np
-from typing import List, Dict, Tuple
-from dataclasses import dataclass
-from utils.logging.logging_manager import LogManager
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
+
 from .feature_extractor import ProductFeatures
 
 
@@ -31,7 +31,7 @@ class EmbeddingResult:
     # Combined score
     final_score: float
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "product1_description": self.product1_description,
@@ -47,8 +47,7 @@ class EmbeddingResult:
 
 
 class EmbeddingSimilarity:
-    """
-    Calculate similarity using semantic embeddings from sentence transformers.
+    """Calculate similarity using semantic embeddings from sentence transformers.
 
     This class provides semantic similarity calculation using pre-trained
     multilingual models that can capture deep semantic relationships
@@ -84,24 +83,18 @@ class EmbeddingSimilarity:
             try:
                 from sentence_transformers import SentenceTransformer
 
-                self.logger.info(
-                    f"Loading sentence transformer model: {self.model_name}"
-                )
+                self.logger.info(f"Loading sentence transformer model: {self.model_name}")
                 self._model = SentenceTransformer(self.model_name)
                 self.logger.info("Model loaded successfully")
             except ImportError:
                 self.logger.error(
-                    "sentence-transformers not installed. "
-                    "Please install with: pip install sentence-transformers"
+                    "sentence-transformers not installed. Please install with: pip install sentence-transformers"
                 )
-                raise ImportError(
-                    "sentence-transformers is required for embedding similarity"
-                )
+                raise ImportError("sentence-transformers is required for embedding similarity")
         return self._model
 
     def get_embedding(self, text: str) -> np.ndarray:
-        """
-        Get embedding for a text string.
+        """Get embedding for a text string.
 
         Args:
             text: Input text to embed
@@ -116,9 +109,7 @@ class EmbeddingSimilarity:
         # Check cache first
         if self.cache_enabled:
             cache_key = f"{self.embedding_cache_key}:{hash(text)}"
-            cached_embedding = self.cache.load(
-                cache_key, expiration_minutes=1440
-            )  # 24 hours
+            cached_embedding = self.cache.load(cache_key, expiration_minutes=1440)  # 24 hours
             if cached_embedding is not None:
                 return np.array(cached_embedding)
 
@@ -137,9 +128,8 @@ class EmbeddingSimilarity:
             # Return zero vector on error
             return np.zeros(512)
 
-    def get_embeddings_batch(self, texts: List[str]) -> List[np.ndarray]:
-        """
-        Get embeddings for a batch of texts (more efficient).
+    def get_embeddings_batch(self, texts: list[str]) -> list[np.ndarray]:
+        """Get embeddings for a batch of texts (more efficient).
 
         Args:
             texts: List of texts to embed
@@ -163,9 +153,7 @@ class EmbeddingSimilarity:
         for i, text in enumerate(valid_texts):
             if self.cache_enabled:
                 cache_key = f"{self.embedding_cache_key}:{hash(text)}"
-                cached_embedding = self.cache.load(
-                    cache_key, expiration_minutes=1440
-                )  # 24 hours
+                cached_embedding = self.cache.load(cache_key, expiration_minutes=1440)  # 24 hours
                 if cached_embedding is not None:
                     embeddings.append(np.array(cached_embedding))
                 else:
@@ -178,9 +166,7 @@ class EmbeddingSimilarity:
         # Get embeddings for uncached texts
         if texts_to_embed:
             try:
-                batch_embeddings = self.model.encode(
-                    texts_to_embed, convert_to_numpy=True
-                )
+                batch_embeddings = self.model.encode(texts_to_embed, convert_to_numpy=True)
 
                 # Cache new embeddings
                 if self.cache_enabled:
@@ -210,11 +196,8 @@ class EmbeddingSimilarity:
 
         return final_embeddings
 
-    def calculate_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> EmbeddingResult:
-        """
-        Calculate semantic similarity between two product features.
+    def calculate_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> EmbeddingResult:
+        """Calculate semantic similarity between two product features.
 
         Args:
             features1: First product features
@@ -237,12 +220,8 @@ class EmbeddingSimilarity:
         manhattan_dist = self._manhattan_distance(embedding1, embedding2)
 
         # Normalize distances to similarity scores (0-1)
-        normalized_euclidean = self._normalize_distance(
-            euclidean_dist, max_distance=2.0
-        )
-        normalized_manhattan = self._normalize_distance(
-            manhattan_dist, max_distance=4.0
-        )
+        normalized_euclidean = self._normalize_distance(euclidean_dist, max_distance=2.0)
+        normalized_manhattan = self._normalize_distance(manhattan_dist, max_distance=4.0)
 
         # Calculate weighted final score
         final_score = (
@@ -267,10 +246,9 @@ class EmbeddingSimilarity:
         return result
 
     def calculate_batch_similarity(
-        self, features_list: List[ProductFeatures], threshold: float = 0.5
-    ) -> List[EmbeddingResult]:
-        """
-        Calculate similarity for all pairs in a batch.
+        self, features_list: list[ProductFeatures], threshold: float = 0.5
+    ) -> list[EmbeddingResult]:
+        """Calculate similarity for all pairs in a batch.
 
         Args:
             features_list: List of product features
@@ -300,12 +278,8 @@ class EmbeddingSimilarity:
                 manhattan_dist = self._manhattan_distance(embedding1, embedding2)
 
                 # Normalize distances
-                normalized_euclidean = self._normalize_distance(
-                    euclidean_dist, max_distance=2.0
-                )
-                normalized_manhattan = self._normalize_distance(
-                    manhattan_dist, max_distance=4.0
-                )
+                normalized_euclidean = self._normalize_distance(euclidean_dist, max_distance=2.0)
+                normalized_manhattan = self._normalize_distance(manhattan_dist, max_distance=4.0)
 
                 # Calculate final score
                 final_score = (
@@ -334,12 +308,11 @@ class EmbeddingSimilarity:
     def find_similar_products(
         self,
         target_features: ProductFeatures,
-        candidate_features: List[ProductFeatures],
+        candidate_features: list[ProductFeatures],
         top_k: int = 10,
         threshold: float = 0.5,
-    ) -> List[Tuple[ProductFeatures, float]]:
-        """
-        Find most similar products to a target product.
+    ) -> list[tuple[ProductFeatures, float]]:
+        """Find most similar products to a target product.
 
         Args:
             target_features: Target product features
@@ -363,20 +336,12 @@ class EmbeddingSimilarity:
         # Calculate similarity with all candidates
         for i, candidate_embedding in enumerate(candidate_embeddings):
             cosine_sim = self._cosine_similarity(target_embedding, candidate_embedding)
-            euclidean_dist = self._euclidean_distance(
-                target_embedding, candidate_embedding
-            )
-            manhattan_dist = self._manhattan_distance(
-                target_embedding, candidate_embedding
-            )
+            euclidean_dist = self._euclidean_distance(target_embedding, candidate_embedding)
+            manhattan_dist = self._manhattan_distance(target_embedding, candidate_embedding)
 
             # Normalize distances
-            normalized_euclidean = self._normalize_distance(
-                euclidean_dist, max_distance=2.0
-            )
-            normalized_manhattan = self._normalize_distance(
-                manhattan_dist, max_distance=4.0
-            )
+            normalized_euclidean = self._normalize_distance(euclidean_dist, max_distance=2.0)
+            normalized_manhattan = self._normalize_distance(manhattan_dist, max_distance=4.0)
 
             # Calculate final score
             final_score = (
@@ -420,7 +385,7 @@ class EmbeddingSimilarity:
             return 0.0
         return 1.0 - (distance / max_distance)
 
-    def get_model_info(self) -> Dict:
+    def get_model_info(self) -> dict:
         """Get information about the current model"""
         return {
             "model_name": self.model_name,

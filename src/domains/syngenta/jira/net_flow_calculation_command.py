@@ -1,5 +1,4 @@
-"""
-JIRA Net Flow Calculation Command
+"""JIRA Net Flow Calculation Command
 
 This command calculates net flow metrics by analyzing arrival rate (issues created)
 versus throughput (issues completed) for specified time periods.
@@ -29,11 +28,11 @@ SCORECARD INTERPRETATION:
 """
 
 from argparse import ArgumentParser, Namespace
-from datetime import datetime, date
+from datetime import date, datetime
 
 from domains.syngenta.jira.net_flow_calculation_service import NetFlowCalculationService
-from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from domains.syngenta.jira.shared.parsers import ErrorHandler
+from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -169,9 +168,7 @@ class NetFlowCalculationCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute scorecard generation.
-        """
+        """Main function to execute scorecard generation."""
         ensure_env_loaded()
         logger = LogManager.get_instance().get_logger("NetFlowCalculationCommand")
 
@@ -187,12 +184,7 @@ class NetFlowCalculationCommand(BaseCommand):
 
             # Parse teams (supports repeated flags and comma-separated lists)
             raw_teams = getattr(args, "teams", []) or []
-            teams = [
-                t.strip()
-                for entry in raw_teams
-                for t in str(entry).split(",")
-                if t.strip()
-            ] or None
+            teams = [t.strip() for entry in raw_teams for t in str(entry).split(",") if t.strip()] or None
 
             # Generate the scorecard
             scorecard = service.generate_net_flow_scorecard(
@@ -218,9 +210,7 @@ class NetFlowCalculationCommand(BaseCommand):
                 logger.info("Net Flow Scorecard generated successfully")
                 NetFlowCalculationCommand._print_scorecard(scorecard, args)
                 if args.output_format in ["json", "md"]:
-                    print(
-                        f"\nDetailed scorecard saved in {args.output_format.upper()} format"
-                    )
+                    print(f"\nDetailed scorecard saved in {args.output_format.upper()} format")
 
                 try:
                     summary_mode = getattr(args, "summary_output", "auto")
@@ -228,9 +218,7 @@ class NetFlowCalculationCommand(BaseCommand):
 
                     # Use JiraSummaryManager for summary generation
                     summary_manager = JiraSummaryManager()
-                    args.command_name = (
-                        "net-flow-calculation"  # Set command name for metrics
-                    )
+                    args.command_name = "net-flow-calculation"  # Set command name for metrics
                     summary_path = summary_manager.emit_summary_compatible(
                         scorecard,
                         summary_mode,
@@ -250,9 +238,7 @@ class NetFlowCalculationCommand(BaseCommand):
 
             # Use ErrorHandler for consistent error messaging
             error_handler = ErrorHandler()
-            error_handler.handle_api_error(
-                e, f"net flow calculation for project {args.project_key}"
-            )
+            error_handler.handle_api_error(e, f"net flow calculation for project {args.project_key}")
             exit(1)
 
     @staticmethod
@@ -267,7 +253,9 @@ class NetFlowCalculationCommand(BaseCommand):
         week_number = metadata.get("week_number")
         anchor_date = metadata.get("anchor_date")
 
-        header = f"🌊 NET FLOW Health - Week {week_number} ({start_date.strftime('%b %d')}-{end_date.strftime('%b %d')})"
+        header = (
+            f"🌊 NET FLOW Health - Week {week_number} ({start_date.strftime('%b %d')}-{end_date.strftime('%b %d')})"
+        )
         print("\n" + "=" * len(header))
         print(header)
         print(f"(Anchored on: {anchor_date})")
@@ -277,9 +265,7 @@ class NetFlowCalculationCommand(BaseCommand):
         print("\nEXECUTIVE SUMMARY:")
         net_flow = current_week.get("net_flow", 0)
         flow_ratio = current_week.get("flow_ratio", 0)
-        status_icon, status_text = NetFlowCalculationCommand._get_net_flow_status(
-            net_flow
-        )
+        status_icon, status_text = NetFlowCalculationCommand._get_net_flow_status(net_flow)
 
         # Basic metrics
         print(f"- Net Flow:     {net_flow:+} {status_icon} ({status_text})")
@@ -384,7 +370,7 @@ class NetFlowCalculationCommand(BaseCommand):
         print(f"- Primary Bottleneck: {bottleneck}")
 
         # Segments by Issue Type
-        if "segments" in scorecard and scorecard["segments"]:
+        if scorecard.get("segments"):
             print("\nDIAGNOSTICS - BY ISSUE TYPE:")
             for segment in scorecard["segments"]:
                 net_flow = segment["net_flow"]
@@ -394,7 +380,7 @@ class NetFlowCalculationCommand(BaseCommand):
                 )
 
         # Health Alerts
-        if "alerts" in scorecard and scorecard["alerts"]:
+        if scorecard.get("alerts"):
             triggered_alerts = [a for a in scorecard["alerts"] if a["triggered"]]
             if triggered_alerts:
                 print(f"\n🚨 HEALTH ALERTS ({len(triggered_alerts)} triggered):")

@@ -1,5 +1,4 @@
-"""
-JIRA Issue Velocity Analysis Command
+"""JIRA Issue Velocity Analysis Command
 
 This command analyzes issue velocity by tracking both creation and resolution rates monthly,
 providing insights into team productivity and backlog trends.
@@ -163,8 +162,7 @@ class IssueVelocityCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute issue velocity analysis.
+        """Main function to execute issue velocity analysis.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -194,9 +192,7 @@ class IssueVelocityCommand(BaseCommand):
             # Run velocity analysis
             # Parse teams
             raw_teams = getattr(args, "teams", []) or []
-            teams = [
-                t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()
-            ] or None
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
 
             result = service.analyze_issue_velocity(
                 project_key=args.project_key,
@@ -229,9 +225,7 @@ class IssueVelocityCommand(BaseCommand):
         except Exception as e:
             # Check for common errors and provide helpful guidance
             error_str = str(e)
-            if "400" in error_str and (
-                "does not exist for the field 'type'" in error_str
-            ):
+            if "400" in error_str and ("does not exist for the field 'type'" in error_str):
                 logger.error(f"Failed to execute velocity analysis: {e}")
                 print("\n" + "=" * 70)
                 print("ERROR: Invalid Issue Type Detected")
@@ -242,12 +236,8 @@ class IssueVelocityCommand(BaseCommand):
                 )
                 print(f"You provided: {args.issue_types}")
                 print("\nTo fix this issue:")
-                print(
-                    "1. Use the list-custom-fields command to see available issue types:"
-                )
-                print(
-                    f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}"
-                )
+                print("1. Use the list-custom-fields command to see available issue types:")
+                print(f"   python src/main.py syngenta jira list-custom-fields --project-key {args.project_key}")
                 print("2. Or try with common issue types:")
                 print("   --issue-types 'Bug,Story,Task,Epic'")
                 print("=" * 70)
@@ -268,8 +258,7 @@ class IssueVelocityCommand(BaseCommand):
 
     @staticmethod
     def _print_velocity_summary(result: dict, args: Namespace, issue_types: list):
-        """
-        Print the summary results of the velocity analysis.
+        """Print the summary results of the velocity analysis.
 
         Args:
             result (dict): Analysis results
@@ -285,11 +274,7 @@ class IssueVelocityCommand(BaseCommand):
         print(f"Project: {args.project_key}")
         print(f"Period: {result.get('period_display', args.time_period)}")
         print(f"Issue Types: {', '.join(issue_types)}")
-        meta_team = (
-            result.get("analysis_metadata", {}).get("team")
-            if isinstance(result, dict)
-            else None
-        )
+        meta_team = result.get("analysis_metadata", {}).get("team") if isinstance(result, dict) else None
         if meta_team:
             print(f"Teams: {meta_team}")
         if args.labels:
@@ -308,10 +293,7 @@ class IssueVelocityCommand(BaseCommand):
 
         # Header
         period_label = "Month" if args.aggregation == "monthly" else "Quarter"
-        print(
-            f"{'Period':<12} {'Created':<8} {'Resolved':<9} {'Net Vel':<8} "
-            f"{'Backlog':<8} {'Efficiency':<10}"
-        )
+        print(f"{'Period':<12} {'Created':<8} {'Resolved':<9} {'Net Vel':<8} {'Backlog':<8} {'Efficiency':<10}")
         print(f"{'=' * 12} {'=' * 8} {'=' * 9} {'=' * 8} {'=' * 8} {'=' * 10}")
 
         # Data rows
@@ -324,15 +306,10 @@ class IssueVelocityCommand(BaseCommand):
             efficiency = period_data["efficiency_percentage"]
 
             cumulative_backlog += net_velocity
-            backlog_display = (
-                f"+{cumulative_backlog}"
-                if cumulative_backlog > 0
-                else str(cumulative_backlog)
-            )
+            backlog_display = f"+{cumulative_backlog}" if cumulative_backlog > 0 else str(cumulative_backlog)
 
             print(
-                f"{period:<12} {created:<8} {resolved:<9} {net_velocity:>+7} "
-                f"{backlog_display:<8} {efficiency:>8.1f}%"
+                f"{period:<12} {created:<8} {resolved:<9} {net_velocity:>+7} {backlog_display:<8} {efficiency:>8.1f}%"
             )
 
         # Print totals
@@ -361,9 +338,7 @@ class IssueVelocityCommand(BaseCommand):
             best_period = summary.get("best_period")
             worst_period = summary.get("worst_period")
             if best_period:
-                print(
-                    f"• Best {period_label} (Efficiency): {best_period['period']} ({best_period['efficiency']:.1f}%)"
-                )
+                print(f"• Best {period_label} (Efficiency): {best_period['period']} ({best_period['efficiency']:.1f}%)")
             if worst_period:
                 print(
                     f"• Worst {period_label} (Efficiency): {worst_period['period']} ({worst_period['efficiency']:.1f}%)"
@@ -373,9 +348,7 @@ class IssueVelocityCommand(BaseCommand):
             print(f"• Trend Direction: {trend.title()}")
 
             backlog_change = summary.get("backlog_change", 0)
-            print(
-                f"• Total Backlog Change: {'+' if backlog_change > 0 else ''}{backlog_change} issues"
-            )
+            print(f"• Total Backlog Change: {'+' if backlog_change > 0 else ''}{backlog_change} issues")
 
         # Print breakdown by issue type if multiple types
         if len(issue_types) > 1 and "by_issue_type" in result:
@@ -385,8 +358,6 @@ class IssueVelocityCommand(BaseCommand):
                 created = type_data.get("total_created", 0)
                 resolved = type_data.get("total_resolved", 0)
                 net = type_data.get("net_velocity", 0)
-                print(
-                    f"{issue_type:<15} Created: {created:<4} | Resolved: {resolved:<4} | Net: {net:>+3}"
-                )
+                print(f"{issue_type:<15} Created: {created:<4} | Resolved: {resolved:<4} | Net: {net:>+3}")
 
         print("=" * 80)

@@ -1,5 +1,4 @@
-"""
-JIRA Adapter for PyToolkit MCP Integration.
+"""JIRA Adapter for PyToolkit MCP Integration.
 
 This adapter reuses 100% of the existing PyToolkit JIRA services, providing
 an MCP-compatible interface for JIRA operations.
@@ -23,8 +22,7 @@ from .base_adapter import BaseAdapter
 
 
 class JiraAdapter(BaseAdapter):
-    """
-    JIRA adapter that reuses 100% of existing PyToolkit services.
+    """JIRA adapter that reuses 100% of existing PyToolkit services.
 
     Services integrated:
     - EpicMonitorService: Epic monitoring with problem detection
@@ -71,11 +69,8 @@ class JiraAdapter(BaseAdapter):
             _ = self.service  # Trigger lazy loading
         return self._services
 
-    def get_epic_monitoring_data(
-        self, project_key: str, team: str | None = None
-    ) -> dict[str, Any]:
-        """
-        Get epic monitoring data with problem detection.
+    def get_epic_monitoring_data(self, project_key: str, team: str | None = None) -> dict[str, Any]:
+        """Get epic monitoring data with problem detection.
 
         Args:
             project_key: JIRA project key
@@ -111,12 +106,8 @@ class JiraAdapter(BaseAdapter):
                         "summary": epic.summary,
                         "status": epic.status,
                         "assignee": epic.assignee_name,
-                        "start_date": (
-                            epic.start_date.isoformat() if epic.start_date else None
-                        ),
-                        "due_date": (
-                            epic.due_date.isoformat() if epic.due_date else None
-                        ),
+                        "start_date": (epic.start_date.isoformat() if epic.start_date else None),
+                        "due_date": (epic.due_date.isoformat() if epic.due_date else None),
                         "fix_version": epic.fix_version,
                         "problems": epic.problems,
                     }
@@ -148,8 +139,7 @@ class JiraAdapter(BaseAdapter):
         issue_types: list[str] | None = None,
         team: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Get cycle time analysis (Started to Done).
+        """Get cycle time analysis (Started to Done).
 
         Args:
             project_key: JIRA project key
@@ -195,8 +185,7 @@ class JiraAdapter(BaseAdapter):
         aggregation: str = "monthly",
         team: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Get issue velocity analysis (creation vs resolution).
+        """Get issue velocity analysis (creation vs resolution).
 
         Args:
             project_key: JIRA project key
@@ -244,8 +233,7 @@ class JiraAdapter(BaseAdapter):
         issue_types: list[str] | None = None,
         team: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Get due date adherence analysis.
+        """Get due date adherence analysis.
 
         Args:
             project_key: JIRA project key
@@ -290,8 +278,7 @@ class JiraAdapter(BaseAdapter):
         issue_types: list[str] | None = None,
         squad: str | None = None,
     ) -> dict[str, Any]:
-        """
-        Get resolution time analysis with SLA metrics.
+        """Get resolution time analysis with SLA metrics.
 
         Args:
             project_key: JIRA project key
@@ -334,8 +321,7 @@ class JiraAdapter(BaseAdapter):
         status_categories: list[str] | None = None,
         priorities: list[str] | None = None,
     ) -> dict[str, Any]:
-        """
-        Get currently open issues with optional filtering.
+        """Get currently open issues with optional filtering.
 
         Args:
             project_key: JIRA project key
@@ -377,11 +363,8 @@ class JiraAdapter(BaseAdapter):
             status_categories=status_categories,
         )
 
-    def get_comprehensive_dashboard(
-        self, project_key: str, team: str | None = None
-    ) -> dict[str, Any]:
-        """
-        Get comprehensive dashboard with all key metrics.
+    def get_comprehensive_dashboard(self, project_key: str, team: str | None = None) -> dict[str, Any]:
+        """Get comprehensive dashboard with all key metrics.
 
         Args:
             project_key: JIRA project key
@@ -458,17 +441,13 @@ class JiraAdapter(BaseAdapter):
             base_health.update(
                 {
                     "jira_connectivity": "healthy",
-                    "available_services": (
-                        list(self._services.keys()) if self._services else []
-                    ),
+                    "available_services": (list(self._services.keys()) if self._services else []),
                     "test_operation": "project_issue_types_fetch",
                     "test_result_count": len(test_result) if test_result else 0,
                 }
             )
 
         except Exception as e:
-            base_health.update(
-                {"jira_connectivity": "unhealthy", "connectivity_error": str(e)}
-            )
+            base_health.update({"jira_connectivity": "unhealthy", "connectivity_error": str(e)})
 
         return base_health

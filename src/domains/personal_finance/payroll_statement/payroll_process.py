@@ -1,8 +1,10 @@
 from argparse import ArgumentParser, Namespace
+
+from log_config import LogManager
 from utils.command.base_command import BaseCommand
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
-from log_config import LogManager
+
 from .payroll_statement_processor import PayrollStatementProcessor
 
 # Configure logger
@@ -10,9 +12,7 @@ logger = LogManager.get_instance().get_logger("PayrollProcessCommand")
 
 
 class PayrollProcessCommand(BaseCommand):
-    """
-    Command to process payroll statements into JSON format.
-    """
+    """Command to process payroll statements into JSON format."""
 
     @staticmethod
     def get_name() -> str:
@@ -58,7 +58,5 @@ class PayrollProcessCommand(BaseCommand):
             JSONManager.write_json(data, args.output)
             logger.info(f"Payroll data successfully saved to {args.output}")
         except Exception as e:
-            logger.error(
-                f"An error occurred during payroll processing: {e}", exc_info=True
-            )
+            logger.error(f"An error occurred during payroll processing: {e}", exc_info=True)
             raise

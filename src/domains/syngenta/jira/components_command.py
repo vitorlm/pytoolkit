@@ -1,5 +1,4 @@
-"""
-JIRA Components Management Command
+"""JIRA Components Management Command
 
 This unified command provides comprehensive JIRA component management functionality:
 
@@ -70,10 +69,11 @@ ASSIGNEE TYPES:
 """
 
 from argparse import ArgumentParser, Namespace
+
+from domains.syngenta.jira.components_service import ComponentService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
-from domains.syngenta.jira.components_service import ComponentService
 
 
 class ComponentsCommand(BaseCommand):
@@ -85,9 +85,7 @@ class ComponentsCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Manage JIRA project components (list, create, delete, batch operations)."
-        )
+        return "Manage JIRA project components (list, create, delete, batch operations)."
 
     @staticmethod
     def get_help() -> str:
@@ -134,8 +132,7 @@ class ComponentsCommand(BaseCommand):
             required=False,
             default="PROJECT_DEFAULT",
             choices=["PROJECT_DEFAULT", "COMPONENT_LEAD", "PROJECT_LEAD", "UNASSIGNED"],
-            help="The type of assignee for the component "
-            "(create operation, default: PROJECT_DEFAULT).",
+            help="The type of assignee for the component (create operation, default: PROJECT_DEFAULT).",
         )
         parser.add_argument(
             "--lead",
@@ -177,8 +174,7 @@ class ComponentsCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute component operations.
+        """Main function to execute component operations.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -214,9 +210,7 @@ class ComponentsCommand(BaseCommand):
     @staticmethod
     def _list_components(args: Namespace, service: ComponentService):
         """List all components in a project."""
-        service.list_components(
-            project_key=args.project_key, output_file=args.output_file
-        )
+        service.list_components(project_key=args.project_key, output_file=args.output_file)
 
     @staticmethod
     def _create_component(args: Namespace, service: ComponentService):
@@ -248,9 +242,7 @@ class ComponentsCommand(BaseCommand):
     def _delete_components_batch(args: Namespace, service: ComponentService):
         """Delete multiple components by IDs."""
         component_ids = [id.strip() for id in args.component_ids.split(",")]
-        service.delete_components_batch(
-            component_ids=component_ids, output_file=args.output_file
-        )
+        service.delete_components_batch(component_ids=component_ids, output_file=args.output_file)
 
     @staticmethod
     def _update_issue_components(args: Namespace, service: ComponentService):
@@ -264,6 +256,4 @@ class ComponentsCommand(BaseCommand):
     @staticmethod
     def _update_issues_components_batch(args: Namespace, service: ComponentService):
         """Update multiple issues' components from a JSON file."""
-        service.update_issues_components_batch(
-            input_file=args.input_file, output_file=args.output_file
-        )
+        service.update_issues_components_batch(input_file=args.input_file, output_file=args.output_file)

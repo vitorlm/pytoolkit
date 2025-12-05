@@ -1,5 +1,4 @@
-"""
-CircleCI Adapter for PyToolkit MCP Integration.
+"""CircleCI Adapter for PyToolkit MCP Integration.
 
 This adapter provides full CircleCI integration using the existing
 PyToolkit CircleCI infrastructure for pipeline analytics and monitoring.
@@ -9,7 +8,6 @@ import os
 import sys
 from datetime import datetime
 from typing import Any
-
 
 # Add src to path to import PyToolkit domains
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
@@ -22,8 +20,7 @@ from .base_adapter import BaseAdapter
 
 
 class CircleCIAdapter(BaseAdapter):
-    """
-    CircleCI adapter for CI/CD pipeline analytics.
+    """CircleCI adapter for CI/CD pipeline analytics.
 
     This adapter uses the existing CircleCI infrastructure from PyToolkit
     to provide pipeline status, build metrics, and performance analysis.
@@ -47,9 +44,7 @@ class CircleCIAdapter(BaseAdapter):
             project_slug = os.getenv("CIRCLECI_PROJECT_SLUG", "")
 
             if not token:
-                self.logger.warning(
-                    "CIRCLECI_TOKEN not configured - CircleCI features will be unavailable"
-                )
+                self.logger.warning("CIRCLECI_TOKEN not configured - CircleCI features will be unavailable")
                 return {
                     "initialized": False,
                     "service_type": "CircleCI API",
@@ -59,16 +54,12 @@ class CircleCIAdapter(BaseAdapter):
                 }
 
             # Initialize CircleCI service
-            self._circleci_service = CircleCIService(
-                token=token, project_slug=project_slug
-            )
+            self._circleci_service = CircleCIService(token=token, project_slug=project_slug)
             self._project_slug = project_slug
 
             # Initialize pipeline details service
             if project_slug:
-                self._pipeline_service = PipelineDetailsService(
-                    token=token, project_slug=project_slug
-                )
+                self._pipeline_service = PipelineDetailsService(token=token, project_slug=project_slug)
 
             service_info = {
                 "initialized": True,
@@ -86,11 +77,8 @@ class CircleCIAdapter(BaseAdapter):
             self.logger.error(f"Failed to initialize CircleCI service: {e}")
             raise
 
-    def get_pipeline_status(
-        self, project: str | None = None, limit: int = 10
-    ) -> dict[str, Any]:
-        """
-        Get pipeline status for a project.
+    def get_pipeline_status(self, project: str | None = None, limit: int = 10) -> dict[str, Any]:
+        """Get pipeline status for a project.
 
         Args:
             project: CircleCI project identifier (optional, uses default if not provided)
@@ -111,27 +99,19 @@ class CircleCIAdapter(BaseAdapter):
                     # Create new service instance for different project
                     token = os.getenv("CIRCLECI_TOKEN")
                     if not token:
-                        raise ValueError(
-                            "CIRCLECI_TOKEN environment variable is required"
-                        )
-                    temp_service = CircleCIService(
-                        token=token, project_slug=target_project
-                    )
+                        raise ValueError("CIRCLECI_TOKEN environment variable is required")
+                    temp_service = CircleCIService(token=token, project_slug=target_project)
                     pipelines = temp_service.export_pipelines(limit=kwargs["limit"])
                 else:
                     if not self._circleci_service:
                         raise ValueError("CircleCI service not initialized")
-                    pipelines = self._circleci_service.export_pipelines(
-                        limit=kwargs["limit"]
-                    )
+                    pipelines = self._circleci_service.export_pipelines(limit=kwargs["limit"])
 
                 # Calculate basic statistics
                 total_pipelines = len(pipelines)
                 successful = len([p for p in pipelines if p.get("state") == "success"])
                 failed = len([p for p in pipelines if p.get("state") == "failed"])
-                success_rate = (
-                    (successful / total_pipelines * 100) if total_pipelines > 0 else 0
-                )
+                success_rate = (successful / total_pipelines * 100) if total_pipelines > 0 else 0
 
                 last_build = pipelines[0] if pipelines else None
 
@@ -142,9 +122,7 @@ class CircleCIAdapter(BaseAdapter):
                     "last_build": {
                         "number": last_build.get("number") if last_build else None,
                         "state": last_build.get("state") if last_build else None,
-                        "created_at": (
-                            last_build.get("created_at") if last_build else None
-                        ),
+                        "created_at": (last_build.get("created_at") if last_build else None),
                     },
                     "success_rate": round(success_rate, 2),
                     "pipelines_fetched": total_pipelines,
@@ -171,11 +149,8 @@ class CircleCIAdapter(BaseAdapter):
             limit=limit,
         )
 
-    def get_build_metrics(
-        self, project: str | None = None, limit: int = 100
-    ) -> dict[str, Any]:
-        """
-        Get build metrics for a project.
+    def get_build_metrics(self, project: str | None = None, limit: int = 100) -> dict[str, Any]:
+        """Get build metrics for a project.
 
         Args:
             project: CircleCI project identifier (optional, uses default if not provided)
@@ -196,12 +171,8 @@ class CircleCIAdapter(BaseAdapter):
                     # Create new service instance for different project
                     token = os.getenv("CIRCLECI_TOKEN")
                     if not token:
-                        raise ValueError(
-                            "CIRCLECI_TOKEN environment variable is required"
-                        )
-                    temp_service = CircleCIService(
-                        token=token, project_slug=target_project
-                    )
+                        raise ValueError("CIRCLECI_TOKEN environment variable is required")
+                    temp_service = CircleCIService(token=token, project_slug=target_project)
                     analysis_result = temp_service.run_complete_analysis()
                 else:
                     if not self._circleci_service:
@@ -275,8 +246,7 @@ class CircleCIAdapter(BaseAdapter):
         return base_health
 
     def list_projects(self) -> dict[str, Any]:
-        """
-        List all accessible CircleCI projects.
+        """List all accessible CircleCI projects.
 
         Returns:
             dict with projects information
@@ -312,11 +282,8 @@ class CircleCIAdapter(BaseAdapter):
             expiration_minutes=120,  # Projects list changes infrequently
         )
 
-    def analyze_deployment_frequency(
-        self, project: str | None = None, days: int = 30
-    ) -> dict[str, Any]:
-        """
-        Analyze deployment frequency for a project.
+    def analyze_deployment_frequency(self, project: str | None = None, days: int = 30) -> dict[str, Any]:
+        """Analyze deployment frequency for a project.
 
         Args:
             project: CircleCI project identifier (optional, uses default if not provided)
@@ -337,33 +304,21 @@ class CircleCIAdapter(BaseAdapter):
                 if target_project and target_project != self._project_slug:
                     token = os.getenv("CIRCLECI_TOKEN")
                     if not token:
-                        raise ValueError(
-                            "CIRCLECI_TOKEN environment variable is required"
-                        )
-                    temp_service = CircleCIService(
-                        token=token, project_slug=target_project
-                    )
-                    pipelines = temp_service.export_pipelines(
-                        limit=kwargs.get("days", 30) * 5
-                    )  # Rough estimation
+                        raise ValueError("CIRCLECI_TOKEN environment variable is required")
+                    temp_service = CircleCIService(token=token, project_slug=target_project)
+                    pipelines = temp_service.export_pipelines(limit=kwargs.get("days", 30) * 5)  # Rough estimation
                 else:
                     if not self._circleci_service:
                         raise ValueError("CircleCI service not initialized")
-                    pipelines = self._circleci_service.export_pipelines(
-                        limit=kwargs.get("days", 30) * 5
-                    )
+                    pipelines = self._circleci_service.export_pipelines(limit=kwargs.get("days", 30) * 5)
 
                 # Analyze deployment patterns
-                successful_pipelines = [
-                    p for p in pipelines if p.get("state") == "success"
-                ]
+                successful_pipelines = [p for p in pipelines if p.get("state") == "success"]
 
                 # Calculate deployment frequency
                 deployment_count = len(successful_pipelines)
                 days_analyzed = kwargs.get("days", 30)
-                frequency_per_day = (
-                    deployment_count / days_analyzed if days_analyzed > 0 else 0
-                )
+                frequency_per_day = deployment_count / days_analyzed if days_analyzed > 0 else 0
 
                 return {
                     "project": target_project,
@@ -373,11 +328,7 @@ class CircleCIAdapter(BaseAdapter):
                     "frequency_per_week": round(frequency_per_day * 7, 2),
                     "successful_pipelines": len(successful_pipelines),
                     "total_pipelines": len(pipelines),
-                    "success_rate": (
-                        round((len(successful_pipelines) / len(pipelines) * 100), 2)
-                        if pipelines
-                        else 0
-                    ),
+                    "success_rate": (round((len(successful_pipelines) / len(pipelines) * 100), 2) if pipelines else 0),
                     "timestamp": datetime.now().isoformat(),
                     "source": "circleci_pytoolkit",
                 }

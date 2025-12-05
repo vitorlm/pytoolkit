@@ -153,9 +153,7 @@ class BulkProductDeleteCommand(BaseCommand):
         try:
             logger.info("Starting bulk product deletion")
             logger.info(f"CSV file: {args.csv_path}")
-            logger.info(
-                f"Country filter: {args.country if args.country else 'All countries'}"
-            )
+            logger.info(f"Country filter: {args.country if args.country else 'All countries'}")
             logger.info(f"API base URL: {args.api_base_url}")
             logger.info(f"Batch size: {args.batch_size}")
             logger.info(f"Output directory: {args.output_dir}")
@@ -181,12 +179,8 @@ class BulkProductDeleteCommand(BaseCommand):
 
             if results.get("success", False):
                 logger.info("Bulk deletion completed successfully")
-                logger.info(
-                    f"Total products processed: {results.get('total_processed', 0)}"
-                )
-                logger.info(
-                    f"Successful deletions: {results.get('successful_deletions', 0)}"
-                )
+                logger.info(f"Total products processed: {results.get('total_processed', 0)}")
+                logger.info(f"Successful deletions: {results.get('successful_deletions', 0)}")
                 logger.info(f"Failed deletions: {results.get('failed_deletions', 0)}")
             else:
                 error_msg = results.get("error", "Unknown error")

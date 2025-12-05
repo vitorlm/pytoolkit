@@ -1,16 +1,16 @@
-from datetime import datetime
 import os
-from typing import Any, Optional
-from utils.file_manager import FileManager
-from utils.data.json_manager import JSONManager
+from datetime import datetime
+from typing import Any
+
 from log_config import log_manager
 from utils.cache_manager.cache_backend import CacheBackend
 from utils.cache_manager.error import FileCacheError
+from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
 
 
 class FileCacheBackend(CacheBackend):
-    """
-    File-based caching backend for managing cached data as JSON files.
+    """File-based caching backend for managing cached data as JSON files.
 
     Args:
         cache_dir (str): Directory where cached files are stored.
@@ -32,7 +32,7 @@ class FileCacheBackend(CacheBackend):
     def _get_file_path(self, key: str) -> str:
         return os.path.join(self.cache_dir, f"{key}.json")
 
-    def load(self, key: str, expiration_minutes: Optional[int] = None) -> Optional[Any]:
+    def load(self, key: str, expiration_minutes: int | None = None) -> Any | None:
         file_path = self._get_file_path(key)
         try:
             if not FileManager.file_exists(file_path):
@@ -41,9 +41,7 @@ class FileCacheBackend(CacheBackend):
             cache_data = JSONManager.read_json(file_path, default={})
             if expiration_minutes:
                 cached_time = datetime.fromisoformat(cache_data["_cached_at"])
-                if (
-                    datetime.now() - cached_time
-                ).total_seconds() > expiration_minutes * 60:
+                if (datetime.now() - cached_time).total_seconds() > expiration_minutes * 60:
                     self.invalidate(key)
                     return None
 
@@ -85,9 +83,7 @@ class FileCacheBackend(CacheBackend):
             )
 
     def clear_all(self):
-        """
-        Clears all cache files from the cache directory.
-        """
+        """Clears all cache files from the cache directory."""
         try:
             if not os.path.exists(self.cache_dir):
                 self._logger.info(f"Cache directory '{self.cache_dir}' does not exist.")
@@ -101,9 +97,7 @@ class FileCacheBackend(CacheBackend):
                         os.remove(file_path)
                         self._logger.debug(f"Deleted cache file: {filename}")
                     except Exception as e:
-                        self._logger.warning(
-                            f"Failed to delete cache file '{filename}': {e}"
-                        )
+                        self._logger.warning(f"Failed to delete cache file '{filename}': {e}")
 
             self._logger.info("All cache files have been cleared.")
         except Exception as e:

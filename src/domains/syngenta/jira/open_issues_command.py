@@ -1,5 +1,4 @@
-"""
-JIRA Open Issues Command
+"""JIRA Open Issues Command
 
 This command fetches all currently open issues from a JIRA project without date filtering.
 It's designed to get a snapshot of all active work items at the current moment.
@@ -116,8 +115,7 @@ class OpenIssuesCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute open issues retrieval.
+        """Main function to execute open issues retrieval.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -139,9 +137,7 @@ class OpenIssuesCommand(BaseCommand):
 
             # Parse teams (repeatable flag and comma-separated)
             raw_teams = getattr(args, "teams", []) or []
-            teams = [
-                t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()
-            ] or None
+            teams = [t.strip() for entry in raw_teams for t in entry.split(",") if t.strip()] or None
 
             # Fetch open issues
             result = service.fetch_open_issues(
@@ -163,9 +159,7 @@ class OpenIssuesCommand(BaseCommand):
                 print(f"Project: {args.project_key}")
                 print(f"Issue Types: {', '.join(issue_types)}")
                 print(f"Status Categories: {', '.join(status_categories)}")
-                meta_team = result.get("team") or result.get(
-                    "analysis_metadata", {}
-                ).get("team")
+                meta_team = result.get("team") or result.get("analysis_metadata", {}).get("team")
                 if meta_team:
                     print(f"Teams: {meta_team}")
 

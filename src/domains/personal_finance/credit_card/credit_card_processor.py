@@ -1,16 +1,14 @@
+import csv
 import datetime
 import os
-import csv
-from typing import Dict, List
+
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 
 
 class CreditCardProcessor:
-    """
-    Handles the processing of credit card statement CSV files and expense classification.
-    """
+    """Handles the processing of credit card statement CSV files and expense classification."""
 
     _logger = LogManager.get_instance().get_logger("CreditCardProcessor")
 
@@ -50,21 +48,19 @@ class CreditCardProcessor:
         self._logger.debug("Validating input file.")
         FileManager.validate_file(self.input_file)
 
-    def _read_csv(self) -> List[Dict]:
+    def _read_csv(self) -> list[dict]:
         """Reads the CSV file and returns a list of transactions."""
         self._logger.info(f"Reading CSV file from: {self.input_file}")
         transactions = []
 
-        with open(self.input_file, "r", encoding="utf-8") as file:
+        with open(self.input_file, encoding="utf-8") as file:
             reader = csv.DictReader(file, delimiter=";")
             for row in reader:
                 try:
                     # Convert date to standard format
                     date = datetime.strptime(row["Data"], "%d/%m/%Y").isoformat()
                     # Convert value to float (removing R$ and converting comma to dot)
-                    value = float(
-                        row["Valor"].replace("R$", "").replace(",", ".").strip()
-                    )
+                    value = float(row["Valor"].replace("R$", "").replace(",", ".").strip())
 
                     transactions.append(
                         {
@@ -81,7 +77,7 @@ class CreditCardProcessor:
 
         return transactions
 
-    def _classify_expenses(self, transactions: List[Dict]) -> Dict:
+    def _classify_expenses(self, transactions: list[dict]) -> dict:
         """Classifies transactions into expense categories."""
         self._logger.info("Classifying expenses.")
 
@@ -111,7 +107,7 @@ class CreditCardProcessor:
             "total_spent": sum(total_by_category.values()),
         }
 
-    def _generate_output(self, categorized_expenses: Dict):
+    def _generate_output(self, categorized_expenses: dict):
         """Generates the final output report."""
         self._logger.info(f"Generating output report at {self.output_path}")
 

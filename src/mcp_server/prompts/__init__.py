@@ -1,5 +1,4 @@
-"""
-MCP Prompts package for PyToolkit Integration.
+"""MCP Prompts package for PyToolkit Integration.
 
 This package provides MCP Prompt handlers that generate specialized prompts
 for management, reporting, and analysis tasks.
@@ -11,11 +10,10 @@ from .quarterly_review_prompts import QuarterlyReviewPromptHandler
 from .team_performance_prompts import TeamPerformancePromptHandler
 from .weekly_report_prompts import WeeklyReportPromptHandler
 
-
 __all__ = [
     "BasePromptHandler",
-    "WeeklyReportPromptHandler",
-    "QuarterlyReviewPromptHandler",
     "QualityReportPromptHandler",
+    "QuarterlyReviewPromptHandler",
     "TeamPerformancePromptHandler",
+    "WeeklyReportPromptHandler",
 ]

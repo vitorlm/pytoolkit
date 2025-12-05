@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import requests
 
@@ -11,15 +11,13 @@ from utils.logging.logging_manager import LogManager
 
 
 class HitsByEndpointService:
-    """
-    Service for querying Datadog trace.express.request.hits metrics grouped by endpoint.
-    """
+    """Service for querying Datadog trace.express.request.hits metrics grouped by endpoint."""
 
     def __init__(
         self,
         site: str,
-        api_key: Optional[str] = None,
-        app_key: Optional[str] = None,
+        api_key: str | None = None,
+        app_key: str | None = None,
         use_cache: bool = False,
         cache_ttl_minutes: int = 60,
     ):
@@ -40,10 +38,9 @@ class HitsByEndpointService:
         from_ts: int,
         to_ts: int,
         granularity: str = "12h",
-        tags: Optional[List[str]] = None,
-    ) -> Dict[str, Any]:
-        """
-        Query Datadog metrics API for trace.express.request.hits grouped by resource_name.
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Query Datadog metrics API for trace.express.request.hits grouped by resource_name.
 
         Args:
             service: Service name (e.g., 'cropwise-catalog-products-api')
@@ -72,9 +69,7 @@ class HitsByEndpointService:
         )
 
         if self.use_cache:
-            cached = self.cache.load(
-                cache_key, expiration_minutes=self.cache_ttl_minutes
-            )
+            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
             if cached is not None:
                 self.logger.info("Using cached data")
                 return cached
@@ -107,15 +102,11 @@ class HitsByEndpointService:
         # Normalize series
         normalized_hits = self._normalize_series(raw_hits_series, metric_type="hits")
         normalized_latency = (
-            self._normalize_series(raw_latency_series, metric_type="latency")
-            if raw_latency_series
-            else []
+            self._normalize_series(raw_latency_series, metric_type="latency") if raw_latency_series else []
         )
 
         # Compute aggregations (including latency stats)
-        aggregations = self._compute_aggregations(
-            normalized_hits, normalized_latency, from_ts, to_ts
-        )
+        aggregations = self._compute_aggregations(normalized_hits, normalized_latency, from_ts, to_ts)
 
         result = {
             "series": normalized_hits,
@@ -141,12 +132,10 @@ class HitsByEndpointService:
         self,
         service: str,
         env: str,
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
         metric_type: str = "hits",
     ) -> str:
-        """
-        Build Datadog metric query string for hits or latency.
-        """
+        """Build Datadog metric query string for hits or latency."""
         tag_filter = f"env:{env},service:{service}"
         if tags:
             tag_filter += "," + ",".join(tags)
@@ -158,12 +147,8 @@ class HitsByEndpointService:
 
         return query
 
-    def _fetch_timeseries(
-        self, query: str, from_ts: int, to_ts: int
-    ) -> List[Dict[str, Any]]:
-        """
-        Call Datadog Query Timeseries API.
-        """
+    def _fetch_timeseries(self, query: str, from_ts: int, to_ts: int) -> list[dict[str, Any]]:
+        """Call Datadog Query Timeseries API."""
         url = f"https://api.{self.site}/api/v1/query"
         headers = {
             "DD-API-KEY": self.api_key or "",
@@ -185,12 +170,8 @@ class HitsByEndpointService:
             self.logger.error(f"Failed to fetch timeseries: {e}")
             raise
 
-    def _normalize_series(
-        self, raw_series: List[Dict[str, Any]], metric_type: str = "hits"
-    ) -> List[Dict[str, Any]]:
-        """
-        Convert raw series to normalized format with resource_name, timestamp, hits/latency.
-        """
+    def _normalize_series(self, raw_series: list[dict[str, Any]], metric_type: str = "hits") -> list[dict[str, Any]]:
+        """Convert raw series to normalized format with resource_name, timestamp, hits/latency."""
         normalized = []
         for series in raw_series:
             resource_name = series.get("scope", "unknown")
@@ -205,9 +186,7 @@ class HitsByEndpointService:
             # Uppercase HTTP methods (GET, POST, PUT, DELETE, PATCH)
             for method in ["get_", "post_", "put_", "delete_", "patch_"]:
                 if resource_name.lower().startswith(method):
-                    resource_name = (
-                        method.upper().replace("_", " ") + resource_name[len(method) :]
-                    )
+                    resource_name = method.upper().replace("_", " ") + resource_name[len(method) :]
                     break
 
             points = series.get("pointlist", [])
@@ -216,10 +195,7 @@ class HitsByEndpointService:
                     timestamp_ms, value = point[0], point[1]
                     if value is None:
                         continue  # Skip null values
-                    timestamp = (
-                        datetime.utcfromtimestamp(timestamp_ms / 1000.0).isoformat()
-                        + "Z"
-                    )
+                    timestamp = datetime.utcfromtimestamp(timestamp_ms / 1000.0).isoformat() + "Z"
                     record = {
                         "resource_name": resource_name,
                         "timestamp": timestamp,
@@ -235,13 +211,12 @@ class HitsByEndpointService:
 
     def _compute_aggregations(
         self,
-        normalized_hits: List[Dict[str, Any]],
-        normalized_latency: List[Dict[str, Any]],
+        normalized_hits: list[dict[str, Any]],
+        normalized_latency: list[dict[str, Any]],
         from_ts: int,
         to_ts: int,
-    ) -> Dict[str, Any]:
-        """
-        Compute total hits, average hits per interval, peak hits, and percentage share per endpoint.
+    ) -> dict[str, Any]:
+        """Compute total hits, average hits per interval, peak hits, and percentage share per endpoint.
         Also computes latency statistics (p50, p90, p95, p99, etc.)
         """
         from collections import defaultdict
@@ -261,9 +236,7 @@ class HitsByEndpointService:
             latency = record["latency_seconds"]
             endpoint_data[endpoint]["latencies"].append(latency)
 
-        self.logger.info(
-            f"Found {len(endpoint_data)} unique endpoints with hits in the period"
-        )
+        self.logger.info(f"Found {len(endpoint_data)} unique endpoints with hits in the period")
 
         aggregations = {}
         total_hits_all = sum(ep["total"] for ep in endpoint_data.values())
@@ -293,11 +266,8 @@ class HitsByEndpointService:
 
         return aggregations
 
-    def _calculate_latency_stats(
-        self, latencies: List[float]
-    ) -> Dict[str, float]:
-        """
-        Calculate comprehensive latency statistics for benchmark.
+    def _calculate_latency_stats(self, latencies: list[float]) -> dict[str, float]:
+        """Calculate comprehensive latency statistics for benchmark.
         Returns percentiles, mean, stddev, CV, etc.
         """
         import numpy as np
@@ -333,9 +303,7 @@ class HitsByEndpointService:
 
         # Trimmed mean (remove 1% outliers on each side - between p1 and p99)
         p1 = np.percentile(latencies_array, 1)
-        trimmed = latencies_array[
-            (latencies_array >= p1) & (latencies_array <= p99)
-        ]
+        trimmed = latencies_array[(latencies_array >= p1) & (latencies_array <= p99)]
         mean_trimmed = np.mean(trimmed) if len(trimmed) > 0 else mean
 
         # Coefficient of variation

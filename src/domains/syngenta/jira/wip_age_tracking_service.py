@@ -1,11 +1,12 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 import numpy as np
 
 from domains.syngenta.jira.workflow_config_service import WorkflowConfigService
-from utils.jira.jira_assistant import JiraAssistant
 from utils.cache_manager.cache_manager import CacheManager
 from utils.data.json_manager import JSONManager
+from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
 
@@ -43,8 +44,7 @@ class WipAgeTrackingService:
         output_file: str | None = None,
         verbose: bool = False,
     ) -> dict:
-        """
-        Calculate WIP aging metrics and alerts.
+        """Calculate WIP aging metrics and alerts.
 
         Args:
             project_key: JIRA project key
@@ -66,18 +66,14 @@ class WipAgeTrackingService:
 
         if cached_data is None:
             # Fetch fresh data
-            wip_issues = self._fetch_wip_issues(
-                project_key, team, issue_types, include_subtasks
-            )
+            wip_issues = self._fetch_wip_issues(project_key, team, issue_types, include_subtasks)
             self.cache.save(cache_key, wip_issues)
         else:
             self.logger.info("Using cached WIP age data")
             wip_issues = cached_data
 
         # Calculate age metrics
-        results = self._analyze_wip_aging(
-            wip_issues, project_key, alert_threshold, team, verbose
-        )
+        results = self._analyze_wip_aging(wip_issues, project_key, alert_threshold, team, verbose)
 
         # Save results based on output format
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -115,7 +111,6 @@ class WipAgeTrackingService:
         include_subtasks: bool = False,
     ) -> list:
         """Fetch issues currently in WIP statuses."""
-
         # Get WIP statuses from workflow configuration
         wip_statuses = self.workflow_config.get_wip_statuses(project_key)
         if not wip_statuses:
@@ -157,9 +152,7 @@ class WipAgeTrackingService:
 
         # Try to fetch with changelog first, but handle timeout gracefully
         try:
-            self.logger.info(
-                "Attempting to fetch issues with changelog for accurate age calculation"
-            )
+            self.logger.info("Attempting to fetch issues with changelog for accurate age calculation")
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
                 fields=fields_to_fetch,
@@ -168,7 +161,7 @@ class WipAgeTrackingService:
             )
             self.logger.info("Successfully fetched issues with changelog data")
         except Exception as e:
-            self.logger.warning(f"Failed to fetch with changelog: {str(e)}")
+            self.logger.warning(f"Failed to fetch with changelog: {e!s}")
             self.logger.info(
                 "Falling back to basic fetch without changelog (will use created date for age calculation)"
             )
@@ -191,7 +184,6 @@ class WipAgeTrackingService:
         verbose: bool = False,
     ) -> dict:
         """Analyze aging patterns for WIP issues."""
-
         if not issues:
             return self._empty_results(project_key, alert_threshold, team)
 
@@ -210,9 +202,7 @@ class WipAgeTrackingService:
             # Extract issue details
             fields = issue.get("fields", {})
             assignee = fields.get("assignee", {})
-            assignee_name = (
-                assignee.get("displayName", "Unassigned") if assignee else "Unassigned"
-            )
+            assignee_name = assignee.get("displayName", "Unassigned") if assignee else "Unassigned"
 
             # Get team from Squad field using dynamic field from config
             team_value = fields.get(squad_field, {}) if squad_field else {}
@@ -267,16 +257,12 @@ class WipAgeTrackingService:
             issue_count = len(data["issues"])
             status_summary[status] = {
                 "issue_count": issue_count,
-                "avg_age_days": round(data["total_age"] / issue_count, 1)
-                if issue_count > 0
-                else 0,
+                "avg_age_days": round(data["total_age"] / issue_count, 1) if issue_count > 0 else 0,
                 "issues_over_threshold": data["issues_over_threshold"],
             }
 
         # Generate insights
-        insights = self._generate_insights(
-            wip_issue_ages, status_summary, alert_threshold, statistics
-        )
+        insights = self._generate_insights(wip_issue_ages, status_summary, alert_threshold, statistics)
 
         # Build results
         results = {
@@ -284,7 +270,7 @@ class WipAgeTrackingService:
                 "project_key": project_key,
                 "alert_threshold_days": alert_threshold,
                 "team": team,
-                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "analysis_date": datetime.now(UTC).isoformat(),
                 "wip_statuses": wip_statuses,
             },
             "summary": {
@@ -337,14 +323,10 @@ class WipAgeTrackingService:
                                 created_str = history["created"]
                                 if created_str.endswith("Z"):
                                     created_str = created_str[:-1] + "+00:00"
-                                current_status_start = datetime.fromisoformat(
-                                    created_str
-                                )
+                                current_status_start = datetime.fromisoformat(created_str)
                                 break
                             except (ValueError, KeyError) as e:
-                                self.logger.warning(
-                                    f"Error parsing timestamp for {issue['key']}: {e}"
-                                )
+                                self.logger.warning(f"Error parsing timestamp for {issue['key']}: {e}")
                                 continue
 
                 if current_status_start:
@@ -362,7 +344,7 @@ class WipAgeTrackingService:
                 if not fallback_reason:
                     fallback_reason = "no_status_transition_found"
             except (ValueError, KeyError):
-                current_status_start = datetime.now(timezone.utc)
+                current_status_start = datetime.now(UTC)
                 fallback_reason = "parse_error"
 
         # Log fallback usage for debugging
@@ -370,14 +352,12 @@ class WipAgeTrackingService:
             self.logger.debug(f"Using fallback for {issue['key']}: {fallback_reason}")
 
         # Calculate age in current status
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         current_age_days = (now - current_status_start).days
 
         return {
             "current_status_age_days": max(0, current_age_days),
-            "current_status_start": current_status_start.isoformat()
-            if current_status_start
-            else None,
+            "current_status_start": current_status_start.isoformat() if current_status_start else None,
             "total_wip_time_days": 0,  # Could be extended for full WIP time calculation
         }
 
@@ -417,9 +397,7 @@ class WipAgeTrackingService:
             return ["No WIP issues found for analysis"]
 
         total_issues = len(wip_issues)
-        over_threshold = len(
-            [issue for issue in wip_issues if issue.age_days >= alert_threshold]
-        )
+        over_threshold = len([issue for issue in wip_issues if issue.age_days >= alert_threshold])
 
         # Threshold analysis
         if over_threshold > 0:
@@ -440,33 +418,25 @@ class WipAgeTrackingService:
         # Percentile analysis
         p90 = statistics.get("percentiles", {}).get("p90", 0)
         if p90 > alert_threshold * 1.5:
-            insights.append(
-                f"P90 age of {p90:.0f} days indicates some issues aging significantly"
-            )
+            insights.append(f"P90 age of {p90:.0f} days indicates some issues aging significantly")
 
         # Actionable recommendations
         if over_threshold > 0:
-            insights.append(
-                "Consider reviewing issues over threshold for potential blockers"
-            )
+            insights.append("Consider reviewing issues over threshold for potential blockers")
 
         if not insights:
-            insights.append(
-                "WIP flow appears healthy with no significant aging concerns"
-            )
+            insights.append("WIP flow appears healthy with no significant aging concerns")
 
         return insights
 
-    def _empty_results(
-        self, project_key: str, alert_threshold: int, team: str | None = None
-    ) -> dict:
+    def _empty_results(self, project_key: str, alert_threshold: int, team: str | None = None) -> dict:
         """Return empty results structure when no issues found."""
         return {
             "metadata": {
                 "project_key": project_key,
                 "alert_threshold_days": alert_threshold,
                 "team": team,
-                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "analysis_date": datetime.now(UTC).isoformat(),
                 "wip_statuses": [],
             },
             "summary": {
@@ -483,8 +453,7 @@ class WipAgeTrackingService:
         }
 
     def _format_as_markdown(self, results: dict) -> str:
-        """
-        Formats the WIP age tracking results as structured markdown optimized for AI agent consumption.
+        """Formats the WIP age tracking results as structured markdown optimized for AI agent consumption.
 
         Args:
             results (dict): The complete WIP analysis data structure
@@ -561,11 +530,11 @@ class WipAgeTrackingService:
                 issue_count = data.get("issue_count", 0)
                 avg_age = data.get("avg_age_days", 0)
                 over_threshold = data.get("issues_over_threshold", 0)
-                health_status = self._get_status_health_emoji(
-                    over_threshold, issue_count
-                )
+                health_status = self._get_status_health_emoji(over_threshold, issue_count)
 
-                markdown_content += f"| {status} | {issue_count} | {avg_age:.1f} | {over_threshold} | {health_status} |\n"
+                markdown_content += (
+                    f"| {status} | {issue_count} | {avg_age:.1f} | {over_threshold} | {health_status} |\n"
+                )
 
         # Alerts section
         alert_issues = alerts.get("issues_over_threshold", [])
@@ -579,20 +548,14 @@ class WipAgeTrackingService:
 """
             for issue in alert_issues[:15]:  # Limit to first 15 for readability
                 key = issue.get("key", "N/A")
-                summary = issue.get("summary", "")[:50] + (
-                    "..." if len(issue.get("summary", "")) > 50 else ""
-                )
+                summary = issue.get("summary", "")[:50] + ("..." if len(issue.get("summary", "")) > 50 else "")
                 status = issue.get("status", "N/A")
                 age = issue.get("age_days", 0)
                 assignee = issue.get("assignee") or "Unassigned"
-                markdown_content += (
-                    f"| {key} | {summary} | {status} | {age}d | {assignee} |\n"
-                )
+                markdown_content += f"| {key} | {summary} | {status} | {age}d | {assignee} |\n"
 
             if len(alert_issues) > 15:
-                markdown_content += (
-                    f"\n*... and {len(alert_issues) - 15} more issues over threshold*\n"
-                )
+                markdown_content += f"\n*... and {len(alert_issues) - 15} more issues over threshold*\n"
 
         # AI-Actionable Insights
         markdown_content += """
@@ -617,9 +580,7 @@ class WipAgeTrackingService:
 """
             for issue in detailed_issues[:20]:  # Limit to first 20 for readability
                 key = issue.get("key", "N/A")
-                summary = issue.get("summary", "")[:40] + (
-                    "..." if len(issue.get("summary", "")) > 40 else ""
-                )
+                summary = issue.get("summary", "")[:40] + ("..." if len(issue.get("summary", "")) > 40 else "")
                 status = issue.get("status", "N/A")
                 age = issue.get("age_days", 0)
                 assignee = issue.get("assignee") or "Unassigned"
@@ -627,9 +588,7 @@ class WipAgeTrackingService:
                 markdown_content += f"| {key} | {summary} | {status} | {age}d | {assignee} | {team_name} |\n"
 
             if len(detailed_issues) > 20:
-                markdown_content += (
-                    f"\n*... and {len(detailed_issues) - 20} more WIP issues*\n"
-                )
+                markdown_content += f"\n*... and {len(detailed_issues) - 20} more WIP issues*\n"
 
         # Recommendations section
         total_issues = summary.get("total_wip_issues", 0)
@@ -650,15 +609,13 @@ class WipAgeTrackingService:
 
         # Generate contextual recommendations
         if issues_over_threshold > 0:
-            percentage = (
-                (issues_over_threshold / total_issues * 100) if total_issues > 0 else 0
-            )
+            percentage = (issues_over_threshold / total_issues * 100) if total_issues > 0 else 0
             if percentage > 30:
-                markdown_content += "1. **CRITICAL**: High percentage of aging issues - investigate flow blockers immediately\n"
-                markdown_content += "2. **URGENT**: Review and prioritize issues over threshold for completion\n"
                 markdown_content += (
-                    "3. **ACTION**: Consider reducing WIP limits to improve flow\n"
+                    "1. **CRITICAL**: High percentage of aging issues - investigate flow blockers immediately\n"
                 )
+                markdown_content += "2. **URGENT**: Review and prioritize issues over threshold for completion\n"
+                markdown_content += "3. **ACTION**: Consider reducing WIP limits to improve flow\n"
             elif percentage > 15:
                 markdown_content += "1. **MONITOR**: Moderate aging detected - review bottlenecks in workflow\n"
                 markdown_content += "2. **OPTIMIZE**: Focus on completing existing work before new intake\n"
@@ -668,9 +625,7 @@ class WipAgeTrackingService:
             markdown_content += "1. **HEALTHY**: All WIP within aging thresholds - maintain current flow\n"
 
         if status_breakdown:
-            max_avg_status = max(
-                status_breakdown.items(), key=lambda x: x[1].get("avg_age_days", 0)
-            )
+            max_avg_status = max(status_breakdown.items(), key=lambda x: x[1].get("avg_age_days", 0))
             if max_avg_status[1].get("avg_age_days", 0) > alert_threshold:
                 markdown_content += f"4. **BOTTLENECK**: '{max_avg_status[0]}' status shows highest average age\n"
 

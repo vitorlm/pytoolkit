@@ -1,25 +1,24 @@
-from datetime import datetime
 import hashlib
-from typing import Dict, List, Optional
-from utils.data.json_manager import JSONManager
-from utils.jira.jira_api_client import JiraApiClient
-from utils.logging.logging_manager import LogManager
+from datetime import datetime
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.data.json_manager import JSONManager
 from utils.jira.error import (
-    JiraQueryError,
-    JiraIssueCreationError,
-    JiraComponentFetchError,
     JiraComponentCreationError,
     JiraComponentDeletionError,
+    JiraComponentFetchError,
     JiraIssueComponentUpdateError,
+    JiraIssueCreationError,
     JiraMetadataFetchError,
+    JiraQueryError,
 )
+from utils.jira.jira_api_client import JiraApiClient
 from utils.jira.jira_config import JiraConfig
+from utils.logging.logging_manager import LogManager
 
 
 class JiraAssistant:
-    """
-    A generic assistant for interacting with Jira APIs.
+    """A generic assistant for interacting with Jira APIs.
     Includes core methods for fetching, creating, and updating Jira data.
     Designed to simplify and streamline Jira API consumption.
     """
@@ -27,8 +26,7 @@ class JiraAssistant:
     _logger = LogManager.get_instance().get_logger("JiraAssistant")
 
     def __init__(self, cache_expiration: int = 60):
-        """
-        Initializes the JiraAssistant with specified parameters.
+        """Initializes the JiraAssistant with specified parameters.
 
         Args:
             cache_expiration (int): Cache expiration time in minutes.
@@ -46,8 +44,7 @@ class JiraAssistant:
         self.cache_expiration = cache_expiration
 
     def _generate_cache_key(self, prefix: str, **kwargs) -> str:
-        """
-        Generates a cache key based on a prefix and additional parameters.
+        """Generates a cache key based on a prefix and additional parameters.
 
         Args:
             prefix (str): The base prefix for the cache key.
@@ -64,9 +61,8 @@ class JiraAssistant:
         hash_hex = hash_object.hexdigest()
         return f"{prefix}_{hash_hex}"
 
-    def _load_from_cache(self, cache_key: str) -> Optional[Dict]:
-        """
-        Loads data from the cache if available and valid.
+    def _load_from_cache(self, cache_key: str) -> dict | None:
+        """Loads data from the cache if available and valid.
 
         Args:
             cache_key (str): The cache key to retrieve data for.
@@ -80,9 +76,8 @@ class JiraAssistant:
             self._logger.warning(f"Cache miss or load failure for key '{cache_key}': {e}")
             return None
 
-    def _save_to_cache(self, cache_key: str, data: Dict):
-        """
-        Saves data to the cache.
+    def _save_to_cache(self, cache_key: str, data: dict):
+        """Saves data to the cache.
 
         Args:
             cache_key (str): The cache key to store data for.
@@ -94,9 +89,8 @@ class JiraAssistant:
         except Exception as e:
             self._logger.error(f"Failed to cache data for key '{cache_key}': {e}")
 
-    def fetch_project_components(self, project_key: str) -> List[Dict]:
-        """
-        Fetch all components for a specific Jira project.
+    def fetch_project_components(self, project_key: str) -> list[dict]:
+        """Fetch all components for a specific Jira project.
 
         Args:
             project_key (str): The key of the Jira project.
@@ -172,12 +166,11 @@ class JiraAssistant:
         self,
         project_key: str,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
         assignee_type: str = "PROJECT_DEFAULT",
-        lead: Optional[str] = None,
-    ) -> Optional[Dict]:
-        """
-        Create a component in a Jira project.
+        lead: str | None = None,
+    ) -> dict | None:
+        """Create a component in a Jira project.
 
         Args:
             project_key (str): The key of the Jira project.
@@ -223,8 +216,7 @@ class JiraAssistant:
             ) from e
 
     def delete_component(self, component_id: str) -> bool:
-        """
-        Delete a component from Jira.
+        """Delete a component from Jira.
 
         Args:
             component_id (str): The ID of the component to delete.
@@ -245,9 +237,8 @@ class JiraAssistant:
                 "Error deleting component.", component_id=component_id, error=str(e)
             ) from e
 
-    def create_components_batch(self, project_key: str, components: List[Dict]) -> List[Dict]:
-        """
-        Create multiple components in a Jira project.
+    def create_components_batch(self, project_key: str, components: list[dict]) -> list[dict]:
+        """Create multiple components in a Jira project.
 
         Args:
             project_key (str): The key of the Jira project.
@@ -284,9 +275,8 @@ class JiraAssistant:
                 )
         return results
 
-    def delete_components_batch(self, component_ids: List[str]) -> List[Dict]:
-        """
-        Delete multiple components from Jira.
+    def delete_components_batch(self, component_ids: list[str]) -> list[dict]:
+        """Delete multiple components from Jira.
 
         Args:
             component_ids (List[str]): List of component IDs to delete.
@@ -316,8 +306,7 @@ class JiraAssistant:
         return results
 
     def update_issue_components(self, issue_key: str, component_id: str) -> bool:
-        """
-        Update an issue to replace all existing components with a single new component.
+        """Update an issue to replace all existing components with a single new component.
 
         Args:
             issue_key (str): The key of the issue to update.
@@ -344,9 +333,8 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def update_issues_components_batch(self, issues_components: List[Dict]) -> List[Dict]:
-        """
-        Update multiple issues with their respective components.
+    def update_issues_components_batch(self, issues_components: list[dict]) -> list[dict]:
+        """Update multiple issues with their respective components.
 
         Args:
             issues_components (List[Dict]): List of dictionaries with 'key' and 'component' fields.
@@ -382,9 +370,8 @@ class JiraAssistant:
                 )
         return results
 
-    def create_issue(self, project_key: str, payload: Dict) -> Optional[Dict]:
-        """
-        Create a Jira issue.
+    def create_issue(self, project_key: str, payload: dict) -> dict | None:
+        """Create a Jira issue.
 
         Args:
             project_key (str): The project key.
@@ -412,9 +399,8 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def fetch_metadata(self, project_key: str, issue_type_id: str) -> Optional[Dict]:
-        """
-        Fetch metadata for a specific issue type in a Jira project.
+    def fetch_metadata(self, project_key: str, issue_type_id: str) -> dict | None:
+        """Fetch metadata for a specific issue type in a Jira project.
 
         Args:
             project_key (str): The project key.
@@ -456,9 +442,8 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def fetch_completed_epics(self, team_name: str, time_period_days: int) -> List[Dict]:
-        """
-        Fetch completed epics for a specific team within a given time period.
+    def fetch_completed_epics(self, team_name: str, time_period_days: int) -> list[dict]:
+        """Fetch completed epics for a specific team within a given time period.
 
         Args:
             team_name (str): The name of the team to filter epics.
@@ -511,10 +496,9 @@ class JiraAssistant:
         self,
         team_name: str,
         issue_type: str = "Epic",
-        fix_version: Optional[str] = None,
-    ) -> List[Dict]:
-        """
-        Fetch open issues of a specified type for a team, optionally filtered by fix version.
+        fix_version: str | None = None,
+    ) -> list[dict]:
+        """Fetch open issues of a specified type for a team, optionally filtered by fix version.
 
         Args:
             team_name (str): The name of the team to filter issues.
@@ -568,9 +552,8 @@ class JiraAssistant:
         fields: str = "*",
         max_results: int = 100,
         expand_changelog: bool = False,
-    ) -> List[Dict]:
-        """
-        Fetch issues from Jira using a JQL query.
+    ) -> list[dict]:
+        """Fetch issues from Jira using a JQL query.
 
         Args:
             jql_query (str): The JQL query to execute.
@@ -663,9 +646,8 @@ class JiraAssistant:
         except Exception as e:
             raise JiraQueryError("Error fetching issues.", jql=jql_query, error=str(e)) from e
 
-    def _convert_adf_to_text(self, adf_body: Dict) -> str:
-        """
-        Convert Atlassian Document Format (ADF) to plain text.
+    def _convert_adf_to_text(self, adf_body: dict) -> str:
+        """Convert Atlassian Document Format (ADF) to plain text.
 
         Args:
             adf_body (Dict): The ADF body structure from JIRA comment.
@@ -708,9 +690,8 @@ class JiraAssistant:
             self._logger.warning(f"Error converting ADF to text: {e}")
             return str(adf_body)
 
-    def fetch_issue_comments(self, issue_key: str) -> List[Dict]:
-        """
-        Fetch all comments for a specific issue.
+    def fetch_issue_comments(self, issue_key: str) -> list[dict]:
+        """Fetch all comments for a specific issue.
 
         Args:
             issue_key (str): The key of the issue to fetch comments for.
@@ -765,9 +746,8 @@ class JiraAssistant:
             # Return empty list instead of raising exception to allow processing to continue
             return []
 
-    def fetch_project_metadata(self, project_key: str) -> Dict:
-        """
-        Fetch project metadata including available issue types, statuses, etc.
+    def fetch_project_metadata(self, project_key: str) -> dict:
+        """Fetch project metadata including available issue types, statuses, etc.
 
         Args:
             project_key (str): The key of the Jira project.
@@ -800,9 +780,8 @@ class JiraAssistant:
                 error=str(e),
             ) from e
 
-    def fetch_project_issue_types(self, project_key: str) -> List[Dict]:
-        """
-        Fetch available issue types for a specific project.
+    def fetch_project_issue_types(self, project_key: str) -> list[dict]:
+        """Fetch available issue types for a specific project.
 
         Args:
             project_key (str): The key of the Jira project.

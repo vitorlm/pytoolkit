@@ -1,5 +1,4 @@
-"""
-JIRA Cycle Time Analysis Command
+"""JIRA Cycle Time Analysis Command
 
 This command analyzes cycle time by calculating the time taken for tickets to move from
 Started status (07) to Done status (10), excluding Archived tickets (11).
@@ -64,8 +63,8 @@ from domains.syngenta.jira.cycle_time_trend_service import (
     CycleTimeTrendService,
     TrendConfig,
 )
-from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from domains.syngenta.jira.shared.parsers import ErrorHandler
+from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -122,9 +121,7 @@ class CycleTimeCommand(BaseCommand):
             type=str,
             required=False,
             default="Story,Task,Bug,Epic",
-            help=(
-                "Comma-separated list of issue types to analyze (default: 'Story,Task,Bug,Epic')."
-            ),
+            help=("Comma-separated list of issue types to analyze (default: 'Story,Task,Bug,Epic')."),
         )
         parser.add_argument(
             "--team",
@@ -189,8 +186,7 @@ class CycleTimeCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute cycle time analysis.
+        """Main function to execute cycle time analysis.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -201,9 +197,7 @@ class CycleTimeCommand(BaseCommand):
         try:
             # Parse inputs
             issue_types = [t.strip() for t in args.issue_types.split(",")]
-            priorities = (
-                [p.strip() for p in args.priority.split(",")] if args.priority else None
-            )
+            priorities = [p.strip() for p in args.priority.split(",")] if args.priority else None
             include_subtasks = bool(getattr(args, "include_subtasks", False))
 
             # Parse teams: support repeated flags and comma-separated values
@@ -213,9 +207,7 @@ class CycleTimeCommand(BaseCommand):
                 expanded = []
                 for entry in raw_teams:
                     if entry:
-                        expanded.extend(
-                            [t.strip() for t in entry.split(",") if t.strip()]
-                        )
+                        expanded.extend([t.strip() for t in entry.split(",") if t.strip()])
                 # Deduplicate preserving order
                 seen = set()
                 ordered_unique = []
@@ -243,9 +235,7 @@ class CycleTimeCommand(BaseCommand):
                 window_days = int(getattr(args, "window_days", 7))
                 start = anchor - timedelta(days=max(window_days - 1, 0))
                 end = anchor
-                computed_time_period = (
-                    f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
-                )
+                computed_time_period = f"{start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
 
             # Execute analysis through service
             service = CycleTimeService()
@@ -275,26 +265,18 @@ class CycleTimeCommand(BaseCommand):
                     logger.info("Starting trending analysis...")
                     try:
                         # Create trend service with custom configuration
-                        trend_config = TrendConfig(
-                            {"baseline_multiplier": args.baseline_multiplier}
-                        )
+                        trend_config = TrendConfig({"baseline_multiplier": args.baseline_multiplier})
                         trend_service = CycleTimeTrendService(trend_config)
 
                         # Convert current results to trend data format
-                        current_trend_data = (
-                            trend_service.convert_cycle_time_data_to_trend_data(result)
-                        )
+                        current_trend_data = trend_service.convert_cycle_time_data_to_trend_data(result)
 
                         # Calculate baseline period
                         metadata = result.get("analysis_metadata", {})
                         start_date = metadata.get("start_date", "")
                         end_date = metadata.get("end_date", "")
 
-                        baseline_start, baseline_end = (
-                            trend_service.calculate_baseline_period(
-                                start_date, end_date
-                            )
-                        )
+                        baseline_start, baseline_end = trend_service.calculate_baseline_period(start_date, end_date)
 
                         # Analyze historical data for baseline
                         baseline_result = service.analyze_cycle_time(
@@ -308,11 +290,7 @@ class CycleTimeCommand(BaseCommand):
                         )
 
                         if baseline_result:
-                            baseline_trend_data = (
-                                trend_service.convert_cycle_time_data_to_trend_data(
-                                    baseline_result
-                                )
-                            )
+                            baseline_trend_data = trend_service.convert_cycle_time_data_to_trend_data(baseline_result)
 
                             # Calculate trend metrics
                             trend_metrics = trend_service.calculate_trend_metrics(
@@ -320,9 +298,7 @@ class CycleTimeCommand(BaseCommand):
                             )
 
                             # Detect patterns and generate alerts
-                            alerts = trend_service.detect_patterns_and_alerts(
-                                trend_metrics, current_trend_data
-                            )
+                            alerts = trend_service.detect_patterns_and_alerts(trend_metrics, current_trend_data)
 
                             trending_results = {
                                 "trend_metrics": trend_metrics,
@@ -334,18 +310,14 @@ class CycleTimeCommand(BaseCommand):
                                 },
                             }
 
-                            logger.info(
-                                f"Trending analysis completed with {len(alerts)} alerts"
-                            )
+                            logger.info(f"Trending analysis completed with {len(alerts)} alerts")
                         else:
-                            logger.warning(
-                                "Could not analyze baseline data for trending"
-                            )
+                            logger.warning("Could not analyze baseline data for trending")
 
                     except Exception as e:
                         logger.error(f"Trending analysis failed: {e}")
                         logger.error(f"Exception type: {type(e).__name__}")
-                        logger.error(f"Exception details: {str(e)}")
+                        logger.error(f"Exception details: {e!s}")
                         import traceback
 
                         logger.error(f"Traceback: {traceback.format_exc()}")
@@ -375,9 +347,7 @@ class CycleTimeCommand(BaseCommand):
                             "confidence_level": tm.confidence_level,
                             "trend_slope": tm.trend_slope,
                             "volatility": tm.volatility,
-                            "normalized_baseline": getattr(
-                                tm, "normalized_baseline", tm.baseline_value
-                            ),
+                            "normalized_baseline": getattr(tm, "normalized_baseline", tm.baseline_value),
                             "is_normalized": getattr(tm, "is_normalized", False),
                         }
                         for tm in trending_data["trend_metrics"]
@@ -397,39 +367,19 @@ class CycleTimeCommand(BaseCommand):
                     ]
 
                     baseline_data_dict = {
-                        "avg_cycle_time": trending_data["baseline_period"][
+                        "avg_cycle_time": trending_data["baseline_period"]["data"].avg_cycle_time,
+                        "median_cycle_time": trending_data["baseline_period"]["data"].median_cycle_time,
+                        "sle_compliance": trending_data["baseline_period"]["data"].sle_compliance,
+                        "throughput": trending_data["baseline_period"]["data"].throughput,
+                        "anomaly_rate": trending_data["baseline_period"]["data"].anomaly_rate,
+                        "period_start": trending_data["baseline_period"]["data"].period_start.isoformat(),
+                        "period_end": trending_data["baseline_period"]["data"].period_end.isoformat(),
+                        "total_issues": trending_data["baseline_period"]["data"].total_issues,
+                        "issues_with_valid_cycle_time": trending_data["baseline_period"][
                             "data"
-                        ].avg_cycle_time,
-                        "median_cycle_time": trending_data["baseline_period"][
-                            "data"
-                        ].median_cycle_time,
-                        "sle_compliance": trending_data["baseline_period"][
-                            "data"
-                        ].sle_compliance,
-                        "throughput": trending_data["baseline_period"][
-                            "data"
-                        ].throughput,
-                        "anomaly_rate": trending_data["baseline_period"][
-                            "data"
-                        ].anomaly_rate,
-                        "period_start": trending_data["baseline_period"][
-                            "data"
-                        ].period_start.isoformat(),
-                        "period_end": trending_data["baseline_period"][
-                            "data"
-                        ].period_end.isoformat(),
-                        "total_issues": trending_data["baseline_period"][
-                            "data"
-                        ].total_issues,
-                        "issues_with_valid_cycle_time": trending_data[
-                            "baseline_period"
-                        ]["data"].issues_with_valid_cycle_time,
-                        "avg_lead_time": trending_data["baseline_period"][
-                            "data"
-                        ].avg_lead_time,
-                        "median_lead_time": trending_data["baseline_period"][
-                            "data"
-                        ].median_lead_time,
+                        ].issues_with_valid_cycle_time,
+                        "avg_lead_time": trending_data["baseline_period"]["data"].avg_lead_time,
+                        "median_lead_time": trending_data["baseline_period"]["data"].median_lead_time,
                     }
 
                     return {
@@ -457,13 +407,9 @@ class CycleTimeCommand(BaseCommand):
                     # Create serializable version for JSON
                     result_for_json = result.copy()
                     if trending_results:
-                        result_for_json["trending_analysis"] = (
-                            serialize_trending_results(trending_results)
-                        )
+                        result_for_json["trending_analysis"] = serialize_trending_results(trending_results)
                     # Precompute path so we can show it right under the summary
-                    output_path = OutputManager.get_output_path(
-                        sub_dir, file_basename, "json"
-                    )
+                    output_path = OutputManager.get_output_path(sub_dir, file_basename, "json")
                     print(f"\nOutput file:\n- {output_path}")
                     OutputManager.save_json_report(
                         result_for_json,
@@ -480,15 +426,11 @@ class CycleTimeCommand(BaseCommand):
                         # Create serializable version for MD
                         result_for_md = result.copy()
                         if trending_results:
-                            result_for_md["trending_analysis"] = (
-                                serialize_trending_results(trending_results)
-                            )
+                            result_for_md["trending_analysis"] = serialize_trending_results(trending_results)
 
                         markdown_content = service._format_as_markdown(result_for_md)
                         # Precompute path so we can show it right under the summary
-                        output_path = OutputManager.get_output_path(
-                            sub_dir, file_basename, "md"
-                        )
+                        output_path = OutputManager.get_output_path(sub_dir, file_basename, "md")
                         print(f"\nOutput file:\n- {output_path}")
                         OutputManager.save_markdown_report(
                             markdown_content,
@@ -509,9 +451,7 @@ class CycleTimeCommand(BaseCommand):
                         formatter.display_enhanced_console(result)
                     except Exception as formatter_error:
                         logger.error(f"Error in formatter display: {formatter_error}")
-                        logger.error(
-                            f"Formatter error type: {type(formatter_error).__name__}"
-                        )
+                        logger.error(f"Formatter error type: {type(formatter_error).__name__}")
                         import traceback
 
                         logger.error(f"Formatter traceback: {traceback.format_exc()}")
@@ -520,23 +460,15 @@ class CycleTimeCommand(BaseCommand):
                         print("\n❌ FORMATTING ERROR OCCURRED")
                         print(f"Error: {formatter_error}")
                         print("\nBasic Analysis Results:")
-                        print(
-                            f"Project: {result.get('analysis_metadata', {}).get('project_key', 'Unknown')}"
-                        )
-                        print(
-                            f"Total Issues: {result.get('metrics', {}).get('total_issues', 0)}"
-                        )
+                        print(f"Project: {result.get('analysis_metadata', {}).get('project_key', 'Unknown')}")
+                        print(f"Total Issues: {result.get('metrics', {}).get('total_issues', 0)}")
                         print(
                             f"Average Cycle Time: {result.get('metrics', {}).get('average_cycle_time_hours', 0):.1f}h"
                         )
 
                         if trending_results:
-                            print(
-                                "\nTrending data is available but could not be displayed due to formatting error."
-                            )
-                            print(
-                                "Check logs for details or use --output-format json for raw data."
-                            )
+                            print("\nTrending data is available but could not be displayed due to formatting error.")
+                            print("Check logs for details or use --output-format json for raw data.")
 
                 try:
                     summary_mode = getattr(args, "summary_output", "auto")
@@ -569,9 +501,7 @@ class CycleTimeCommand(BaseCommand):
 
             # Use centralized error handling
             error_handler = ErrorHandler()
-            error_handler.handle_api_error(
-                e, f"cycle time analysis for project {args.project_key}"
-            )
+            error_handler.handle_api_error(e, f"cycle time analysis for project {args.project_key}")
             exit(1)
 
     @staticmethod

@@ -1,6 +1,4 @@
-"""
-LinearB Engineering Metrics Command.
-"""
+"""LinearB Engineering Metrics Command."""
 
 import sys
 from argparse import ArgumentParser, Namespace
@@ -104,8 +102,7 @@ Examples:
                 "custom_metric",
             ],
             default="team",
-            help="Filter type: organization, contributor, team (default), "
-            "repository, label, custom_metric",
+            help="Filter type: organization, contributor, team (default), repository, label, custom_metric",
         )
 
         parser.add_argument(

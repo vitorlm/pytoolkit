@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-NFCe Command - Process Brazilian electronic invoices (NFCe) from Portal SPED URLs
-"""
+"""NFCe Command - Process Brazilian electronic invoices (NFCe) from Portal SPED URLs"""
 
 from argparse import ArgumentParser, Namespace
+
+from domains.personal_finance.nfce.nfce_processor_service import NFCeService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
-from domains.personal_finance.nfce.nfce_processor_service import NFCeService
 
 
 class NFCeCommand(BaseCommand):
@@ -85,9 +84,7 @@ Output format:
     def get_arguments(parser: ArgumentParser):
         # Input options (mutually exclusive)
         input_group = parser.add_mutually_exclusive_group(required=True)
-        input_group.add_argument(
-            "--input", help="JSON file containing list of NFCe URLs to process"
-        )
+        input_group.add_argument("--input", help="JSON file containing list of NFCe URLs to process")
         input_group.add_argument("--url", help="Single NFCe URL to process")
         input_group.add_argument(
             "--import-data",
@@ -99,9 +96,7 @@ Output format:
             "--output",
             help="Output file path for results (JSON format). If not specified, saves to output/ folder with timestamp",
         )
-        parser.add_argument(
-            "--save-db", action="store_true", help="Save results to local database"
-        )
+        parser.add_argument("--save-db", action="store_true", help="Save results to local database")
 
         # Processing options
         parser.add_argument(
@@ -217,9 +212,7 @@ Output format:
                     result["analysis"] = analysis
                 except Exception as e:
                     logger.warning(f"Failed to generate analysis report: {e}")
-                    result["analysis"] = {
-                        "error": f"Analysis generation failed: {str(e)}"
-                    }
+                    result["analysis"] = {"error": f"Analysis generation failed: {e!s}"}
 
             # Save to database if requested
             if args.save_db:
@@ -262,23 +255,15 @@ Output format:
                 logger.warning("No URLs were processed")
                 print("Warning: No URLs were processed. Check your input file or URL.")
             elif failed > 0:
-                logger.warning(
-                    f"Processing completed with errors: {successful}/{total_processed} successful"
-                )
-                print(
-                    f"Warning: {failed} out of {total_processed} URLs failed to process."
-                )
+                logger.warning(f"Processing completed with errors: {successful}/{total_processed} successful")
+                print(f"Warning: {failed} out of {total_processed} URLs failed to process.")
             else:
-                logger.info(
-                    f"NFCe processing completed successfully: {successful}/{total_processed} processed"
-                )
+                logger.info(f"NFCe processing completed successfully: {successful}/{total_processed} processed")
 
         except FileNotFoundError as e:
             logger.error(f"File not found: {e}")
             print(f"Error: File not found - {e}")
-            print(
-                "Please check that the input file path is correct and the file exists."
-            )
+            print("Please check that the input file path is correct and the file exists.")
             exit(1)
         except ValueError as e:
             logger.error(f"Invalid input: {e}")
@@ -319,24 +304,18 @@ Output format:
             if not os.path.isfile(args.input):
                 raise ValueError(f"Input path is not a file: {args.input}")
             if not args.input.lower().endswith(".json"):
-                logger.warning(
-                    f"Input file does not have .json extension: {args.input}"
-                )
+                logger.warning(f"Input file does not have .json extension: {args.input}")
 
         # Validate import data file exists if provided
         if args.import_data:
             import os
 
             if not os.path.exists(args.import_data):
-                raise FileNotFoundError(
-                    f"Import data file not found: {args.import_data}"
-                )
+                raise FileNotFoundError(f"Import data file not found: {args.import_data}")
             if not os.path.isfile(args.import_data):
                 raise ValueError(f"Import data path is not a file: {args.import_data}")
             if not args.import_data.lower().endswith(".json"):
-                raise ValueError(
-                    f"Import data file must be a JSON file: {args.import_data}"
-                )
+                raise ValueError(f"Import data file must be a JSON file: {args.import_data}")
 
         # Validate URL format if provided
         if args.url:
@@ -352,12 +331,8 @@ Output format:
             output_dir = os.path.dirname(args.output)
             # Only check if output_dir exists if it's not empty and not the default output folder
             if output_dir and output_dir != "output" and not os.path.exists(output_dir):
-                logger.warning(
-                    f"Output directory does not exist and will be created: {output_dir}"
-                )
+                logger.warning(f"Output directory does not exist and will be created: {output_dir}")
             if not args.output.lower().endswith(".json"):
-                logger.warning(
-                    f"Output file does not have .json extension: {args.output}"
-                )
+                logger.warning(f"Output file does not have .json extension: {args.output}")
 
         logger.debug("All input arguments validated successfully")

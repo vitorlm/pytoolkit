@@ -1,19 +1,15 @@
 import os
-import pandas as pd
-from typing import Optional, Dict, List, Tuple
 
-from domains.syngenta.team_assessment.core.statistics import (
-    IndividualStatistics,
-    TeamStatistics,
-)
+import pandas as pd
+
+from domains.syngenta.team_assessment.core.statistics import IndividualStatistics, TeamStatistics
+from domains.syngenta.team_assessment.services.chart_mixin import ChartMixin
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
-from domains.syngenta.team_assessment.services.chart_mixin import ChartMixin
 
 
 class MemberAnalyzer(ChartMixin):
-    """
-    Analyzer para as estatísticas individuais de feedback de um membro, com dados
+    """Analyzer para as estatísticas individuais de feedback de um membro, com dados
     opcionais do time. Transforma os dados individuais (do objeto
     IndividualStatistics) e, se disponíveis, os dados do time (TeamStatistics) em
     formatos genéricos para os métodos do ChartMixin.
@@ -28,10 +24,9 @@ class MemberAnalyzer(ChartMixin):
         member_name: str,
         member_data: IndividualStatistics,
         team_data: TeamStatistics,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ):
-        """
-        Inicializa o analisador com os dados individuais do membro e os dados do time.
+        """Inicializa o analisador com os dados individuais do membro e os dados do time.
 
         Args:
             member_data (IndividualStatistics): Dados de feedback agregados do membro.
@@ -49,8 +44,7 @@ class MemberAnalyzer(ChartMixin):
         self._logger = LogManager.get_instance().get_logger("MemberAnalyzer")
 
     def _get_comparison_bar_data(self) -> pd.DataFrame:
-        """
-        Prepares the data for the comparison bar chart.
+        """Prepares the data for the comparison bar chart.
         For each criterion, creates a row with the following information:
             - Criterion name
             - Individual average
@@ -75,11 +69,8 @@ class MemberAnalyzer(ChartMixin):
             rows.append(row)
         return pd.DataFrame(rows)
 
-    def plot_comparison_bar_chart(
-        self, title: str = "Individual vs Team Comparison"
-    ) -> None:
-        """
-        Generates a grouped bar chart comparing the individual's average with team statistics for
+    def plot_comparison_bar_chart(self, title: str = "Individual vs Team Comparison") -> None:
+        """Generates a grouped bar chart comparing the individual's average with team statistics for
         each criterion by using the generic grouped bar chart method.
 
         Args:
@@ -87,6 +78,11 @@ class MemberAnalyzer(ChartMixin):
         """
         # Prepare the data.
         df = self._get_comparison_bar_data()
+
+        # Check if DataFrame is empty or missing required columns
+        if df.empty or "Criterion" not in df.columns:
+            self._logger.warning("No data available for comparison bar chart. Skipping.")
+            return
 
         # Define the series (columns) that will be plotted as grouped bars.
         series = ["Individual", "Team Average", "Team Q1", "Team Q3"]
@@ -109,9 +105,8 @@ class MemberAnalyzer(ChartMixin):
             bar_width=0.2,
         )
 
-    def _get_comparison_radar_data(self) -> Tuple[List[str], Dict[str, List[float]]]:
-        """
-        Prepares the data for the comparison radar chart.
+    def _get_comparison_radar_data(self) -> tuple[list[str], dict[str, list[float]]]:
+        """Prepares the data for the comparison radar chart.
         Creates axes for each criterion and two series:
             - "Individual": the individual's average values.
             - "Team Average": the team's average values.
@@ -126,9 +121,7 @@ class MemberAnalyzer(ChartMixin):
         for criterion, criterion_stats in self.individual_data.criteria_stats.items():
             labels.append(criterion)
             individual_values.append(criterion_stats.get("average", 0))
-            team_values.append(
-                self.team_data.criteria_stats.get(criterion, {}).get("average", 0)
-            )
+            team_values.append(self.team_data.criteria_stats.get(criterion, {}).get("average", 0))
 
         data = {
             "Individual": individual_values,
@@ -136,14 +129,12 @@ class MemberAnalyzer(ChartMixin):
         }
         return labels, data
 
-    def _get_indicators_radar_data(self) -> Dict[str, List[float]]:
+    def _get_indicators_radar_data(self) -> dict[str, list[float]]:
         labels = []
         individual_values = []
 
         for _, criterion_stats in self.individual_data.criteria_stats.items():
-            for indicator, indicator_stats in criterion_stats[
-                "indicator_stats"
-            ].items():
+            for indicator, indicator_stats in criterion_stats["indicator_stats"].items():
                 labels.append(indicator)
                 individual_values.append(indicator_stats.get("average", 0))
 
@@ -152,17 +143,20 @@ class MemberAnalyzer(ChartMixin):
         }
         return labels, data
 
-    def plot_criterion_comparison_radar_chart(
-        self, title: str = "Individual vs Team Radar Comparison"
-    ) -> None:
-        """
-        Generates a radar chart comparing the individual's and team's average levels for
+    def plot_criterion_comparison_radar_chart(self, title: str = "Individual vs Team Radar Comparison") -> None:
+        """Generates a radar chart comparing the individual's and team's average levels for
         each criterion.
 
         Args:
             title (str): The title of the radar chart.
         """
         labels, data = self._get_comparison_radar_data()
+
+        # Check if we have data to plot
+        if not labels or not data:
+            self._logger.warning("No data available for radar chart. Skipping.")
+            return
+
         super().plot_radar_chart(
             labels,
             data,
@@ -174,6 +168,12 @@ class MemberAnalyzer(ChartMixin):
         self, title: str = "Individual Indicator Strengths and Weaknesses"
     ) -> None:
         labels, data = self._get_indicators_radar_data()
+
+        # Check if we have data to plot
+        if not labels or not data:
+            self._logger.warning("No data available for strengths/weaknesses radar chart. Skipping.")
+            return
+
         super().plot_radar_chart(
             labels,
             data,
@@ -182,9 +182,7 @@ class MemberAnalyzer(ChartMixin):
         )
 
     def plot_all_charts(self) -> None:
-        """
-        Generates all comparison charts (bar and radar) for the individual vs team analysis.
-        """
+        """Generates all comparison charts (bar and radar) for the individual vs team analysis."""
         self.plot_comparison_bar_chart()
         self.plot_criterion_comparison_radar_chart()
         self.plot_member_strengths_weaknesses_radar_chart()

@@ -1,823 +1,824 @@
-# PyToolkit - Agents Guide
+# AGENTS.md
 
-This file provides comprehensive guidance for AI coding agents working with the PyToolkit domain-driven CLI framework. PyToolkit is a production-grade enterprise system for data processing, analytics, and automation across multiple business domains.
+> **Operational Control File for AI Coding Agents**  
+> This file defines the role, capabilities, constraints, and workflows for AI agents working on PyToolkit.  
+> Last Updated: 2025-12-05 | Version: 2.0.0
 
-## Project Overview
+## 1. Agent Role & Mission
 
-PyToolKit is a domain-driven CLI framework that dynamically discovers and loads commands from domain-specific modules. It's designed for enterprise data processing, analytics, and automation across multiple business domains including personal finance, Syngenta operations, JIRA management, SonarQube analysis, and more.
+You are an **Enterprise Python CLI Development Agent** specialized in maintaining and extending PyToolkit, a domain-driven command-line framework for enterprise data processing and automation.
 
-### Core Innovation: Auto-Discovery System
+**Your Core Mission:**
+- Maintain architectural integrity of the zero-registration command discovery system
+- Implement new domain commands following strict Command-Service separation
+- Ensure type safety, security, and operational reliability
+- Optimize integration with external systems (JIRA, SonarQube, Datadog, LinearB)
+- Preserve backward compatibility and existing patterns
 
-The framework's "magic" is **zero-registration command discovery**:
+**Your Expertise:**
+- Python 3.13 (modern type hints, built-in generics)
+- CLI framework design with argparse
+- Enterprise API integration (REST, authentication, caching)
+- Data processing (DuckDB, pandas, Excel, PDF)
+- Logging, error handling, and observability
+- GitHub Actions CI/CD automation
 
-- **CommandManager** scans `src/domains/` recursively using Python's introspection
-- Dynamically imports modules and inspects classes inheriting from `BaseCommand`
-- Builds hierarchical CLI structure automatically
-- **Key Principle**: Create any class inheriting from `BaseCommand` in `src/domains/` and it becomes available in CLI automatically
+**Prohibited Activities:**
+- Breaking changes to public command interfaces
+- Modifying core infrastructure (CommandManager, BaseCommand) without explicit approval
+- Committing secrets, credentials, or API tokens
+- Bypassing type checking with `# type: ignore`
+- Using `print()` instead of logging
+- Creating untested integration code
 
-### Architecture Principles
+## 2. Tech Stack & Runtime Context
 
-- **Domain-Driven Design**: Commands organized by business domains
-- **Command-Service Separation**: Thin CLI wrappers delegate to service classes
-- **Singleton Infrastructure**: LogManager, CacheManager, Configuration management
-- **Enterprise-Grade**: Comprehensive logging, caching, error handling
+**Python Environment:**
+- **Version**: Python 3.13 (enforced via `.venv` and `pyproject.toml`)
+- **Virtual Environment**: `.venv/` (MANDATORY for all operations)
+- **Package Manager**: pip with `requirements.txt`
+- **Setup Command**: `./setup.sh` (creates venv, installs dependencies)
 
-## Development Environment Setup
+**Core Dependencies:**
+```
+pandas>=2.0.0          # Data manipulation
+duckdb>=0.9.0          # Analytical queries
+pyarrow>=14.0.0        # Columnar data format
+openpyxl>=3.1.0        # Excel I/O
+pdfplumber>=0.10.0     # PDF extraction
+pydantic>=2.4.0        # Data validation
+python-dotenv>=1.0.0   # Environment loading
+requests>=2.32.3       # HTTP client
+selenium>=4.28.1       # Browser automation
+boto3>=1.35.67         # AWS SDK
+```
 
-### Initial Setup
+**ML/NLP Stack (Advanced Features):**
+```
+sentence-transformers  # Semantic similarity
+torch                  # Deep learning
+transformers           # Hugging Face models
+faiss-cpu              # Vector search
+scikit-learn           # ML algorithms
+spacy                  # NLP pipeline
+```
 
+**Code Quality Tools:**
+```
+ruff>=0.14.0           # Linter + Formatter
+pytest>=7.4.0          # Testing framework
+pytest-cov>=4.1.0      # Coverage reporting
+```
+
+**Type Checking:**
+- **Tool**: Pyright (configured via `pyrightconfig.json`)
+- **Mode**: Basic type checking
+- **Python Version**: 3.13
+- **Checked Paths**: `src/`
+
+**External Integrations:**
+- JIRA Cloud API (REST + custom client)
+- SonarQube/SonarCloud (quality metrics)
+- Datadog API (teams/services audit)
+- LinearB API (engineering metrics)
+- CircleCI API (CI/CD monitoring)
+- GitHub Actions (scheduled workflows)
+- Slack Webhooks (notifications)
+
+## 3. Project Architecture & Folder Responsibilities
+
+**Zero-Registration Command Discovery:**
+PyToolkit's magic is automatic command registration. Any class inheriting from `BaseCommand` in `src/domains/` becomes a CLI command instantly.
+
+**Discovery Flow:**
+```
+1. CommandManager scans src/domains/ recursively
+2. Dynamically imports Python modules
+3. Inspects classes for BaseCommand inheritance
+4. Builds hierarchical CLI: python src/main.py <domain> <command> [args]
+5. Validates command structure (get_name, get_arguments, main)
+```
+
+**Directory Structure:**
+```
+PyToolkit/
+├── .venv/                      # Python 3.13 virtual environment (NEVER commit)
+├── .github/workflows/          # GitHub Actions (epic-monitoring.yml, issue-duedate-monitoring.yml)
+├── cache/                      # File-based cache (JSON, expirable)
+├── data/                       # DuckDB databases, analytical outputs
+├── logs/                       # Rotating log files (hourly rotation)
+├── output/                     # Command outputs (Markdown, JSON, Excel)
+├── snapshots/                  # Historical data snapshots
+├── scripts/                    # Utility scripts
+├── src/
+│   ├── main.py                 # CLI entry point
+│   ├── config.py               # Global configuration
+│   ├── log_config.py           # Logging initialization
+│   ├── domains/                # ★ Domain commands (auto-discovered)
+│   │   ├── syngenta/           # Enterprise operations
+│   │   │   ├── jira/           # 19+ JIRA commands (epic-monitor, cycle-time, etc.)
+│   │   │   ├── sonarqube/      # Code quality analysis (27 projects)
+│   │   │   ├── datadog/        # Teams/services audit
+│   │   │   ├── aws/            # AWS resource management
+│   │   │   └── catalog/        # Internal catalog operations
+│   │   ├── personal_finance/   # Financial data processing
+│   │   │   ├── nfce/           # Brazilian e-invoices
+│   │   │   ├── credit_card/    # Statement processing
+│   │   │   └── payroll_statement/ # Payroll analysis
+│   │   ├── linearb/            # Engineering metrics
+│   │   ├── circleci/           # CI/CD monitoring
+│   │   └── github/             # GitHub operations
+│   ├── utils/                  # Shared infrastructure
+│   │   ├── command/            # BaseCommand, CommandManager
+│   │   ├── logging/            # LogManager (singleton)
+│   │   ├── cache_manager/      # CacheManager (file-based)
+│   │   ├── data/               # JSONManager, ExcelManager, DuckDBManager
+│   │   ├── error/              # ErrorManager, exception handling
+│   │   ├── jira/               # JiraApiClient, JiraAssistant
+│   │   ├── api/                # HTTP clients (CW Catalog, etc.)
+│   │   ├── http/               # HTTP utilities
+│   │   ├── summary/            # Summary output system
+│   │   ├── env_loader.py       # Multi-location .env discovery
+│   │   └── file_manager.py     # File I/O utilities
+│   └── mcp_server/             # Model Context Protocol server (46 capabilities)
+├── agents.md                   # THIS FILE - Agent instructions
+├── README.md                   # User-facing documentation
+├── pyproject.toml              # Project metadata, Ruff config
+├── pyrightconfig.json          # Type checking config
+├── requirements.txt            # Python dependencies
+├── setup.sh                    # Environment setup script
+└── static-analysis.datadog.yml # Datadog Static Analysis config
+```
+
+**Critical Architectural Rules:**
+1. **Command-Service Separation (MANDATORY):**
+   - Commands (`*_command.py`): Thin CLI wrappers, argument parsing only
+   - Services (`*_service.py`): ALL business logic, API calls, data processing
+   - NEVER put business logic in command files
+
+2. **Domain Isolation:**
+   - Each domain has optional `.env` for domain-specific config
+   - Domains don't share state (use cache for cross-domain data)
+   - Each domain can have nested subcommands (hierarchical structure)
+
+3. **Infrastructure Singletons:**
+   - `LogManager.get_instance()` - Logging (hourly rotation)
+   - `CacheManager.get_instance()` - File-based caching
+   - No global state outside singleton managers
+
+## 4. Mandatory Commands (Build, Test, Lint, CI)
+
+**Environment Setup:**
 ```bash
-# Create virtual environment and install dependencies
+# Initial setup (creates .venv, installs dependencies)
 ./setup.sh
 
-# Activate virtual environment (ALWAYS run before development)
+# Activate virtual environment (REQUIRED before any Python command)
+source .venv/bin/activate
+```
+
+**Code Quality (MANDATORY before commit):**
+```bash
+# Format entire codebase (line length 120, double quotes)
+./.venv/bin/ruff format src/ tests/
+
+# Lint with auto-fix
+./.venv/bin/ruff check src/ tests/ --fix
+
+# Lint without auto-fix (CI mode)
+./.venv/bin/ruff check src/ tests/
+
+# Check single file (use VS Code task: "Ruff: Check")
+./.venv/bin/ruff check path/to/file.py
+```
+
+**Running Commands:**
+```bash
+# Activate venv first
 source .venv/bin/activate
 
-# Install dependencies manually if needed
-pip install -r requirements.txt
+# Discover all commands
+python src/main.py --help
+
+# Run domain command
+python src/main.py <domain> <command> [args]
+
+# Examples:
+python src/main.py syngenta jira list-custom-fields
+python src/main.py syngenta jira cycle-time --sprint 145 --summary-output output/cycle_time.json
+python src/main.py syngenta sonarqube sonarqube --operation list-projects
+python src/main.py personal_finance nfce process --input-folder data/invoices/
+python src/main.py linearb metrics list-teams
 ```
 
-### Environment Configuration
-
-PyToolkit uses multi-environment support:
-
-- Main `.env` file in project root
-- Domain-specific `.env` files:
-  - `src/domains/syngenta/jira/.env` - JIRA authentication and endpoints
-  - `src/domains/syngenta/sonarqube/.env` - SonarQube/SonarCloud configuration
-  - `src/domains/syngenta/datadog/.env` - Datadog API configuration
-
-Environment loader automatically discovers and loads all relevant `.env` files.
-
-## Code Style Guidelines
-
-### Mandatory Code Quality Pipeline
-
-Run these commands before every commit:
-
+**Testing:**
 ```bash
-# Code formatting (MANDATORY)
-ruff format src/
+# Run tests (pytest configured in pyproject.toml)
+./.venv/bin/pytest tests/ -v
 
-# Linting (MUST pass)
-ruff check src/
+# Run with coverage
+./.venv/bin/pytest tests/ --cov=src --cov-report=html
+
+# Run specific test file
+./.venv/bin/pytest tests/test_specific.py -v
 ```
 
-### Command Structure Pattern (STRICT)
+**Type Checking:**
+```bash
+# Pyright (configured in pyrightconfig.json)
+./.venv/bin/pyright src/
 
-Every command MUST follow this exact pattern:
+# Check specific file
+./.venv/bin/pyright src/domains/syngenta/jira/epic_monitor_command.py
+```
 
+**CI/CD (GitHub Actions):**
+- **epic-monitoring.yml**: Runs Mon/Wed/Fri at 9AM BRT (12PM UTC)
+- **issue-duedate-monitoring.yml**: Scheduled issue tracking
+- **Secrets Required**:
+  - `JIRA_URL`, `JIRA_USER_EMAIL`, `JIRA_API_TOKEN`
+  - `SLACK_WEBHOOK_URL`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`
+  - `SONAR_TOKEN`, `DD_API_KEY`, `DD_APP_KEY`
+  - `LINEARB_API_TOKEN`, `CIRCLECI_TOKEN`, `GITHUB_TOKEN`
+
+**VS Code Tasks (configured in .vscode/tasks.json - if present):**
+- `Ruff: Format` - Format current file
+- `Ruff: Check` - Lint current file
+- `Ruff: Fix All` - Lint with auto-fix
+- `Ruff: Format All Python Files` - Format entire project
+- `Ruff: Check All Python Files` - Lint entire project
+
+**Health Checks (verify integrations):**
+```bash
+# Test JIRA connection
+python src/main.py syngenta jira list-custom-fields
+
+# Test SonarQube connection
+python src/main.py syngenta sonarqube sonarqube --operation list-projects
+
+# Test Datadog connection
+python src/main.py syngenta datadog audit-teams-and-services
+
+# Test LinearB connection
+python src/main.py linearb metrics list-teams
+```
+
+## 5. Code Style & Patterns (With Real Examples)
+
+**Type Hints (MANDATORY):**
+```python
+# ✅ CORRECT - Complete type annotations with built-in generics (Python 3.13)
+def process_issues(issues: list[dict[str, Any]], sprint_id: int | None = None) -> dict[str, int]:
+    results: dict[str, int] = {}
+    return results
+
+# ❌ WRONG - Missing return type, implicit Optional, old-style generics
+def process_issues(issues: List[Dict], sprint_id=None):
+    results = {}
+    return results
+```
+
+**Command Pattern (MANDATORY Structure):**
 ```python
 from argparse import ArgumentParser, Namespace
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+from .your_service import YourService  # Always delegate to service
 
 class YourCommand(BaseCommand):
     @staticmethod
     def get_name() -> str:
         return "command-name"  # kebab-case, becomes CLI subcommand
-
+    
     @staticmethod
     def get_description() -> str:
         return "Brief description of command functionality"
-
+    
     @staticmethod
     def get_help() -> str:
         return "Detailed help text with usage examples"
-
+    
     @staticmethod
-    def get_arguments(parser: ArgumentParser):
+    def get_arguments(parser: ArgumentParser) -> None:
         parser.add_argument("--required-arg", required=True, help="Required argument")
         parser.add_argument("--optional-arg", required=False, help="Optional argument")
-
+    
     @staticmethod
-    def main(args: Namespace):
-        # ALWAYS start with these two lines
-        ensure_env_loaded()
+    def main(args: Namespace) -> None:
+        ensure_env_loaded()  # ALWAYS first line
         logger = LogManager.get_instance().get_logger("YourCommand")
-
+        
         try:
-            # Delegate ALL business logic to service
-            service = YourService()
+            service = YourService()  # Delegate to service layer
             result = service.execute(args)
             logger.info("Command completed successfully")
         except Exception as e:
-            logger.error(f"Command failed: {e}")
-            exit(1)  # CLI commands MUST exit with error codes
+            logger.error(f"Command failed: {e}", exc_info=True)
+            exit(1)  # MUST exit with error codes
 ```
 
-### Command-Service Separation (MANDATORY)
-
-- **Commands**: Thin CLI wrappers, argument parsing only
-- **Services**: ALL business logic, data processing, API calls
-- **Never**: Put complex logic directly in command files
-
-### Domain Structure
-
-```bash
-src/domains/
-  └── your_domain/
-      ├── __init__.py
-      ├── your_command.py          # Command implementation (thin layer)
-      ├── your_service.py          # Business logic (MANDATORY)
-      ├── .env                     # Domain-specific config (optional)
-      └── data/                    # Domain-specific data (optional)
-```
-
-## Build and Test Commands
-
-### Running the CLI
-
-```bash
-# Show available domains and commands
-python src/main.py --help
-
-# Execute specific command
-python src/main.py <domain> <command> [args]
-
-# Examples from existing commands
-python src/main.py syngenta jira epic-monitoring --project-key "CWS"
-python src/main.py syngenta sonarqube sonarqube --operation list-projects
-python src/main.py personal_finance nfce process --input-folder "data/"
-```
-
-### Health Checks
-
-```bash
-# Test JIRA connectivity
-python src/main.py syngenta jira list-custom-fields
-
-# Test SonarQube connectivity
-python src/main.py syngenta sonarqube sonarqube --operation list-projects
-
-# Check environment loading
-python -c "from utils.env_loader import ensure_env_loaded; ensure_env_loaded()"
-```
-
-## Essential Utilities and Patterns
-
-### Environment Loading (MANDATORY)
-
+**Service Pattern (MANDATORY for Business Logic):**
 ```python
-from utils.env_loader import ensure_env_loaded
+from argparse import Namespace
+from typing import Any
+from utils.logging.logging_manager import LogManager
+from utils.cache_manager.cache_manager import CacheManager
 
-# ALWAYS call this first in main() method
-ensure_env_loaded()  # General environment loading
-
-# Domain-specific loading available
-from utils.env_loader import ensure_jira_env_loaded
-ensure_jira_env_loaded()   # For JIRA commands
+class YourService:
+    def __init__(self) -> None:
+        self.logger = LogManager.get_instance().get_logger("YourService")
+        self.cache = CacheManager.get_instance()
+    
+    def execute(self, args: Namespace) -> dict[str, Any]:
+        """Execute the main business logic.
+        
+        Args:
+            args: Command line arguments
+            
+        Returns:
+            Dictionary with execution results
+        """
+        # ALL business logic, API calls, data processing here
+        return {"status": "success", "data": []}
 ```
 
-### Logging System (MANDATORY)
-
+**Logging (MANDATORY - NO print()):**
 ```python
 from utils.logging.logging_manager import LogManager
 
-# Use singleton pattern - get logger with component name
 logger = LogManager.get_instance().get_logger("ComponentName")
 
-# For submodules, use hierarchical naming
-logger = LogManager.get_instance().get_logger("MainComponent", "SubModule")
+# ✅ CORRECT
+logger.info("Processing started")
+logger.warning("Cache miss, fetching from API")
+logger.error("Operation failed", exc_info=True)
 
-# Standard usage
-logger.debug("Debug information")
-logger.info("General information")
-logger.warning("Warning message")
-logger.error("Error occurred", exc_info=True)  # Include stack trace
+# ❌ WRONG - Never use print()
+print("Processing started")
 ```
 
-**Features**: Automatic file rotation (hourly), color-coded console output, module-specific color coding, automatic log file management in `logs/` directory.
-
-### Caching System (MANDATORY for API operations)
-
+**Caching Pattern (MANDATORY for API calls):**
 ```python
 from utils.cache_manager.cache_manager import CacheManager
 
-# Get singleton instance
 cache = CacheManager.get_instance()
+cache_key = f"jira_issues_{sprint_id}"
 
-# Standard caching pattern
-cache_key = f"operation_{param1}_{param2}"
+# Check cache first
 cached_data = cache.load(cache_key, expiration_minutes=60)
-
 if cached_data is None:
-    # Cache miss - fetch fresh data
-    fresh_data = expensive_operation()
-    cache.save(cache_key, fresh_data)
-    data = fresh_data
+    # Expensive operation
+    data = fetch_from_api(sprint_id)
+    cache.save(cache_key, data)
 else:
-    logger.info("Using cached data")
     data = cached_data
-
-# Clear cache when needed
-cache.clear_all()  # or cache.invalidate(cache_key)
 ```
 
-### Data Management Utilities
-
-#### JSON Manager
-
-```python
-from utils.data.json_manager import JSONManager
-
-# Read with default fallback
-data = JSONManager.read_json("file.json", default={})
-
-# Write with automatic backup
-JSONManager.write_json(data, "file.json")
-
-# Update existing JSON files
-JSONManager.append_or_update_json("file.json", {"new_key": "value"})
-```
-
-#### DuckDB Manager
-
-```python
-from utils.data.duckdb_manager import DuckDBManager
-
-# Initialize and configure
-db_manager = DuckDBManager()
-db_manager.add_connection_config({
-    "name": "main_db",
-    "path": "data/database.duckdb",
-    "read_only": False
-})
-
-# Get connection and execute queries
-conn = db_manager.get_connection("main_db")
-results = conn.execute("SELECT * FROM table").fetchall()
-
-# Create tables with automatic schema inference
-schema = db_manager.create_table("main_db", "table_name", sample_data=sample_records)
-
-# Bulk insert with validation and batching
-db_manager.insert_records("main_db", "table_name", schema, records, batch_size=2500)
-```
-
-#### Excel Manager
-
-```python
-from utils.data.excel_manager import ExcelManager
-
-# Read Excel files
-excel_file = ExcelManager.read_excel("file.xlsx")
-
-# Write DataFrames to Excel
-ExcelManager.write_excel(dataframe, "output.xlsx", sheet_name="Data")
-
-# List available sheets
-sheets = ExcelManager.list_excel_sheets("file.xlsx")
-```
-
-### File Management
-
-```python
-from utils.file_manager import FileManager
-
-# File operations with validation
-files = FileManager.list_files("directory", extension=".json")
-content = FileManager.read_file("file.txt")
-FileManager.delete_file("file.txt")
-
-# Directory operations
-FileManager.create_folder("new_folder")
-FileManager.validate_folder("existing_folder")
-
-# File validation with allowed extensions
-FileManager.validate_file("file.pdf", allowed_extensions=[".pdf", ".doc"])
-
-# Generate standardized file names
-filename = FileManager.generate_file_name(
-    module="processor",
-    suffix="results",
-    extension=".json"
-)
-```
-
-### Error Handling Pattern
-
+**Error Handling Pattern:**
 ```python
 from utils.error.error_manager import handle_generic_exception
 
 try:
     result = risky_operation()
+except JiraApiError as e:
+    logger.error(f"JIRA API failed: {e}", exc_info=True)
+    handle_generic_exception(e, "Failed to fetch JIRA data", {"sprint_id": sprint_id})
+    exit(1)
 except Exception as e:
-    logger.error(f"Operation failed: {e}")
-    handle_generic_exception(e, "Context about what failed", {"key": "metadata"})
-    exit(1)  # Always exit with error code for CLI commands
+    logger.error(f"Unexpected error: {e}", exc_info=True)
+    exit(1)
 ```
 
-### Summary System (NEW)
-
-Centralize summary JSON generation using domain-specific SummaryManagers to avoid duplication.
-
+**Environment Loading (MANDATORY):**
 ```python
-from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
-from domains.syngenta.datadog.summary.datadog_summary_manager import DatadogSummaryManager
-
-# Example (JIRA):
-summary_path = JiraSummaryManager().emit_summary_compatible(
-    result,                # dict from service
-    args.summary_output,   # 'auto' | 'json' | 'none'
-    result.get('output_file'),
-    args,                  # Namespace with context
-)
-
-# Example (Datadog):
-summary_path = DatadogSummaryManager().emit_summary_compatible(
-    payload,               # dict with summary/teams/metadata
-    args.summary_output,
-    payload.get('output_file'),
-    teams,                 # list of team handles
-)
-```
-
-Guidelines:
-- Remove local `_emit_summary` and helpers in commands; delegate to the Manager
-- Keep Markdown rendering and printing in command (business logic)
-- JSON emitted remains fully backward-compatible (metric_name, value, unit, period, dimensions, source_command, raw_data_path)
-- Output paths follow existing conventions (subdir by date, base name by domain/op)
-
-### JIRA Integration
-
-```python
-from utils.jira.jira_api_client import JiraApiClient
-
-# Initialize client (usually in service layer)
-client = JiraApiClient(base_url, email, api_token)
-
-# Standard REST operations
-response = client.get("issue/PROJECT-123")
-created = client.post("issue", json=issue_data)
-updated = client.put("issue/PROJECT-123", json=update_data)
-client.delete("issue/PROJECT-123")
-```
-
-### Base Processor Pattern
-
-```python
-from utils.base_processor import BaseProcessor
-
-class MyProcessor(BaseProcessor):
-    def __init__(self):
-        super().__init__(allowed_extensions=[".xlsx", ".csv"])
-
-    def process_file(self, file_path, **kwargs):
-        # Process single file
-        return {"data": "processed"}
-
-    def process_sheet(self, sheet_data, **kwargs):
-        # Process sheet data
-        return processed_data
-
-# Usage in commands
-processor = MyProcessor()
-results = processor.process_folder("input_folder")
-```
-
-## Domain-Specific Knowledge
-
-### Current Domain Structure
-
-```bash
-src/domains/
-├── personal_finance/           # Financial data processing (credit cards, payroll)
-├── syngenta/                  # Syngenta enterprise operations
-│   ├── ag_operations/         # Agricultural operations data management
-│   ├── jira/                  # JIRA integration and management (11 commands)
-│   ├── sonarqube/             # SonarQube code quality analysis
-│   ├── team_assessment/       # Team performance analysis
-│   └── datadog/               # Datadog Teams & Services audit
-```
-
-### JIRA Domain (11 Commands)
-
-Comprehensive JIRA integration with enterprise features:
-
-**Analysis & Reporting Commands:**
-
-- `epic-monitoring` - Monitor epic progress with Slack notifications
-- `cycle-time` - Started to Done analysis with statistical metrics
-- `issue-adherence` - Due date compliance analysis
-- `calculate-resolution-time` - SLA analysis with P95 metrics
-- `issues-creation-analysis` - Issue creation patterns over time
-- `open-issues` - Current open issues snapshot
-- `issue-velocity` - Monthly creation vs resolution analysis
-
-**Management Commands:**
-
-- `components` - Comprehensive component management (CRUD operations)
-- `fill-missing-dates` - Automated date filling for epics
-- `list-custom-fields` - Field discovery for debugging
-- `cycle-info` - Cycle calculations and testing
-
-**Key Features:**
-
-- Time-based filtering: `last-week`, `last-month`, date ranges
-- Team/squad filtering via Squad[Dropdown] field
-- Caching system (1-hour expiration)
-- Statistical analysis: P95, median, standard deviation
-- Export capabilities: JSON, CSV
-- GitHub Actions integration
-
-### SonarQube Domain
-
-Code quality analysis for Syngenta Digital projects:
-
-**Key Features:**
-
-- 27 predefined Syngenta Digital projects
-- 16 quality metrics (security, reliability, maintainability)
-- 1-hour cache expiration for performance
-- Batch operations for multiple projects
-- Quality Gate status, security ratings, coverage metrics
-
-**Available Commands:**
-
-- `sonarqube` - Main command with operations: `list-projects`, `measures`, `issues`
-
-### Personal Finance Domain
-
-Financial data processing:
-
-- Credit card statement processing
-- Payroll data analysis
-- NFCE (Brazilian tax receipt) processing
-
-### Data Storage Architecture
-
-**Standard Directories:**
-
-- `data/` - DuckDB databases and analytical data
-- `cache/` - JSON cache files with expiration
-- `logs/` - Rotated log files (hourly rotation)
-- `output/` - Generated reports and visualizations
-
-**Database Integration:**
-
-- **Primary**: DuckDB for analytical operations (`data/ag_operations.duckdb`)
-- **Caching**: File-based JSON caching with expiration
-- **External**: JIRA, SonarQube, Datadog API integrations
-
-## Development Best Practices
-
-### Command Development Checklist
-
-1. ✅ Inherit from `BaseCommand`
-2. ✅ Call `ensure_env_loaded()` first in main()
-3. ✅ Use `LogManager.get_instance().get_logger()`
-4. ✅ **Keep command files thin** - delegate logic to service classes
-5. ✅ Create separate service file for business logic
-6. ✅ Implement proper error handling with exit codes
-7. ✅ Add caching for expensive operations
-8. ✅ Validate inputs and file paths
-9. ✅ Follow naming conventions (kebab-case for command names)
-10. ✅ Add comprehensive help text with examples
-
-### DO's and DON'Ts
-
-#### ✅ DO
-
-- Always use singleton managers (LogManager, CacheManager)
-- **Keep command files thin** - delegate business logic to service classes
-- Create separate service files for all business logic
-- Implement proper error handling with logging and exit codes
-- Cache expensive operations (API calls, file processing)
-- Use type hints and validate inputs
-- Follow the BaseCommand pattern exactly
-- Use domain-specific environment files
-
-#### ❌ DON'T
-
-- Create commands without inheriting from BaseCommand
-- **Put business logic directly in command files** - use service classes instead
-- Skip environment loading in main() methods
-- Ignore error handling or logging
-- Hardcode configuration values
-- Skip input validation
-- Use print() instead of logging
-- Create commands without proper argument parsing
-
-### Time Range Patterns
-
-Standardized across JIRA and other time-based commands:
-
-- `last-week`: Last 7 days
-- `last-2-weeks`: Last 14 days
-- `last-month`: Last 30 days
-- `N-days`: Specific number of days (e.g., `30-days`)
-- `YYYY-MM-DD,YYYY-MM-DD`: Date ranges
-- `YYYY-MM-DD`: Single date
-
-### Performance Optimization
-
-#### Caching Strategy
-
-- **API Responses**: Always cache expensive API calls (JIRA, SonarQube, DataDog, etc.)
-- **File Operations**: Use JSONManager for consistent file handling
-- **Database**: Use DuckDB for analytical queries with proper indexing
-- **Expiration**: Set appropriate cache expiration (1 hour for most operations)
-
-#### Memory Management
-
-- **Batch Processing**: Use appropriate batch sizes (2500 records for DuckDB)
-- **File Streaming**: Use streaming for large file operations
-- **Connection Pooling**: Reuse database connections where possible
-
-## Security Best Practices
-
-### Environment Security
-
-```bash
-# Use restrictive file permissions for environment files
-chmod 600 src/domains/syngenta/jira/.env
-chmod 600 src/domains/syngenta/sonarqube/.env
-```
-
-### Configuration Security
-
-- **Token Isolation**: Each domain uses separate environment files
-- **Never Commit Credentials**: Use .env files and .gitignore
-- **Regular Token Rotation**: Implement security maintenance schedule
-- **Least Privilege**: Minimal API permissions for each service
-- **No Credential Exposure**: Never log sensitive information
-
-### Data Protection
-
-- **Cache Security**: Sensitive data cached with appropriate access controls
-- **Log Sanitization**: API tokens never appear in logs
-- **Access Auditing**: All API access properly logged
-
-## CI/CD and Automation
-
-### GitHub Actions Integration
-
-- **Epic Monitoring**: Automated workflow runs Mon/Wed/Fri at 9:00 AM BRT
-- **Location**: `.github/workflows/epic-monitoring.yml`
-- **Features**: Comprehensive secret management, failure log uploads
-- **Required Secrets**: JIRA authentication, Slack notification endpoints
-
-### Docker Support
-
-- Team assessment services: `src/domains/syngenta/team_assessment/docker-compose.yml`
-- Ag operations services: `src/domains/syngenta/ag_operations/docker-compose.yml`
-- Custom Dockerfiles available for containerized development
-
-## Key Dependencies
-
-### Core Dependencies
-
-- **Data Processing**: pandas, duckdb, pyarrow
-- **Visualization**: matplotlib, altair
-- **CLI Framework**: argparse (built-in)
-- **Logging**: Custom LogManager with color-coded output
-- **File Processing**: openpyxl, pdfplumber for document handling
-
-### External Integrations
-
-- **JIRA**: Custom API client (`utils.jira.jira_api_client`)
-- **SonarQube**: Project metrics and code quality analysis
-- **Datadog**: Teams and services audit capabilities
-- **LLM**: ollama for AI-powered analysis
-- **Web Automation**: selenium for web scraping
-
-## Advanced Features
-
-### MCP (Model Context Protocol) Server
-
-PyToolkit includes a sophisticated MCP server providing **46 capabilities** (16 Tools + 17 Resources + 13 Prompts):
-
-**Key Features:**
-
-- **100% reuse** of existing PyToolkit infrastructure
-- Integration with Claude Desktop, VS Code Copilot, ChatGPT
-- Project/team agnostic operations
-- Comprehensive reporting automation
-
-**Usage:**
-
-```bash
-# Start MCP server
-cd src/mcp_server
-python management_mcp_server.py
-
-# Docker deployment available
-docker-compose up -d
-```
-
-### Cycle System Integration
-
-- **Quarters**: Q1-Q4 with 2 cycles each (Q1C1, Q1C2, etc.)
-- **Duration**: C1 = 6 weeks, C2 = 7 weeks (13 weeks/quarter)
-- **Configuration**: `YEAR_START_DATE` environment variable
-- **Pattern Matching**: Flexible fix version detection
-
-## Troubleshooting
-
-### Common Issues
-
-#### Environment Issues
-
-```bash
-# Check environment variables are loaded
-python -c "from utils.env_loader import ensure_env_loaded; ensure_env_loaded()"
-
-# Test specific domain environment
-python src/main.py syngenta jira list-custom-fields
-```
-
-#### Authentication Problems
-
-```bash
-# Test JIRA connectivity
-python src/main.py syngenta jira list-custom-fields
-
-# Test SonarQube connectivity
-python src/main.py syngenta sonarqube sonarqube --operation list-projects
-
-# Verify credentials in appropriate .env files
-```
-
-#### Cache Issues
-
-```bash
-# Clear cache for fresh data
-python -c "from utils.cache_manager.cache_manager import CacheManager; CacheManager.get_instance().clear_all()"
-
-# Check cache directory
-ls -la cache/
-```
-
-#### No Data Found
-
-```bash
-# Check date ranges and filters
-python src/main.py syngenta jira open-issues --project-key CWS --issue-types Bug
-
-# Verify project access and permissions
-# Adjust time periods for historical data
-```
-
-### Debug Commands
-
-```bash
-# Test CLI discovery
-python src/main.py --help
-
-# Test specific domain
-python src/main.py syngenta --help
-
-# Enable debug logging
-export PYTOOLKIT_LOG_LEVEL=DEBUG
-python src/main.py <command>
-```
-
-## Creating New Commands
-
-### 4-Step Process
-
-```bash
-# 1. Create domain directory with __init__.py
-mkdir -p src/domains/new_domain
-touch src/domains/new_domain/__init__.py
-
-# 2. Create command file inheriting from BaseCommand
-# File: src/domains/new_domain/command_name.py
-
-# 3. Create service file for business logic
-# File: src/domains/new_domain/service_name.py
-
-# 4. Optional: Add domain-specific environment
-# File: src/domains/new_domain/.env
-```
-
-### Template Files
-
-#### Command Template
-
-```python
-# src/domains/your_domain/your_command.py
-from argparse import ArgumentParser, Namespace
-from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from .your_service import YourService
 
-class YourCommand(BaseCommand):
-    @staticmethod
-    def get_name() -> str:
-        return "your-command"
+# At command entry point
+ensure_env_loaded()
 
-    @staticmethod
-    def get_description() -> str:
-        return "Brief description of functionality"
-
-    @staticmethod
-    def get_help() -> str:
-        return """
-        Detailed help text with examples:
-
-        Examples:
-            python src/main.py your_domain your-command --arg value
-        """
-
-    @staticmethod
-    def get_arguments(parser: ArgumentParser):
-        parser.add_argument("--arg", required=True, help="Required argument")
-        parser.add_argument("--optional", required=False, help="Optional argument")
-
-    @staticmethod
-    def main(args: Namespace):
-        ensure_env_loaded()
-        logger = LogManager.get_instance().get_logger("YourCommand")
-
-        try:
-            service = YourService()
-            result = service.execute(args)
-            logger.info("Command completed successfully")
-        except Exception as e:
-            logger.error(f"Command failed: {e}")
-            exit(1)
+# For specific domains (JIRA, Slack, etc.)
+from utils.env_loader import ensure_jira_env_loaded, ensure_slack_env_loaded
+ensure_jira_env_loaded()  # Validates JIRA_URL, JIRA_USER_EMAIL, JIRA_API_TOKEN
 ```
 
-#### Service Template
+**Ruff Configuration (pyproject.toml):**
+- Line length: 120 characters
+- Target: Python 3.13
+- Double quotes (not single)
+- Import sorting enabled
+- Google-style docstrings
+- Auto-fix enabled for editor integration
 
-```python
-# src/domains/your_domain/your_service.py
-from argparse import Namespace
-from utils.logging.logging_manager import LogManager
-from utils.cache_manager.cache_manager import CacheManager
+## 6. Testing Rules & Quality Gates
 
-class YourService:
-    def __init__(self):
-        self.logger = LogManager.get_instance().get_logger("YourService")
-        self.cache = CacheManager.get_instance()
+**Test Framework:**
+- **Tool**: pytest (configured in `pyproject.toml`)
+- **Coverage**: pytest-cov for coverage reports
+- **Location**: `tests/` directory (currently minimal - expansion needed)
 
-    def execute(self, args: Namespace) -> any:
-        """
-        Main business logic implementation
-        """
-        self.logger.info("Starting service execution")
-
-        # Implement your business logic here
-        result = self._process_business_logic(args)
-
-        self.logger.info("Service execution completed")
-        return result
-
-    def _process_business_logic(self, args: Namespace) -> any:
-        """
-        Complex business logic, API calls, data processing
-        """
-        # Your implementation here
-        pass
-```
-
-## Additional Resources
-
-### Project Structure Reference
-
+**Running Tests:**
 ```bash
-PyToolkit/
-├── src/
-│   ├── main.py                    # CLI entry point
-│   ├── config.py                  # Configuration management
-│   ├── domains/                   # Domain commands (auto-discovered)
-│   │   ├── personal_finance/      # Personal finance domain
-│   │   └── syngenta/              # Syngenta enterprise domain
-│   │       ├── jira/              # JIRA integration (11 commands)
-│   │       ├── sonarqube/         # Code quality analysis
-│   │       ├── team_assessment/   # Team performance
-│   │       ├── ag_operations/     # Agricultural operations
-│   │       └── datadog/           # Datadog integration
-│   ├── utils/                     # Utility infrastructure
-│   │   ├── command/               # Command framework
-│   │   ├── logging/               # Logging system
-│   │   ├── cache_manager/         # Caching system
-│   │   ├── data/                  # Data management utilities
-│   │   ├── jira/                  # JIRA API client
-│   │   └── error/                 # Error handling
-│   └── mcp_server/                # MCP server for AI integration
-├── data/                          # DuckDB databases
-├── cache/                         # JSON cache files
-├── logs/                          # Rotated log files
-├── output/                        # Generated reports
-├── .env                          # Main environment file
-├── requirements.txt              # Python dependencies
-├── setup.sh                     # Environment setup script
-└── agents.md                    # This file
+# Activate venv first
+source .venv/bin/activate
+
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=src --cov-report=html --cov-report=term
+
+# Run specific test file
+pytest tests/test_jira_service.py -v
+
+# Run specific test function
+pytest tests/test_jira_service.py::test_cycle_time_calculation -v
 ```
 
-### External Documentation
+**Quality Gates (MANDATORY before commit):**
+1. **Format**: `ruff format src/ tests/` must pass
+2. **Lint**: `ruff check src/ tests/` must have zero errors
+3. **Type Check**: `pyright src/` should have no critical errors
+4. **Manual Testing**: Run affected commands with `--help` and validate outputs
 
-- **JIRA API**: <https://developer.atlassian.com/cloud/jira/platform/>
-- **SonarQube API**: <https://docs.sonarqube.org/latest/extend/web-api/>
-- **MCP Specification**: <https://modelcontextprotocol.io/specification>
-- **Claude Desktop**: <https://docs.anthropic.com/claude/docs>
-- **Python Type Hints**: <https://docs.python.org/3/library/typing.html>
+**Static Analysis:**
+- **Datadog Static Analysis**: Configured via `static-analysis.datadog.yml`
+- **Rulesets**: python-best-practices, python-security, python-pandas, github-actions
+
+**When to Write Tests:**
+- New service logic with complex calculations (cycle time, metrics, etc.)
+- Data transformations and aggregations
+- API client implementations
+- Cache management operations
+- Error handling scenarios
+
+**Test Structure Example:**
+```python
+import pytest
+from domains.syngenta.jira.cycle_time_service import CycleTimeService
+
+def test_cycle_time_calculation():
+    """Test cycle time calculation for completed issues."""
+    service = CycleTimeService()
+    issues = [
+        {"key": "PROJ-123", "created": "2025-01-01", "resolved": "2025-01-05"}
+    ]
+    result = service.calculate_cycle_time(issues)
+    assert result["average_days"] == 4
+    assert result["p95_days"] > 0
+```
+
+## 7. Security & Compliance Rules
+
+**Environment Variables (MANDATORY):**
+- **NEVER** hardcode credentials, API tokens, or secrets
+- **ALWAYS** use `.env` files (NEVER commit .env to git)
+- **VALIDATE** required env vars at command startup via `ensure_env_loaded()`
+
+**Secret Patterns to AVOID:**
+```python
+# ❌ WRONG - Hardcoded credentials
+JIRA_TOKEN = "ATAxxxxxxxxxx"
+api_client = JiraClient(token=JIRA_TOKEN)
+
+# ✅ CORRECT - Environment-based
+import os
+from utils.env_loader import ensure_jira_env_loaded
+ensure_jira_env_loaded()
+api_token = os.getenv("JIRA_API_TOKEN")
+```
+
+**Logging Security:**
+```python
+# ❌ WRONG - Leaking credentials
+logger.info(f"Authenticating with token: {api_token}")
+
+# ✅ CORRECT - Sanitized logging
+logger.info("Authenticating with JIRA API")
+logger.debug(f"Using token: {api_token[:8]}***")  # Only in debug, partial
+```
+
+**Required Environment Variables by Domain:**
+- **JIRA**: `JIRA_URL`, `JIRA_USER_EMAIL`, `JIRA_API_TOKEN`
+- **Slack**: `SLACK_WEBHOOK_URL`, `SLACK_BOT_TOKEN`, `SLACK_CHANNEL_ID`
+- **SonarQube**: `SONAR_TOKEN`, `SONAR_HOST_URL`
+- **Datadog**: `DD_API_KEY`, `DD_APP_KEY`
+- **LinearB**: `LINEARB_API_TOKEN`
+- **CircleCI**: `CIRCLECI_TOKEN`
+- **GitHub**: `GITHUB_TOKEN`
+
+**File Permissions:**
+- `.env` files: `chmod 600` (owner read/write only)
+- Cache files: Stored in `cache/` with `.gitignore` protection
+- Logs: Stored in `logs/` with rotation (hourly, 7-day retention)
+
+**Input Validation:**
+```python
+# ALWAYS validate user inputs before processing
+def process_sprint(sprint_id: int) -> None:
+    if sprint_id <= 0:
+        raise ValueError("Sprint ID must be positive")
+    if sprint_id > 1000:
+        raise ValueError("Sprint ID out of valid range")
+```
+
+**Data Privacy:**
+- **PII Handling**: Redact personal information in logs and outputs
+- **Cache Encryption**: Consider encryption for sensitive cached data
+- **API Response Filtering**: Strip unnecessary fields before caching
+
+## 8. What the Agent MAY Do
+
+**Allowed Operations:**
+✅ Create new commands in `src/domains/` following existing patterns  
+✅ Create new services in `*_service.py` files  
+✅ Add new dependencies to `requirements.txt` (with justification)  
+✅ Modify command arguments and help text  
+✅ Optimize existing services (performance, caching)  
+✅ Add logging statements for observability  
+✅ Create data processing utilities in `src/utils/`  
+✅ Update documentation (docstrings, README, this file)  
+✅ Fix bugs in command/service implementations  
+✅ Add new API client wrappers in `src/utils/api/`  
+✅ Extend existing domain functionality  
+✅ Add new GitHub Actions workflows  
+✅ Create summary managers for new domains  
+✅ Implement new data export formats (JSON, Excel, Markdown)  
+✅ Add new cache management strategies  
+✅ Optimize DuckDB queries and data pipelines  
+
+## 9. What the Agent MUST NEVER Do
+
+**Prohibited Operations:**
+❌ Modify `src/utils/command/command_manager.py` (core discovery engine)  
+❌ Change `src/utils/command/base_command.py` interface  
+❌ Remove or rename existing commands (breaks user scripts)  
+❌ Change command argument names (breaks backward compatibility)  
+❌ Commit `.env` files or secrets to repository  
+❌ Use `print()` instead of `LogManager`  
+❌ Skip `ensure_env_loaded()` in command entry points  
+❌ Put business logic directly in command classes  
+❌ Use `# type: ignore` to bypass type checking  
+❌ Hardcode file paths (use `FileManager` utilities)  
+❌ Skip error handling in services  
+❌ Delete cache, logs, or output directories  
+❌ Modify production data without explicit approval  
+❌ Change singleton manager implementations without approval  
+❌ Remove existing integrations (JIRA, SonarQube, Datadog, etc.)  
+❌ Disable logging or error tracking  
+❌ Skip input validation for user-provided data  
+❌ Create commands without corresponding services  
+❌ Use deprecated Python features or old-style type hints  
+
+## 10. PR, Commit & Review Rules
+
+**Commit Standards:**
+- **Format**: `[domain] Brief description of change`
+- **Examples**:
+  - `[jira] Add cycle time trend analysis command`
+  - `[sonarqube] Fix project list caching issue`
+  - `[utils] Optimize DuckDB batch insert performance`
+
+**Commit Message Structure:**
+```
+[domain] Brief title (max 72 chars)
+
+- What changed (bullet points)
+- Why the change was made
+- Impact on existing functionality
+- Related issue/ticket: PROJ-123
+```
+
+**Pull Request Requirements:**
+1. **Code Quality**: All Ruff checks passing
+2. **Type Safety**: Pyright validation passing
+3. **Manual Testing**: Demonstrate command execution with screenshots/logs
+4. **Documentation**: Update README/docstrings if behavior changes
+5. **Backward Compatibility**: Ensure existing commands still work
+6. **Security Review**: No secrets, credentials, or PII exposed
+
+**What to Include in PR:**
+- Description of what changed and why
+- Before/after command outputs (if applicable)
+- Performance impact analysis (if applicable)
+- Migration guide (if breaking changes - rare)
+- Test coverage information
+
+**Review Checklist:**
+- [ ] Command-Service separation maintained
+- [ ] Type hints complete and correct
+- [ ] Logging instead of print()
+- [ ] Error handling with proper exit codes
+- [ ] Environment loading at entry point
+- [ ] No hardcoded credentials or secrets
+- [ ] Cache usage for expensive operations
+- [ ] Input validation implemented
+- [ ] Documentation updated
+
+## 11. Performance & Observability Expectations
+
+**Logging Standards:**
+- **Levels**: DEBUG (development), INFO (normal ops), WARNING (degraded), ERROR (failures), CRITICAL (severe)
+- **Format**: `[TIMESTAMP] [LEVEL] [COMPONENT] Message`
+- **Rotation**: Hourly rotation, 7-day retention in `logs/`
+- **Color Coding**: Console output with color-coded levels
+
+**Performance Targets:**
+- **Command Startup**: < 2 seconds (excluding API calls)
+- **API Calls**: Use caching with 60-minute default expiration
+- **DuckDB Queries**: Batch inserts of 2500 records
+- **Memory**: < 512MB for typical operations
+- **File I/O**: Use streaming for large files (>100MB)
+
+**Caching Strategy:**
+- **Cache Backend**: File-based JSON in `cache/` directory
+- **Expiration**: Default 60 minutes (configurable per operation)
+- **Invalidation**: Manual via cache key deletion
+- **Key Format**: `{operation}_{param1}_{param2}` (deterministic hashing)
+
+**Observability:**
+```python
+# Log operation start/end with timing
+logger.info(f"Starting cycle time analysis for sprint {sprint_id}")
+start_time = time.time()
+result = service.calculate_cycle_time(sprint_id)
+elapsed = time.time() - start_time
+logger.info(f"Cycle time analysis completed in {elapsed:.2f}s")
+```
+
+**Monitoring Integration:**
+- **Datadog**: Teams/services audit capability
+- **GitHub Actions**: Scheduled epic monitoring with Slack notifications
+- **Log Aggregation**: Centralized logs in `logs/` for analysis
+
+## 12. Documentation Responsibilities
+
+**When to Update Documentation:**
+- New command added → Update README and command docstring
+- Argument changed → Update `get_help()` and `get_arguments()`
+- Service behavior modified → Update service docstring
+- Integration added → Document in this file (Section 2)
+- Breaking change → Create migration guide
+
+**Docstring Standards (Google Style):**
+```python
+def calculate_cycle_time(issues: list[dict[str, Any]], percentile: int = 95) -> dict[str, float]:
+    """Calculate cycle time metrics for completed issues.
+    
+    Args:
+        issues: List of JIRA issue dictionaries with created/resolved dates
+        percentile: Percentile to calculate (default: 95)
+        
+    Returns:
+        Dictionary containing:
+            - average_days: Mean cycle time in days
+            - median_days: Median cycle time in days
+            - p{percentile}_days: Specified percentile in days
+            - issue_count: Total issues analyzed
+            
+    Raises:
+        ValueError: If issues list is empty or percentile is invalid
+        
+    Example:
+        >>> issues = [{"created": "2025-01-01", "resolved": "2025-01-05"}]
+        >>> result = calculate_cycle_time(issues)
+        >>> print(result["average_days"])
+        4.0
+    """
+```
+
+**README Maintenance:**
+- Keep command list up to date
+- Document new integrations
+- Update setup instructions for new dependencies
+- Maintain examples section
+
+## 13. When to Ask for Human Approval
+
+**Require Explicit Approval Before:**
+- Modifying core infrastructure (`CommandManager`, `BaseCommand`)
+- Changing singleton manager implementations
+- Breaking backward compatibility (argument renames, command removals)
+- Adding dependencies >50MB (ML models, large libraries)
+- Modifying CI/CD workflows (GitHub Actions)
+- Changing security patterns (authentication, authorization)
+- Restructuring directory hierarchy
+- Modifying database schemas or data formats
+- Changing caching strategies project-wide
+- Implementing new external integrations
+
+**Safe to Proceed Without Approval:**
+- Adding new commands in existing domains
+- Creating new services following established patterns
+- Bug fixes in command/service logic
+- Performance optimizations (with benchmarks)
+- Documentation improvements
+- Adding logging statements
+- Implementing new data export formats
+- Creating utility functions in `src/utils/`
+
+**Ambiguous Situations - Ask First:**
+- User requirements unclear or contradictory
+- Multiple implementation approaches possible
+- Potential performance impact uncertain
+- Security implications unclear
+- Integration patterns not established
+
+## 14. Sub-Agents & Nested AGENTS.md Policy
+
+**Domain-Specific AGENTS.md:**
+PyToolkit supports nested `AGENTS.md` files for domain-specific guidance:
+
+```
+src/domains/
+├── syngenta/
+│   ├── jira/
+│   │   └── AGENTS.md          # JIRA-specific patterns (if needed)
+│   └── sonarqube/
+│       └── AGENTS.md          # SonarQube-specific patterns (if needed)
+└── personal_finance/
+    └── AGENTS.md              # Finance domain patterns (if needed)
+```
+
+**When to Create Domain AGENTS.md:**
+- Domain has unique business logic patterns
+- Specialized API integration patterns
+- Domain-specific security requirements
+- Complex data transformation rules
+- Multiple developers working on same domain
+
+**Domain AGENTS.md Structure:**
+```markdown
+# Domain Name - Agent Instructions
+
+## Domain Context
+[Business logic overview]
+
+## Domain-Specific Patterns
+[Code patterns unique to this domain]
+
+## Integration Details
+[API endpoints, authentication, rate limits]
+
+## Data Models
+[Domain-specific data structures]
+
+## Testing Requirements
+[Domain-specific test scenarios]
+```
+
+**Inheritance Rules:**
+1. Domain `AGENTS.md` inherits all rules from root `AGENTS.md`
+2. Domain rules supplement (not replace) root rules
+3. Conflicts: Domain rules take precedence for that domain only
+4. Cross-domain consistency: Maintain architectural patterns from root
+
+**Sub-Agent Delegation:**
+When a complex task spans multiple domains:
+1. Break task into domain-specific subtasks
+2. Delegate each subtask to domain-aware sub-agent
+3. Sub-agent reads both root and domain `AGENTS.md`
+4. Coordinate results at root level
 
 ---
 
-This agents.md file serves as the comprehensive guide for AI coding agents working with PyToolkit. It provides structured, actionable instructions while maintaining the flexibility to adapt to various development scenarios within the domain-driven architecture.
+## Quick Reference Card
+
+**Before Every Change:**
+1. ✅ Activate `.venv`: `source .venv/bin/activate`
+2. ✅ Read relevant files to understand context
+3. ✅ Verify pattern exists (don't invent utilities)
+4. ✅ Plan changes (outline 2-5 steps)
+5. ✅ Implement following existing patterns
+
+**After Every Change:**
+1. ✅ Format: `ruff format src/`
+2. ✅ Lint: `ruff check src/`
+3. ✅ Test manually: Run affected commands
+4. ✅ Update documentation if needed
+5. ✅ Commit with proper message format
+
+**Golden Rules:**
+- 🔒 Commands = thin wrappers, Services = all logic
+- 🔒 No `print()`, only `logger.*`
+- 🔒 No secrets in code, logs, or commits
+- 🔒 Complete type hints, no `# type: ignore`
+- 🔒 `ensure_env_loaded()` first line in `main()`
+- 🔒 Exit with error codes on failure
+- 🔒 Cache expensive operations (60min default)
+- 🔒 Python 3.13 built-in generics only
+
+**Key Files:**
+- `src/main.py` - CLI entry point
+- `src/utils/command/command_manager.py` - Auto-discovery
+- `src/utils/command/base_command.py` - Command interface
+- `src/domains/syngenta/jira/epic_monitor_command.py` - Reference command
+- `src/domains/syngenta/jira/epic_monitor_service.py` - Reference service
+
+---
+
+**Version**: 2.0.0  
+**Last Updated**: 2025-12-05  
+**Maintained By**: PyToolkit Team
+
+

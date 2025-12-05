@@ -1,16 +1,13 @@
-"""
-Environment loading utility for the entire project.
+"""Environment loading utility for the entire project.
 Ensures environment variables are loaded from .env files.
 """
 
 import os
 from pathlib import Path
-from typing import Optional, List
 
 
-def load_env_file(env_file_path: Optional[str] = None) -> None:
-    """
-    Load environment variables from .env file.
+def load_env_file(env_file_path: str | None = None) -> None:
+    """Load environment variables from .env file.
 
     Args:
         env_file_path: Path to the .env file. If None, searches common locations.
@@ -29,7 +26,7 @@ def load_env_file(env_file_path: Optional[str] = None) -> None:
         return
 
     try:
-        with open(env_file, "r", encoding="utf-8") as f:
+        with open(env_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
 
@@ -59,9 +56,8 @@ def load_env_file(env_file_path: Optional[str] = None) -> None:
         print(f"Error loading environment file {env_file}: {e}")
 
 
-def find_env_file() -> Optional[str]:
-    """
-    Find .env file in common locations.
+def find_env_file() -> str | None:
+    """Find .env file in common locations.
 
     Returns:
         Path to the first .env file found, or None if not found.
@@ -92,8 +88,7 @@ def find_env_file() -> Optional[str]:
 
 
 def load_domain_env(domain_path: str) -> None:
-    """
-    Load environment variables from a specific domain's .env file.
+    """Load environment variables from a specific domain's .env file.
 
     Args:
         domain_path: Path to the domain directory (e.g., "domains/syngenta/jira")
@@ -108,9 +103,8 @@ def load_domain_env(domain_path: str) -> None:
         print(f"Warning: Domain .env file not found at {env_file}")
 
 
-def ensure_env_loaded(required_vars: Optional[List[str]] = None) -> None:
-    """
-    Ensure environment variables are loaded.
+def ensure_env_loaded(required_vars: list[str] | None = None) -> None:
+    """Ensure environment variables are loaded.
     Call this at the beginning of commands that need environment variables.
 
     Args:
@@ -128,29 +122,21 @@ def ensure_env_loaded(required_vars: Optional[List[str]] = None) -> None:
         # Check again after loading
         still_missing = [var for var in required_vars if not os.getenv(var)]
         if still_missing:
-            print(
-                f"Warning: Required environment variables still missing: {still_missing}"
-            )
+            print(f"Warning: Required environment variables still missing: {still_missing}")
 
 
 def ensure_jira_env_loaded() -> None:
-    """
-    Ensure JIRA-specific environment variables are loaded.
-    """
+    """Ensure JIRA-specific environment variables are loaded."""
     ensure_env_loaded(["JIRA_URL", "JIRA_USER_EMAIL", "JIRA_API_TOKEN"])
 
 
 def ensure_slack_env_loaded() -> None:
-    """
-    Ensure Slack-specific environment variables are loaded.
-    """
+    """Ensure Slack-specific environment variables are loaded."""
     ensure_env_loaded(["SLACK_WEBHOOK_URL", "SLACK_BOT_TOKEN", "SLACK_CHANNEL_ID"])
 
 
 def ensure_linearb_env_loaded() -> None:
-    """
-    Ensure LinearB-specific environment variables are loaded.
-    """
+    """Ensure LinearB-specific environment variables are loaded."""
     # First load the general environment
     load_env_file()
 
@@ -162,15 +148,11 @@ def ensure_linearb_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(
-            f"Warning: Required LinearB environment variables missing: {missing_vars}"
-        )
+        print(f"Warning: Required LinearB environment variables missing: {missing_vars}")
 
 
 def ensure_circleci_env_loaded() -> None:
-    """
-    Ensure CircleCI-specific environment variables are loaded.
-    """
+    """Ensure CircleCI-specific environment variables are loaded."""
     # First load the general environment
     load_env_file()
 
@@ -182,15 +164,11 @@ def ensure_circleci_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(
-            f"Warning: Required CircleCI environment variables missing: {missing_vars}"
-        )
+        print(f"Warning: Required CircleCI environment variables missing: {missing_vars}")
 
 
 def ensure_sonarqube_env_loaded() -> None:
-    """
-    Ensure SonarQube-specific environment variables are loaded.
-    """
+    """Ensure SonarQube-specific environment variables are loaded."""
     # First load the general environment
     load_env_file()
 
@@ -202,15 +180,11 @@ def ensure_sonarqube_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(
-            f"Warning: Required SonarQube environment variables missing: {missing_vars}"
-        )
+        print(f"Warning: Required SonarQube environment variables missing: {missing_vars}")
 
 
 def ensure_github_env_loaded() -> None:
-    """
-    Ensure GitHub-specific environment variables are loaded.
-    """
+    """Ensure GitHub-specific environment variables are loaded."""
     # First load the general environment
     load_env_file()
 
@@ -226,9 +200,7 @@ def ensure_github_env_loaded() -> None:
 
 
 def ensure_datadog_env_loaded() -> None:
-    """
-    Ensure Datadog-specific environment variables are loaded.
-    """
+    """Ensure Datadog-specific environment variables are loaded."""
     # Load general env and domain-specific env
     load_env_file()
     load_domain_env("domains/syngenta/datadog")
@@ -238,6 +210,4 @@ def ensure_datadog_env_loaded() -> None:
     missing_vars = [var for var in required_vars if not os.getenv(var)]
 
     if missing_vars:
-        print(
-            f"Warning: Required Datadog environment variables missing: {missing_vars}"
-        )
+        print(f"Warning: Required Datadog environment variables missing: {missing_vars}")

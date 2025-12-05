@@ -1,10 +1,12 @@
-from typing import Any, Dict, List, Optional
-from datetime import date, datetime
-import requests
 import os
+from datetime import date, datetime
+from typing import Any
+
+import requests
+
+from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
 
 
 class IssueWithoutDueDate:
@@ -14,28 +16,20 @@ class IssueWithoutDueDate:
     _jira_to_slack_mapping = None
     _mapping_file_path = None
 
-    def __init__(self, issue_data: Dict):
+    def __init__(self, issue_data: dict):
         self.key = issue_data.get("key", "")
         self.summary = issue_data.get("fields", {}).get("summary", "")
-        self.issue_type = (
-            issue_data.get("fields", {}).get("issuetype", {}).get("name", "")
-        )
+        self.issue_type = issue_data.get("fields", {}).get("issuetype", {}).get("name", "")
         self.status = issue_data.get("fields", {}).get("status", {}).get("name", "")
         self.priority = self._get_priority(issue_data.get("fields", {}))
-        self.created_date = self._parse_date(
-            issue_data.get("fields", {}).get("created")
-        )
-        self.updated_date = self._parse_date(
-            issue_data.get("fields", {}).get("updated")
-        )
+        self.created_date = self._parse_date(issue_data.get("fields", {}).get("created"))
+        self.updated_date = self._parse_date(issue_data.get("fields", {}).get("updated"))
 
         # Extract assignee information
         assignee = issue_data.get("fields", {}).get("assignee")
         self.assignee_id = assignee.get("accountId", "") if assignee else ""
         self.assignee_name = assignee.get("displayName", "") if assignee else ""
-        self.assignee_slack_id = (
-            self._get_slack_user_id(self.assignee_id) if self.assignee_id else ""
-        )
+        self.assignee_slack_id = self._get_slack_user_id(self.assignee_id) if self.assignee_id else ""
 
         # Extract squad information from custom field
         self.squad = self._get_squad(issue_data.get("fields", {}))
@@ -44,19 +38,15 @@ class IssueWithoutDueDate:
         self.days_in_progress = self._calculate_days_in_progress()
 
     @classmethod
-    def _load_jira_to_slack_mapping(cls) -> Dict[str, str]:
+    def _load_jira_to_slack_mapping(cls) -> dict[str, str]:
         """Load JIRA to Slack user ID mapping from JSON file."""
         if cls._jira_to_slack_mapping is None:
             # Get mapping file path from environment or use default
             if cls._mapping_file_path is None:
-                cls._mapping_file_path = os.path.join(
-                    os.path.dirname(__file__), "jira_to_slack_user_mapping.json"
-                )
+                cls._mapping_file_path = os.path.join(os.path.dirname(__file__), "jira_to_slack_user_mapping.json")
 
             try:
-                cls._jira_to_slack_mapping = JSONManager.read_json(
-                    cls._mapping_file_path, default={}
-                )
+                cls._jira_to_slack_mapping = JSONManager.read_json(cls._mapping_file_path, default={})
             except Exception as e:
                 # Log warning but don't fail - return empty mapping
                 print(f"Warning: Could not load JIRA to Slack mapping file: {e}")
@@ -72,7 +62,7 @@ class IssueWithoutDueDate:
         mapping = self._load_jira_to_slack_mapping()
         return mapping.get(jira_user_id, "")
 
-    def _parse_date(self, date_str: Optional[str]) -> Optional[date]:
+    def _parse_date(self, date_str: str | None) -> date | None:
         """Parse date string to date object."""
         if not date_str:
             return None
@@ -85,14 +75,14 @@ class IssueWithoutDueDate:
         except (ValueError, TypeError):
             return None
 
-    def _get_priority(self, fields: Dict) -> str:
+    def _get_priority(self, fields: dict) -> str:
         """Extract priority from fields."""
         priority = fields.get("priority")
         if priority:
             return priority.get("name", "")
         return ""
 
-    def _get_squad(self, fields: Dict) -> str:
+    def _get_squad(self, fields: dict) -> str:
         """Extract squad from custom field."""
         # Squad[Dropdown] is typically stored in customfield_10851
         squad_field = fields.get("customfield_10851")
@@ -115,24 +105,21 @@ class IssueWithoutDueDate:
 class IssueDueDateMonitorService:
     """Service for monitoring issues without due dates."""
 
-    def __init__(self, slack_webhook_url: Optional[str] = None):
+    def __init__(self, slack_webhook_url: str | None = None):
         """Initialize the service."""
         self.logger = LogManager.get_instance().get_logger("IssueDueDateMonitorService")
         self.jira_assistant = JiraAssistant()
         self.slack_webhook_url = slack_webhook_url
-        self.slack_service = (
-            SlackNotificationService(slack_webhook_url) if slack_webhook_url else None
-        )
+        self.slack_service = SlackNotificationService(slack_webhook_url) if slack_webhook_url else None
 
     def run_issue_check(
         self,
         squad: str,
         project_key: str = "CWS",
-        issue_types: Optional[List[str]] = None,
+        issue_types: list[str] | None = None,
         dry_run: bool = False,
     ) -> bool:
-        """
-        Run the issue check for a specific squad.
+        """Run the issue check for a specific squad.
 
         Args:
             squad (str): Squad name to monitor
@@ -144,38 +131,24 @@ class IssueDueDateMonitorService:
             bool: True if successful, False otherwise
         """
         try:
-            issue_types_msg = (
-                f" (issue types: {', '.join(issue_types)})"
-                if issue_types
-                else " (all issue types)"
-            )
-            self.logger.info(
-                f"Starting issue due date monitoring for squad '{squad}'{issue_types_msg}"
-            )
+            issue_types_msg = f" (issue types: {', '.join(issue_types)})" if issue_types else " (all issue types)"
+            self.logger.info(f"Starting issue due date monitoring for squad '{squad}'{issue_types_msg}")
 
             # Fetch issues without due dates
-            issues_without_duedate = self._fetch_issues_without_duedate(
-                squad, project_key, issue_types
-            )
+            issues_without_duedate = self._fetch_issues_without_duedate(squad, project_key, issue_types)
 
             if not issues_without_duedate:
-                self.logger.info(
-                    f"No issues without due dates found for squad '{squad}'{issue_types_msg}"
-                )
+                self.logger.info(f"No issues without due dates found for squad '{squad}'{issue_types_msg}")
                 return True
 
-            self.logger.info(
-                f"Found {len(issues_without_duedate)} issues without due dates"
-            )
+            self.logger.info(f"Found {len(issues_without_duedate)} issues without due dates")
 
             # Log findings
             self._log_issue_details(issues_without_duedate)
 
             # Send notifications if not in dry run mode
             if not dry_run and self.slack_service:
-                notification_sent = self.slack_service.send_issues_notification(
-                    issues_without_duedate, squad
-                )
+                notification_sent = self.slack_service.send_issues_notification(issues_without_duedate, squad)
 
                 if notification_sent:
                     self.logger.info("Slack notification sent successfully")
@@ -185,9 +158,7 @@ class IssueDueDateMonitorService:
             elif dry_run:
                 self.logger.info("Dry run mode - notifications not sent")
             else:
-                self.logger.warning(
-                    "No Slack webhook configured - notifications not sent"
-                )
+                self.logger.warning("No Slack webhook configured - notifications not sent")
 
             return True
 
@@ -196,10 +167,9 @@ class IssueDueDateMonitorService:
             return False
 
     def _fetch_issues_without_duedate(
-        self, squad: str, project_key: str, issue_types: Optional[List[str]] = None
-    ) -> List[IssueWithoutDueDate]:
-        """
-        Fetch issues that are in progress but don't have due dates.
+        self, squad: str, project_key: str, issue_types: list[str] | None = None
+    ) -> list[IssueWithoutDueDate]:
+        """Fetch issues that are in progress but don't have due dates.
 
         Args:
             squad (str): Squad name to filter
@@ -230,9 +200,7 @@ class IssueDueDateMonitorService:
             # Fetch issues from JIRA
             issues = self.jira_assistant.fetch_issues(
                 jql_query=jql_query,
-                fields=(
-                    "key,summary,issuetype,status,priority,created,updated,assignee,customfield_10851,duedate"
-                ),
+                fields=("key,summary,issuetype,status,priority,created,updated,assignee,customfield_10851,duedate"),
                 max_results=100,
                 expand_changelog=False,
             )
@@ -246,21 +214,15 @@ class IssueDueDateMonitorService:
             return issues_without_duedate
 
         except Exception as e:
-            self.logger.error(
-                f"Error fetching issues without due dates: {e}", exc_info=True
-            )
+            self.logger.error(f"Error fetching issues without due dates: {e}", exc_info=True)
             raise
 
-    def _log_issue_details(self, issues: List[IssueWithoutDueDate]) -> None:
+    def _log_issue_details(self, issues: list[IssueWithoutDueDate]) -> None:
         """Log details about the issues found."""
         self.logger.info("Issues without due dates found:")
 
         for issue in issues:
-            assignee_info = (
-                f" (assigned to {issue.assignee_name})"
-                if issue.assignee_name
-                else " (unassigned)"
-            )
+            assignee_info = f" (assigned to {issue.assignee_name})" if issue.assignee_name else " (unassigned)"
             self.logger.info(
                 f"  - {issue.key}: {issue.summary[:60]}... "
                 f"[{issue.issue_type}] [{issue.status}] "
@@ -272,20 +234,19 @@ class IssueDueDateMonitorService:
 class SlackNotificationService:
     """Service for sending Slack notifications about issues without due dates."""
 
-    def __init__(self, webhook_url: Optional[str]):
+    def __init__(self, webhook_url: str | None):
         """Initialize with Slack webhook URL."""
         self.webhook_url = webhook_url
         self.logger = LogManager.get_instance().get_logger("SlackNotificationService")
 
     def send_issues_notification(
         self,
-        issues: List[IssueWithoutDueDate],
+        issues: list[IssueWithoutDueDate],
         squad: str,
-        slack_token: Optional[str] = None,
-        recipient_id: Optional[str] = None,
+        slack_token: str | None = None,
+        recipient_id: str | None = None,
     ) -> bool:
-        """
-        Send a Slack notification about issues without due dates.
+        """Send a Slack notification about issues without due dates.
 
         Args:
             issues: List of issues without due dates
@@ -334,23 +295,17 @@ class SlackNotificationService:
             )
 
             if response.status_code == 200 and response.json().get("ok"):
-                self.logger.info(
-                    f"Successfully sent notification for {len(issues)} issues without due dates"
-                )
+                self.logger.info(f"Successfully sent notification for {len(issues)} issues without due dates")
                 return True
             else:
-                self.logger.error(
-                    f"Failed to send Slack notification. Response: {response.text}"
-                )
+                self.logger.error(f"Failed to send Slack notification. Response: {response.text}")
                 return False
 
         except Exception as e:
             self.logger.error(f"Error sending Slack notification: {e}", exc_info=True)
             return False
 
-    def _format_issues_blocks(
-        self, issues: List[IssueWithoutDueDate], squad: str
-    ) -> List[Dict[str, Any]]:
+    def _format_issues_blocks(self, issues: list[IssueWithoutDueDate], squad: str) -> list[dict[str, Any]]:
         """Format issues into Slack Block Kit format."""
         blocks = []
 
@@ -398,9 +353,7 @@ class SlackNotificationService:
             )
 
             # List issues for this priority
-            for issue in priority_issues[
-                :5
-            ]:  # Limit to 5 issues per priority to avoid message size limits
+            for issue in priority_issues[:5]:  # Limit to 5 issues per priority to avoid message size limits
                 assignee_mention = ""
                 if issue.assignee_slack_id:
                     assignee_mention = f" • <@{issue.assignee_slack_id}>"
@@ -452,14 +405,10 @@ class SlackNotificationService:
 
         return blocks
 
-    def _group_issues_by_priority(
-        self, issues: List[IssueWithoutDueDate]
-    ) -> Dict[str, List[IssueWithoutDueDate]]:
+    def _group_issues_by_priority(self, issues: list[IssueWithoutDueDate]) -> dict[str, list[IssueWithoutDueDate]]:
         """Group issues by priority."""
         priority_order = ["Highest", "High", "Medium", "Low", "Lowest", ""]
-        groups: Dict[str, List[IssueWithoutDueDate]] = {
-            priority: [] for priority in priority_order
-        }
+        groups: dict[str, list[IssueWithoutDueDate]] = {priority: [] for priority in priority_order}
 
         for issue in issues:
             priority = issue.priority if issue.priority in priority_order else ""

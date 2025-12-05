@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
-"""
-NFCe Service - Business logic for processing Brazilian electronic invoices (NFCe)
-"""
+"""NFCe Service - Business logic for processing Brazilian electronic invoices (NFCe)"""
 
 import json
-import requests
-from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
-from utils.cache_manager.cache_manager import CacheManager
-from utils.data.json_manager import JSONManager
-from utils.file_manager import FileManager
-from domains.personal_finance.nfce.utils.html_parser import NFCeDataExtractor
-from domains.personal_finance.nfce.http_client import NFCeHttpClient
+import requests
+
 from domains.personal_finance.nfce.database.nfce_database_manager import (
     NFCeDatabaseManager,
 )
+from domains.personal_finance.nfce.http_client import NFCeHttpClient
 from domains.personal_finance.nfce.models.invoice_data import (
-    InvoiceData,
-    EstablishmentData,
     ConsumerData,
+    EstablishmentData,
+    InvoiceData,
     ProductData,
     TaxData,
 )
+from domains.personal_finance.nfce.utils.html_parser import NFCeDataExtractor
+from utils.cache_manager.cache_manager import CacheManager
+from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class NFCeService:
@@ -50,11 +49,8 @@ class NFCeService:
         self.cache.clear_all()
         self.logger.info("Cache cleared")
 
-    def process_single_url(
-        self, url: str, timeout: int = 30, force_refresh: bool = False
-    ) -> Dict[str, Any]:
-        """
-        Process a single NFCe URL and extract invoice data
+    def process_single_url(self, url: str, timeout: int = 30, force_refresh: bool = False) -> dict[str, Any]:
+        """Process a single NFCe URL and extract invoice data
 
         Args:
             url: NFCe URL to process
@@ -80,9 +76,7 @@ class NFCeService:
 
             # Validate Portal SPED URL
             if "portalsped.fazenda.mg.gov.br" not in url:
-                self.logger.warning(
-                    "URL is not from Portal SPED MG - results may be unreliable"
-                )
+                self.logger.warning("URL is not from Portal SPED MG - results may be unreliable")
 
             # Check cache first (unless force refresh)
             cache_key = f"nfce_url_{hash(url)}"
@@ -121,17 +115,13 @@ class NFCeService:
                 raise ValueError("Connection error - check internet connection and URL")
             except requests.exceptions.HTTPError as e:
                 if e.response.status_code == 404:
-                    raise ValueError(
-                        "NFCe page not found (404) - URL may be invalid or expired"
-                    )
+                    raise ValueError("NFCe page not found (404) - URL may be invalid or expired")
                 elif e.response.status_code == 403:
-                    raise ValueError(
-                        "Access forbidden (403) - URL may be blocked or invalid"
-                    )
+                    raise ValueError("Access forbidden (403) - URL may be blocked or invalid")
                 else:
                     raise ValueError(f"HTTP error {e.response.status_code}: {e}")
             except Exception as e:
-                raise ValueError(f"Failed to fetch NFCe page: {str(e)}")
+                raise ValueError(f"Failed to fetch NFCe page: {e!s}")
 
             # Extract invoice data with error handling
             try:
@@ -145,9 +135,7 @@ class NFCeService:
 
                 # Validate critical fields
                 if not invoice_data.invoice_number and not invoice_data.access_key:
-                    self.logger.warning(
-                        "No invoice number or access key found - data may be incomplete"
-                    )
+                    self.logger.warning("No invoice number or access key found - data may be incomplete")
 
             except Exception as e:
                 self.logger.error(f"Data extraction failed: {e}")
@@ -162,7 +150,7 @@ class NFCeService:
                     series="",
                     source_url=url,
                     scraping_success=False,
-                    scraping_errors=[f"Extraction failed: {str(e)}"],
+                    scraping_errors=[f"Extraction failed: {e!s}"],
                 )
 
             # Convert to dictionary with error handling
@@ -174,7 +162,7 @@ class NFCeService:
                     "access_key": getattr(invoice_data, "access_key", ""),
                     "source_url": url,
                     "scraping_success": False,
-                    "errors": [f"Data conversion failed: {str(e)}"],
+                    "errors": [f"Data conversion failed: {e!s}"],
                 }
 
             # Cache the result (even if failed)
@@ -184,11 +172,7 @@ class NFCeService:
                 self.logger.warning(f"Failed to cache result: {cache_error}")
 
             # Build result
-            is_successful = (
-                invoice_data.scraping_success
-                if hasattr(invoice_data, "scraping_success")
-                else False
-            )
+            is_successful = invoice_data.scraping_success if hasattr(invoice_data, "scraping_success") else False
             result = {
                 "total_processed": 1,
                 "successful": 1 if is_successful else 0,
@@ -216,9 +200,7 @@ class NFCeService:
             }
         except Exception as e:
             # Unexpected errors
-            self.logger.error(
-                f"Unexpected error processing URL {url[:50]}...: {e}", exc_info=True
-            )
+            self.logger.error(f"Unexpected error processing URL {url[:50]}...: {e}", exc_info=True)
             return {
                 "total_processed": 1,
                 "successful": 0,
@@ -227,7 +209,7 @@ class NFCeService:
                 "errors": [
                     {
                         "url": url,
-                        "error": f"Unexpected error: {str(e)}",
+                        "error": f"Unexpected error: {e!s}",
                         "type": "unexpected_error",
                     }
                 ],
@@ -239,9 +221,8 @@ class NFCeService:
         batch_size: int = 10,
         timeout: int = 30,
         force_refresh: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Process multiple NFCe URLs from a JSON file
+    ) -> dict[str, Any]:
+        """Process multiple NFCe URLs from a JSON file
 
         Args:
             input_file: Path to JSON file containing URLs
@@ -282,7 +263,7 @@ class NFCeService:
                 "errors": [{"file": input_file, "error": str(e)}],
             }
 
-    def _load_urls_from_file(self, input_file: str) -> List[str]:
+    def _load_urls_from_file(self, input_file: str) -> list[str]:
         """Load URLs from JSON file with robust error handling"""
         try:
             # Validate file exists and is readable
@@ -312,18 +293,12 @@ class NFCeService:
                     # WhatsApp format: [{"content": "url", "urls": ["url"], ...}, ...]
                     for i, item in enumerate(data):
                         if not isinstance(item, dict):
-                            self.logger.warning(
-                                f"Skipping invalid item at index {i}: not an object"
-                            )
+                            self.logger.warning(f"Skipping invalid item at index {i}: not an object")
                             continue
 
                         if "urls" in item and isinstance(item["urls"], list):
                             # Extract from urls array
-                            valid_urls = [
-                                url
-                                for url in item["urls"]
-                                if isinstance(url, str) and url.strip()
-                            ]
+                            valid_urls = [url for url in item["urls"] if isinstance(url, str) and url.strip()]
                             urls.extend(valid_urls)
                         elif "content" in item and isinstance(item["content"], str):
                             # Fallback: use content field if it's a URL
@@ -331,22 +306,16 @@ class NFCeService:
                             if content.startswith("http"):
                                 urls.append(content)
                             else:
-                                self.logger.warning(
-                                    f"Skipping invalid content at index {i}: not a URL"
-                                )
+                                self.logger.warning(f"Skipping invalid content at index {i}: not a URL")
                         else:
-                            self.logger.warning(
-                                f"Skipping item at index {i}: no valid URL found"
-                            )
+                            self.logger.warning(f"Skipping item at index {i}: no valid URL found")
                 else:
                     # Direct array of strings: ["url1", "url2", ...]
                     for i, item in enumerate(data):
                         if isinstance(item, str) and item.strip():
                             urls.append(item.strip())
                         else:
-                            self.logger.warning(
-                                f"Skipping invalid URL at index {i}: {item}"
-                            )
+                            self.logger.warning(f"Skipping invalid URL at index {i}: {item}")
             else:
                 raise ValueError(
                     "Invalid JSON format. Expected one of:\n"
@@ -363,9 +332,7 @@ class NFCeService:
             valid_urls = []
             for i, url in enumerate(urls):
                 if not isinstance(url, str):
-                    self.logger.warning(
-                        f"Skipping non-string URL at position {i}: {type(url)}"
-                    )
+                    self.logger.warning(f"Skipping non-string URL at position {i}: {type(url)}")
                     continue
 
                 url = url.strip()
@@ -374,16 +341,12 @@ class NFCeService:
                     continue
 
                 if not url.startswith(("http://", "https://")):
-                    self.logger.warning(
-                        f"Skipping invalid URL at position {i}: {url[:50]}..."
-                    )
+                    self.logger.warning(f"Skipping invalid URL at position {i}: {url[:50]}...")
                     continue
 
                 # Warn about non-Portal SPED URLs but still include them
                 if "portalsped.fazenda.mg.gov.br" not in url:
-                    self.logger.warning(
-                        f"URL at position {i} is not from Portal SPED MG: {url[:50]}..."
-                    )
+                    self.logger.warning(f"URL at position {i} is not from Portal SPED MG: {url[:50]}...")
 
                 valid_urls.append(url)
 
@@ -400,13 +363,9 @@ class NFCeService:
                 else:
                     self.logger.info(f"Removing duplicate URL: {url[:50]}...")
 
-            self.logger.info(
-                f"Loaded {len(unique_urls)} unique valid URLs from {input_file}"
-            )
+            self.logger.info(f"Loaded {len(unique_urls)} unique valid URLs from {input_file}")
             if len(unique_urls) != len(urls):
-                self.logger.warning(
-                    f"Filtered out {len(urls) - len(unique_urls)} invalid/duplicate URLs"
-                )
+                self.logger.warning(f"Filtered out {len(urls) - len(unique_urls)} invalid/duplicate URLs")
 
             return unique_urls
 
@@ -418,15 +377,15 @@ class NFCeService:
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error loading URLs from file: {e}")
-            raise ValueError(f"Failed to load URLs from {input_file}: {str(e)}")
+            raise ValueError(f"Failed to load URLs from {input_file}: {e!s}")
 
     def _process_urls_batch(
         self,
-        urls: List[str],
+        urls: list[str],
         batch_size: int = 10,
         timeout: int = 30,
         force_refresh: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Process URLs in batches using concurrent execution"""
         total_processed = 0
         successful = 0
@@ -437,17 +396,13 @@ class NFCeService:
         # Process URLs in batches
         for i in range(0, len(urls), batch_size):
             batch_urls = urls[i : i + batch_size]
-            self.logger.info(
-                f"Processing batch {i // batch_size + 1} ({len(batch_urls)} URLs)"
-            )
+            self.logger.info(f"Processing batch {i // batch_size + 1} ({len(batch_urls)} URLs)")
 
             # Use ThreadPoolExecutor for concurrent processing
             with ThreadPoolExecutor(max_workers=batch_size) as executor:
                 # Submit all URLs in current batch
                 future_to_url = {
-                    executor.submit(
-                        self._process_single_url_internal, url, timeout, force_refresh
-                    ): url
+                    executor.submit(self._process_single_url_internal, url, timeout, force_refresh): url
                     for url in batch_urls
                 }
 
@@ -486,14 +441,10 @@ class NFCeService:
         if all_errors:
             result["errors"] = all_errors
 
-        self.logger.info(
-            f"Batch processing completed: {successful}/{total_processed} successful"
-        )
+        self.logger.info(f"Batch processing completed: {successful}/{total_processed} successful")
         return result
 
-    def _process_single_url_internal(
-        self, url: str, timeout: int, force_refresh: bool
-    ) -> Dict[str, Any]:
+    def _process_single_url_internal(self, url: str, timeout: int, force_refresh: bool) -> dict[str, Any]:
         """Internal method for processing a single URL (used in concurrent execution)"""
         try:
             # Check cache first
@@ -540,25 +491,17 @@ class NFCeService:
             self.logger.warning(f"Could not extract access key from URL: {e}")
             return ""
 
-    def _invoice_to_dict(self, invoice_data) -> Dict[str, Any]:
+    def _invoice_to_dict(self, invoice_data) -> dict[str, Any]:
         """Convert InvoiceData object to dictionary"""
         try:
             invoice_dict = {
                 "access_key": invoice_data.access_key,
                 "invoice_number": invoice_data.invoice_number,
                 "series": invoice_data.series,
-                "issue_date": invoice_data.issue_date.isoformat()
-                if invoice_data.issue_date
-                else None,
-                "total_amount": float(invoice_data.total_amount)
-                if invoice_data.total_amount
-                else None,
-                "products_amount": float(invoice_data.products_amount)
-                if invoice_data.products_amount
-                else None,
-                "discount_amount": float(invoice_data.discount_amount)
-                if invoice_data.discount_amount
-                else None,
+                "issue_date": invoice_data.issue_date.isoformat() if invoice_data.issue_date else None,
+                "total_amount": float(invoice_data.total_amount) if invoice_data.total_amount else None,
+                "products_amount": float(invoice_data.products_amount) if invoice_data.products_amount else None,
+                "discount_amount": float(invoice_data.discount_amount) if invoice_data.discount_amount else None,
                 "source_url": invoice_data.source_url,
                 "scraped_at": invoice_data.scraped_at.isoformat(),
                 "scraping_success": invoice_data.scraping_success,
@@ -595,12 +538,8 @@ class NFCeService:
                         "description": item.description,
                         "quantity": float(item.quantity) if item.quantity else None,
                         "unit": item.unit,
-                        "unit_price": float(item.unit_price)
-                        if item.unit_price
-                        else None,
-                        "total_amount": float(item.total_amount)
-                        if item.total_amount
-                        else None,
+                        "unit_price": float(item.unit_price) if item.unit_price else None,
+                        "total_amount": float(item.total_amount) if item.total_amount else None,
                         "barcode": item.barcode,
                     }
                     invoice_dict["items"].append(item_dict)
@@ -608,15 +547,9 @@ class NFCeService:
             # Add tax data
             if invoice_data.taxes:
                 invoice_dict["taxes"] = {
-                    "icms_total": float(invoice_data.taxes.icms_total)
-                    if invoice_data.taxes.icms_total
-                    else None,
-                    "pis_total": float(invoice_data.taxes.pis_total)
-                    if invoice_data.taxes.pis_total
-                    else None,
-                    "cofins_total": float(invoice_data.taxes.cofins_total)
-                    if invoice_data.taxes.cofins_total
-                    else None,
+                    "icms_total": float(invoice_data.taxes.icms_total) if invoice_data.taxes.icms_total else None,
+                    "pis_total": float(invoice_data.taxes.pis_total) if invoice_data.taxes.pis_total else None,
+                    "cofins_total": float(invoice_data.taxes.cofins_total) if invoice_data.taxes.cofins_total else None,
                 }
 
             return invoice_dict
@@ -629,7 +562,7 @@ class NFCeService:
                 "errors": [str(e)],
             }
 
-    def generate_analysis_report(self, results: Dict[str, Any]) -> Dict[str, Any]:
+    def generate_analysis_report(self, results: dict[str, Any]) -> dict[str, Any]:
         """Generate analysis report from processing results"""
         invoices = results.get("invoices", [])
 
@@ -637,11 +570,7 @@ class NFCeService:
             return {"message": "No invoices to analyze"}
 
         # Basic statistics
-        total_amount = sum(
-            inv.get("total_amount", 0)
-            for inv in invoices
-            if inv.get("total_amount") is not None
-        )
+        total_amount = sum(inv.get("total_amount", 0) for inv in invoices if inv.get("total_amount") is not None)
 
         # Group by establishment
         establishments = {}
@@ -664,13 +593,9 @@ class NFCeService:
             "summary": {
                 "total_invoices": len(invoices),
                 "total_amount": round(total_amount, 2),
-                "average_amount": round(total_amount / len(invoices), 2)
-                if invoices
-                else 0,
+                "average_amount": round(total_amount / len(invoices), 2) if invoices else 0,
                 "total_items": total_items,
-                "average_items_per_invoice": round(total_items / len(invoices), 2)
-                if invoices
-                else 0,
+                "average_items_per_invoice": round(total_items / len(invoices), 2) if invoices else 0,
             },
             "establishments": establishments,
             "processing_stats": {
@@ -678,8 +603,7 @@ class NFCeService:
                 "successful": results.get("successful", 0),
                 "failed": results.get("failed", 0),
                 "success_rate": round(
-                    (results.get("successful", 0) / results.get("total_processed", 1))
-                    * 100,
+                    (results.get("successful", 0) / results.get("total_processed", 1)) * 100,
                     2,
                 ),
             },
@@ -687,21 +611,17 @@ class NFCeService:
 
         return analysis
 
-    def _dict_to_invoice_data(self, invoice_dict: Dict[str, Any]) -> InvoiceData:
+    def _dict_to_invoice_data(self, invoice_dict: dict[str, Any]) -> InvoiceData:
         """Convert dictionary back to InvoiceData object"""
         try:
             # Parse dates
             issue_date = None
             if invoice_dict.get("issue_date"):
-                issue_date = datetime.fromisoformat(
-                    invoice_dict["issue_date"].replace("Z", "+00:00")
-                )
+                issue_date = datetime.fromisoformat(invoice_dict["issue_date"].replace("Z", "+00:00"))
 
             scraped_at = None
             if invoice_dict.get("scraped_at"):
-                scraped_at = datetime.fromisoformat(
-                    invoice_dict["scraped_at"].replace("Z", "+00:00")
-                )
+                scraped_at = datetime.fromisoformat(invoice_dict["scraped_at"].replace("Z", "+00:00"))
 
             # Create establishment object
             establishment = None
@@ -744,15 +664,9 @@ class NFCeService:
                         cest_code=item_data.get("cest_code"),
                         cfop_code=item_data.get("cfop_code"),
                         unit=item_data.get("unit"),
-                        quantity=Decimal(str(item_data["quantity"]))
-                        if item_data.get("quantity")
-                        else None,
-                        unit_price=Decimal(str(item_data["unit_price"]))
-                        if item_data.get("unit_price")
-                        else None,
-                        total_amount=Decimal(str(item_data["total_amount"]))
-                        if item_data.get("total_amount")
-                        else None,
+                        quantity=Decimal(str(item_data["quantity"])) if item_data.get("quantity") else None,
+                        unit_price=Decimal(str(item_data["unit_price"])) if item_data.get("unit_price") else None,
+                        total_amount=Decimal(str(item_data["total_amount"])) if item_data.get("total_amount") else None,
                         discount_amount=Decimal(str(item_data["discount_amount"]))
                         if item_data.get("discount_amount")
                         else None,
@@ -764,15 +678,9 @@ class NFCeService:
             if invoice_dict.get("taxes"):
                 tax_data = invoice_dict["taxes"]
                 taxes = TaxData(
-                    icms_total=Decimal(str(tax_data["icms_total"]))
-                    if tax_data.get("icms_total")
-                    else None,
-                    pis_total=Decimal(str(tax_data["pis_total"]))
-                    if tax_data.get("pis_total")
-                    else None,
-                    cofins_total=Decimal(str(tax_data["cofins_total"]))
-                    if tax_data.get("cofins_total")
-                    else None,
+                    icms_total=Decimal(str(tax_data["icms_total"])) if tax_data.get("icms_total") else None,
+                    pis_total=Decimal(str(tax_data["pis_total"])) if tax_data.get("pis_total") else None,
+                    cofins_total=Decimal(str(tax_data["cofins_total"])) if tax_data.get("cofins_total") else None,
                 )
 
             # Create main invoice object
@@ -781,9 +689,7 @@ class NFCeService:
                 invoice_number=invoice_dict.get("invoice_number", ""),
                 series=invoice_dict.get("series", ""),
                 issue_date=issue_date,
-                total_amount=Decimal(str(invoice_dict["total_amount"]))
-                if invoice_dict.get("total_amount")
-                else None,
+                total_amount=Decimal(str(invoice_dict["total_amount"])) if invoice_dict.get("total_amount") else None,
                 discount_amount=Decimal(str(invoice_dict["discount_amount"]))
                 if invoice_dict.get("discount_amount")
                 else None,
@@ -810,10 +716,10 @@ class NFCeService:
                 invoice_number=invoice_dict.get("invoice_number", ""),
                 series=invoice_dict.get("series", ""),
                 scraping_success=False,
-                scraping_errors=[f"Conversion error: {str(e)}"],
+                scraping_errors=[f"Conversion error: {e!s}"],
             )
 
-    def save_to_database(self, results: Dict[str, Any]) -> None:
+    def save_to_database(self, results: dict[str, Any]) -> None:
         """Save processing results to database"""
         try:
             invoices = results.get("invoices", [])
@@ -830,9 +736,7 @@ class NFCeService:
                     invoice_data = self._dict_to_invoice_data(invoice_dict)
 
                     if not invoice_data.access_key:
-                        self.logger.warning(
-                            f"Invoice {i + 1} has no access_key, skipping database save"
-                        )
+                        self.logger.warning(f"Invoice {i + 1} has no access_key, skipping database save")
                         continue
 
                     result = self.db_manager.store_invoice_data(invoice_data)
@@ -845,18 +749,14 @@ class NFCeService:
                         )
 
                 except Exception as e:
-                    self.logger.error(
-                        f"Error saving invoice {i + 1} to database: {e}", exc_info=True
-                    )
+                    self.logger.error(f"Error saving invoice {i + 1} to database: {e}", exc_info=True)
 
-            self.logger.info(
-                f"Saved {saved_count}/{len(invoices)} invoices to database"
-            )
+            self.logger.info(f"Saved {saved_count}/{len(invoices)} invoices to database")
 
         except Exception as e:
             self.logger.error(f"Error saving to database: {e}", exc_info=True)
 
-    def import_existing_data(self, data_file: str) -> Dict[str, Any]:
+    def import_existing_data(self, data_file: str) -> dict[str, Any]:
         """Import existing processed NFCe data directly to database"""
         try:
             self.logger.info(f"Importing existing data from file: {data_file}")
@@ -865,7 +765,7 @@ class NFCeService:
             FileManager.validate_file(data_file, allowed_extensions=[".json"])
 
             # Load the data
-            with open(data_file, "r", encoding="utf-8") as f:
+            with open(data_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Extract invoices array
@@ -893,9 +793,7 @@ class NFCeService:
                     invoice_data = self._dict_to_invoice_data(invoice_dict)
 
                     if not invoice_data.access_key:
-                        self.logger.warning(
-                            f"Invoice {i + 1} has no access_key, skipping"
-                        )
+                        self.logger.warning(f"Invoice {i + 1} has no access_key, skipping")
                         errors.append(f"Invoice {i + 1}: Missing access_key")
                         continue
 
@@ -904,16 +802,14 @@ class NFCeService:
 
                     if result:
                         saved_count += 1
-                        self.logger.debug(
-                            f"Imported invoice {i + 1}: {invoice_data.access_key[-10:]}..."
-                        )
+                        self.logger.debug(f"Imported invoice {i + 1}: {invoice_data.access_key[-10:]}...")
                     else:
                         self.logger.info(
                             f"Invoice {i + 1} with access_key {invoice_data.access_key[-10:]}... already exists, skipped"
                         )
 
                 except Exception as e:
-                    error_msg = f"Invoice {i + 1}: {str(e)}"
+                    error_msg = f"Invoice {i + 1}: {e!s}"
                     errors.append(error_msg)
                     self.logger.error(f"Error importing invoice {i + 1}: {e}")
 
@@ -926,16 +822,14 @@ class NFCeService:
                 "import_mode": True,
             }
 
-            self.logger.info(
-                f"Import completed: {saved_count}/{len(invoices)} invoices imported to database"
-            )
+            self.logger.info(f"Import completed: {saved_count}/{len(invoices)} invoices imported to database")
             return result
 
         except Exception as e:
             self.logger.error(f"Error importing existing data: {e}", exc_info=True)
             raise
 
-    def save_results(self, results: Dict[str, Any], output_file: str) -> None:
+    def save_results(self, results: dict[str, Any], output_file: str) -> None:
         """Save processing results to JSON file"""
         try:
             # Ensure output directory exists
@@ -952,7 +846,7 @@ class NFCeService:
             self.logger.error(f"Error saving results to file: {e}")
             raise
 
-    def print_summary(self, results: Dict[str, Any]) -> None:
+    def print_summary(self, results: dict[str, Any]) -> None:
         """Print processing summary to console"""
         print("\n" + "=" * 60)
         print("NFCe Processing Summary")
@@ -963,27 +857,19 @@ class NFCeService:
         print(f"Failed: {results.get('failed', 0)}")
 
         if results.get("total_processed", 0) > 0:
-            success_rate = (
-                results.get("successful", 0) / results.get("total_processed", 1)
-            ) * 100
+            success_rate = (results.get("successful", 0) / results.get("total_processed", 1)) * 100
             print(f"Success Rate: {success_rate:.1f}%")
 
         invoices = results.get("invoices", [])
         if invoices:
-            total_amount = sum(
-                inv.get("total_amount", 0)
-                for inv in invoices
-                if inv.get("total_amount") is not None
-            )
+            total_amount = sum(inv.get("total_amount", 0) for inv in invoices if inv.get("total_amount") is not None)
             print(f"Total Amount: R$ {total_amount:.2f}")
             print(f"Average Amount: R$ {total_amount / len(invoices):.2f}")
 
         if results.get("errors"):
             print(f"\nErrors: {len(results['errors'])}")
             for error in results["errors"][:3]:  # Show first 3 errors
-                print(
-                    f"  - {error.get('url', 'Unknown')}: {error.get('error', 'Unknown error')}"
-                )
+                print(f"  - {error.get('url', 'Unknown')}: {error.get('error', 'Unknown error')}")
             if len(results["errors"]) > 3:
                 print(f"  ... and {len(results['errors']) - 3} more errors")
 

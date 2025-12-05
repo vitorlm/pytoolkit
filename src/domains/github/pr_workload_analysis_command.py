@@ -1,5 +1,4 @@
-"""
-GitHub Pull Request Workload Analysis Command
+"""GitHub Pull Request Workload Analysis Command
 
 Analyzes PR data from JSON/CSV files to evaluate CODEOWNERS workload and assess if they
 are under pressure due to increased PRs from external authors.
@@ -95,9 +94,7 @@ class PrWorkloadAnalysisCommand(BaseCommand):
     @staticmethod
     def get_arguments(parser: ArgumentParser):
         """Define command line arguments."""
-        parser.add_argument(
-            "--file", required=True, help="Path to JSON or CSV file containing PR data"
-        )
+        parser.add_argument("--file", required=True, help="Path to JSON or CSV file containing PR data")
 
         parser.add_argument(
             "--output",
@@ -196,9 +193,7 @@ class PrWorkloadAnalysisCommand(BaseCommand):
             logger.info(f"Total PRs analyzed: {results.get('total_prs', 0)}")
             logger.info(f"External author PRs: {results.get('external_prs', 0)}")
             logger.info(f"Analysis period: {results.get('analysis_period', 'N/A')}")
-            logger.info(
-                f"Output files generated: {len(results.get('output_files', []))}"
-            )
+            logger.info(f"Output files generated: {len(results.get('output_files', []))}")
 
             # Print key insights
             if "key_insights" in results:

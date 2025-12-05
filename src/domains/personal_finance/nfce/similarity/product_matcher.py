@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-"""
-Product Matcher - Main component that orchestrates product similarity detection and matching
-"""
+"""Product Matcher - Main component that orchestrates product similarity detection and matching"""
 
-from typing import Dict, List, Optional
-from dataclasses import dataclass, asdict
-from utils.logging.logging_manager import LogManager
+from dataclasses import asdict, dataclass
+
 from utils.cache_manager.cache_manager import CacheManager
-from .product_normalizer import ProductNormalizer
+from utils.logging.logging_manager import LogManager
+
 from .feature_extractor import FeatureExtractor, ProductFeatures
+from .product_normalizer import ProductNormalizer
 from .similarity_calculator import SimilarityCalculator, SimilarityResult
 
 
@@ -18,12 +17,12 @@ class MatchGroup:
 
     group_id: str
     representative_product: str  # Most representative product description
-    products: List[Dict]  # List of products in this group
-    similarity_scores: List[float]  # Similarity scores within group
+    products: list[dict]  # List of products in this group
+    similarity_scores: list[float]  # Similarity scores within group
     avg_similarity: float
     size: int
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return asdict(self)
 
@@ -34,16 +33,16 @@ class MatchingResults:
 
     total_products: int
     total_groups: int
-    duplicate_groups: List[MatchGroup]
-    similar_groups: List[MatchGroup]
-    singleton_products: List[Dict]  # Products with no matches
+    duplicate_groups: list[MatchGroup]
+    similar_groups: list[MatchGroup]
+    singleton_products: list[dict]  # Products with no matches
 
     # Statistics
     deduplication_ratio: float  # Reduction in unique products
     avg_group_size: float
     largest_group_size: int
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "total_products": self.total_products,
@@ -58,8 +57,7 @@ class MatchingResults:
 
 
 class ProductMatcher:
-    """
-    Main product matching engine that coordinates all similarity components.
+    """Main product matching engine that coordinates all similarity components.
 
     This class provides the high-level interface for:
     - Finding duplicate products
@@ -87,9 +85,8 @@ class ProductMatcher:
             "minimum": 0.3,  # Minimum threshold for any matching
         }
 
-    def analyze_products(self, products: List[Dict]) -> MatchingResults:
-        """
-        Analyze a list of products to find duplicates and similar items.
+    def analyze_products(self, products: list[dict]) -> MatchingResults:
+        """Analyze a list of products to find duplicates and similar items.
 
         Args:
             products: List of product dictionaries with 'description' field
@@ -97,7 +94,6 @@ class ProductMatcher:
         Returns:
             MatchingResults with complete analysis
         """
-
         self.logger.info(f"Starting product analysis for {len(products)} products")
 
         # Validate input
@@ -125,23 +121,18 @@ class ProductMatcher:
 
         # Step 3: Group products by similarity
         self.logger.info("Grouping similar products...")
-        matching_results = self._group_products_by_similarity(
-            products, similarity_results
-        )
+        matching_results = self._group_products_by_similarity(products, similarity_results)
 
         # Step 4: Cache results
         if self.cache_enabled:
             self.cache.save(cache_key, matching_results.to_dict())
 
-        self.logger.info(
-            f"Analysis complete. Found {len(matching_results.duplicate_groups)} duplicate groups"
-        )
+        self.logger.info(f"Analysis complete. Found {len(matching_results.duplicate_groups)} duplicate groups")
 
         return matching_results
 
-    def find_duplicates_only(self, products: List[Dict]) -> List[MatchGroup]:
-        """
-        Find only duplicate products (very high similarity).
+    def find_duplicates_only(self, products: list[dict]) -> list[MatchGroup]:
+        """Find only duplicate products (very high similarity).
 
         Args:
             products: List of product dictionaries
@@ -149,7 +140,6 @@ class ProductMatcher:
         Returns:
             List of duplicate groups
         """
-
         self.logger.info(f"Finding duplicates in {len(products)} products")
 
         features_list = self._extract_features_from_products(products)
@@ -165,11 +155,8 @@ class ProductMatcher:
 
         return duplicate_groups
 
-    def find_similar_to_product(
-        self, target_product: Dict, product_list: List[Dict], limit: int = 10
-    ) -> List[Dict]:
-        """
-        Find products similar to a specific target product.
+    def find_similar_to_product(self, target_product: dict, product_list: list[dict], limit: int = 10) -> list[dict]:
+        """Find products similar to a specific target product.
 
         Args:
             target_product: Product to find matches for
@@ -179,7 +166,6 @@ class ProductMatcher:
         Returns:
             List of similar products with similarity scores
         """
-
         target_description = target_product.get("description", "")
         if not target_description:
             raise ValueError("Target product must have a description")
@@ -195,9 +181,7 @@ class ProductMatcher:
         # Calculate similarity with target
         similarities = []
         for i, features in enumerate(all_features):
-            result = self.similarity_calculator.calculate_similarity(
-                target_features, features
-            )
+            result = self.similarity_calculator.calculate_similarity(target_features, features)
 
             if result.final_score > self.thresholds["minimum"]:
                 product_with_score = product_list[i].copy()
@@ -213,9 +197,8 @@ class ProductMatcher:
 
         return results
 
-    def get_deduplication_recommendations(self, products: List[Dict]) -> Dict:
-        """
-        Generate recommendations for product deduplication.
+    def get_deduplication_recommendations(self, products: list[dict]) -> dict:
+        """Generate recommendations for product deduplication.
 
         Args:
             products: List of products to analyze
@@ -223,7 +206,6 @@ class ProductMatcher:
         Returns:
             Dictionary with deduplication recommendations
         """
-
         self.logger.info("Generating deduplication recommendations")
 
         # Analyze products
@@ -234,9 +216,7 @@ class ProductMatcher:
                 "total_products": results.total_products,
                 "potential_duplicates": len(results.duplicate_groups),
                 "estimated_reduction": results.deduplication_ratio,
-                "products_to_review": sum(
-                    group.size for group in results.duplicate_groups
-                ),
+                "products_to_review": sum(group.size for group in results.duplicate_groups),
             },
             "high_priority_groups": [],
             "medium_priority_groups": [],
@@ -268,11 +248,8 @@ class ProductMatcher:
 
         return recommendations
 
-    def _extract_features_from_products(
-        self, products: List[Dict]
-    ) -> List[ProductFeatures]:
+    def _extract_features_from_products(self, products: list[dict]) -> list[ProductFeatures]:
         """Extract features from all products in the list"""
-
         features_list = []
         errors = 0
 
@@ -287,9 +264,7 @@ class ProductMatcher:
                 features = self.feature_extractor.extract(description)
                 features_list.append(features)
             except Exception as e:
-                self.logger.error(
-                    f"Error extracting features from '{description}': {e}"
-                )
+                self.logger.error(f"Error extracting features from '{description}': {e}")
                 errors += 1
 
         if errors > 0:
@@ -298,12 +273,11 @@ class ProductMatcher:
         return features_list
 
     def _group_products_by_similarity(
-        self, products: List[Dict], similarity_results: List[SimilarityResult]
+        self, products: list[dict], similarity_results: list[SimilarityResult]
     ) -> MatchingResults:
         """Group products into similarity groups"""
-
         # Create adjacency graph of similar products
-        product_graph: Dict[int, set] = {}
+        product_graph: dict[int, set] = {}
         for i in range(len(products)):
             product_graph[i] = set()
 
@@ -330,8 +304,8 @@ class ProductMatcher:
                 groups.append(group)
 
         # Create MatchGroup objects
-        duplicate_groups: List[MatchGroup] = []
-        similar_groups: List[MatchGroup] = []
+        duplicate_groups: list[MatchGroup] = []
+        similar_groups: list[MatchGroup] = []
         singleton_products = []
 
         for group_indices in groups:
@@ -344,20 +318,12 @@ class ProductMatcher:
                 group_products = [products[i] for i in group_indices]
 
                 # Calculate average similarity within group
-                group_similarities = self._calculate_group_similarities(
-                    group_indices, similarity_results, products
-                )
+                group_similarities = self._calculate_group_similarities(group_indices, similarity_results, products)
 
-                avg_similarity = (
-                    sum(group_similarities) / len(group_similarities)
-                    if group_similarities
-                    else 0
-                )
+                avg_similarity = sum(group_similarities) / len(group_similarities) if group_similarities else 0
 
                 # Choose representative product (most central/common)
-                representative = self._choose_representative_product(
-                    group_products, group_similarities
-                )
+                representative = self._choose_representative_product(group_products, group_similarities)
 
                 match_group = MatchGroup(
                     group_id=f"group_{len(duplicate_groups + similar_groups)}",
@@ -375,17 +341,11 @@ class ProductMatcher:
                     similar_groups.append(match_group)
 
         # Calculate statistics
-        total_groups = (
-            len(duplicate_groups) + len(similar_groups) + len(singleton_products)
-        )
-        deduplication_ratio = (
-            1 - (total_groups / len(products)) if len(products) > 0 else 0
-        )
+        total_groups = len(duplicate_groups) + len(similar_groups) + len(singleton_products)
+        deduplication_ratio = 1 - (total_groups / len(products)) if len(products) > 0 else 0
 
         all_groups = duplicate_groups + similar_groups
-        avg_group_size = (
-            sum(g.size for g in all_groups) / len(all_groups) if all_groups else 1
-        )
+        avg_group_size = sum(g.size for g in all_groups) / len(all_groups) if all_groups else 1
         largest_group_size = max((g.size for g in all_groups), default=1)
 
         return MatchingResults(
@@ -399,19 +359,15 @@ class ProductMatcher:
             largest_group_size=largest_group_size,
         )
 
-    def _find_product_index(
-        self, products: List[Dict], description: str
-    ) -> Optional[int]:
+    def _find_product_index(self, products: list[dict], description: str) -> int | None:
         """Find the index of a product by its description"""
-
         for i, product in enumerate(products):
             if product.get("description", "") == description:
                 return i
         return None
 
-    def _dfs_group(self, graph: Dict[int, set], start: int, visited: set) -> set:
+    def _dfs_group(self, graph: dict[int, set], start: int, visited: set) -> set:
         """Depth-first search to find connected components"""
-
         group = set()
         stack = [start]
 
@@ -427,11 +383,10 @@ class ProductMatcher:
     def _calculate_group_similarities(
         self,
         group_indices: set,
-        similarity_results: List[SimilarityResult],
-        products: List[Dict],
-    ) -> List[float]:
+        similarity_results: list[SimilarityResult],
+        products: list[dict],
+    ) -> list[float]:
         """Calculate similarities within a group"""
-
         similarities = []
 
         for result in similarity_results:
@@ -446,11 +401,8 @@ class ProductMatcher:
 
         return similarities
 
-    def _choose_representative_product(
-        self, group_products: List[Dict], similarities: List[float]
-    ) -> str:
+    def _choose_representative_product(self, group_products: list[dict], similarities: list[float]) -> str:
         """Choose the most representative product from a group"""
-
         if not group_products:
             return ""
 
@@ -463,10 +415,9 @@ class ProductMatcher:
         return group_products[0].get("description", "")
 
     def _create_duplicate_groups(
-        self, products: List[Dict], duplicate_results: List[SimilarityResult]
-    ) -> List[MatchGroup]:
+        self, products: list[dict], duplicate_results: list[SimilarityResult]
+    ) -> list[MatchGroup]:
         """Create MatchGroup objects from duplicate results"""
-
         # Implementation similar to _group_products_by_similarity but simpler
         # since we only care about duplicates
 
@@ -504,16 +455,11 @@ class ProductMatcher:
 
         return groups
 
-    def _dict_to_matching_results(self, data: Dict) -> MatchingResults:
+    def _dict_to_matching_results(self, data: dict) -> MatchingResults:
         """Convert dictionary back to MatchingResults object"""
-
         # Convert group dictionaries back to MatchGroup objects
-        duplicate_groups = [
-            MatchGroup(**group) for group in data.get("duplicate_groups", [])
-        ]
-        similar_groups = [
-            MatchGroup(**group) for group in data.get("similar_groups", [])
-        ]
+        duplicate_groups = [MatchGroup(**group) for group in data.get("duplicate_groups", [])]
+        similar_groups = [MatchGroup(**group) for group in data.get("similar_groups", [])]
 
         return MatchingResults(
             total_products=data.get("total_products", 0),

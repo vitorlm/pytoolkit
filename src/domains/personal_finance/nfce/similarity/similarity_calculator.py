@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""
-Similarity Calculator - Calculate similarity scores between products using various algorithms
-"""
+"""Similarity Calculator - Calculate similarity scores between products using various algorithms"""
 
 import math
-from typing import Dict, List
 from dataclasses import dataclass
+
 from utils.logging.logging_manager import LogManager
+
 from .feature_extractor import ProductFeatures
 
 
@@ -27,12 +26,12 @@ class SimilarityResult:
     final_score: float
 
     # Matching details
-    matching_tokens: List[str]
-    matching_bigrams: List[str]
+    matching_tokens: list[str]
+    matching_bigrams: list[str]
     brand_match: bool
     category_match: bool
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "product1_description": self.product1.original_description,
@@ -50,8 +49,7 @@ class SimilarityResult:
 
 
 class SimilarityCalculator:
-    """
-    Calculate similarity scores between products using multiple algorithms.
+    """Calculate similarity scores between products using multiple algorithms.
 
     This class implements various similarity metrics and combines them
     to produce a robust similarity score for product matching.
@@ -77,11 +75,8 @@ class SimilarityCalculator:
         # Penalties for mismatches
         self.penalties = {"different_category": -0.3, "no_token_overlap": -0.2}
 
-    def calculate_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> SimilarityResult:
-        """
-        Calculate comprehensive similarity between two product features.
+    def calculate_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> SimilarityResult:
+        """Calculate comprehensive similarity between two product features.
 
         Args:
             features1: First product features
@@ -90,7 +85,6 @@ class SimilarityCalculator:
         Returns:
             SimilarityResult with detailed scores
         """
-
         self.logger.debug(
             f"Calculating similarity between '{features1.original_description}' and '{features2.original_description}'"
         )
@@ -135,15 +129,11 @@ class SimilarityCalculator:
         self.logger.debug(f"Similarity result: {final_score:.3f}")
         return result
 
-    def _jaccard_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
-        """
-        Calculate Jaccard similarity based on token sets.
+    def _jaccard_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
+        """Calculate Jaccard similarity based on token sets.
 
         Jaccard = |A ∩ B| / |A ∪ B|
         """
-
         set1 = set(features1.tokens)
         set2 = set(features2.tokens)
 
@@ -158,15 +148,11 @@ class SimilarityCalculator:
 
         return len(intersection) / len(union)
 
-    def _cosine_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
-        """
-        Calculate cosine similarity based on token frequency vectors.
+    def _cosine_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
+        """Calculate cosine similarity based on token frequency vectors.
 
         Cosine = (A · B) / (||A|| × ||B||)
         """
-
         # Create frequency vectors for all unique tokens
         all_tokens = set(features1.tokens + features2.tokens)
 
@@ -189,15 +175,11 @@ class SimilarityCalculator:
 
         return dot_product / (magnitude1 * magnitude2)
 
-    def _levenshtein_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
-        """
-        Calculate normalized Levenshtein similarity based on normalized descriptions.
+    def _levenshtein_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
+        """Calculate normalized Levenshtein similarity based on normalized descriptions.
 
         Similarity = 1 - (distance / max_length)
         """
-
         text1 = features1.normalized_description
         text2 = features2.normalized_description
 
@@ -214,7 +196,6 @@ class SimilarityCalculator:
 
     def _levenshtein_distance(self, s1: str, s2: str) -> int:
         """Calculate Levenshtein distance between two strings"""
-
         if len(s1) < len(s2):
             s1, s2 = s2, s1
 
@@ -236,15 +217,11 @@ class SimilarityCalculator:
 
         return previous_row[-1]
 
-    def _token_overlap_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
-        """
-        Calculate token overlap similarity with position weighting.
+    def _token_overlap_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
+        """Calculate token overlap similarity with position weighting.
 
         Gives higher weight to matching tokens in similar positions.
         """
-
         tokens1 = features1.tokens
         tokens2 = features2.tokens
 
@@ -264,41 +241,29 @@ class SimilarityCalculator:
 
         return overlap_count / total_tokens if total_tokens > 0 else 0.0
 
-    def _get_matching_tokens(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> List[str]:
+    def _get_matching_tokens(self, features1: ProductFeatures, features2: ProductFeatures) -> list[str]:
         """Get list of matching tokens between two products"""
-
         set1 = set(features1.tokens)
         set2 = set(features2.tokens)
 
         return list(set1.intersection(set2))
 
-    def _get_matching_bigrams(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> List[str]:
+    def _get_matching_bigrams(self, features1: ProductFeatures, features2: ProductFeatures) -> list[str]:
         """Get list of matching bigrams between two products"""
-
         set1 = set(features1.bigrams)
         set2 = set(features2.bigrams)
 
         return list(set1.intersection(set2))
 
-    def _is_brand_match(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> bool:
+    def _is_brand_match(self, features1: ProductFeatures, features2: ProductFeatures) -> bool:
         """Check if brands match"""
-
         if features1.brand is None or features2.brand is None:
             return False
 
         return features1.brand == features2.brand
 
-    def _is_category_match(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> bool:
+    def _is_category_match(self, features1: ProductFeatures, features2: ProductFeatures) -> bool:
         """Check if categories match"""
-
         return features1.category == features2.category
 
     def _calculate_final_score(
@@ -309,12 +274,9 @@ class SimilarityCalculator:
         token_overlap: float,
         features1: ProductFeatures,
         features2: ProductFeatures,
-        matching_tokens: List[str],
+        matching_tokens: list[str],
     ) -> float:
-        """
-        Calculate final weighted similarity score with bonuses and penalties.
-        """
-
+        """Calculate final weighted similarity score with bonuses and penalties."""
         # Base weighted score
         base_score = (
             jaccard * self.weights["jaccard"]
@@ -332,9 +294,7 @@ class SimilarityCalculator:
 
         # Core key matching bonus
         if features1.core_key and features2.core_key:
-            core_similarity = self._jaccard_similarity_text(
-                features1.core_key, features2.core_key
-            )
+            core_similarity = self._jaccard_similarity_text(features1.core_key, features2.core_key)
             if core_similarity > 0.7:
                 base_score += self.bonuses["core_key_match"]
 
@@ -350,7 +310,6 @@ class SimilarityCalculator:
 
     def _jaccard_similarity_text(self, text1: str, text2: str) -> float:
         """Calculate Jaccard similarity between two text strings"""
-
         if not text1 and not text2:
             return 1.0
 
@@ -366,10 +325,9 @@ class SimilarityCalculator:
         return len(intersection) / len(union) if union else 0.0
 
     def calculate_batch_similarity(
-        self, features_list: List[ProductFeatures], threshold: float = None
-    ) -> List[SimilarityResult]:
-        """
-        Calculate similarity for all pairs in a batch of features.
+        self, features_list: list[ProductFeatures], threshold: float = None
+    ) -> list[SimilarityResult]:
+        """Calculate similarity for all pairs in a batch of features.
 
         Args:
             features_list: List of ProductFeatures to compare
@@ -378,13 +336,10 @@ class SimilarityCalculator:
         Returns:
             List of SimilarityResult objects above threshold
         """
-
         if threshold is None:
             threshold = self.similarity_threshold
 
-        self.logger.info(
-            f"Calculating batch similarity for {len(features_list)} products (threshold: {threshold})"
-        )
+        self.logger.info(f"Calculating batch similarity for {len(features_list)} products (threshold: {threshold})")
 
         results = []
         total_comparisons = len(features_list) * (len(features_list) - 1) // 2
@@ -400,24 +355,19 @@ class SimilarityCalculator:
                 processed += 1
 
                 if processed % 1000 == 0:
-                    self.logger.debug(
-                        f"Processed {processed}/{total_comparisons} comparisons"
-                    )
+                    self.logger.debug(f"Processed {processed}/{total_comparisons} comparisons")
 
         # Sort by similarity score (descending)
         results.sort(key=lambda x: x.final_score, reverse=True)
 
-        self.logger.info(
-            f"Found {len(results)} similar pairs above threshold {threshold}"
-        )
+        self.logger.info(f"Found {len(results)} similar pairs above threshold {threshold}")
 
         return results
 
     def find_duplicates(
-        self, features_list: List[ProductFeatures], duplicate_threshold: float = None
-    ) -> List[SimilarityResult]:
-        """
-        Find likely duplicate products based on high similarity scores.
+        self, features_list: list[ProductFeatures], duplicate_threshold: float = None
+    ) -> list[SimilarityResult]:
+        """Find likely duplicate products based on high similarity scores.
 
         Args:
             features_list: List of ProductFeatures to analyze
@@ -426,7 +376,6 @@ class SimilarityCalculator:
         Returns:
             List of high-confidence duplicate pairs
         """
-
         if duplicate_threshold is None:
             duplicate_threshold = self.similarity_threshold
 
@@ -439,22 +388,15 @@ class SimilarityCalculator:
 
         for result in duplicates:
             # High confidence criteria
-            if (
-                result.final_score >= duplicate_threshold
-                and result.category_match
-                and len(result.matching_tokens) >= 2
-            ):
+            if result.final_score >= duplicate_threshold and result.category_match and len(result.matching_tokens) >= 2:
                 high_confidence_duplicates.append(result)
 
-        self.logger.info(
-            f"Found {len(high_confidence_duplicates)} high-confidence duplicates"
-        )
+        self.logger.info(f"Found {len(high_confidence_duplicates)} high-confidence duplicates")
 
         return high_confidence_duplicates
 
-    def get_similarity_stats(self, results: List[SimilarityResult]) -> Dict:
-        """
-        Get statistics about similarity results.
+    def get_similarity_stats(self, results: list[SimilarityResult]) -> dict:
+        """Get statistics about similarity results.
 
         Args:
             results: List of SimilarityResult objects
@@ -462,7 +404,6 @@ class SimilarityCalculator:
         Returns:
             Statistics dictionary
         """
-
         if not results:
             return {}
 

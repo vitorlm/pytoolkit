@@ -1,44 +1,37 @@
-"""
-Abstract base class for standardized summary metrics management.
+"""Abstract base class for standardized summary metrics management.
 
 This module provides the foundation for centralized summary generation across
 different domains in PyToolkit, eliminating code duplication and ensuring
 consistent metric reporting.
 """
 
+import os
 from abc import ABC, abstractmethod
 from argparse import Namespace
-from typing import Dict, Any, List
-import os
-from utils.logging.logging_manager import LogManager
+from typing import Any
+
 from utils.data.json_manager import JSONManager
+from utils.logging.logging_manager import LogManager
 
 
 class SummaryManager(ABC):
-    """
-    Abstract base class for domain-specific summary management.
+    """Abstract base class for domain-specific summary management.
 
     This class provides standardized summary generation infrastructure while
     allowing domain-specific customization through abstract methods.
     """
 
     def __init__(self, domain_name: str):
-        """
-        Initialize the SummaryManager.
+        """Initialize the SummaryManager.
 
         Args:
             domain_name: Name of the domain (e.g., 'jira', 'datadog')
         """
         self.domain_name = domain_name
-        self.logger = LogManager.get_instance().get_logger(
-            f"{domain_name}SummaryManager"
-        )
+        self.logger = LogManager.get_instance().get_logger(f"{domain_name}SummaryManager")
 
-    def emit_summary(
-        self, args: Namespace, data: Any, base_filename: str, output_dir: str = "output"
-    ) -> None:
-        """
-        Generate and emit summary based on the specified mode.
+    def emit_summary(self, args: Namespace, data: Any, base_filename: str, output_dir: str = "output") -> None:
+        """Generate and emit summary based on the specified mode.
 
         Args:
             args: Command arguments containing summary configuration
@@ -68,9 +61,8 @@ class SummaryManager(ABC):
             raise
 
     @abstractmethod
-    def build_metrics(self, data: Any, args: Namespace) -> Dict[str, Any]:
-        """
-        Build domain-specific metrics from the provided data.
+    def build_metrics(self, data: Any, args: Namespace) -> dict[str, Any]:
+        """Build domain-specific metrics from the provided data.
 
         Args:
             data: Domain-specific data to analyze
@@ -81,9 +73,7 @@ class SummaryManager(ABC):
         """
         pass
 
-    def _write_summary_json(
-        self, metrics: Dict[str, Any], base_filename: str, output_dir: str
-    ) -> None:
+    def _write_summary_json(self, metrics: dict[str, Any], base_filename: str, output_dir: str) -> None:
         """Write summary metrics to JSON file."""
         try:
             os.makedirs(output_dir, exist_ok=True)
@@ -97,7 +87,7 @@ class SummaryManager(ABC):
             self.logger.error(f"Failed to write summary JSON: {e}", exc_info=True)
             raise
 
-    def _print_summary_console(self, metrics: Dict[str, Any]) -> None:
+    def _print_summary_console(self, metrics: dict[str, Any]) -> None:
         """Print summary metrics to console."""
         try:
             print("\n" + "=" * 50)
@@ -128,9 +118,8 @@ class SummaryManager(ABC):
             self.logger.error(f"Failed to print summary: {e}", exc_info=True)
             raise
 
-    def _build_base_dimensions(self, args: Namespace) -> Dict[str, Any]:
-        """
-        Build base dimensions common across domains.
+    def _build_base_dimensions(self, args: Namespace) -> dict[str, Any]:
+        """Build base dimensions common across domains.
 
         Args:
             args: Command arguments
@@ -158,14 +147,13 @@ class SummaryManager(ABC):
 
     def append_metric_safe(
         self,
-        metrics_list: List[Dict[str, Any]],
+        metrics_list: list[dict[str, Any]],
         name: str,
         value: Any,
         unit: str = "",
         description: str = "",
     ) -> None:
-        """
-        Safely append a metric to the metrics list with validation.
+        """Safely append a metric to the metrics list with validation.
 
         Args:
             metrics_list: List to append the metric to

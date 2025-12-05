@@ -1,57 +1,39 @@
 from utils.data.duckdb_manager import DuckDBManager
-from utils.data.dynamodb_manager import DynamoDBManager, CompositeKey
+from utils.data.dynamodb_manager import CompositeKey, DynamoDBManager
 from utils.logging.logging_manager import LogManager
-from typing import List, Optional
-
 
 # Configure logger
 logger = LogManager.get_instance().get_logger("DataCopyProcessor")
 
 
 class DataCopyProcessor:
-    def __init__(
-        self, dynamodb_manager: DynamoDBManager, duckdb_manager: DuckDBManager
-    ):
+    def __init__(self, dynamodb_manager: DynamoDBManager, duckdb_manager: DuckDBManager):
         self._dynamodb_manager = dynamodb_manager
         self._duckdb_manager = duckdb_manager
 
     def ensure_connection(self, name: str, config: dict) -> None:
-        """
-        Ensure a DynamoDB connection is configured.
-        """
+        """Ensure a DynamoDB connection is configured."""
         if name not in self._dynamodb_manager.connection_configs:
             logger.info(f"Adding connection configuration for '{name}'.")
             self._dynamodb_manager.add_connection_config({"name": name, **config})
 
     def ensure_table_exists_and_copy_structure(self, table_name: str) -> None:
-        """
-        Ensure a table exists in the target and copy its structure if necessary.
-        """
+        """Ensure a table exists in the target and copy its structure if necessary."""
         if not self._dynamodb_manager.table_exists(table_name, "target"):
             logger.info(f"Table {table_name} does not exist. Creating...")
-            self._dynamodb_manager.copy_table_structure(
-                "source", table_name, "target", table_name
-            )
+            self._dynamodb_manager.copy_table_structure("source", table_name, "target", table_name)
 
-    def process_and_insert_operations(
-        self, table_name: str, org_ids: Optional[List[str]] = None
-    ) -> None:
-        """
-        Process and insert operations for a list of organization IDs.
-        """
+    def process_and_insert_operations(self, table_name: str, org_ids: list[str] | None = None) -> None:
+        """Process and insert operations for a list of organization IDs."""
         if org_ids:
             logger.info("Processing operations and summaries...")
             sum_pks = [CompositeKey.create(org_id, "SUM") for org_id in org_ids]
             pks = sum_pks + org_ids
-            operation_records = self._dynamodb_manager.query_partition_keys_parallel(
-                "source", table_name, pks
-            )
+            operation_records = self._dynamodb_manager.query_partition_keys_parallel("source", table_name, pks)
             logger.info(f"Retrieved {len(operation_records)} operations and summaries.")
         else:
             logger.info("Processing all operations and summaries...")
-            operation_records = self._dynamodb_manager.get_data_with_filter(
-                "source", table_name=table_name
-            )
+            operation_records = self._dynamodb_manager.get_data_with_filter("source", table_name=table_name)
             logger.info(f"Retrieved {len(operation_records)} operations and summaries.")
 
         logger.info("Processing work orders and records...")
@@ -68,27 +50,16 @@ class DataCopyProcessor:
             else:
                 operations.append(operation)
 
-        operations_schema = self._duckdb_manager.create_table(
-            "ag_operations_db", "operations", sample_data=operations
-        )
-        self._duckdb_manager.insert_records(
-            "ag_operations_db", "operations", operations_schema, operations
-        )
+        operations_schema = self._duckdb_manager.create_table("ag_operations_db", "operations", sample_data=operations)
+        self._duckdb_manager.insert_records("ag_operations_db", "operations", operations_schema, operations)
         logger.info(f"Inserted {len(operations)} operations.")
-        works_schema = self._duckdb_manager.create_table(
-            "ag_operations_db", "works", sample_data=works
-        )
-        self._duckdb_manager.insert_records(
-            "ag_operations_db", "works", works_schema, works
-        )
+        works_schema = self._duckdb_manager.create_table("ag_operations_db", "works", sample_data=works)
+        self._duckdb_manager.insert_records("ag_operations_db", "works", works_schema, works)
         logger.info(f"Inserted {len(works)} work orders and records.")
         logger.info("Data copy and processing complete.")
 
-    def process_and_insert_operations_with_parquet(
-        self, table_name: str, org_ids: Optional[List[str]] = None
-    ) -> None:
-        """
-        Process operations and work orders from DynamoDB by scanning the table incrementally
+    def process_and_insert_operations_with_parquet(self, table_name: str, org_ids: list[str] | None = None) -> None:
+        """Process operations and work orders from DynamoDB by scanning the table incrementally
         into a Parquet file, then processing the Parquet file and inserting records into DuckDB.
 
         If org_ids is provided, only operations for those organizations (and their summaries)
@@ -141,24 +112,13 @@ class DataCopyProcessor:
             else:
                 operations.append(record)
 
-        logger.info(
-            f"Separated records into {len(operations)} operations and "
-            f"{len(works)} work orders/records."
-        )
+        logger.info(f"Separated records into {len(operations)} operations and {len(works)} work orders/records.")
 
         # --- Step 4: Create DuckDB tables and insert the processed records ---
-        operations_schema = self._duckdb_manager.create_table(
-            "ag_operations_db", "operations", sample_data=operations
-        )
-        self._duckdb_manager.insert_records(
-            "ag_operations_db", "operations", operations_schema, operations
-        )
+        operations_schema = self._duckdb_manager.create_table("ag_operations_db", "operations", sample_data=operations)
+        self._duckdb_manager.insert_records("ag_operations_db", "operations", operations_schema, operations)
         logger.info(f"Inserted {len(operations)} operations into DuckDB.")
 
-        works_schema = self._duckdb_manager.create_table(
-            "ag_operations_db", "works", sample_data=works
-        )
-        self._duckdb_manager.insert_records(
-            "ag_operations_db", "works", works_schema, works
-        )
+        works_schema = self._duckdb_manager.create_table("ag_operations_db", "works", sample_data=works)
+        self._duckdb_manager.insert_records("ag_operations_db", "works", works_schema, works)
         logger.info(f"Inserted {len(works)} work orders and records into DuckDB.")

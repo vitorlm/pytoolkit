@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import os
-import yaml
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any
+
+import yaml
 
 from utils.logging.logging_manager import LogManager
 
@@ -185,7 +186,7 @@ class ObservabilityConfig:
     max_recommendations_per_type: int = 10
 
     @classmethod
-    def load_from_file(cls, config_path: str) -> "ObservabilityConfig":
+    def load_from_file(cls, config_path: str) -> ObservabilityConfig:
         """Load configuration from YAML file."""
         config_file = Path(config_path)
 
@@ -195,7 +196,7 @@ class ObservabilityConfig:
             return cls()
 
         try:
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 config_data = yaml.safe_load(f) or {}
 
             return cls._from_dict(config_data)
@@ -207,7 +208,7 @@ class ObservabilityConfig:
             return cls()
 
     @classmethod
-    def load_from_env(cls) -> "ObservabilityConfig":
+    def load_from_env(cls) -> ObservabilityConfig:
         """Load configuration from environment variables."""
         config = cls()
 
@@ -277,7 +278,7 @@ class ObservabilityConfig:
         return config
 
     @classmethod
-    def _from_dict(cls, data: Dict[str, Any]) -> "ObservabilityConfig":
+    def _from_dict(cls, data: dict[str, Any]) -> ObservabilityConfig:
         """Create configuration from dictionary."""
         config = cls()
 
@@ -365,7 +366,7 @@ class ObservabilityConfig:
             logger.error(f"Failed to save config to {config_path}: {e}")
             raise
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         return asdict(self)
 
@@ -398,13 +399,8 @@ class ObservabilityConfig:
         # Validate trend analysis
         if self.trend_analysis.min_weeks_for_trends < 2:
             errors.append("trend_analysis.min_weeks_for_trends must be at least 2")
-        if (
-            self.trend_analysis.default_lookback_weeks
-            < self.trend_analysis.min_weeks_for_trends
-        ):
-            errors.append(
-                "trend_analysis.default_lookback_weeks must be >= min_weeks_for_trends"
-            )
+        if self.trend_analysis.default_lookback_weeks < self.trend_analysis.min_weeks_for_trends:
+            errors.append("trend_analysis.default_lookback_weeks must be >= min_weeks_for_trends")
 
         # Validate thresholds
         if not (0 <= self.thresholds.self_heal_high_threshold <= 1):
@@ -416,9 +412,8 @@ class ObservabilityConfig:
             raise ValueError(f"Configuration validation failed: {', '.join(errors)}")
 
 
-def load_config(config_path: Optional[str] = None) -> ObservabilityConfig:
+def load_config(config_path: str | None = None) -> ObservabilityConfig:
     """Load configuration with fallback hierarchy."""
-
     # Try specific path first
     if config_path:
         return ObservabilityConfig.load_from_file(config_path)

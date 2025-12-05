@@ -3,16 +3,16 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from ..adapters.sonarqube_adapter import SonarQubeAdapter
 from utils.logging.logging_manager import LogManager
+
+from ..adapters.sonarqube_adapter import SonarQubeAdapter
 
 
 class SonarQubeTools:
     """MCP Tools for SonarQube integration via PyToolkit."""
 
     def __init__(self):
-        """
-        Initialize SonarQube Tools MCP handler.
+        """Initialize SonarQube Tools MCP handler.
 
         Sets up the SonarQube adapter and logger for processing SonarQube-related
         MCP tool requests including quality metrics, issues, and project analysis.
@@ -107,9 +107,7 @@ class SonarQubeTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executes specific SonarQube tool."""
         self.logger.info(f"Executing SonarQube tool: {name} with args: {arguments}")
 
@@ -127,13 +125,12 @@ class SonarQubeTools:
                 self.logger.error(error_msg)
                 return [TextContent(type="text", text=f"Error: {error_msg}")]
         except Exception as e:
-            error_msg = f"Error executing SonarQube tool '{name}': {str(e)}"
+            error_msg = f"Error executing SonarQube tool '{name}': {e!s}"
             self.logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
     async def _get_project_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve project quality metrics.
+        """Retrieve project quality metrics.
 
         Gets comprehensive quality metrics for a specific SonarQube project
         including bugs, vulnerabilities, code smells, coverage, and ratings.
@@ -151,9 +148,7 @@ class SonarQubeTools:
         """
         project_key = args["project_key"]
         organization = args.get("organization")
-        self.logger.info(
-            f"Getting project metrics for: {project_key} (org: {organization})"
-        )
+        self.logger.info(f"Getting project metrics for: {project_key} (org: {organization})")
 
         try:
             # Note: The underlying service currently doesn't support organization parameter
@@ -166,14 +161,8 @@ class SonarQubeTools:
                 "metrics": data,
                 "summary": {
                     "analysis_type": "project_metrics",
-                    "metrics_count": (
-                        len(data.get("measures", []))
-                        if isinstance(data, dict)
-                        else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "metrics_count": (len(data.get("measures", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -188,13 +177,12 @@ class SonarQubeTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve project metrics for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve project metrics for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_project_issues(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve project issues.
+        """Retrieve project issues.
 
         Gets issues (bugs, vulnerabilities, code smells) for a specific
         SonarQube project, optionally filtered by issue type.
@@ -226,14 +214,8 @@ class SonarQubeTools:
                 "issue_type": issue_type,
                 "issues": filtered_issues,
                 "summary": {
-                    "total_issues": (
-                        len(filtered_issues)
-                        if isinstance(filtered_issues, list)
-                        else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_issues": (len(filtered_issues) if isinstance(filtered_issues, list) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -248,13 +230,12 @@ class SonarQubeTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve {issue_type} issues for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve {issue_type} issues for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_quality_overview(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve quality overview.
+        """Retrieve quality overview.
 
         Gets a comprehensive quality overview across projects with flexible filtering options.
         Supports organization filtering, specific project selection, and predefined project lists.
@@ -277,9 +258,7 @@ class SonarQubeTools:
         project_keys = None
         if project_keys_str:
             project_keys = [key.strip() for key in project_keys_str.split(",")]
-            use_project_list = (
-                False  # Override use_project_list if specific projects are provided
-            )
+            use_project_list = False  # Override use_project_list if specific projects are provided
 
         self.logger.info(
             f"Getting quality overview - org: {organization}, project_keys: {project_keys}, use_project_list: {use_project_list}"
@@ -288,14 +267,10 @@ class SonarQubeTools:
         try:
             if project_keys:
                 # Get metrics for specific projects by passing project_keys parameter
-                data = self.adapter.get_all_projects_with_metrics(
-                    organization=organization, project_keys=project_keys
-                )
+                data = self.adapter.get_all_projects_with_metrics(organization=organization, project_keys=project_keys)
             elif use_project_list:
                 # Use predefined project list
-                data = self.adapter.get_all_projects_with_metrics(
-                    organization=organization
-                )
+                data = self.adapter.get_all_projects_with_metrics(organization=organization)
             else:
                 # Fallback to general dashboard
                 data = self.adapter.get_quality_dashboard()
@@ -307,17 +282,11 @@ class SonarQubeTools:
                     "project_keys": project_keys,
                     "use_project_list": use_project_list,
                     "include_measures": include_measures,
-                    "projects_analyzed": (
-                        len(data.get("projects", []))
-                        if isinstance(data, dict)
-                        else "N/A"
-                    ),
+                    "projects_analyzed": (len(data.get("projects", [])) if isinstance(data, dict) else "N/A"),
                 },
                 "summary": {
                     "analysis_type": "quality_overview",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -329,17 +298,10 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get quality overview: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve quality overview: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve quality overview: {e!s}")]
 
-    async def _compare_projects_quality(
-        self, args: dict[str, Any]
-    ) -> list[TextContent]:
-        """
-        Compare quality metrics between projects.
+    async def _compare_projects_quality(self, args: dict[str, Any]) -> list[TextContent]:
+        """Compare quality metrics between projects.
 
         Analyzes and compares quality metrics across multiple projects,
         providing side-by-side comparison of key quality indicators.
@@ -375,11 +337,7 @@ class SonarQubeTools:
                     "code_smells",
                     "coverage",
                 ],
-                "timestamp": (
-                    comparison_data.get(project_keys[0], {}).get("timestamp")
-                    if project_keys
-                    else None
-                ),
+                "timestamp": (comparison_data.get(project_keys[0], {}).get("timestamp") if project_keys else None),
             }
 
             formatted_result = {
@@ -396,8 +354,4 @@ class SonarQubeTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to compare projects quality: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to compare projects quality: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to compare projects quality: {e!s}")]

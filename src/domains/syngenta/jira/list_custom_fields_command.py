@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, Namespace
-from utils.command.base_command import BaseCommand
+
 from domains.syngenta.jira.jira_processor import JiraProcessor
+from utils.command.base_command import BaseCommand
 from utils.data.json_manager import JSONManager
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
@@ -19,10 +20,7 @@ class ListCustomFieldsCommand(BaseCommand):
 
     @staticmethod
     def get_help() -> str:
-        return (
-            "This command retrieves and lists all custom fields available for "
-            "a specified JIRA project."
-        )
+        return "This command retrieves and lists all custom fields available for a specified JIRA project."
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
@@ -34,8 +32,7 @@ class ListCustomFieldsCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to fetch and save custom fields for a given Jira project.
+        """Main function to fetch and save custom fields for a given Jira project.
 
         Args:
             args (Namespace): Command-line arguments.

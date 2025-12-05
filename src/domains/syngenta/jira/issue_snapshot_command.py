@@ -1,5 +1,4 @@
-"""
-JIRA Issue Snapshot Command
+"""JIRA Issue Snapshot Command
 
 This command fetches a snapshot of issues within a specific time window, with comprehensive
 filtering options and the ability to include issue comments.
@@ -40,7 +39,7 @@ USAGE EXAMPLES:
    python src/main.py syngenta jira issue-snapshot --project-key "CWS" \
    --issue-type "Bug" --end-date "2025-10-27" --output-format "json,md"
 
-NOTES:
+Notes:
 - --status and --status-categories are mutually exclusive
 - Default window is 7 days if not specified
 - Default end-date is today if not specified

@@ -1,5 +1,4 @@
-"""
-CircleCI Pipeline Details Command
+"""CircleCI Pipeline Details Command
 Command interface for extracting detailed information from a specific CircleCI pipeline
 """
 
@@ -133,9 +132,7 @@ For each failed job (verbose mode):
             # Get CircleCI token
             token = args.token or os.getenv("CIRCLECI_TOKEN")
             if not token:
-                logger.error(
-                    "❌ CircleCI token is required. Set CIRCLECI_TOKEN env var or use --token"
-                )
+                logger.error("❌ CircleCI token is required. Set CIRCLECI_TOKEN env var or use --token")
                 exit(1)
 
             # Validate pipeline identifier
@@ -147,9 +144,7 @@ For each failed job (verbose mode):
             service = PipelineDetailsService(token, args.project_slug)
 
             # Extract pipeline details
-            logger.info(
-                f"🔍 Extracting details for pipeline in project: {args.project_slug}"
-            )
+            logger.info(f"🔍 Extracting details for pipeline in project: {args.project_slug}")
 
             pipeline_data = service.get_pipeline_details(
                 pipeline_id=args.pipeline_id,

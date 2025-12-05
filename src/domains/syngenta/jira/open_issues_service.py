@@ -1,5 +1,4 @@
-"""
-JIRA Open Issues Service
+"""JIRA Open Issues Service
 
 This service provides functionality to fetch all currently open issues from a JIRA project
 without date filtering. It provides a snapshot of all active work items at the current moment.
@@ -7,7 +6,6 @@ without date filtering. It provides a snapshot of all active work items at the c
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
@@ -24,13 +22,13 @@ class OpenIssueResult:
     issue_type: str
     status: str
     status_category: str
-    priority: Optional[str]
-    assignee: Optional[str]
-    team: Optional[str]
-    created_date: Optional[str]
-    due_date: Optional[str]
-    labels: List[str]
-    components: List[str]
+    priority: str | None
+    assignee: str | None
+    team: str | None
+    created_date: str | None
+    due_date: str | None
+    labels: list[str]
+    components: list[str]
 
 
 class OpenIssuesService:
@@ -45,14 +43,13 @@ class OpenIssuesService:
     def fetch_open_issues(
         self,
         project_key: str,
-        issue_types: List[str],
-        teams: Optional[List[str]] = None,
-        status_categories: Optional[List[str]] = None,
+        issue_types: list[str],
+        teams: list[str] | None = None,
+        status_categories: list[str] | None = None,
         verbose: bool = False,
-        output_file: Optional[str] = None,
-    ) -> Optional[Dict]:
-        """
-        Fetch all currently open issues from a JIRA project.
+        output_file: str | None = None,
+    ) -> dict | None:
+        """Fetch all currently open issues from a JIRA project.
 
         Args:
             project_key (str): The JIRA project key
@@ -66,18 +63,14 @@ class OpenIssuesService:
             Dict: Results with open issues and summary metrics
         """
         try:
-            self.logger.info(
-                f"Starting open issues retrieval for project {project_key}"
-            )
+            self.logger.info(f"Starting open issues retrieval for project {project_key}")
 
             # Default status categories if not provided
             if status_categories is None:
                 status_categories = ["To Do", "In Progress"]
 
             # Build JQL query
-            jql_query = self._build_jql_query(
-                project_key, issue_types, teams, status_categories
-            )
+            jql_query = self._build_jql_query(project_key, issue_types, teams, status_categories)
 
             self.logger.info(f"Executing JQL query: {jql_query}")
 
@@ -151,12 +144,11 @@ class OpenIssuesService:
     def _build_jql_query(
         self,
         project_key: str,
-        issue_types: List[str],
-        teams: Optional[List[str]],
-        status_categories: List[str],
+        issue_types: list[str],
+        teams: list[str] | None,
+        status_categories: list[str],
     ) -> str:
-        """
-        Build JQL query to fetch open issues.
+        """Build JQL query to fetch open issues.
 
         Args:
             project_key (str): The JIRA project key
@@ -201,9 +193,8 @@ class OpenIssuesService:
 
         return jql_query
 
-    def _process_issue(self, issue: Dict) -> OpenIssueResult:
-        """
-        Process a single issue and extract relevant information.
+    def _process_issue(self, issue: dict) -> OpenIssueResult:
+        """Process a single issue and extract relevant information.
 
         Args:
             issue (Dict): Issue data from JIRA
@@ -218,14 +209,10 @@ class OpenIssuesService:
         summary = fields.get("summary", "")
         issue_type = fields.get("issuetype", {}).get("name", "")
         status = fields.get("status", {}).get("name", "")
-        status_category = (
-            fields.get("status", {}).get("statusCategory", {}).get("name", "")
-        )
+        status_category = fields.get("status", {}).get("statusCategory", {}).get("name", "")
 
         # Extract optional fields
-        priority = (
-            fields.get("priority", {}).get("name") if fields.get("priority") else None
-        )
+        priority = fields.get("priority", {}).get("name") if fields.get("priority") else None
         assignee_field = fields.get("assignee")
         assignee = assignee_field.get("displayName") if assignee_field else None
 
@@ -258,9 +245,8 @@ class OpenIssuesService:
             components=components,
         )
 
-    def _calculate_metrics(self, open_issues: List[OpenIssueResult]) -> Dict:
-        """
-        Calculate summary metrics for open issues.
+    def _calculate_metrics(self, open_issues: list[OpenIssueResult]) -> dict:
+        """Calculate summary metrics for open issues.
 
         Args:
             open_issues (List[OpenIssueResult]): List of processed issues
@@ -268,19 +254,17 @@ class OpenIssuesService:
         Returns:
             Dict: Summary metrics
         """
-        status_breakdown: Dict[str, int] = {}
-        type_breakdown: Dict[str, int] = {}
-        priority_breakdown: Dict[str, int] = {}
-        team_breakdown: Dict[str, int] = {}
+        status_breakdown: dict[str, int] = {}
+        type_breakdown: dict[str, int] = {}
+        priority_breakdown: dict[str, int] = {}
+        team_breakdown: dict[str, int] = {}
 
         for issue in open_issues:
             # Status breakdown
             status_breakdown[issue.status] = status_breakdown.get(issue.status, 0) + 1
 
             # Type breakdown
-            type_breakdown[issue.issue_type] = (
-                type_breakdown.get(issue.issue_type, 0) + 1
-            )
+            type_breakdown[issue.issue_type] = type_breakdown.get(issue.issue_type, 0) + 1
 
             # Priority breakdown
             priority = issue.priority or "No Priority"
@@ -297,9 +281,8 @@ class OpenIssuesService:
             "team_breakdown": team_breakdown,
         }
 
-    def _issue_to_dict(self, issue: OpenIssueResult) -> Dict:
-        """
-        Convert OpenIssueResult to dictionary for JSON serialization.
+    def _issue_to_dict(self, issue: OpenIssueResult) -> dict:
+        """Convert OpenIssueResult to dictionary for JSON serialization.
 
         Args:
             issue (OpenIssueResult): Issue result object
@@ -322,9 +305,8 @@ class OpenIssuesService:
             "components": issue.components,
         }
 
-    def _print_verbose_output(self, open_issues: List[OpenIssueResult]):
-        """
-        Print detailed information about open issues.
+    def _print_verbose_output(self, open_issues: list[OpenIssueResult]):
+        """Print detailed information about open issues.
 
         Args:
             open_issues (List[OpenIssueResult]): List of processed issues
@@ -349,9 +331,8 @@ class OpenIssuesService:
             if issue.components:
                 print(f"   Components: {', '.join(issue.components)}")
 
-    def _save_to_file(self, result: Dict, output_file: str):
-        """
-        Save results to a JSON file.
+    def _save_to_file(self, result: dict, output_file: str):
+        """Save results to a JSON file.
 
         Args:
             result (Dict): Results data

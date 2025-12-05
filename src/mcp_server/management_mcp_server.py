@@ -5,7 +5,6 @@ from pathlib import Path
 
 from pydantic import AnyUrl
 
-
 # Add current directory to sys.path for local imports
 current_dir = Path(__file__).parent
 parent_dir = current_dir.parent  # src directory
@@ -16,7 +15,6 @@ if str(parent_dir) not in sys.path:
 
 # MCP Configuration - MUST BE FIRST
 from mcp_server.mcp_config import MCPConfig
-
 
 MCPConfig.setup_environment()
 
@@ -50,8 +48,7 @@ from utils.logging.logging_manager import LogManager
 
 
 class ManagementMCPServer:
-    """
-    Integrated MCP Server leveraging PyToolkit.
+    """Integrated MCP Server leveraging PyToolkit.
 
     This server reuses 100% of PyToolkit infrastructure:
     - Logging system with LogManager
@@ -60,16 +57,13 @@ class ManagementMCPServer:
     """
 
     def __init__(self):
-        """
-        Initialize the ManagementMCPServer with all tool handlers, resource handlers, and prompt handlers.
+        """Initialize the ManagementMCPServer with all tool handlers, resource handlers, and prompt handlers.
 
         This method reuses PyToolkit infrastructure (logging, caching, environment loading)
         and initializes all MCP components for JIRA, SonarQube, CircleCI, and LinearB integration.
         """
         # REUSE PyToolkit infrastructure
-        ensure_env_loaded(
-            required_vars=[]
-        )  # MCP server doesn't require specific env vars
+        ensure_env_loaded(required_vars=[])  # MCP server doesn't require specific env vars
         self.logger = LogManager.get_instance().get_logger("MCPServer")
         self.cache = CacheManager.get_instance()
         self.config = MCPServerConfig.get_config()
@@ -97,9 +91,7 @@ class ManagementMCPServer:
 
         self._register_handlers()
 
-        self.logger.info(
-            f"MCP Server initialized: {self.config['server']['name']} v{self.config['server']['version']}"
-        )
+        self.logger.info(f"MCP Server initialized: {self.config['server']['name']} v{self.config['server']['version']}")
 
     def _register_handlers(self):
         """Register basic MCP handlers."""
@@ -151,7 +143,7 @@ class ManagementMCPServer:
                     self.logger.error(error_msg)
                     return [TextContent(type="text", text=f"Error: {error_msg}")]
             except Exception as e:
-                error_msg = f"Error executing tool {name}: {str(e)}"
+                error_msg = f"Error executing tool {name}: {e!s}"
                 self.logger.error(error_msg)
                 return [TextContent(type="text", text=error_msg)]
 
@@ -189,9 +181,7 @@ class ManagementMCPServer:
                     result = await self.pipeline_resources.get_resource_content(uri_str)
                     return result.text if hasattr(result, "text") else str(result)
                 elif uri_str.startswith("weekly://"):
-                    result = await self.weekly_report_resources.get_resource_content(
-                        uri_str
-                    )
+                    result = await self.weekly_report_resources.get_resource_content(uri_str)
                     return result.text if hasattr(result, "text") else str(result)
                 else:
                     raise ValueError(f"Unknown resource URI scheme: {uri_str}")
@@ -217,9 +207,7 @@ class ManagementMCPServer:
 
         # Handler for getting prompts - Phase 5
         @self.server.get_prompt()
-        async def get_prompt(
-            name: str, arguments: dict[str, str] | None
-        ) -> GetPromptResult:
+        async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptResult:
             """Get specific prompt with arguments."""
             self.logger.info(f"Getting prompt: {name}")
 
@@ -239,13 +227,9 @@ class ManagementMCPServer:
                 ):
                     return await self.weekly_prompts.get_prompt_content(name, args_dict)
                 elif name.startswith(("quarterly_", "cycle_")):
-                    return await self.quarterly_prompts.get_prompt_content(
-                        name, args_dict
-                    )
+                    return await self.quarterly_prompts.get_prompt_content(name, args_dict)
                 elif name.startswith(("code_quality_", "technical_debt_", "security_")):
-                    return await self.quality_prompts.get_prompt_content(
-                        name, args_dict
-                    )
+                    return await self.quality_prompts.get_prompt_content(name, args_dict)
                 elif name.startswith("team_"):
                     return await self.team_prompts.get_prompt_content(name, args_dict)
                 else:
@@ -306,13 +290,11 @@ class ManagementMCPServer:
 
             self.logger.info("Health check completed successfully")
 
-            return [
-                TextContent(type="text", text=f"Health Check Results:\n{status_report}")
-            ]
+            return [TextContent(type="text", text=f"Health Check Results:\n{status_report}")]
 
         except Exception as e:
             self.logger.error(f"Health check failed: {e}")
-            return [TextContent(type="text", text=f"Health check failed: {str(e)}")]
+            return [TextContent(type="text", text=f"Health check failed: {e!s}")]
 
     async def run_stdio(self):
         """Run server via stdio (for Claude Desktop)."""
@@ -322,18 +304,12 @@ class ManagementMCPServer:
         from mcp.server.stdio import stdio_server
 
         async with stdio_server() as (read_stream, write_stream):
-            await self.server.run(
-                read_stream, write_stream, self.server.create_initialization_options()
-            )
+            await self.server.run(read_stream, write_stream, self.server.create_initialization_options())
 
     async def run_http(self, port: int = 8000):
         """HTTP transport not supported - MCP server runs in STDIO mode only for local usage."""
-        self.logger.error(
-            "HTTP transport is not supported. This MCP server runs in STDIO mode only for local usage."
-        )
-        raise NotImplementedError(
-            "HTTP transport is not supported. Use STDIO mode only."
-        )
+        self.logger.error("HTTP transport is not supported. This MCP server runs in STDIO mode only for local usage.")
+        raise NotImplementedError("HTTP transport is not supported. Use STDIO mode only.")
 
 
 # Main function for execution

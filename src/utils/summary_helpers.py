@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Iterable, List, Optional
+from collections.abc import Iterable
+from typing import Any
 
 
 def _safe_write_summary(
-    metrics: List[Dict[str, Any]],
+    metrics: list[dict[str, Any]],
     output_dir: str,
     command_name: str,
-    file_name: Optional[str] = None,
+    file_name: str | None = None,
 ) -> str:
     """Persist the summary metrics to the expected JSON file and return its absolute path."""
     os.makedirs(output_dir, exist_ok=True)
@@ -21,7 +22,7 @@ def _safe_write_summary(
     return os.path.abspath(summary_path)
 
 
-def _isoz(dt_str: Optional[str]) -> Optional[str]:
+def _isoz(dt_str: str | None) -> str | None:
     """Normalize ISO timestamps to ensure a trailing 'Z' for UTC."""
     if not dt_str:
         return dt_str
@@ -37,7 +38,7 @@ def _has_value(value: Any) -> bool:
     return value is not None
 
 
-def _extract_metric_value(source: Dict[str, Any], path: Iterable[str]) -> Any:
+def _extract_metric_value(source: dict[str, Any], path: Iterable[str]) -> Any:
     """Safely traverse nested dictionaries returning None when any key is missing."""
     current: Any = source
     for key in path:
@@ -47,9 +48,8 @@ def _extract_metric_value(source: Dict[str, Any], path: Iterable[str]) -> Any:
     return current
 
 
-def build_standard_period(time_window: Optional[str] = None) -> Dict[str, Any]:
-    """
-    Build standardized period information for summary metrics.
+def build_standard_period(time_window: str | None = None) -> dict[str, Any]:
+    """Build standardized period information for summary metrics.
 
     Args:
         time_window: Time window specification (e.g., 'last-week', 'last-month')
@@ -90,11 +90,8 @@ def build_standard_period(time_window: Optional[str] = None) -> Dict[str, Any]:
         }
 
 
-def build_base_dimensions(
-    args, additional_fields: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    """
-    Build base dimensions from command arguments.
+def build_base_dimensions(args, additional_fields: list[str] | None = None) -> dict[str, Any]:
+    """Build base dimensions from command arguments.
 
     Args:
         args: Command arguments namespace
@@ -133,14 +130,13 @@ def build_base_dimensions(
 
 
 def append_metric_safe(
-    metrics_list: List[Dict[str, Any]],
+    metrics_list: list[dict[str, Any]],
     name: str,
     value: Any,
     unit: str = "",
     description: str = "",
 ) -> None:
-    """
-    Safely append a metric to the metrics list with validation.
+    """Safely append a metric to the metrics list with validation.
 
     This function provides backward compatibility and validation for metric addition.
 

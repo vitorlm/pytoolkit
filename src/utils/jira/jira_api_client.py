@@ -1,17 +1,15 @@
 import requests
 from requests.auth import HTTPBasicAuth
+
 from utils.jira.error import JiraApiRequestError
 from utils.logging.logging_manager import LogManager
 
 
 class JiraApiClient:
-    """
-    A robust Jira API Client to handle basic API operations with enhanced error handling and logging
-    """
+    """A robust Jira API Client to handle basic API operations with enhanced error handling and logging"""
 
     def __init__(self, base_url: str, email: str, api_token: str):
-        """
-        Initialize the Jira API client.
+        """Initialize the Jira API client.
 
         Args:
             base_url (str): The base URL of the Jira API.
@@ -27,8 +25,7 @@ class JiraApiClient:
         }
 
     def _handle_response(self, response):
-        """
-        Handle the HTTP response from the Jira API.
+        """Handle the HTTP response from the Jira API.
 
         Args:
             response (requests.Response): The HTTP response object.
@@ -59,14 +56,11 @@ class JiraApiClient:
                 )
 
         # Handle unexpected content types
-        self.logger.warning(
-            f"Unexpected content type: {response.headers.get('Content-Type')}"
-        )
+        self.logger.warning(f"Unexpected content type: {response.headers.get('Content-Type')}")
         return {"raw_response": response.content.decode("utf-8", errors="replace")}
 
     def _request(self, method: str, endpoint: str, **kwargs):
-        """
-        Make an HTTP request to the Jira API.
+        """Make an HTTP request to the Jira API.
 
         Args:
             method (str): HTTP method ('GET', 'POST', 'PUT', etc.).
@@ -80,12 +74,8 @@ class JiraApiClient:
         """
         url = f"{self.base_url}{endpoint}"
         try:
-            self.logger.info(
-                f"Sending {method.upper()} request to {url} with kwargs {kwargs}"
-            )
-            response = requests.request(
-                method, url, headers=self.headers, auth=self.auth, **kwargs
-            )
+            self.logger.info(f"Sending {method.upper()} request to {url} with kwargs {kwargs}")
+            response = requests.request(method, url, headers=self.headers, auth=self.auth, **kwargs)
             response.raise_for_status()
             return self._handle_response(response)
         except requests.RequestException as e:
@@ -97,14 +87,9 @@ class JiraApiClient:
                     error_details = e.response.json()
                     if isinstance(error_details, dict):
                         # Extract meaningful error messages from JIRA response
-                        if (
-                            "errorMessages" in error_details
-                            and error_details["errorMessages"]
-                        ):
-                            error_message += (
-                                f" - {'; '.join(error_details['errorMessages'])}"
-                            )
-                        elif "errors" in error_details and error_details["errors"]:
+                        if error_details.get("errorMessages"):
+                            error_message += f" - {'; '.join(error_details['errorMessages'])}"
+                        elif error_details.get("errors"):
                             error_details_str = []
                             for field, message in error_details["errors"].items():
                                 error_details_str.append(f"{field}: {message}")
@@ -114,9 +99,7 @@ class JiraApiClient:
                     try:
                         raw_text = e.response.text
                         if raw_text:
-                            error_message += (
-                                f" - Response: {raw_text[:500]}..."  # Limit length
-                            )
+                            error_message += f" - Response: {raw_text[:500]}..."  # Limit length
                     except AttributeError:
                         pass
 
@@ -131,9 +114,8 @@ class JiraApiClient:
 
     from typing import Optional
 
-    def get(self, endpoint: str, params: Optional[dict] = None):
-        """
-        Make a GET request to the Jira API.
+    def get(self, endpoint: str, params: dict | None = None):
+        """Make a GET request to the Jira API.
 
         Args:
             endpoint (str): The API endpoint to call.
@@ -145,8 +127,7 @@ class JiraApiClient:
         return self._request("GET", endpoint, params=params)
 
     def post(self, endpoint: str, payload: dict):
-        """
-        Make a POST request to the Jira API.
+        """Make a POST request to the Jira API.
 
         Args:
             endpoint (str): The API endpoint to call.
@@ -158,8 +139,7 @@ class JiraApiClient:
         return self._request("POST", endpoint, json=payload)
 
     def put(self, endpoint: str, payload: dict):
-        """
-        Make a PUT request to the Jira API.
+        """Make a PUT request to the Jira API.
 
         Args:
             endpoint (str): The API endpoint to call.
@@ -171,8 +151,7 @@ class JiraApiClient:
         return self._request("PUT", endpoint, json=payload)
 
     def delete(self, endpoint: str):
-        """
-        Make a DELETE request to the Jira API.
+        """Make a DELETE request to the Jira API.
 
         Args:
             endpoint (str): The API endpoint to call.

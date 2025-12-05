@@ -1,6 +1,7 @@
 from argparse import ArgumentParser, Namespace
-from utils.command.base_command import BaseCommand
+
 from domains.syngenta.jira.jira_processor import JiraProcessor
+from utils.command.base_command import BaseCommand
 
 
 class FillMissingDatesCommand(BaseCommand):
@@ -18,12 +19,8 @@ class FillMissingDatesCommand(BaseCommand):
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
-        parser.add_argument(
-            "--project", type=str, required=True, help="The JIRA project key."
-        )
-        parser.add_argument(
-            "--team_name", type=str, required=True, help="The team name."
-        )
+        parser.add_argument("--project", type=str, required=True, help="The JIRA project key.")
+        parser.add_argument("--team_name", type=str, required=True, help="The team name.")
         parser.add_argument(
             "--start-date",
             type=str,
@@ -47,6 +44,4 @@ class FillMissingDatesCommand(BaseCommand):
         jira_processor = JiraProcessor()
 
         # Call the function to fill missing dates in JIRA issues
-        jira_processor.fill_missing_dates_for_completed_epics(
-            project, team_name, start_date, end_date
-        )
+        jira_processor.fill_missing_dates_for_completed_epics(project, team_name, start_date, end_date)

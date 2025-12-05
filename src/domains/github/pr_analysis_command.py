@@ -1,5 +1,4 @@
-"""
-GitHub Pull Request Analysis Command
+"""GitHub Pull Request Analysis Command
 
 Analyzes PRs from all contributors (both internal and external) and computes lead time metrics.
 Can optionally compute review rounds and filter by contributor type.
@@ -79,9 +78,7 @@ class PrAnalysisCommand(BaseCommand):
 
         # Repository selection (mutually exclusive)
         repo_group = parser.add_mutually_exclusive_group(required=True)
-        repo_group.add_argument(
-            "--repos", nargs="+", help="One or more repository names within the org"
-        )
+        repo_group.add_argument("--repos", nargs="+", help="One or more repository names within the org")
         repo_group.add_argument(
             "--all-repos",
             action="store_true",
@@ -270,9 +267,7 @@ class PrAnalysisCommand(BaseCommand):
         )
 
         # Verbose logging
-        parser.add_argument(
-            "--verbose", action="store_true", help="Enable verbose (DEBUG) logging"
-        )
+        parser.add_argument("--verbose", action="store_true", help="Enable verbose (DEBUG) logging")
 
     @staticmethod
     def main(args: Namespace):
@@ -298,9 +293,7 @@ class PrAnalysisCommand(BaseCommand):
             # Execute analysis
             results = service.analyze_prs(args)
 
-            logger.info(
-                f"Analysis completed successfully. Processed {results.get('total_prs', 0)} PRs"
-            )
+            logger.info(f"Analysis completed successfully. Processed {results.get('total_prs', 0)} PRs")
             logger.info(f"External PRs found: {results.get('external_prs', 0)}")
             logger.info(f"Output saved to: {args.output}")
 

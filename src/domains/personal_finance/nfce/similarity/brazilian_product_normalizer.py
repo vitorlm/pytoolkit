@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""
-Brazilian Product Normalizer - Advanced normalization for Brazilian product names
-"""
+"""Brazilian Product Normalizer - Advanced normalization for Brazilian product names"""
 
 import re
 import unicodedata
-from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
-from utils.logging.logging_manager import LogManager
+
 from utils.cache_manager.cache_manager import CacheManager
+from utils.logging.logging_manager import LogManager
 
 
 @dataclass
@@ -17,17 +15,16 @@ class NormalizationResult:
 
     original: str
     normalized: str
-    extracted_brand: Optional[str]
-    extracted_size: Optional[str]
-    extracted_unit: Optional[str]
-    category_hints: List[str]
+    extracted_brand: str | None
+    extracted_size: str | None
+    extracted_unit: str | None
+    category_hints: list[str]
     confidence_score: float
-    normalization_steps: List[str]
+    normalization_steps: list[str]
 
 
 class BrazilianProductNormalizer:
-    """
-    Advanced product normalizer specifically designed for Brazilian product names
+    """Advanced product normalizer specifically designed for Brazilian product names
 
     Features:
     - Brazilian brand recognition
@@ -193,8 +190,6 @@ class BrazilianProductNormalizer:
             "BOMBRIL",
             "ASSOLAN",
             # Dairy
-            "NESTLÉ",
-            "NESTLE",
             "DANONE",
             "VIGOR",
             "ITAMBÉ",
@@ -203,7 +198,6 @@ class BrazilianProductNormalizer:
             "PIRACANJUBA",
             "BETÂNIA",
             "BETANIA",
-            "FRIMESA",
             "ELEGÊ",
             "ELEGE",
             "TIROLEZ",
@@ -388,8 +382,7 @@ class BrazilianProductNormalizer:
         }
 
     def normalize(self, product_name: str) -> NormalizationResult:
-        """
-        Perform comprehensive normalization of Brazilian product name
+        """Perform comprehensive normalization of Brazilian product name
 
         Args:
             product_name: Original product name
@@ -419,9 +412,7 @@ class BrazilianProductNormalizer:
         steps.append("remove_accents")
 
         # Step 3: Extract and normalize sizes
-        extracted_size, extracted_unit, size_normalized = self._extract_size_info(
-            normalized
-        )
+        extracted_size, extracted_unit, size_normalized = self._extract_size_info(normalized)
         normalized = size_normalized
         steps.append("extract_size")
 
@@ -467,7 +458,7 @@ class BrazilianProductNormalizer:
 
         return result
 
-    def normalize_batch(self, product_names: List[str]) -> List[NormalizationResult]:
+    def normalize_batch(self, product_names: list[str]) -> list[NormalizationResult]:
         """Normalize a batch of product names efficiently"""
         results = []
 
@@ -501,7 +492,7 @@ class BrazilianProductNormalizer:
 
         return text
 
-    def _extract_size_info(self, text: str) -> Tuple[Optional[str], Optional[str], str]:
+    def _extract_size_info(self, text: str) -> tuple[str | None, str | None, str]:
         """Extract size and unit information"""
         extracted_size = None
         extracted_unit = None
@@ -539,7 +530,7 @@ class BrazilianProductNormalizer:
 
         return extracted_size, extracted_unit, text
 
-    def _extract_brand(self, text: str) -> Tuple[Optional[str], str]:
+    def _extract_brand(self, text: str) -> tuple[str | None, str]:
         """Extract brand information from text"""
         extracted_brand = None
 
@@ -614,7 +605,7 @@ class BrazilianProductNormalizer:
 
         return text.strip()
 
-    def _extract_category_hints(self, original_text: str) -> List[str]:
+    def _extract_category_hints(self, original_text: str) -> list[str]:
         """Extract category hints from original text"""
         hints = []
         text_lower = original_text.lower()
@@ -631,9 +622,9 @@ class BrazilianProductNormalizer:
         self,
         original: str,
         normalized: str,
-        brand: Optional[str],
-        size: Optional[str],
-        categories: List[str],
+        brand: str | None,
+        size: str | None,
+        categories: list[str],
     ) -> float:
         """Calculate confidence score for normalization"""
         score = 0.0
@@ -680,7 +671,7 @@ class BrazilianProductNormalizer:
             normalization_steps=[],
         )
 
-    def _result_to_dict(self, result: NormalizationResult) -> Dict:
+    def _result_to_dict(self, result: NormalizationResult) -> dict:
         """Convert result to dictionary for caching"""
         return {
             "original": result.original,
@@ -693,7 +684,7 @@ class BrazilianProductNormalizer:
             "normalization_steps": result.normalization_steps,
         }
 
-    def _dict_to_result(self, data: Dict) -> NormalizationResult:
+    def _dict_to_result(self, data: dict) -> NormalizationResult:
         """Convert dictionary back to result"""
         return NormalizationResult(
             original=data["original"],
@@ -706,9 +697,7 @@ class BrazilianProductNormalizer:
             normalization_steps=data["normalization_steps"],
         )
 
-    def get_brand_suggestions(
-        self, text: str, top_k: int = 5
-    ) -> List[Tuple[str, float]]:
+    def get_brand_suggestions(self, text: str, top_k: int = 5) -> list[tuple[str, float]]:
         """Get brand suggestions for ambiguous cases"""
         text_upper = text.upper()
         suggestions = []
@@ -739,7 +728,7 @@ class BrazilianProductNormalizer:
         self.abbreviations[abbr.upper()] = expansion.upper()
         self.logger.info(f"Added custom abbreviation: {abbr} -> {expansion}")
 
-    def get_normalization_statistics(self) -> Dict:
+    def get_normalization_statistics(self) -> dict:
         """Get statistics about normalization performance"""
         # This would require tracking statistics over time
         # For now, return basic info about the normalizer

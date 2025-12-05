@@ -1,14 +1,15 @@
-import os
-import glob
 import datetime
-from typing import Dict, Any, List
-from jinja2 import Environment, FileSystemLoader
-import pandas as pd
+import glob
+import os
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
+import pandas as pd
+from jinja2 import Environment, FileSystemLoader
+
 from utils.cache_manager.cache_manager import CacheManager
 from utils.data.json_manager import JSONManager
 from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class WeeklyReportService:
@@ -17,16 +18,11 @@ class WeeklyReportService:
         self.cache = CacheManager.get_instance()
 
         # Setup Jinja2 environment
-        template_dir = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        )
-        self.jinja_env = Environment(
-            loader=FileSystemLoader(template_dir), trim_blocks=True, lstrip_blocks=True
-        )
+        template_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        self.jinja_env = Environment(loader=FileSystemLoader(template_dir), trim_blocks=True, lstrip_blocks=True)
 
     def generate_report(self, args) -> str:
-        """
-        Loads, analyzes, and aggregates all required data, then generates the markdown report.
+        """Loads, analyzes, and aggregates all required data, then generates the markdown report.
         Dynamically discovers files based on scope and adapts to different configurations.
         """
         scope = args.scope
@@ -43,9 +39,7 @@ class WeeklyReportService:
             output_dir = self._discover_latest_output_dir(scope, output_dir)
 
         if not output_dir or not os.path.exists(output_dir):
-            raise FileNotFoundError(
-                f"No valid output directory found. Expected pattern: {scope}_weekly_reports_*"
-            )
+            raise FileNotFoundError(f"No valid output directory found. Expected pattern: {scope}_weekly_reports_*")
 
         # Dynamic file discovery
         file_mappings = self._discover_data_files(output_dir, scope)
@@ -60,9 +54,7 @@ class WeeklyReportService:
         report_content = self._render_jinja_template(context)
 
         # Save report
-        output_file = os.path.join(
-            output_dir, "consolidated", f"{scope}-weekly-engineering-report.md"
-        )
+        output_file = os.path.join(output_dir, "consolidated", f"{scope}-weekly-engineering-report.md")
         FileManager.create_folder(os.path.dirname(output_file))
 
         with open(output_file, "w", encoding="utf-8") as f:
@@ -71,7 +63,7 @@ class WeeklyReportService:
         self.logger.info(f"Weekly report generated at: {output_file}")
         return output_file
 
-    def _render_jinja_template(self, context: Dict[str, Any]) -> str:
+    def _render_jinja_template(self, context: dict[str, Any]) -> str:
         """Renders the Jinja2 template with the provided context."""
         try:
             # Debug: Log the available context keys
@@ -86,7 +78,7 @@ class WeeklyReportService:
 
         except Exception as e:
             self.logger.error(f"Error rendering template: {e}")
-            self.logger.error(f"Template error details: {type(e).__name__}: {str(e)}")
+            self.logger.error(f"Template error details: {type(e).__name__}: {e!s}")
 
             # Log the full traceback for debugging
             import traceback
@@ -95,21 +87,19 @@ class WeeklyReportService:
 
             # Also log context structure for debugging
             for key, value in context.items():
-                self.logger.error(
-                    f"Context[{key}]: {type(value)} = {str(value)[:200]}..."
-                )
+                self.logger.error(f"Context[{key}]: {type(value)} = {str(value)[:200]}...")
 
             # Fallback to simple template if Jinja2 fails
             return self._generate_fallback_template(context)
 
     def _build_jinja_context(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         scope: str,
         period: str,
         team: str | None = None,
         output_dir: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Builds the context for Jinja2 template rendering."""
         context = {
             # Basic info
@@ -129,14 +119,10 @@ class WeeklyReportService:
         context["bugs_support"] = self._build_bugs_support_context(output_dir)
 
         # Oldest Issues
-        context["oldest_issues"] = self._build_oldest_issues_context(
-            data["jira"].get("open-issues", {})
-        )
+        context["oldest_issues"] = self._build_oldest_issues_context(data["jira"].get("open-issues", {}))
 
         # Cycle Time
-        context["cycle_time"] = self._build_cycle_time_context(
-            data["jira"].get("cycle-time-bugs-lastweek", {})
-        )
+        context["cycle_time"] = self._build_cycle_time_context(data["jira"].get("cycle-time-bugs-lastweek", {}))
 
         # Adherence
         adherence_data = self._build_adherence_context(
@@ -146,9 +132,7 @@ class WeeklyReportService:
         context["adherence"] = adherence_data
 
         # Tasks
-        context["tasks"] = self._build_tasks_context(
-            data["jira"].get("tasks-2weeks", {})
-        )
+        context["tasks"] = self._build_tasks_context(data["jira"].get("tasks-2weeks", {}))
 
         # LinearB
         linearb_data = self._build_linearb_context(data["linearb"].get("metrics", []))
@@ -156,9 +140,7 @@ class WeeklyReportService:
         context["linearb_summary"] = linearb_data["summary"]
 
         # SonarQube
-        sonar_data = self._build_sonar_context(
-            data["sonarqube"].get("quality_metrics", {})
-        )
+        sonar_data = self._build_sonar_context(data["sonarqube"].get("quality_metrics", {}))
         context["sonar_projects"] = sonar_data["projects"]
         context["sonar_summary"] = sonar_data["summary"]
 
@@ -180,12 +162,8 @@ class WeeklyReportService:
 
     def _build_bugs_support_context(self, output_dir: str) -> dict:
         """Build context for bugs and support overview."""
-        lastweek_file = os.path.join(
-            output_dir, "jira", "tribe-bugs-support-lastweek.json"
-        )
-        previousweek_file = os.path.join(
-            output_dir, "jira", "tribe-bugs-support-previousweek.json"
-        )
+        lastweek_file = os.path.join(output_dir, "jira", "tribe-bugs-support-lastweek.json")
+        previousweek_file = os.path.join(output_dir, "jira", "tribe-bugs-support-previousweek.json")
 
         lastweek_data = JSONManager.read_json(lastweek_file, default={})
         previousweek_data = JSONManager.read_json(previousweek_file, default={})
@@ -195,19 +173,11 @@ class WeeklyReportService:
         previousweek_issues = previousweek_data.get("issues", [])
 
         # Count by issue type
-        lastweek_bugs = sum(
-            1 for issue in lastweek_issues if issue.get("issue_type") == "Bug"
-        )
-        lastweek_support = sum(
-            1 for issue in lastweek_issues if issue.get("issue_type") == "Support"
-        )
+        lastweek_bugs = sum(1 for issue in lastweek_issues if issue.get("issue_type") == "Bug")
+        lastweek_support = sum(1 for issue in lastweek_issues if issue.get("issue_type") == "Support")
 
-        previousweek_bugs = sum(
-            1 for issue in previousweek_issues if issue.get("issue_type") == "Bug"
-        )
-        previousweek_support = sum(
-            1 for issue in previousweek_issues if issue.get("issue_type") == "Support"
-        )
+        previousweek_bugs = sum(1 for issue in previousweek_issues if issue.get("issue_type") == "Bug")
+        previousweek_support = sum(1 for issue in previousweek_issues if issue.get("issue_type") == "Support")
 
         return {
             "lastweek_bugs": lastweek_bugs,
@@ -218,9 +188,7 @@ class WeeklyReportService:
             "support_change": lastweek_support - previousweek_support,
         }
 
-    def _build_oldest_issues_context(
-        self, open_issues_data: Dict
-    ) -> List[Dict[str, Any]]:
+    def _build_oldest_issues_context(self, open_issues_data: dict) -> list[dict[str, Any]]:
         """Builds oldest open issues context."""
         issues = open_issues_data.get("issues", [])
         oldest_issues = []
@@ -238,7 +206,7 @@ class WeeklyReportService:
 
         return oldest_issues
 
-    def _build_cycle_time_context(self, cycle_data: Dict) -> Dict[str, Any]:
+    def _build_cycle_time_context(self, cycle_data: dict) -> dict[str, Any]:
         """Builds cycle time section context."""
         metrics = cycle_data.get("metrics", {})
 
@@ -264,9 +232,7 @@ class WeeklyReportService:
 
         return context
 
-    def _build_adherence_context(
-        self, lastweek_data: Dict, weekbefore_data: Dict
-    ) -> Dict[str, Any]:
+    def _build_adherence_context(self, lastweek_data: dict, weekbefore_data: dict) -> dict[str, Any]:
         """Builds adherence section context."""
         lastweek_metrics = lastweek_data.get("metrics", {})
         weekbefore_metrics = weekbefore_data.get("metrics", {})
@@ -288,11 +254,7 @@ class WeeklyReportService:
             # Calculate change
             pct_change = lw_pct - wb_pct
             change_indicator = (
-                f"⬆️ +{pct_change:.1f}pp"
-                if pct_change > 0
-                else f"⬇️ {pct_change:.1f}pp"
-                if pct_change < 0
-                else "➡️ 0.0pp"
+                f"⬆️ +{pct_change:.1f}pp" if pct_change > 0 else f"⬇️ {pct_change:.1f}pp" if pct_change < 0 else "➡️ 0.0pp"
             )
 
             categories.append(
@@ -307,13 +269,9 @@ class WeeklyReportService:
             )
 
         # Overall adherence (on time + early)
-        on_time_count = lastweek_metrics.get("on_time", 0) + lastweek_metrics.get(
-            "early", 0
-        )
+        on_time_count = lastweek_metrics.get("on_time", 0) + lastweek_metrics.get("early", 0)
         total_with_dates = lastweek_metrics.get("issues_with_due_dates", 1)
-        overall_adherence = (
-            (on_time_count / total_with_dates * 100) if total_with_dates > 0 else 0
-        )
+        overall_adherence = (on_time_count / total_with_dates * 100) if total_with_dates > 0 else 0
 
         return {
             "resolution_period": "July 14 – July 21",  # Default period
@@ -321,7 +279,7 @@ class WeeklyReportService:
             "overall_adherence": f"{overall_adherence:.1f}",
         }
 
-    def _build_tasks_context(self, tasks_data: Dict) -> Dict[str, Any]:
+    def _build_tasks_context(self, tasks_data: dict) -> dict[str, Any]:
         """Builds tasks section context."""
         metrics = tasks_data.get("metrics", {})
 
@@ -360,9 +318,7 @@ class WeeklyReportService:
         # Overall adherence
         on_time_count = metrics.get("on_time", 0) + metrics.get("early", 0)
         total_with_dates = metrics.get("issues_with_due_dates", 1)
-        overall_adherence = (
-            (on_time_count / total_with_dates * 100) if total_with_dates > 0 else 0
-        )
+        overall_adherence = (on_time_count / total_with_dates * 100) if total_with_dates > 0 else 0
 
         return {
             "period": "July 21 - August 3, 2025",  # Default period
@@ -372,7 +328,7 @@ class WeeklyReportService:
             "overall_adherence": f"{overall_adherence:.1f}",
         }
 
-    def _build_linearb_context(self, linearb_metrics: List[Dict]) -> Dict[str, Any]:
+    def _build_linearb_context(self, linearb_metrics: list[dict]) -> dict[str, Any]:
         """Builds LinearB section context."""
         if not linearb_metrics:
             return {
@@ -405,16 +361,8 @@ class WeeklyReportService:
         }
 
         for display_name, (field_name, unit, divisor) in metric_mappings.items():
-            current_val = (
-                current_week.get(field_name, 0) / divisor
-                if current_week.get(field_name, 0)
-                else 0
-            )
-            previous_val = (
-                previous_week.get(field_name, 0) / divisor
-                if previous_week.get(field_name, 0)
-                else 0
-            )
+            current_val = current_week.get(field_name, 0) / divisor if current_week.get(field_name, 0) else 0
+            previous_val = previous_week.get(field_name, 0) / divisor if previous_week.get(field_name, 0) else 0
 
             # Calculate change percentage
             if previous_val > 0:
@@ -454,7 +402,7 @@ class WeeklyReportService:
 
         return {"metrics": metrics, "summary": summary}
 
-    def _build_sonar_context(self, sonar_data: Dict) -> Dict[str, Any]:
+    def _build_sonar_context(self, sonar_data: dict) -> dict[str, Any]:
         """Builds SonarQube section context."""
         projects = []
         sonar_projects = sonar_data.get("projects", [])
@@ -463,12 +411,8 @@ class WeeklyReportService:
             measures = project.get("measures", {})
             projects.append(
                 {
-                    "name": project.get("key", "Unknown").replace(
-                        "syngenta-digital_", ""
-                    ),
-                    "quality_gate": measures.get("alert_status", {}).get(
-                        "value", "UNKNOWN"
-                    ),
+                    "name": project.get("key", "Unknown").replace("syngenta-digital_", ""),
+                    "quality_gate": measures.get("alert_status", {}).get("value", "UNKNOWN"),
                     "coverage": f"{float(measures.get('coverage', {}).get('value', 0)):.0f}",
                     "bugs": measures.get("bugs", {}).get("value", 0),
                     "reliability": f"{float(measures.get('reliability_rating', {}).get('value', 0)):.1f}",
@@ -500,7 +444,7 @@ class WeeklyReportService:
             },
         }
 
-    def _generate_fallback_template(self, context: Dict[str, Any]) -> str:
+    def _generate_fallback_template(self, context: dict[str, Any]) -> str:
         """Generates a simple fallback template if Jinja2 fails."""
         return f"""# Weekly Engineering Report
 
@@ -518,9 +462,7 @@ class WeeklyReportService:
 """
 
     # Keep the existing utility methods
-    def _discover_latest_output_dir(
-        self, scope: str, base_output_dir: str = "output"
-    ) -> str | None:
+    def _discover_latest_output_dir(self, scope: str, base_output_dir: str = "output") -> str | None:
         """Discovers the latest output directory based on scope and date pattern."""
         pattern = os.path.join(base_output_dir, f"{scope}_weekly_reports_*")
         matching_dirs = glob.glob(pattern)
@@ -559,9 +501,7 @@ class WeeklyReportService:
                         # Use glob for wildcard patterns
                         matches = glob.glob(os.path.join(subdir_path, pattern))
                         if matches:
-                            file_mappings[subdir][key] = sorted(matches)[
-                                -1
-                            ]  # Get latest
+                            file_mappings[subdir][key] = sorted(matches)[-1]  # Get latest
                     else:
                         # Direct file path
                         file_path = os.path.join(subdir_path, pattern)
@@ -585,9 +525,7 @@ class WeeklyReportService:
                         # For CSV files (LinearB), convert to list of dicts
                         df = pd.read_csv(file_path)
                         data[subdir][key] = df.to_dict("records")
-                        self.logger.info(
-                            f"Parsed {len(data[subdir][key])} LinearB records"
-                        )
+                        self.logger.info(f"Parsed {len(data[subdir][key])} LinearB records")
                         self.logger.info(f"Loaded {subdir.upper()} {key}: {file_path}")
                 except Exception as e:
                     self.logger.error(f"Failed to load {file_path}: {e}")
@@ -601,9 +539,7 @@ class WeeklyReportService:
             today = datetime.date.today()
             start_week = today - datetime.timedelta(days=today.weekday() + 7)
             end_week = start_week + datetime.timedelta(days=6)
-            return (
-                f"{start_week.strftime('%Y-%m-%d')} to {end_week.strftime('%Y-%m-%d')}"
-            )
+            return f"{start_week.strftime('%Y-%m-%d')} to {end_week.strftime('%Y-%m-%d')}"
         return "Custom Period Range"
 
     def _get_comparison_period(self, period: str) -> str:

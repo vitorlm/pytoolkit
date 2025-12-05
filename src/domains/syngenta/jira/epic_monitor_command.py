@@ -1,7 +1,8 @@
-from argparse import ArgumentParser, Namespace
 import os
-from utils.command.base_command import BaseCommand
+from argparse import ArgumentParser, Namespace
+
 from domains.syngenta.jira.epic_monitor_service import EpicCronService
+from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
 
@@ -19,10 +20,7 @@ class EpicMonitorCommand(BaseCommand):
 
     @staticmethod
     def get_help() -> str:
-        return (
-            "This command monitors Catalog squad epics for various problems "
-            "and sends notifications to Slack."
-        )
+        return "This command monitors Catalog squad epics for various problems and sends notifications to Slack."
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):

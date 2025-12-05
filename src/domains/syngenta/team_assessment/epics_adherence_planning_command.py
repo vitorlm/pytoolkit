@@ -1,5 +1,7 @@
 from argparse import ArgumentParser, Namespace
+
 from utils.command.base_command import BaseCommand
+
 from .processors.team_task_processor import TeamTaskProcessor
 
 
@@ -42,13 +44,9 @@ class EpicsAdherencePlanningCommand(BaseCommand):
         if not args.planningFolder:
             raise ValueError("The --planningFolder argument is required.")
         if args.jira_project and not args.team_name:
-            raise ValueError(
-                "The --team_name argument is required when --jira_project is provided."
-            )
+            raise ValueError("The --team_name argument is required when --jira_project is provided.")
         if args.team_name and not args.jira_project:
-            raise ValueError(
-                "The --jira_project argument is required when --team_name is provided."
-            )
+            raise ValueError("The --jira_project argument is required when --team_name is provided.")
         task_processor = TeamTaskProcessor()
         if args.jira_project and args.team_name:
             task_processor.process_folder(

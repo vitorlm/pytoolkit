@@ -1,5 +1,4 @@
-"""
-SonarQube Adapter for PyToolkit MCP Integration.
+"""SonarQube Adapter for PyToolkit MCP Integration.
 
 This adapter reuses the existing PyToolkit SonarQube service, providing
 an MCP-compatible interface for code quality operations.
@@ -15,8 +14,7 @@ from .base_adapter import BaseAdapter
 
 
 class SonarQubeAdapter(BaseAdapter):
-    """
-    SonarQube adapter that reuses the existing PyToolkit SonarQube service.
+    """SonarQube adapter that reuses the existing PyToolkit SonarQube service.
 
     Features:
     - 27 predefined Syngenta Digital projects
@@ -84,8 +82,7 @@ class SonarQubeAdapter(BaseAdapter):
         project_keys: list[str] | None = None,
         custom_metrics: list[str] | None = None,
     ) -> dict[str, Any]:
-        """
-        Get all predefined projects with their quality metrics.
+        """Get all predefined projects with their quality metrics.
 
         Args:
             organization: SonarQube organization
@@ -112,16 +109,9 @@ class SonarQubeAdapter(BaseAdapter):
             summary = {
                 "total_projects": len(projects),
                 "projects_with_quality_gate": len(
-                    [
-                        p
-                        for p in projects
-                        if p.get("measures", {}).get("alert_status", {}).get("value")
-                        == "OK"
-                    ]
+                    [p for p in projects if p.get("measures", {}).get("alert_status", {}).get("value") == "OK"]
                 ),
-                "projects_analyzed": len(
-                    [p for p in projects if p.get("lastAnalysisDate")]
-                ),
+                "projects_analyzed": len([p for p in projects if p.get("lastAnalysisDate")]),
                 "analysis_date": datetime.now().isoformat(),
             }
 
@@ -143,31 +133,20 @@ class SonarQubeAdapter(BaseAdapter):
 
                 # Security rating distribution
                 sec_rating = measures.get("security_rating", {}).get("value")
-                if (
-                    sec_rating
-                    and sec_rating in quality_distribution["security_ratings"]
-                ):
+                if sec_rating and sec_rating in quality_distribution["security_ratings"]:
                     quality_distribution["security_ratings"][sec_rating] += 1
 
                 # Reliability rating distribution
                 rel_rating = measures.get("reliability_rating", {}).get("value")
-                if (
-                    rel_rating
-                    and rel_rating in quality_distribution["reliability_ratings"]
-                ):
+                if rel_rating and rel_rating in quality_distribution["reliability_ratings"]:
                     quality_distribution["reliability_ratings"][rel_rating] += 1
 
                 # Maintainability rating distribution
                 maint_rating = measures.get("sqale_rating", {}).get("value")
-                if (
-                    maint_rating
-                    and maint_rating in quality_distribution["maintainability_ratings"]
-                ):
+                if maint_rating and maint_rating in quality_distribution["maintainability_ratings"]:
                     quality_distribution["maintainability_ratings"][maint_rating] += 1
 
-            result.update(
-                {"summary": summary, "quality_distribution": quality_distribution}
-            )
+            result.update({"summary": summary, "quality_distribution": quality_distribution})
 
             return result
 
@@ -186,8 +165,7 @@ class SonarQubeAdapter(BaseAdapter):
         include_issues: bool = False,
         custom_metrics: list[str] | None = None,
     ) -> dict[str, Any]:
-        """
-        Get detailed information for a specific project.
+        """Get detailed information for a specific project.
 
         Args:
             project_key: SonarQube project key
@@ -203,9 +181,7 @@ class SonarQubeAdapter(BaseAdapter):
             project_key = kwargs["project_key"]
 
             # Get project measures
-            measures_data = self.sonarqube_service.get_project_measures(
-                project_key=project_key, metric_keys=metrics
-            )
+            measures_data = self.sonarqube_service.get_project_measures(project_key=project_key, metric_keys=metrics)
 
             result = {
                 "project_key": project_key,
@@ -215,9 +191,7 @@ class SonarQubeAdapter(BaseAdapter):
 
             # Include issues if requested
             if kwargs.get("include_issues"):
-                issues = self.sonarqube_service.get_project_issues(
-                    project_key=project_key
-                )
+                issues = self.sonarqube_service.get_project_issues(project_key=project_key)
 
                 # Summarize issues by severity
                 issue_summary: dict[str, int] = {}
@@ -251,8 +225,7 @@ class SonarQubeAdapter(BaseAdapter):
         organization: str | None = None,
         focus_projects: list[str] | None = None,
     ) -> dict[str, Any]:
-        """
-        Get a comprehensive quality dashboard.
+        """Get a comprehensive quality dashboard.
 
         Args:
             organization: SonarQube organization
@@ -302,16 +275,12 @@ class SonarQubeAdapter(BaseAdapter):
                             "key": project_key,
                             "name": project_name,
                             "security_rating": sec_rating,
-                            "vulnerabilities": measures.get("vulnerabilities", {}).get(
-                                "value", 0
-                            ),
+                            "vulnerabilities": measures.get("vulnerabilities", {}).get("value", 0),
                         }
                     )
 
                 # Technical debt (high maintainability issues)
-                maint_issues = int(
-                    measures.get("maintainability_issues", {}).get("value", 0)
-                )
+                maint_issues = int(measures.get("maintainability_issues", {}).get("value", 0))
                 if maint_issues > 100:  # Threshold for high technical debt
                     insights["technical_debt_leaders"].append(
                         {
@@ -330,15 +299,9 @@ class SonarQubeAdapter(BaseAdapter):
                     )
 
             # Sort insights by severity/importance
-            insights["top_security_risks"].sort(
-                key=lambda x: x.get("vulnerabilities", 0), reverse=True
-            )
-            insights["technical_debt_leaders"].sort(
-                key=lambda x: x.get("maintainability_issues", 0), reverse=True
-            )
-            insights["coverage_champions"].sort(
-                key=lambda x: x.get("coverage", 0), reverse=True
-            )
+            insights["top_security_risks"].sort(key=lambda x: x.get("vulnerabilities", 0), reverse=True)
+            insights["technical_debt_leaders"].sort(key=lambda x: x.get("maintainability_issues", 0), reverse=True)
+            insights["coverage_champions"].sort(key=lambda x: x.get("coverage", 0), reverse=True)
 
             return {
                 "dashboard": {
@@ -361,8 +324,7 @@ class SonarQubeAdapter(BaseAdapter):
         )
 
     def get_available_metrics(self) -> dict[str, Any]:
-        """
-        Get all available SonarQube metrics.
+        """Get all available SonarQube metrics.
 
         Returns:
             list of available metrics with descriptions
@@ -406,8 +368,6 @@ class SonarQubeAdapter(BaseAdapter):
             )
 
         except Exception as e:
-            base_health.update(
-                {"sonarqube_connectivity": "unhealthy", "connectivity_error": str(e)}
-            )
+            base_health.update({"sonarqube_connectivity": "unhealthy", "connectivity_error": str(e)})
 
         return base_health

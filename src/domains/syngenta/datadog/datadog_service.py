@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from utils.cache_manager.cache_manager import CacheManager
 from utils.logging.logging_manager import LogManager
 
 
 class DatadogService:
-    """
-    Lightweight wrapper around Datadog API client (v2) for Teams and Service Catalog.
+    """Lightweight wrapper around Datadog API client (v2) for Teams and Service Catalog.
 
     - Resolves team handles to ensure they exist.
     - Lists service definitions and filters them by team association.
@@ -19,8 +18,8 @@ class DatadogService:
     def __init__(
         self,
         site: str,
-        api_key: Optional[str] = None,
-        app_key: Optional[str] = None,
+        api_key: str | None = None,
+        app_key: str | None = None,
         use_cache: bool = False,
         cache_ttl_minutes: int = 30,
     ) -> None:
@@ -60,10 +59,8 @@ class DatadogService:
             ) from e
 
     # -------- Teams --------
-    def get_team(self, handle: str) -> Optional[Dict[str, Any]]:
-        """
-        Resolve a team by handle using Teams v2 API. Returns None if not found.
-        """
+    def get_team(self, handle: str) -> dict[str, Any] | None:
+        """Resolve a team by handle using Teams v2 API. Returns None if not found."""
         try:
             from datadog_api_client.v2.api.teams_api import TeamsApi
 
@@ -95,18 +92,11 @@ class DatadogService:
                     for t in items:
                         t_dict = self._normalize_model(t)
                         # Match by attributes.handle or top-level handle (case-insensitive)
-                        attr = (
-                            t_dict.get("attributes", {})
-                            if isinstance(t_dict, dict)
-                            else {}
-                        )
-                        attr_handle = (
-                            attr.get("handle") if isinstance(attr, dict) else None
-                        ) or t_dict.get("handle")
+                        attr = t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
+                        attr_handle = (attr.get("handle") if isinstance(attr, dict) else None) or t_dict.get("handle")
                         if attr_handle and str(attr_handle).lower() == handle.lower():
                             return {
-                                "id": t_dict.get("id")
-                                or t_dict.get("data", {}).get("id"),
+                                "id": t_dict.get("id") or t_dict.get("data", {}).get("id"),
                                 "name": t_dict.get("name") or attr.get("name"),
                                 "handle": attr_handle,
                             }
@@ -118,26 +108,17 @@ class DatadogService:
                 # Fallback to full listing if filter didn't find it
                 page_number = 0
                 while True:
-                    resp = teams_api.list_teams(
-                        page_size=page_size, page_number=page_number
-                    )
+                    resp = teams_api.list_teams(page_size=page_size, page_number=page_number)
                     items = self._extract_items(resp)
                     if not items:
                         break
                     for t in items:
                         t_dict = self._normalize_model(t)
-                        attr = (
-                            t_dict.get("attributes", {})
-                            if isinstance(t_dict, dict)
-                            else {}
-                        )
-                        attr_handle = (
-                            attr.get("handle") if isinstance(attr, dict) else None
-                        ) or t_dict.get("handle")
+                        attr = t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
+                        attr_handle = (attr.get("handle") if isinstance(attr, dict) else None) or t_dict.get("handle")
                         if attr_handle and str(attr_handle).lower() == handle.lower():
                             return {
-                                "id": t_dict.get("id")
-                                or t_dict.get("data", {}).get("id"),
+                                "id": t_dict.get("id") or t_dict.get("data", {}).get("id"),
                                 "name": t_dict.get("name") or attr.get("name"),
                                 "handle": attr_handle,
                             }
@@ -150,25 +131,20 @@ class DatadogService:
         return None
 
     # -------- Service Catalog --------
-    def list_services_for_team(self, handle: str) -> List[Dict[str, Any]]:
-        """
-        List service definitions and return only those associated to the given team handle.
+    def list_services_for_team(self, handle: str) -> list[dict[str, Any]]:
+        """List service definitions and return only those associated to the given team handle.
         Also flags services missing proper team linkage.
         """
-        cache_key = self.cache.generate_cache_key(
-            prefix="datadog_services_for_team", site=self.site, team=handle
-        )
+        cache_key = self.cache.generate_cache_key(prefix="datadog_services_for_team", site=self.site, team=handle)
         if self.use_cache:
-            cached = self.cache.load(
-                cache_key, expiration_minutes=self.cache_ttl_minutes
-            )
+            cached = self.cache.load(cache_key, expiration_minutes=self.cache_ttl_minutes)
             if cached is not None:
                 return cached
 
         try:
             all_services = self._list_all_service_definitions()
 
-            out: List[Dict[str, Any]] = []
+            out: list[dict[str, Any]] = []
             for svc in all_services:
                 svc_dict = self._normalize_model(svc)
 
@@ -181,45 +157,24 @@ class DatadogService:
                 sid = svc_dict.get("id") or svc_dict.get("data", {}).get("id")
 
                 # The team association may exist directly or within attributes
-                svc_team = (
-                    svc_dict.get("team") or svc_dict.get("attributes", {}).get("team")
-                ) or None
+                svc_team = (svc_dict.get("team") or svc_dict.get("attributes", {}).get("team")) or None
 
                 # Fallback: check tags for team:<handle>
-                tags = (
-                    svc_dict.get("tags")
-                    or svc_dict.get("attributes", {}).get("tags")
-                    or []
-                )
+                tags = svc_dict.get("tags") or svc_dict.get("attributes", {}).get("tags") or []
                 tags = tags or []
-                found_by_tag = any(
-                    isinstance(tag, str) and tag.lower() == f"team:{handle}".lower()
-                    for tag in tags
-                )
+                found_by_tag = any(isinstance(tag, str) and tag.lower() == f"team:{handle}".lower() for tag in tags)
 
                 # Only consider services that match by explicit team OR by fallback tag
-                matched = (
-                    bool(svc_team) and str(svc_team).lower() == handle.lower()
-                ) or found_by_tag
+                matched = (bool(svc_team) and str(svc_team).lower() == handle.lower()) or found_by_tag
                 if not matched:
                     continue
 
                 # team_link_ok is true only if the service.team matches the handle
-                team_link_ok = (
-                    bool(svc_team) and str(svc_team).lower() == handle.lower()
-                )
+                team_link_ok = bool(svc_team) and str(svc_team).lower() == handle.lower()
 
                 # Extract contacts and links if present (best-effort)
-                contacts = (
-                    svc_dict.get("contacts")
-                    or svc_dict.get("attributes", {}).get("contacts")
-                    or []
-                )
-                links = (
-                    svc_dict.get("links")
-                    or svc_dict.get("attributes", {}).get("links")
-                    or {}
-                )
+                contacts = svc_dict.get("contacts") or svc_dict.get("attributes", {}).get("contacts") or []
+                links = svc_dict.get("links") or svc_dict.get("attributes", {}).get("links") or {}
 
                 record = {
                     "name": name,
@@ -241,23 +196,19 @@ class DatadogService:
             return []
 
     # -------- Internal helpers --------
-    def _list_all_service_definitions(self) -> List[Any]:
-        """
-        Retrieve all service definitions with pagination.
-        """
+    def _list_all_service_definitions(self) -> list[Any]:
+        """Retrieve all service definitions with pagination."""
         from datadog_api_client.v2.api.service_definition_api import (
             ServiceDefinitionApi,
         )
 
-        all_items: List[Any] = []
+        all_items: list[Any] = []
         with self._api_client as api:
             svc_api = ServiceDefinitionApi(api)
             page_number = 0
             page_size = 100
             while True:
-                resp = svc_api.list_service_definitions(
-                    page_size=page_size, page_number=page_number
-                )
+                resp = svc_api.list_service_definitions(page_size=page_size, page_number=page_number)
                 items = self._extract_items(resp)
                 if not items:
                     break
@@ -268,13 +219,11 @@ class DatadogService:
         return all_items
 
     # ---- Debug helpers ----
-    def list_team_handles(
-        self, query: Optional[str] = None, limit: int = 200
-    ) -> List[Dict[str, str]]:
+    def list_team_handles(self, query: str | None = None, limit: int = 200) -> list[dict[str, str]]:
         """Return a list of {handle, name} for quick discovery/debugging."""
         from datadog_api_client.v2.api.teams_api import TeamsApi
 
-        out: List[Dict[str, str]] = []
+        out: list[dict[str, str]] = []
         with self._api_client as api:
             teams_api = TeamsApi(api)
             page_size = min(100, max(1, limit))
@@ -288,9 +237,7 @@ class DatadogService:
                             filter_query=query,
                         )
                         if query is not None
-                        else teams_api.list_teams(
-                            page_size=page_size, page_number=page_number
-                        )
+                        else teams_api.list_teams(page_size=page_size, page_number=page_number)
                     )
                 except TypeError:
                     resp = (
@@ -300,28 +247,18 @@ class DatadogService:
                             filter_keyword=query,
                         )
                         if query is not None
-                        else teams_api.list_teams(
-                            page_size=page_size, page_number=page_number
-                        )
+                        else teams_api.list_teams(page_size=page_size, page_number=page_number)
                     )
                 items = self._extract_items(resp)
                 if not items:
                     break
                 for t in items:
                     t_dict = self._normalize_model(t)
-                    attr = (
-                        t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
-                    )
-                    handle = (
-                        attr.get("handle") if isinstance(attr, dict) else None
-                    ) or t_dict.get("handle")
-                    name = (
-                        attr.get("name") if isinstance(attr, dict) else None
-                    ) or t_dict.get("name")
+                    attr = t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
+                    handle = (attr.get("handle") if isinstance(attr, dict) else None) or t_dict.get("handle")
+                    name = (attr.get("name") if isinstance(attr, dict) else None) or t_dict.get("name")
                     if handle:
-                        out.append(
-                            {"handle": str(handle), "name": str(name) if name else ""}
-                        )
+                        out.append({"handle": str(handle), "name": str(name) if name else ""})
                         if len(out) >= limit:
                             break
                 if len(items) < page_size:
@@ -329,15 +266,11 @@ class DatadogService:
                 page_number += 1
         return out
 
-    def list_teams(
-        self, query: Optional[str] = None, limit: int = 500
-    ) -> List[Dict[str, str]]:
-        """
-        List teams with id, handle, and name. Supports optional text query and limit.
-        """
+    def list_teams(self, query: str | None = None, limit: int = 500) -> list[dict[str, str]]:
+        """List teams with id, handle, and name. Supports optional text query and limit."""
         from datadog_api_client.v2.api.teams_api import TeamsApi
 
-        out: List[Dict[str, str]] = []
+        out: list[dict[str, str]] = []
         with self._api_client as api:
             teams_api = TeamsApi(api)
             page_size = 100
@@ -352,9 +285,7 @@ class DatadogService:
                             filter_query=query,
                         )
                         if query is not None
-                        else teams_api.list_teams(
-                            page_size=page_size, page_number=page_number
-                        )
+                        else teams_api.list_teams(page_size=page_size, page_number=page_number)
                     )
                 except TypeError:
                     resp = (
@@ -364,28 +295,18 @@ class DatadogService:
                             filter_keyword=query,
                         )
                         if query is not None
-                        else teams_api.list_teams(
-                            page_size=page_size, page_number=page_number
-                        )
+                        else teams_api.list_teams(page_size=page_size, page_number=page_number)
                     )
                 items = self._extract_items(resp)
                 if not items:
                     break
                 for t in items:
                     t_dict = self._normalize_model(t)
-                    attr = (
-                        t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
-                    )
-                    handle = (
-                        attr.get("handle") if isinstance(attr, dict) else None
-                    ) or t_dict.get("handle")
-                    name = (
-                        attr.get("name") if isinstance(attr, dict) else None
-                    ) or t_dict.get("name")
+                    attr = t_dict.get("attributes", {}) if isinstance(t_dict, dict) else {}
+                    handle = (attr.get("handle") if isinstance(attr, dict) else None) or t_dict.get("handle")
+                    name = (attr.get("name") if isinstance(attr, dict) else None) or t_dict.get("name")
                     tid = t_dict.get("id") or (
-                        t_dict.get("data", {})
-                        if isinstance(t_dict.get("data", {}), dict)
-                        else {}
+                        t_dict.get("data", {}) if isinstance(t_dict.get("data", {}), dict) else {}
                     ).get("id")
                     if handle:
                         out.append(
@@ -413,11 +334,11 @@ class DatadogService:
     def list_teams_raw(
         self,
         *,
-        me: Optional[bool] = None,
+        me: bool | None = None,
         limit: int = 100,
-        fields: Optional[List[str]] = None,
+        fields: list[str] | None = None,
         use_app_host: bool = True,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         import requests
 
         fields = fields or [
@@ -442,7 +363,7 @@ class DatadogService:
             "DD-APPLICATION-KEY": self.app_key or "",
         }
 
-        teams: List[Dict[str, str]] = []
+        teams: list[dict[str, str]] = []
         offset = 0
         page_limit = min(100, max(1, limit))
 
@@ -485,7 +406,7 @@ class DatadogService:
         return teams
 
     @staticmethod
-    def _extract_items(response: Any) -> List[Any]:
+    def _extract_items(response: Any) -> list[Any]:
         """Best-effort extraction of array-like items from API responses."""
         if response is None:
             return []
@@ -505,10 +426,8 @@ class DatadogService:
         return []
 
     @staticmethod
-    def _normalize_model(obj: Any) -> Dict[str, Any]:
-        """
-        Convert datadog model instances into plain dicts safely.
-        """
+    def _normalize_model(obj: Any) -> dict[str, Any]:
+        """Convert datadog model instances into plain dicts safely."""
         if obj is None:
             return {}
         if isinstance(obj, dict):
@@ -519,7 +438,7 @@ class DatadogService:
             except Exception:
                 pass
         # Fallback: introspect common attributes
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for attr in (
             "id",
             "name",

@@ -1,22 +1,46 @@
-from typing import List, Dict, Optional
+import statistics
+from typing import Any
+
+import numpy as np
 from pydantic import BaseModel, Field
+
 from log_config import LogManager
 
 from .indicators import Indicator
-import numpy as np
-import statistics
 
 # Configure logger
 logger = LogManager.get_instance().get_logger("StatisticsHelper")
 
 
 class BaseStatistics(BaseModel):
-    """
-    Base class to store shared statistical attributes and methods.
+    """Base class to store shared statistical attributes and methods.
+
+    Note: criteria_stats uses Dict[str, Any] to allow flexible nested structures
+    containing levels (List[int]), indicator_stats (Dict), and statistical values
+    (float, int). The structure is:
+    {
+        "criterion_name": {
+            "levels": List[int],
+            "q1": float,
+            "q3": float,
+            "average": float,
+            "highest": int,
+            "lowest": int,
+            "indicator_stats": {
+                "indicator_name": {
+                    "q1": float,
+                    "q3": float,
+                    "average": float,
+                    "highest": int,
+                    "lowest": int
+                }
+            }
+        }
+    }
     """
 
-    overall_levels: List[int] = Field(default_factory=list)
-    criteria_stats: Dict[str, Dict] = Field(default_factory=dict)
+    overall_levels: list[int] = Field(default_factory=list)
+    criteria_stats: dict[str, Any] = Field(default_factory=dict)
     average_level: float = 0.0
     weighted_average: float = 0.0
     highest_level: int = 0
@@ -25,58 +49,49 @@ class BaseStatistics(BaseModel):
     q3: float = 0.0
 
     def finalize_statistics(self) -> None:
-        """
-        Finalizes statistical calculations for base-level data.
-        """
+        """Finalizes statistical calculations for base-level data."""
         if self.overall_levels:
             self.average_level = StatisticsHelper.calculate_mean(self.overall_levels)
             self.highest_level = max(self.overall_levels)
             self.lowest_level = min(self.overall_levels)
-            self.q1, self.q3 = StatisticsHelper.calculate_percentiles(
-                self.overall_levels
-            )
+            self.q1, self.q3 = StatisticsHelper.calculate_percentiles(self.overall_levels)
 
 
 class TeamStatistics(BaseStatistics):
-    """
-    Class to store and calculate team-level statistics.
+    """Class to store and calculate team-level statistics.
 
     Attributes:
         outliers: Dictionary of identified outliers and their statistics.
     """
 
-    outliers: Dict = Field(default_factory=dict)
+    outliers: dict = Field(default_factory=dict)
 
-    def finalize_statistics(self, criteria_weights: Dict[str, float]) -> None:
-        """
-        Finalizes statistical calculations for individual-level data.
+    def finalize_statistics(self, criteria_weights: dict[str, float]) -> None:
+        """Finalizes statistical calculations for individual-level data.
         Extends the base implementation by adding weighted average and insights.
         """
         # Call the base method
         super().finalize_statistics()
 
         # Calculate weighted average
-        self.weighted_average = StatisticsHelper.calculate_weighted_average(
-            criteria_weights, self.criteria_stats
-        )
+        self.weighted_average = StatisticsHelper.calculate_weighted_average(criteria_weights, self.criteria_stats)
 
 
 class IndividualStatistics(BaseStatistics):
-    """
-    Class to store and calculate individual-level statistics.
+    """Class to store and calculate individual-level statistics.
 
     Attributes:
         weighted_average: Weighted average competency level for the individual.
         insights: Strengths and opportunities for the individual.
+                 Each insight contains: criterion/indicator (str), reason (str),
+                 team_level (float), member_level (float)
     """
 
-    insights: Dict[str, List[Dict[str, str]]] = Field(
-        default_factory=lambda: {"strengths": [], "opportunities": []}
-    )
+    insights: dict[str, list[dict[str, Any]]] = Field(default_factory=lambda: {"strengths": [], "opportunities": []})
+    historical_evaluations: list[dict[str, Any]] = Field(default_factory=list)
 
     def _strengths_opportunities(self, team_stats: TeamStatistics) -> None:
-        """
-        Identifies strengths and opportunities for a team member based on team comparisons.
+        """Identifies strengths and opportunities for a team member based on team comparisons.
 
         Args:
             team_stats (TeamStatistics): Team-level statistics for comparison.
@@ -84,6 +99,10 @@ class IndividualStatistics(BaseStatistics):
         differences = {"strengths": [], "opportunities": []}
 
         for criterion, criterion_data in self.criteria_stats.items():
+            # Skip if criterion data is incomplete
+            if not isinstance(criterion_data, dict) or "average" not in criterion_data:
+                continue
+
             team_criterion_data = team_stats.criteria_stats.get(criterion, {})
 
             member_avg = criterion_data["average"]
@@ -111,12 +130,8 @@ class IndividualStatistics(BaseStatistics):
                 )
 
             # Indicator-level evaluation
-            for indicator, indicator_data in criterion_data.get(
-                "indicator_stats", {}
-            ).items():
-                team_indicator_data = team_criterion_data.get(
-                    "indicator_stats", {}
-                ).get(indicator, {})
+            for indicator, indicator_data in criterion_data.get("indicator_stats", {}).items():
+                team_indicator_data = team_criterion_data.get("indicator_stats", {}).get(indicator, {})
 
                 member_avg = indicator_data["average"]
                 team_q1 = team_indicator_data.get("q1", float("-inf"))
@@ -142,47 +157,33 @@ class IndividualStatistics(BaseStatistics):
                     )
 
         # Sort by absolute difference to prioritize the most significant ones
-        differences["strengths"].sort(
-            key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True
-        )
-        differences["opportunities"].sort(
-            key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True
-        )
+        differences["strengths"].sort(key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True)
+        differences["opportunities"].sort(key=lambda x: abs(x["member_level"] - x["team_level"]), reverse=True)
 
         # Store only the top two in each category
         self.insights["strengths"] = differences["strengths"][:2]
         self.insights["opportunities"] = differences["opportunities"][:2]
 
-    def finalize_statistics(
-        self, criteria_weights: Dict[str, float], team_stats: TeamStatistics
-    ) -> None:
-        """
-        Finalizes statistical calculations for individual-level data.
+    def finalize_statistics(self, criteria_weights: dict[str, float], team_stats: TeamStatistics) -> None:
+        """Finalizes statistical calculations for individual-level data.
         Extends the base implementation by adding weighted average and insights.
         """
         # Call the base method
         super().finalize_statistics()
 
         # Calculate weighted average
-        self.weighted_average = StatisticsHelper.calculate_weighted_average(
-            criteria_weights, self.criteria_stats
-        )
+        self.weighted_average = StatisticsHelper.calculate_weighted_average(criteria_weights, self.criteria_stats)
 
         # Calculate strengths and opportunities
         self._strengths_opportunities(team_stats)
 
 
 class StatisticsHelper:
-    """
-    General helper class for computing statistics.
-    """
+    """General helper class for computing statistics."""
 
     @staticmethod
-    def calculate_correlation(
-        indicators: List[Indicator], reference: List[int]
-    ) -> Optional[float]:
-        """
-        Calculate the Pearson correlation coefficient between two lists of indicators and a
+    def calculate_correlation(indicators: list[Indicator], reference: list[int]) -> float | None:
+        """Calculate the Pearson correlation coefficient between two lists of indicators and a
         reference.
 
         The Pearson correlation coefficient is a measure of the linear correlation between two sets
@@ -201,7 +202,6 @@ class StatisticsHelper:
             Warning: Logs a warning if the input lists are empty, of different lengths, or if their
             standard deviation is zero.
         """
-
         if not indicators or len(indicators) != len(reference):
             logger.warning("Invalid input for correlation calculation.")
             return None
@@ -214,45 +214,42 @@ class StatisticsHelper:
         return round(correlation, 2)
 
     @staticmethod
-    def calculate_mean(values: List[int]) -> Optional[float]:
-        """
-        Calculate the mean (average) of a list of integers.
+    def calculate_mean(values: list[int]) -> float | None:
+        """Calculate the mean (average) of a list of integers.
         The mean is calculated by summing all the values in the list and then
         dividing by the number of values. The result is rounded to 2 decimal places.
+
         Args:
             values (List[int]): A list of integers to calculate the mean from.
+
         Returns:
             Optional[float]: The mean of the list of integers, rounded to 2 decimal
             places. Returns None if the input list is empty.
         """
-
         return round(statistics.mean(values), 2) if values else None
 
     @staticmethod
-    def calculate_std_dev(values: List[int]) -> Optional[float]:
-        """
-        Calculate the standard deviation of a list of integers.
+    def calculate_std_dev(values: list[int]) -> float | None:
+        """Calculate the standard deviation of a list of integers.
         The standard deviation is a measure of the amount of variation or dispersion
         in a set of values. A low standard deviation indicates that the values tend
         to be close to the mean of the set, while a high standard deviation indicates
         that the values are spread out over a wider range.
+
         Args:
             values (List[int]): A list of integers for which the standard deviation
                                 is to be calculated.
+
         Returns:
             Optional[float]: The standard deviation of the list of integers, rounded
                              to 2 decimal places. Returns None if the list contains
                              fewer than 2 values.
         """
-
         return round(statistics.stdev(values), 2) if len(values) > 1 else None
 
     @staticmethod
-    def calculate_percentiles(
-        data: List[float], q1: Optional[float] = 25, q3: Optional[float] = 75
-    ) -> Dict[int, float]:
-        """
-        Calculate the specified percentiles (quartiles) for a given dataset.
+    def calculate_percentiles(data: list[float], q1: float | None = 25, q3: float | None = 75) -> dict[int, float]:
+        """Calculate the specified percentiles (quartiles) for a given dataset.
 
         Parameters:
         data (List[float]): A list of numerical values.
@@ -265,9 +262,8 @@ class StatisticsHelper:
         return np.percentile(data, q1), np.percentile(data, q3)
 
     @staticmethod
-    def calculate_outliers(data: List[float], threshold: float) -> List[float]:
-        """
-        Detects outliers based on the standard deviation threshold.
+    def calculate_outliers(data: list[float], threshold: float) -> list[float]:
+        """Detects outliers based on the standard deviation threshold.
 
         An outlier is a data point that is significantly different from other data points in a
         dataset. In this method, a data point is considered an outlier if its distance from the
@@ -288,16 +284,21 @@ class StatisticsHelper:
         Returns:
             List[float]: A list of outliers.
         """
+        # Handle empty data
+        if not data or len(data) == 0:
+            return []
+
+        # Handle single data point (no outliers possible)
+        if len(data) == 1:
+            return []
+
         mean = StatisticsHelper.calculate_mean(data)
         std_dev = (sum((x - mean) ** 2 for x in data) / len(data)) ** 0.5
         return [x for x in data if abs(x - mean) > threshold * std_dev]
 
     @staticmethod
-    def calculate_weighted_average(
-        criteria_weights: Dict[str, float], criteria_stats: Dict[str, Dict]
-    ) -> float:
-        """
-        Calculate the weighted average based on given criteria weights and statistics.
+    def calculate_weighted_average(criteria_weights: dict[str, float], criteria_stats: dict[str, dict]) -> float:
+        """Calculate the weighted average based on given criteria weights and statistics.
 
         Args:
             criteria_weights (Dict[str, float]): A dictionary where keys are criteria names and
@@ -311,7 +312,6 @@ class StatisticsHelper:
             float: The weighted average rounded to two decimal places. If the total weight is zero,
             returns 0.0.
         """
-
         weighted_sum = 0
         total_weight = sum(criteria_weights.values())
 

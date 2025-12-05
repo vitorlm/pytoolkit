@@ -3,17 +3,16 @@ from __future__ import annotations
 import os
 from argparse import ArgumentParser, Namespace
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
-
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_datadog_env_loaded, ensure_env_loaded
-from utils.logging.logging_manager import LogManager
-from utils.output_manager import OutputManager
+from typing import Any
 
 from domains.syngenta.datadog.hits_by_endpoint_service import HitsByEndpointService
 from domains.syngenta.datadog.summary.datadog_summary_manager import (
     DatadogSummaryManager,
 )
+from utils.command.base_command import BaseCommand
+from utils.env_loader import ensure_datadog_env_loaded, ensure_env_loaded
+from utils.logging.logging_manager import LogManager
+from utils.output_manager import OutputManager
 
 
 class HitsByEndpointCommand(BaseCommand):
@@ -25,9 +24,7 @@ class HitsByEndpointCommand(BaseCommand):
 
     @staticmethod
     def get_description() -> str:
-        return (
-            "Retrieve hits per Express.js endpoint for a given service and environment"
-        )
+        return "Retrieve hits per Express.js endpoint for a given service and environment"
 
     @staticmethod
     def get_help() -> str:
@@ -167,18 +164,14 @@ class HitsByEndpointCommand(BaseCommand):
             HitsByEndpointCommand._print_console_summary(result, top)
 
             # Handle output
-            output_file = HitsByEndpointCommand._handle_output(
-                result, args.output_json, args.output_md, top
-            )
+            output_file = HitsByEndpointCommand._handle_output(result, args.output_json, args.output_md, top)
             if output_file:
                 result["output_file"] = output_file
 
             # Emit summary JSON
             summary_mode = getattr(args, "summary_output", "auto")
             manager = DatadogSummaryManager()
-            summary_path = manager.emit_summary_compatible(
-                result, summary_mode, result.get("output_file"), [service]
-            )
+            summary_path = manager.emit_summary_compatible(result, summary_mode, result.get("output_file"), [service])
             if summary_path:
                 print(f"[summary] wrote: {summary_path}")
 
@@ -193,9 +186,7 @@ class HitsByEndpointCommand(BaseCommand):
 
     @staticmethod
     def _parse_time_window(args: Namespace) -> tuple[int, int]:
-        """
-        Parse time window from args and return (from_ts, to_ts) in epoch seconds.
-        """
+        """Parse time window from args and return (from_ts, to_ts) in epoch seconds."""
         now = datetime.utcnow()
 
         # Priority: --last-n-days, --range, --from/--to
@@ -221,9 +212,7 @@ class HitsByEndpointCommand(BaseCommand):
             to_dt = datetime.strptime(args.to_date, "%Y-%m-%d")
             return int(from_dt.timestamp()), int(to_dt.timestamp())
 
-        raise ValueError(
-            "Must specify time window: --last-n-days, --range, or --from/--to"
-        )
+        raise ValueError("Must specify time window: --last-n-days, --range, or --from/--to")
 
     @staticmethod
     def _validate_service(service: str) -> str:
@@ -238,10 +227,8 @@ class HitsByEndpointCommand(BaseCommand):
         return env.strip()
 
     @staticmethod
-    def _print_console_summary(result: Dict[str, Any], top: int):
-        """
-        Print console table with top N endpoints by total hits.
-        """
+    def _print_console_summary(result: dict[str, Any], top: int):
+        """Print console table with top N endpoints by total hits."""
         metadata = result.get("metadata", {})
         aggregations = result.get("aggregations", {})
 
@@ -258,9 +245,7 @@ class HitsByEndpointCommand(BaseCommand):
             return
 
         # Sort by total hits descending
-        sorted_endpoints = sorted(
-            aggregations.items(), key=lambda x: x[1]["total_hits"], reverse=True
-        )[:top]
+        sorted_endpoints = sorted(aggregations.items(), key=lambda x: x[1]["total_hits"], reverse=True)[:top]
 
         print(f"\nTop {len(sorted_endpoints)} Endpoints by Total Hits:\n")
         print(
@@ -275,39 +260,31 @@ class HitsByEndpointCommand(BaseCommand):
             p50_ms = latency.get("p50", 0) * 1000
             p95_ms = latency.get("p95", 0) * 1000
             p99_ms = latency.get("p99", 0) * 1000
-            endpoint_display = (
-                endpoint if len(endpoint) <= 50 else endpoint[:47] + "..."
-            )
+            endpoint_display = endpoint if len(endpoint) <= 50 else endpoint[:47] + "..."
             # Format numbers in Portuguese (no thousands separator, comma for decimals)
             total_str = f"{int(total)}"
             monthly_str = f"{monthly_avg:.1f}".replace(".", ",")
             p50_str = f"{p50_ms:.1f}".replace(".", ",")
             p95_str = f"{p95_ms:.1f}".replace(".", ",")
             p99_str = f"{p99_ms:.1f}".replace(".", ",")
-            print(
-                f"{endpoint_display:<50} {total_str:>12} {monthly_str:>12} {p50_str:>10} {p95_str:>10} {p99_str:>10}"
-            )
+            print(f"{endpoint_display:<50} {total_str:>12} {monthly_str:>12} {p50_str:>10} {p95_str:>10} {p99_str:>10}")
 
         print("\n✅ Console summary complete.\n")
 
     @staticmethod
     def _handle_output(
-        result: Dict[str, Any],
+        result: dict[str, Any],
         output_json: str | None,
         output_md: str | None,
         top: int,
     ) -> str | None:
-        """
-        Save JSON and/or Markdown output.
-        """
+        """Save JSON and/or Markdown output."""
         sub_dir = f"datadog-hits_{datetime.now().strftime('%Y%m%d')}"
         base_name = "hits_by_endpoint"
 
         # Save JSON
         if output_json or output_json is None:
-            json_path = output_json or OutputManager.save_json_report(
-                result, sub_dir, base_name
-            )
+            json_path = output_json or OutputManager.save_json_report(result, sub_dir, base_name)
             if not output_json:
                 json_path = OutputManager.save_json_report(result, sub_dir, base_name)
             print(f"JSON saved: {json_path}")
@@ -315,27 +292,21 @@ class HitsByEndpointCommand(BaseCommand):
         # Save Markdown
         if output_md or output_md is None:
             markdown = HitsByEndpointCommand._to_markdown(result, top)
-            md_path = output_md or OutputManager.save_markdown_report(
-                markdown, sub_dir, base_name
-            )
+            md_path = output_md or OutputManager.save_markdown_report(markdown, sub_dir, base_name)
             if not output_md:
-                md_path = OutputManager.save_markdown_report(
-                    markdown, sub_dir, base_name
-                )
+                md_path = OutputManager.save_markdown_report(markdown, sub_dir, base_name)
             print(f"Markdown saved: {md_path}")
             return md_path
 
         return None
 
     @staticmethod
-    def _to_markdown(result: Dict[str, Any], top: int) -> str:
-        """
-        Generate Markdown report.
-        """
+    def _to_markdown(result: dict[str, Any], top: int) -> str:
+        """Generate Markdown report."""
         metadata = result.get("metadata", {})
         aggregations = result.get("aggregations", {})
 
-        lines: List[str] = []
+        lines: list[str] = []
         lines.append("## Datadog Hits by Endpoint Report")
         lines.append("")
         lines.append(f"- **Service**: `{metadata.get('service')}`")
@@ -345,9 +316,7 @@ class HitsByEndpointCommand(BaseCommand):
         from_ts = metadata.get("from_ts")
         to_ts = metadata.get("to_ts")
         if from_ts and to_ts:
-            from_date = datetime.utcfromtimestamp(from_ts).strftime(
-                "%Y-%m-%d %H:%M:%S UTC"
-            )
+            from_date = datetime.utcfromtimestamp(from_ts).strftime("%Y-%m-%d %H:%M:%S UTC")
             to_date = datetime.utcfromtimestamp(to_ts).strftime("%Y-%m-%d %H:%M:%S UTC")
             lines.append(f"- **Period**: {from_date} to {to_date}")
         else:
@@ -363,9 +332,7 @@ class HitsByEndpointCommand(BaseCommand):
             return "\n".join(lines)
 
         # Show ALL endpoints in Markdown, sorted by total hits
-        sorted_endpoints = sorted(
-            aggregations.items(), key=lambda x: x[1]["total_hits"], reverse=True
-        )
+        sorted_endpoints = sorted(aggregations.items(), key=lambda x: x[1]["total_hits"], reverse=True)
 
         lines.append(f"### All Endpoints by Total Hits ({len(sorted_endpoints)} total)")
         lines.append("")
@@ -389,14 +356,14 @@ class HitsByEndpointCommand(BaseCommand):
             endpoint_clean = endpoint.replace("|", "\\|")
             # Format numbers in Portuguese
             lines.append(
-                f"| {idx} | {endpoint_clean} | {int(total)} | "
-                f"{monthly_avg:.1f}".replace(".", ",") + f" | "
-                f"{p50_ms:.1f}".replace(".", ",") + f" | "
-                f"{p95_ms:.1f}".replace(".", ",") + f" | "
-                f"{p99_ms:.1f}".replace(".", ",") + f" | "
-                f"{max_ms:.1f}".replace(".", ",") + f" | "
-                f"{stddev_ms:.1f}".replace(".", ",") + f" | "
-                f"{cv:.2f}".replace(".", ",") + " |"
+                f"| {idx} | {endpoint_clean} | {int(total)} | {monthly_avg:.1f}".replace(".", ",")
+                + f" | {p50_ms:.1f}".replace(".", ",")
+                + f" | {p95_ms:.1f}".replace(".", ",")
+                + f" | {p99_ms:.1f}".replace(".", ",")
+                + f" | {max_ms:.1f}".replace(".", ",")
+                + f" | {stddev_ms:.1f}".replace(".", ",")
+                + f" | {cv:.2f}".replace(".", ",")
+                + " |"
             )
 
         # Add detailed latency statistics section for top endpoints
@@ -410,16 +377,16 @@ class HitsByEndpointCommand(BaseCommand):
             latency = agg.get("latency", {})
             endpoint_clean = endpoint.replace("|", "\\|")
             # Format all numbers in Portuguese
-            p50 = f"{latency.get('p50', 0)*1000:.1f}".replace(".", ",")
-            p90 = f"{latency.get('p90', 0)*1000:.1f}".replace(".", ",")
-            p95 = f"{latency.get('p95', 0)*1000:.1f}".replace(".", ",")
-            p99 = f"{latency.get('p99', 0)*1000:.1f}".replace(".", ",")
-            p99_9 = f"{latency.get('p99_9', 0)*1000:.1f}".replace(".", ",")
-            mean = f"{latency.get('mean', 0)*1000:.1f}".replace(".", ",")
-            mean_trim = f"{latency.get('mean_trimmed', 0)*1000:.1f}".replace(".", ",")
-            stddev = f"{latency.get('stddev', 0)*1000:.1f}".replace(".", ",")
+            p50 = f"{latency.get('p50', 0) * 1000:.1f}".replace(".", ",")
+            p90 = f"{latency.get('p90', 0) * 1000:.1f}".replace(".", ",")
+            p95 = f"{latency.get('p95', 0) * 1000:.1f}".replace(".", ",")
+            p99 = f"{latency.get('p99', 0) * 1000:.1f}".replace(".", ",")
+            p99_9 = f"{latency.get('p99_9', 0) * 1000:.1f}".replace(".", ",")
+            mean = f"{latency.get('mean', 0) * 1000:.1f}".replace(".", ",")
+            mean_trim = f"{latency.get('mean_trimmed', 0) * 1000:.1f}".replace(".", ",")
+            stddev = f"{latency.get('stddev', 0) * 1000:.1f}".replace(".", ",")
             cv = f"{latency.get('cv', 0):.2f}".replace(".", ",")
-            max_lat = f"{latency.get('max', 0)*1000:.1f}".replace(".", ",")
+            max_lat = f"{latency.get('max', 0) * 1000:.1f}".replace(".", ",")
 
             lines.append(
                 f"| {endpoint_clean} | "
@@ -431,9 +398,7 @@ class HitsByEndpointCommand(BaseCommand):
         lines.append("### Findings")
         lines.append("")
         lines.append(f"- Total endpoints analyzed: {len(aggregations)}")
-        lines.append(
-            f"- Top endpoint: {sorted_endpoints[0][0]} with {sorted_endpoints[0][1]['total_hits']:,.0f} hits"
-        )
+        lines.append(f"- Top endpoint: {sorted_endpoints[0][0]} with {sorted_endpoints[0][1]['total_hits']:,.0f} hits")
         lines.append("")
 
         return "\n".join(lines)

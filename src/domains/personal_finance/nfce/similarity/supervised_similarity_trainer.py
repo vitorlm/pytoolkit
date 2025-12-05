@@ -1,23 +1,21 @@
 #!/usr/bin/env python3
-"""
-Supervised Similarity Trainer - Learn from user feedback to improve similarity detection
-"""
+"""Supervised Similarity Trainer - Learn from user feedback to improve similarity detection"""
 
-import numpy as np
-from typing import List, Dict, Tuple, Optional
-from dataclasses import dataclass, asdict
-from datetime import datetime
 import pickle
+from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+import numpy as np
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, roc_auc_score
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 
-from utils.logging.logging_manager import LogManager
 from utils.data.json_manager import JSONManager
+from utils.logging.logging_manager import LogManager
+
 from .feature_extractor import ProductFeatures
 from .similarity_calculator import SimilarityCalculator
 
@@ -28,15 +26,15 @@ class TrainingExample:
 
     product1_description: str
     product2_description: str
-    product1_features: Dict
-    product2_features: Dict
-    similarity_scores: Dict  # Individual algorithm scores
+    product1_features: dict
+    product2_features: dict
+    similarity_scores: dict  # Individual algorithm scores
     user_label: bool  # True if user says they're similar, False otherwise
     confidence: float  # User confidence (0-1)
     timestamp: str
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
-    context: Optional[Dict] = None
+    user_id: str | None = None
+    session_id: str | None = None
+    context: dict | None = None
 
 
 @dataclass
@@ -48,15 +46,14 @@ class ModelPerformance:
     recall: float
     f1_score: float
     auc_score: float
-    confusion_matrix: List[List[int]]
+    confusion_matrix: list[list[int]]
     training_examples_count: int
     model_version: str
     timestamp: str
 
 
 class SupervisedSimilarityTrainer:
-    """
-    Learn optimal similarity thresholds and weights from user feedback
+    """Learn optimal similarity thresholds and weights from user feedback
 
     Features:
     - Collect user feedback on product pairs
@@ -67,9 +64,7 @@ class SupervisedSimilarityTrainer:
     """
 
     def __init__(self, data_dir: str = "data/similarity_training"):
-        self.logger = LogManager.get_instance().get_logger(
-            "SupervisedSimilarityTrainer"
-        )
+        self.logger = LogManager.get_instance().get_logger("SupervisedSimilarityTrainer")
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -108,11 +103,10 @@ class SupervisedSimilarityTrainer:
         product2_features: ProductFeatures,
         user_says_similar: bool,
         confidence: float = 1.0,
-        user_id: Optional[str] = None,
-        context: Optional[Dict] = None,
+        user_id: str | None = None,
+        context: dict | None = None,
     ) -> TrainingExample:
-        """
-        Add a training example from user feedback
+        """Add a training example from user feedback
 
         Args:
             product1: First product description
@@ -128,9 +122,7 @@ class SupervisedSimilarityTrainer:
             Created TrainingExample
         """
         # Calculate similarity scores
-        similarity_result = self.similarity_calculator.calculate_similarity(
-            product1_features, product2_features
-        )
+        similarity_result = self.similarity_calculator.calculate_similarity(product1_features, product2_features)
 
         # Create training example
         example = TrainingExample(
@@ -158,9 +150,7 @@ class SupervisedSimilarityTrainer:
         # Save immediately
         self.save_training_data()
 
-        self.logger.info(
-            f"Added training example: {product1[:30]}... vs {product2[:30]}... -> {user_says_similar}"
-        )
+        self.logger.info(f"Added training example: {product1[:30]}... vs {product2[:30]}... -> {user_says_similar}")
 
         return example
 
@@ -170,8 +160,7 @@ class SupervisedSimilarityTrainer:
         test_size: float = 0.2,
         validate_model: bool = True,
     ) -> ModelPerformance:
-        """
-        Train similarity detection model on collected examples
+        """Train similarity detection model on collected examples
 
         Args:
             model_type: Type of model to train
@@ -182,21 +171,15 @@ class SupervisedSimilarityTrainer:
             ModelPerformance with training results
         """
         if len(self.training_examples) < 10:
-            raise ValueError(
-                f"Need at least 10 training examples, have {len(self.training_examples)}"
-            )
+            raise ValueError(f"Need at least 10 training examples, have {len(self.training_examples)}")
 
-        self.logger.info(
-            f"Training {model_type} model with {len(self.training_examples)} examples"
-        )
+        self.logger.info(f"Training {model_type} model with {len(self.training_examples)} examples")
 
         # Prepare features and labels
         X, y = self._prepare_training_data()
 
         # Split data
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=42, stratify=y
-        )
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42, stratify=y)
 
         # Scale features
         X_train_scaled = self.scaler.fit_transform(X_train)
@@ -213,9 +196,9 @@ class SupervisedSimilarityTrainer:
         # Calculate performance metrics
         from sklearn.metrics import (
             accuracy_score,
+            f1_score,
             precision_score,
             recall_score,
-            f1_score,
         )
 
         performance = ModelPerformance(
@@ -249,9 +232,8 @@ class SupervisedSimilarityTrainer:
 
     def predict_similarity(
         self, product1_features: ProductFeatures, product2_features: ProductFeatures
-    ) -> Tuple[bool, float]:
-        """
-        Predict if two products are similar using trained model
+    ) -> tuple[bool, float]:
+        """Predict if two products are similar using trained model
 
         Args:
             product1_features: Features for first product
@@ -262,9 +244,7 @@ class SupervisedSimilarityTrainer:
         """
         if self.current_model is None:
             # Fallback to original similarity calculator
-            result = self.similarity_calculator.calculate_similarity(
-                product1_features, product2_features
-            )
+            result = self.similarity_calculator.calculate_similarity(product1_features, product2_features)
             return result.final_score > 0.7, result.final_score
 
         # Extract features for ML model
@@ -277,11 +257,8 @@ class SupervisedSimilarityTrainer:
 
         return is_similar, confidence
 
-    def get_optimal_threshold(
-        self, target_precision: float = 0.8, target_recall: float = 0.8
-    ) -> float:
-        """
-        Find optimal similarity threshold based on training data
+    def get_optimal_threshold(self, target_precision: float = 0.8, target_recall: float = 0.8) -> float:
+        """Find optimal similarity threshold based on training data
 
         Args:
             target_precision: Target precision level
@@ -315,7 +292,7 @@ class SupervisedSimilarityTrainer:
             if len(np.unique(predictions)) < 2:
                 continue
 
-            from sklearn.metrics import precision_score, recall_score, f1_score
+            from sklearn.metrics import f1_score, precision_score, recall_score
 
             try:
                 precision = precision_score(labels, predictions)
@@ -323,28 +300,21 @@ class SupervisedSimilarityTrainer:
                 f1 = f1_score(labels, predictions)
 
                 # Check if meets minimum requirements and has better F1
-                if (
-                    precision >= target_precision
-                    and recall >= target_recall
-                    and f1 > best_f1
-                ):
+                if precision >= target_precision and recall >= target_recall and f1 > best_f1:
                     best_threshold = threshold
                     best_f1 = f1
             except:
                 continue
 
-        self.logger.info(
-            f"Optimal threshold found: {best_threshold:.3f} (F1: {best_f1:.3f})"
-        )
+        self.logger.info(f"Optimal threshold found: {best_threshold:.3f} (F1: {best_f1:.3f})")
         return best_threshold
 
     def suggest_training_examples(
         self,
-        candidate_pairs: List[Tuple[ProductFeatures, ProductFeatures]],
+        candidate_pairs: list[tuple[ProductFeatures, ProductFeatures]],
         n_suggestions: int = 10,
-    ) -> List[Tuple[ProductFeatures, ProductFeatures, float]]:
-        """
-        Suggest product pairs for manual labeling using uncertainty sampling
+    ) -> list[tuple[ProductFeatures, ProductFeatures, float]]:
+        """Suggest product pairs for manual labeling using uncertainty sampling
 
         Args:
             candidate_pairs: List of product feature pairs
@@ -357,9 +327,7 @@ class SupervisedSimilarityTrainer:
 
         for features1, features2 in candidate_pairs:
             # Calculate similarity with current method
-            similarity_result = self.similarity_calculator.calculate_similarity(
-                features1, features2
-            )
+            similarity_result = self.similarity_calculator.calculate_similarity(features1, features2)
 
             # Calculate uncertainty score
             # Uncertainty is highest when similarity is near decision boundary
@@ -372,9 +340,7 @@ class SupervisedSimilarityTrainer:
                 features = self._extract_ml_features(features1, features2)
                 features_scaled = self.scaler.transform([features])
                 proba = self.current_model.predict_proba(features_scaled)[0]
-                ml_uncertainty = 1.0 - abs(
-                    proba[1] - proba[0]
-                )  # Closer to 0.5 = more uncertain
+                ml_uncertainty = 1.0 - abs(proba[1] - proba[0])  # Closer to 0.5 = more uncertain
                 uncertainty = (uncertainty + ml_uncertainty) / 2
 
             suggestions.append((features1, features2, uncertainty))
@@ -383,7 +349,7 @@ class SupervisedSimilarityTrainer:
         suggestions.sort(key=lambda x: x[2], reverse=True)
         return suggestions[:n_suggestions]
 
-    def _prepare_training_data(self) -> Tuple[np.ndarray, np.ndarray]:
+    def _prepare_training_data(self) -> tuple[np.ndarray, np.ndarray]:
         """Prepare training data for ML model"""
         X = []
         y = []
@@ -399,19 +365,10 @@ class SupervisedSimilarityTrainer:
                 # Additional features from product properties
                 len(example.product1_description),
                 len(example.product2_description),
-                abs(
-                    len(example.product1_description)
-                    - len(example.product2_description)
-                ),
+                abs(len(example.product1_description) - len(example.product2_description)),
                 # Brand and category matches (if available)
-                1.0
-                if example.product1_features.get("brand")
-                == example.product2_features.get("brand")
-                else 0.0,
-                1.0
-                if example.product1_features.get("category")
-                == example.product2_features.get("category")
-                else 0.0,
+                1.0 if example.product1_features.get("brand") == example.product2_features.get("brand") else 0.0,
+                1.0 if example.product1_features.get("category") == example.product2_features.get("category") else 0.0,
                 # User confidence
                 example.confidence,
             ]
@@ -421,14 +378,10 @@ class SupervisedSimilarityTrainer:
 
         return np.array(X), np.array(y)
 
-    def _extract_ml_features(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> List[float]:
+    def _extract_ml_features(self, features1: ProductFeatures, features2: ProductFeatures) -> list[float]:
         """Extract features for ML model from ProductFeatures"""
         # Calculate similarity scores
-        similarity_result = self.similarity_calculator.calculate_similarity(
-            features1, features2
-        )
+        similarity_result = self.similarity_calculator.calculate_similarity(features1, features2)
 
         return [
             similarity_result.jaccard_score,
@@ -438,10 +391,7 @@ class SupervisedSimilarityTrainer:
             similarity_result.final_score,
             len(features1.original_description),
             len(features2.original_description),
-            abs(
-                len(features1.original_description)
-                - len(features2.original_description)
-            ),
+            abs(len(features1.original_description) - len(features2.original_description)),
             1.0 if features1.brand == features2.brand else 0.0,
             1.0 if features1.category == features2.category else 0.0,
             1.0,  # Default confidence
@@ -452,15 +402,11 @@ class SupervisedSimilarityTrainer:
         if self.current_model is None:
             return
 
-        cv_scores = cross_val_score(
-            self.current_model, X_train, y_train, cv=5, scoring="f1"
-        )
+        cv_scores = cross_val_score(self.current_model, X_train, y_train, cv=5, scoring="f1")
         self.logger.info(f"Cross-validation F1 scores: {cv_scores}")
-        self.logger.info(
-            f"Mean CV F1 score: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})"
-        )
+        self.logger.info(f"Mean CV F1 score: {cv_scores.mean():.3f} (+/- {cv_scores.std() * 2:.3f})")
 
-    def _features_to_dict(self, features: ProductFeatures) -> Dict:
+    def _features_to_dict(self, features: ProductFeatures) -> dict:
         """Convert ProductFeatures to dictionary"""
         return {
             "original_description": features.original_description,
@@ -486,12 +432,8 @@ class SupervisedSimilarityTrainer:
         try:
             if self.training_examples_file.exists():
                 data = JSONManager.read_json(str(self.training_examples_file))
-                self.training_examples = [
-                    TrainingExample(**example) for example in data
-                ]
-                self.logger.info(
-                    f"Loaded {len(self.training_examples)} training examples"
-                )
+                self.training_examples = [TrainingExample(**example) for example in data]
+                self.logger.info(f"Loaded {len(self.training_examples)} training examples")
         except Exception as e:
             self.logger.error(f"Error loading training data: {e}")
             self.training_examples = []
@@ -528,9 +470,7 @@ class SupervisedSimilarityTrainer:
         try:
             data = [asdict(perf) for perf in self.performance_history]
             JSONManager.write_json(data, str(self.performance_history_file))
-            self.logger.debug(
-                f"Saved performance history: {len(self.performance_history)} entries"
-            )
+            self.logger.debug(f"Saved performance history: {len(self.performance_history)} entries")
         except Exception as e:
             self.logger.error(f"Error saving performance history: {e}")
 
@@ -540,14 +480,12 @@ class SupervisedSimilarityTrainer:
             if self.performance_history_file.exists():
                 data = JSONManager.read_json(str(self.performance_history_file))
                 self.performance_history = [ModelPerformance(**perf) for perf in data]
-                self.logger.info(
-                    f"Loaded performance history: {len(self.performance_history)} entries"
-                )
+                self.logger.info(f"Loaded performance history: {len(self.performance_history)} entries")
         except Exception as e:
             self.logger.error(f"Error loading performance history: {e}")
             self.performance_history = []
 
-    def get_training_statistics(self) -> Dict:
+    def get_training_statistics(self) -> dict:
         """Get statistics about training data"""
         if not self.training_examples:
             return {"message": "No training data available"}
@@ -557,24 +495,16 @@ class SupervisedSimilarityTrainer:
         negative_examples = total_examples - positive_examples
 
         # Calculate average confidence by label
-        positive_confidence = np.mean(
-            [ex.confidence for ex in self.training_examples if ex.user_label]
-        )
-        negative_confidence = np.mean(
-            [ex.confidence for ex in self.training_examples if not ex.user_label]
-        )
+        positive_confidence = np.mean([ex.confidence for ex in self.training_examples if ex.user_label])
+        negative_confidence = np.mean([ex.confidence for ex in self.training_examples if not ex.user_label])
 
         return {
             "total_examples": total_examples,
             "positive_examples": positive_examples,
             "negative_examples": negative_examples,
             "positive_ratio": positive_examples / total_examples,
-            "average_positive_confidence": float(positive_confidence)
-            if positive_examples > 0
-            else 0.0,
-            "average_negative_confidence": float(negative_confidence)
-            if negative_examples > 0
-            else 0.0,
+            "average_positive_confidence": float(positive_confidence) if positive_examples > 0 else 0.0,
+            "average_negative_confidence": float(negative_confidence) if negative_examples > 0 else 0.0,
             "models_trained": len(self.performance_history),
             "current_model_available": self.current_model is not None,
         }

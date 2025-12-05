@@ -1,7 +1,9 @@
 from argparse import ArgumentParser, Namespace
+
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+
 from .weekly_report_service import WeeklyReportService
 
 
@@ -37,9 +39,7 @@ class WeeklyReportCommand(BaseCommand):
             required=True,
             help="Reporting period (e.g., last-week, last-2-weeks)",
         )
-        parser.add_argument(
-            "--team", type=str, help="Team name (required for team scope)"
-        )
+        parser.add_argument("--team", type=str, help="Team name (required for team scope)")
         parser.add_argument(
             "--output-dir",
             type=str,

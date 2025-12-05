@@ -1,5 +1,4 @@
-"""
-JIRA Issue Resolution Time Service
+"""JIRA Issue Resolution Time Service
 
 This service provides functionality to analyze issue resolution time by fetching
 resolved issues and calculating statistics on how long it takes to move from
@@ -10,14 +9,14 @@ import csv
 import math
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
 
+import numpy as np
+
+from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
-from domains.syngenta.jira.issue_adherence_service import TimePeriodParser
-import numpy as np
 
 
 @dataclass
@@ -29,13 +28,13 @@ class IssueResolutionResult:
     issue_type: str
     priority: str
     status: str
-    assignee: Optional[str]
-    squad: Optional[str]
-    fixversion: Optional[str]
-    created_date: Optional[str]
-    first_in_progress_date: Optional[str]
-    resolved_date: Optional[str]
-    resolution_time_days: Optional[float]
+    assignee: str | None
+    squad: str | None
+    fixversion: str | None
+    created_date: str | None
+    first_in_progress_date: str | None
+    resolved_date: str | None
+    resolution_time_days: float | None
 
 
 class IssueResolutionTimeService:
@@ -50,18 +49,17 @@ class IssueResolutionTimeService:
         self,
         project_key: str,
         time_period: str,
-        issue_types: List[str],
-        squad: Optional[str] = None,
-        fixversion: Optional[str] = None,
-        assignee: Optional[str] = None,
+        issue_types: list[str],
+        squad: str | None = None,
+        fixversion: str | None = None,
+        assignee: str | None = None,
         verbose: bool = False,
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
         exclude_outliers: bool = False,
-        outlier_strategy: Optional[str] = None,
+        outlier_strategy: str | None = None,
         include_raw: bool = False,
-    ) -> Dict:
-        """
-        Analyze issue resolution time for issues resolved within a specified time period.
+    ) -> dict:
+        """Analyze issue resolution time for issues resolved within a specified time period.
 
         Args:
             project_key (str): JIRA project key
@@ -129,14 +127,8 @@ class IssueResolutionTimeService:
                 # Check issue types distribution
                 issue_types_count = {}
                 for issue in issues:
-                    issue_type = (
-                        issue.get("fields", {})
-                        .get("issuetype", {})
-                        .get("name", "Unknown")
-                    )
-                    issue_types_count[issue_type] = (
-                        issue_types_count.get(issue_type, 0) + 1
-                    )
+                    issue_type = issue.get("fields", {}).get("issuetype", {}).get("name", "Unknown")
+                    issue_types_count[issue_type] = issue_types_count.get(issue_type, 0) + 1
                 self.logger.info(f"Issue types distribution: {issue_types_count}")
 
             # Analyze each issue and collect debugging information
@@ -165,34 +157,24 @@ class IssueResolutionTimeService:
                     resolution_results.append(result)
 
             # Log debugging information
-            self.logger.info(
-                f"Analyzed {len(resolution_results)} issues with resolution time data"
-            )
-            self.logger.info(
-                f"Issues with empty changelog: {issues_with_empty_changelog}/{len(issues)}"
-            )
+            self.logger.info(f"Analyzed {len(resolution_results)} issues with resolution time data")
+            self.logger.info(f"Issues with empty changelog: {issues_with_empty_changelog}/{len(issues)}")
             if all_status_names:
                 sorted_statuses = sorted(all_status_names)
                 self.logger.info(f"All unique status names found: {sorted_statuses}")
             else:
-                self.logger.warning(
-                    "No status names found in any changelog - this may indicate a data issue"
-                )
+                self.logger.warning("No status names found in any changelog - this may indicate a data issue")
 
             # Calculate statistics
             stats_by_type_priority = self._calculate_statistics_by_type_priority(
                 resolution_results, exclude_outliers, outlier_strategy
             )
-            overall_stats = self._calculate_overall_statistics(
-                resolution_results, exclude_outliers, outlier_strategy
-            )
+            overall_stats = self._calculate_overall_statistics(resolution_results, exclude_outliers, outlier_strategy)
 
             # Calculate outlier summary if exclude_outliers is enabled
             outlier_summary = {}
             if exclude_outliers:
-                outlier_summary = self._calculate_outlier_summary(
-                    resolution_results, outlier_strategy
-                )
+                outlier_summary = self._calculate_outlier_summary(resolution_results, outlier_strategy)
 
             # Build result with clean output structure
             result = {
@@ -211,12 +193,8 @@ class IssueResolutionTimeService:
                 "summary": {
                     "total_issues": len(resolution_results),
                 },
-                "by_type_and_priority": self._clean_stats_output(
-                    stats_by_type_priority, include_raw
-                ),
-                "overall_stats": self._clean_stats_output(
-                    {"overall": overall_stats}, include_raw
-                )["overall"],
+                "by_type_and_priority": self._clean_stats_output(stats_by_type_priority, include_raw),
+                "overall_stats": self._clean_stats_output({"overall": overall_stats}, include_raw)["overall"],
                 # Add all issues for charting and compliance calculation
                 "issues": [self._result_to_dict(r) for r in resolution_results],
             }
@@ -231,19 +209,16 @@ class IssueResolutionTimeService:
                 # Add outlier summary if outlier exclusion is enabled
                 if exclude_outliers:
                     result["debug_info"]["outlier_summary"] = outlier_summary
-            else:
-                # Only add outlier summary to main result if not in debug mode
-                if exclude_outliers:
-                    result["outlier_summary"] = outlier_summary
+            # Only add outlier summary to main result if not in debug mode
+            elif exclude_outliers:
+                result["outlier_summary"] = outlier_summary
 
             # Save results if output file specified
             if output_file:
                 self._save_results(result, output_file)
             else:
                 # Generate default output file in organized structure
-                output_path = OutputManager.get_output_path(
-                    "issue-resolution-time", f"resolution_time_{project_key}"
-                )
+                output_path = OutputManager.get_output_path("issue-resolution-time", f"resolution_time_{project_key}")
                 self._save_results(result, output_path)
 
             # Print verbose results if requested
@@ -261,13 +236,12 @@ class IssueResolutionTimeService:
         project_key: str,
         start_date: datetime,
         end_date: datetime,
-        issue_types: List[str],
-        squad: Optional[str],
-        fixversion: Optional[str],
-        assignee: Optional[str],
+        issue_types: list[str],
+        squad: str | None,
+        fixversion: str | None,
+        assignee: str | None,
     ) -> str:
         """Build JQL query for fetching issues."""
-
         # Base query - issues resolved in the time period
         jql_parts = [f"project = '{project_key}'"]
 
@@ -279,9 +253,7 @@ class IssueResolutionTimeService:
         # Time period - using resolution date to capture issues resolved in the period
         start_date_str = start_date.strftime("%Y-%m-%d")
         end_date_str = end_date.strftime("%Y-%m-%d")
-        jql_parts.append(
-            f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'"
-        )
+        jql_parts.append(f"resolved >= '{start_date_str}' AND resolved <= '{end_date_str}'")
 
         # Squad filter (using custom field for squad)
         if squad:
@@ -302,9 +274,8 @@ class IssueResolutionTimeService:
 
         return " AND ".join(jql_parts)
 
-    def _analyze_issue_resolution(self, issue: Dict) -> Optional[IssueResolutionResult]:
+    def _analyze_issue_resolution(self, issue: dict) -> IssueResolutionResult | None:
         """Analyze resolution time for a single issue."""
-
         try:
             fields = issue.get("fields", {})
 
@@ -317,9 +288,7 @@ class IssueResolutionTimeService:
 
             # Check if issue is archived - exclude from calculations
             if self._is_issue_archived(issue):
-                self.logger.debug(
-                    f"Issue {issue_key} is archived - excluding from calculations"
-                )
+                self.logger.debug(f"Issue {issue_key} is archived - excluding from calculations")
                 return None
 
             # Extract assignee
@@ -332,11 +301,7 @@ class IssueResolutionTimeService:
 
             # Extract fix version (custom field)
             fixversion_field = fields.get("customfield_10015")
-            fixversion = (
-                fixversion_field[0]
-                if fixversion_field and len(fixversion_field) > 0
-                else None
-            )
+            fixversion = fixversion_field[0] if fixversion_field and len(fixversion_field) > 0 else None
 
             # Extract dates
             created_date = fields.get("created")
@@ -349,13 +314,9 @@ class IssueResolutionTimeService:
                 resolution_date = fields.get("resolutiondate")
                 if resolution_date:
                     first_done_date = resolution_date
-                    self.logger.debug(
-                        f"Issue {issue_key}: Using resolutiondate as fallback"
-                    )
+                    self.logger.debug(f"Issue {issue_key}: Using resolutiondate as fallback")
                 else:
-                    self.logger.debug(
-                        f"Issue {issue_key} has no DONE transition date or resolutiondate"
-                    )
+                    self.logger.debug(f"Issue {issue_key} has no DONE transition date or resolutiondate")
                     return None
 
             # Find first "In Progress" or equivalent status from changelog
@@ -368,29 +329,21 @@ class IssueResolutionTimeService:
 
             # Calculate both metrics for debugging purposes
             if first_in_progress_date and first_done_date:
-                start_dt = datetime.fromisoformat(
-                    first_in_progress_date.replace("Z", "+00:00")
-                )
+                start_dt = datetime.fromisoformat(first_in_progress_date.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(first_done_date.replace("Z", "+00:00"))
-                start_to_resolve_days = (end_dt - start_dt).total_seconds() / (
-                    24 * 3600
-                )
+                start_to_resolve_days = (end_dt - start_dt).total_seconds() / (24 * 3600)
 
             if created_date and first_done_date:
                 start_dt = datetime.fromisoformat(created_date.replace("Z", "+00:00"))
                 end_dt = datetime.fromisoformat(first_done_date.replace("Z", "+00:00"))
-                created_to_resolve_days = (end_dt - start_dt).total_seconds() / (
-                    24 * 3600
-                )
+                created_to_resolve_days = (end_dt - start_dt).total_seconds() / (24 * 3600)
 
             # Use the correct metric based on issue type
             if issue_type in ["Bug", "Support"]:
                 # For Bug and Support, use created_date to resolved_date
                 resolution_time_days = created_to_resolve_days
                 if resolution_time_days is None:
-                    self.logger.debug(
-                        f"Issue {issue_key}: No created date or resolved date found"
-                    )
+                    self.logger.debug(f"Issue {issue_key}: No created date or resolved date found")
                     return None
             else:
                 # For other types, use start_date (first_in_progress_date) to resolved_date
@@ -400,9 +353,7 @@ class IssueResolutionTimeService:
                     resolution_time_days = created_to_resolve_days
                     first_in_progress_date = created_date
                     if resolution_time_days is None:
-                        self.logger.debug(
-                            f"Issue {issue_key}: No valid start date or resolved date found"
-                        )
+                        self.logger.debug(f"Issue {issue_key}: No valid start date or resolved date found")
                         return None
 
             return IssueResolutionResult(
@@ -421,14 +372,11 @@ class IssueResolutionTimeService:
             )
 
         except Exception as e:
-            self.logger.warning(
-                f"Error analyzing issue {issue.get('key', 'unknown')}: {e}"
-            )
+            self.logger.warning(f"Error analyzing issue {issue.get('key', 'unknown')}: {e}")
             return None
 
-    def _find_first_in_progress_date(self, issue: Dict) -> Optional[str]:
+    def _find_first_in_progress_date(self, issue: dict) -> str | None:
         """Find the first time an issue was moved to 'In Progress' or similar status."""
-
         changelog = issue.get("changelog", {}).get("histories", [])
         issue_key = issue.get("key", "unknown")
 
@@ -451,9 +399,7 @@ class IssueResolutionTimeService:
                     )
 
         if status_transitions:
-            self.logger.debug(
-                f"Issue {issue_key} status transitions: {status_transitions}"
-            )
+            self.logger.debug(f"Issue {issue_key} status transitions: {status_transitions}")
 
         # Look for the first transition to any "in progress" status
         for history in changelog:
@@ -479,15 +425,11 @@ class IssueResolutionTimeService:
                         return history.get("created")
 
         # If no in-progress status found, log this for debugging
-        self.logger.debug(
-            f"Issue {issue_key}: No in-progress status found in "
-            f"{len(status_transitions)} transitions"
-        )
+        self.logger.debug(f"Issue {issue_key}: No in-progress status found in {len(status_transitions)} transitions")
         return None
 
-    def _is_issue_archived(self, issue: Dict) -> bool:
-        """
-        Check if an issue is archived (current status is '11 ARCHIVED' or similar).
+    def _is_issue_archived(self, issue: dict) -> bool:
+        """Check if an issue is archived (current status is '11 ARCHIVED' or similar).
 
         Args:
             issue (Dict): JIRA issue data
@@ -500,13 +442,10 @@ class IssueResolutionTimeService:
         # Check for archived status patterns
         archived_statuses = ["11 ARCHIVED", "ARCHIVED", "Archived"]
 
-        return (
-            current_status in archived_statuses or "archived" in current_status.lower()
-        )
+        return current_status in archived_statuses or "archived" in current_status.lower()
 
-    def _find_first_done_date(self, issue: Dict) -> Optional[str]:
-        """
-        Find the first time an issue was moved to 'DONE' status.
+    def _find_first_done_date(self, issue: dict) -> str | None:
+        """Find the first time an issue was moved to 'DONE' status.
         Once an issue reaches DONE, that's the final resolution time regardless of later moves.
 
         Args:
@@ -535,9 +474,7 @@ class IssueResolutionTimeService:
                     )
 
         if status_transitions:
-            self.logger.debug(
-                f"Issue {issue_key} status transitions: {status_transitions}"
-            )
+            self.logger.debug(f"Issue {issue_key} status transitions: {status_transitions}")
 
         # Look for the first transition TO any DONE status
         for history in changelog:
@@ -563,18 +500,15 @@ class IssueResolutionTimeService:
                         return history.get("created")
 
         # If no DONE status found, log this for debugging
-        self.logger.debug(
-            f"Issue {issue_key}: No DONE status found in "
-            f"{len(status_transitions)} transitions"
-        )
+        self.logger.debug(f"Issue {issue_key}: No DONE status found in {len(status_transitions)} transitions")
         return None
 
     def _calculate_statistics_by_type_priority(
         self,
-        results: List[IssueResolutionResult],
+        results: list[IssueResolutionResult],
         exclude_outliers: bool = False,
         outlier_strategy: str = "iqr",
-    ) -> Dict:
+    ) -> dict:
         """Calculate enhanced statistics grouped by issue type and priority.
         Adds SLA priority consistency and diagnostics.
         """
@@ -594,9 +528,7 @@ class IssueResolutionTimeService:
             for priority in stats[issue_type]:
                 times = stats[issue_type][priority]
                 if times:
-                    enhanced = self._calculate_enhanced_stats(
-                        times, exclude_outliers, outlier_strategy
-                    )
+                    enhanced = self._calculate_enhanced_stats(times, exclude_outliers, outlier_strategy)
                     # Add diagnostic p95_trimmed_days for all outlier strategies
                     diag = {}
                     for strat in ["trim", "iqr", "zscore"]:
@@ -619,9 +551,7 @@ class IssueResolutionTimeService:
                 if prev in sla_by_priority and curr in sla_by_priority:
                     if sla_by_priority[curr] < sla_by_priority[prev]:
                         sla_by_priority[curr] = sla_by_priority[prev]
-                        stats[issue_type][curr]["suggested_sla_days"] = sla_by_priority[
-                            prev
-                        ]
+                        stats[issue_type][curr]["suggested_sla_days"] = sla_by_priority[prev]
             # Add sla_risk_level based on p95_ci width
             for p in priority_order:
                 if p in stats[issue_type]:
@@ -642,12 +572,11 @@ class IssueResolutionTimeService:
 
     def _calculate_enhanced_stats(
         self,
-        times: List[float],
+        times: list[float],
         exclude_outliers: bool = False,
         outlier_strategy: str = "iqr",
-    ) -> Dict:
-        """
-        Calculate enhanced statistics for a list of resolution times with flexible outlier handling.
+    ) -> dict:
+        """Calculate enhanced statistics for a list of resolution times with flexible outlier handling.
         Implements:
         - SLA suggestion as math.ceil(p90) (industry best practice for 90% compliance)
         - SLA compliance percentage (actual % of issues resolved within suggested SLA)
@@ -664,9 +593,7 @@ class IssueResolutionTimeService:
 
         # Apply outlier filtering if requested and enough data
         if exclude_outliers and outlier_strategy != "none" and original_count > 10:
-            filtered_times, outliers_removed, outlier_threshold = self._filter_outliers(
-                times, outlier_strategy
-            )
+            filtered_times, outliers_removed, outlier_threshold = self._filter_outliers(times, outlier_strategy)
             self.logger.debug(
                 f"Outlier filtering: original_count={original_count}, "
                 f"filtered_count={len(filtered_times)}, outliers_removed={outliers_removed}, "
@@ -678,16 +605,12 @@ class IssueResolutionTimeService:
             )
 
         # Use filtered data for calculations if outliers were excluded
-        calculation_data = (
-            filtered_times if exclude_outliers and outliers_removed > 0 else times
-        )
+        calculation_data = filtered_times if exclude_outliers and outliers_removed > 0 else times
         count = len(calculation_data)
 
         # Ensure we have data to calculate with
         if count == 0:
-            self.logger.warning(
-                "No data left after outlier filtering - using original data"
-            )
+            self.logger.warning("No data left after outlier filtering - using original data")
             calculation_data = times
             count = len(calculation_data)
 
@@ -708,9 +631,7 @@ class IssueResolutionTimeService:
             max_days = float(max(calculation_data))
             mean_days = float(np.mean(calculation_data))
         else:
-            median_days = p80_days = p90_days = p95_days = std_dev = max_days = (
-                mean_days
-            ) = 0.0
+            median_days = p80_days = p90_days = p95_days = std_dev = max_days = mean_days = 0.0
 
         # Calculate p95_trimmed_days for diagnostics
         p95_trimmed_days = p95_days
@@ -724,20 +645,14 @@ class IssueResolutionTimeService:
         p90_ci_lower = None
         p90_ci_upper = None
         if count < 30 and count > 1:
-            p90_ci_lower, p90_ci_upper = self._calculate_p90_confidence_interval(
-                calculation_data
-            )
+            p90_ci_lower, p90_ci_upper = self._calculate_p90_confidence_interval(calculation_data)
             # For small samples, use upper bound for suggested SLA
             suggested_sla_days = math.ceil(p90_ci_upper)
 
         # --- SLA compliance: % of issues resolved within suggested SLA ---
         # Calculate compliance AFTER potentially adjusting SLA for confidence interval
-        sla_compliance_count = sum(
-            1 for t in calculation_data if t <= suggested_sla_days
-        )
-        sla_compliance_percentage = (
-            (sla_compliance_count / count * 100) if count > 0 else 0.0
-        )
+        sla_compliance_count = sum(1 for t in calculation_data if t <= suggested_sla_days)
+        sla_compliance_percentage = (sla_compliance_count / count * 100) if count > 0 else 0.0
         # Clamp to [0, 100]
         sla_compliance_percentage = min(100.0, max(0.0, sla_compliance_percentage))
 
@@ -791,17 +706,12 @@ class IssueResolutionTimeService:
 
     def _calculate_overall_statistics(
         self,
-        results: List[IssueResolutionResult],
+        results: list[IssueResolutionResult],
         exclude_outliers: bool = False,
         outlier_strategy: str = "trim",
-    ) -> Dict:
+    ) -> dict:
         """Calculate overall statistics across all issues."""
-
-        times = [
-            r.resolution_time_days
-            for r in results
-            if r.resolution_time_days is not None
-        ]
+        times = [r.resolution_time_days for r in results if r.resolution_time_days is not None]
 
         if not times:
             return {
@@ -822,17 +732,12 @@ class IssueResolutionTimeService:
                 "max_resolution_time": 0,
             }
 
-        enhanced_stats = self._calculate_enhanced_stats(
-            times, exclude_outliers, outlier_strategy
-        )
+        enhanced_stats = self._calculate_enhanced_stats(times, exclude_outliers, outlier_strategy)
         enhanced_stats["total_issues"] = enhanced_stats["count"]  # Use original count
         return enhanced_stats
 
-    def _calculate_outlier_summary(
-        self, results: List[IssueResolutionResult], outlier_strategy: str = "trim"
-    ) -> Dict:
+    def _calculate_outlier_summary(self, results: list[IssueResolutionResult], outlier_strategy: str = "trim") -> dict:
         """Calculate summary of outliers excluded per issue type."""
-
         outlier_summary = {}
 
         # Group by issue type
@@ -847,9 +752,7 @@ class IssueResolutionTimeService:
         # Calculate outliers for each type using the specified strategy
         for issue_type, times in by_type.items():
             if len(times) > 10:  # Only calculate for reasonable sample sizes
-                _, outliers_removed, threshold = self._filter_outliers(
-                    times, outlier_strategy
-                )
+                _, outliers_removed, threshold = self._filter_outliers(times, outlier_strategy)
                 total_count = len(times)
 
                 outlier_summary[issue_type] = {
@@ -870,7 +773,7 @@ class IssueResolutionTimeService:
 
         return outlier_summary
 
-    def _result_to_dict(self, result: IssueResolutionResult) -> Dict:
+    def _result_to_dict(self, result: IssueResolutionResult) -> dict:
         """Convert result to dictionary."""
         return {
             "issue_key": result.issue_key,
@@ -887,9 +790,8 @@ class IssueResolutionTimeService:
             "resolution_time_days": result.resolution_time_days,
         }
 
-    def _save_results(self, results: Dict, output_file: str):
+    def _save_results(self, results: dict, output_file: str):
         """Save results to file."""
-
         if output_file.endswith(".csv"):
             self._save_to_csv(results, output_file)
         else:
@@ -900,9 +802,8 @@ class IssueResolutionTimeService:
 
         self.logger.info(f"Results saved to {output_file}")
 
-    def _save_to_csv(self, results: Dict, output_file: str):
+    def _save_to_csv(self, results: dict, output_file: str):
         """Save results to CSV file with enhanced statistics."""
-
         with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
 
@@ -1037,11 +938,8 @@ class IssueResolutionTimeService:
 
         self.logger.info(f"Enhanced CSV results saved to {output_file}")
 
-    def _print_verbose_results(
-        self, results: List[IssueResolutionResult], _stats_by_type_priority: Dict
-    ):
+    def _print_verbose_results(self, results: list[IssueResolutionResult], _stats_by_type_priority: dict):
         """Print verbose results to console."""
-
         print("\n" + "=" * 80)
         print("DETAILED ISSUE RESOLUTION TIME ANALYSIS")
         print("=" * 80)
@@ -1075,9 +973,8 @@ class IssueResolutionTimeService:
 
         print("=" * 80)
 
-    def _filter_outliers(self, times: List[float], strategy: str) -> tuple:
-        """
-        Filter outliers from resolution times using the specified strategy.
+    def _filter_outliers(self, times: list[float], strategy: str) -> tuple:
+        """Filter outliers from resolution times using the specified strategy.
         IQR is preferred for skewed data, as it's less sensitive to extreme values.
         If len(times) <= 10, skip outlier filtering.
         """
@@ -1136,11 +1033,8 @@ class IssueResolutionTimeService:
     # SLA calculation is now handled in _calculate_enhanced_stats using math.ceil(p90)
     # and P90 95% confidence interval upper bound for small samples (count < 30)
 
-    def _calculate_p90_confidence_interval(
-        self, times: List[float], n_bootstrap: int = 1000
-    ) -> tuple:
-        """
-        Calculate confidence interval for P90 using bootstrap sampling.
+    def _calculate_p90_confidence_interval(self, times: list[float], n_bootstrap: int = 1000) -> tuple:
+        """Calculate confidence interval for P90 using bootstrap sampling.
         Using CI for small samples ensures conservative SLA targets.
         """
         bootstrap_p90s = []
@@ -1152,11 +1046,8 @@ class IssueResolutionTimeService:
         ci_upper = float(np.percentile(bootstrap_p90s, 97.5))
         return ci_lower, ci_upper
 
-    def _calculate_p95_confidence_interval(
-        self, times: List[float], n_bootstrap: int = 1000
-    ) -> tuple:
-        """
-        Calculate confidence interval for P95 using bootstrap sampling.
+    def _calculate_p95_confidence_interval(self, times: list[float], n_bootstrap: int = 1000) -> tuple:
+        """Calculate confidence interval for P95 using bootstrap sampling.
 
         Args:
             times: Original resolution times
@@ -1177,9 +1068,8 @@ class IssueResolutionTimeService:
 
         return ci_lower, ci_upper
 
-    def _calculate_resolution_buckets(self, times: List[float]) -> Dict[str, int]:
-        """
-        Calculate improved resolution time buckets for histogram analysis.
+    def _calculate_resolution_buckets(self, times: list[float]) -> dict[str, int]:
+        """Calculate improved resolution time buckets for histogram analysis.
         Buckets: '<1d', '1–2d', '2–3d', '3–5d', '5–10d', '10–20d', '>20d'
         """
         buckets = {
@@ -1208,9 +1098,8 @@ class IssueResolutionTimeService:
                 buckets[">20d"] += 1
         return buckets
 
-    def _clean_stats_output(self, stats_data: Dict, include_raw: bool = False) -> Dict:
-        """
-        Clean and sanitize statistics output structure.
+    def _clean_stats_output(self, stats_data: dict, include_raw: bool = False) -> dict:
+        """Clean and sanitize statistics output structure.
 
         Args:
             stats_data: Raw statistics data
@@ -1231,9 +1120,7 @@ class IssueResolutionTimeService:
                     # This is a priority-level dict
                     cleaned_data[key] = {}
                     for priority, stats in value.items():
-                        cleaned_data[key][priority] = self._clean_individual_stats(
-                            stats, include_raw
-                        )
+                        cleaned_data[key][priority] = self._clean_individual_stats(stats, include_raw)
                 else:
                     # This is a single stats dict
                     cleaned_data[key] = self._clean_individual_stats(value, include_raw)
@@ -1242,9 +1129,8 @@ class IssueResolutionTimeService:
 
         return cleaned_data
 
-    def _clean_individual_stats(self, stats: Dict, include_raw: bool = False) -> Dict:
-        """
-        Clean individual statistics object.
+    def _clean_individual_stats(self, stats: dict, include_raw: bool = False) -> dict:
+        """Clean individual statistics object.
 
         Args:
             stats: Statistics dictionary
@@ -1304,10 +1190,9 @@ class IssueResolutionTimeService:
             for field in debug_fields:
                 if field in stats:
                     cleaned_stats[field] = stats[field]
-        else:
-            # Always include total_issues for overall stats
-            if "total_issues" in stats:
-                cleaned_stats["total_issues"] = stats["total_issues"]
+        # Always include total_issues for overall stats
+        elif "total_issues" in stats:
+            cleaned_stats["total_issues"] = stats["total_issues"]
 
         return cleaned_stats
 
@@ -1319,9 +1204,8 @@ class IssueResolutionTimeService:
         p95: float,
         p95_trimmed: float,
         suggested_sla: int,
-    ) -> List[str]:
-        """
-        Validate statistical consistency and return warnings if needed.
+    ) -> list[str]:
+        """Validate statistical consistency and return warnings if needed.
 
         Args:
             median, p80, p90, p95, p95_trimmed: Percentile values

@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import os
 from argparse import ArgumentParser, Namespace
-from typing import Dict, List
 
+from domains.syngenta.datadog.datadog_service import DatadogService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_datadog_env_loaded
 from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
-
-from domains.syngenta.datadog.datadog_service import DatadogService
 
 
 class ListTeamsCommand(BaseCommand):
@@ -72,7 +70,7 @@ class ListTeamsCommand(BaseCommand):
             service = DatadogService(site=site)
             teams = service.list_teams(query=args.search, limit=args.limit)
 
-            payload: Dict[str, object] = {
+            payload: dict[str, object] = {
                 "site": site,
                 "search": args.search or "",
                 "count": len(teams),
@@ -92,26 +90,16 @@ class ListTeamsCommand(BaseCommand):
             base = "datadog_teams"
             if args.out == "json":
                 out_path = (
-                    args.output_file
-                    if args.output_file
-                    else OutputManager.get_output_path(sub_dir, base, "json")
+                    args.output_file if args.output_file else OutputManager.get_output_path(sub_dir, base, "json")
                 )
                 print(f"\nOutput file:\n- {out_path}")
-                OutputManager.save_json_report(
-                    payload, sub_dir, base, output_path=out_path
-                )
+                OutputManager.save_json_report(payload, sub_dir, base, output_path=out_path)
                 print("✅ Teams list saved in JSON format")
             else:
                 md = ListTeamsCommand._to_markdown(payload)
-                out_path = (
-                    args.output_file
-                    if args.output_file
-                    else OutputManager.get_output_path(sub_dir, base, "md")
-                )
+                out_path = args.output_file if args.output_file else OutputManager.get_output_path(sub_dir, base, "md")
                 print(f"\nOutput file:\n- {out_path}")
-                OutputManager.save_markdown_report(
-                    md, sub_dir, base, output_path=out_path
-                )
+                OutputManager.save_markdown_report(md, sub_dir, base, output_path=out_path)
                 print("📄 Teams list saved in MD format")
 
         except Exception as e:
@@ -127,7 +115,7 @@ class ListTeamsCommand(BaseCommand):
             exit(1)
 
     @staticmethod
-    def _print_summary(payload: Dict[str, object]) -> None:
+    def _print_summary(payload: dict[str, object]) -> None:
         site = payload.get("site", "-")
         count = payload.get("count", 0)
         search = payload.get("search") or ""
@@ -142,26 +130,24 @@ class ListTeamsCommand(BaseCommand):
         print("=" * len(header))
 
     @staticmethod
-    def _print_table(teams: List[Dict[str, str]]) -> None:
+    def _print_table(teams: list[dict[str, str]]) -> None:
         if not teams:
             print("No teams found.")
             return
         print("\nHandle                          | Name")
-        print(
-            "--------------------------------|----------------------------------------------"
-        )
+        print("--------------------------------|----------------------------------------------")
         for t in teams[:100]:
             handle = (t.get("handle") or "")[:30]
             name = (t.get("name") or "")[:46]
             print(f"{handle:<30} | {name}")
 
     @staticmethod
-    def _to_markdown(payload: Dict[str, object]) -> str:
+    def _to_markdown(payload: dict[str, object]) -> str:
         site = payload.get("site", "-")
         count = payload.get("count", 0)
         search = payload.get("search") or ""
-        teams: List[Dict[str, str]] = payload.get("teams", [])  # type: ignore[assignment]
-        lines: List[str] = []
+        teams: list[dict[str, str]] = payload.get("teams", [])  # type: ignore[assignment]
+        lines: list[str] = []
         lines.append("## Datadog Teams")
         lines.append("")
         lines.append(f"- Site: `{site}`")
@@ -172,7 +158,5 @@ class ListTeamsCommand(BaseCommand):
         lines.append("| Handle | Name | ID |")
         lines.append("|---|---|---|")
         for t in teams:
-            lines.append(
-                f"| {t.get('handle', '')} | {t.get('name', '')} | {t.get('id', '')} |"
-            )
+            lines.append(f"| {t.get('handle', '')} | {t.get('name', '')} | {t.get('id', '')} |")
         return "\n".join(lines)

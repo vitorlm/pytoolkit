@@ -1,6 +1,4 @@
-"""
-LinearB Available Metrics Command.
-"""
+"""LinearB Available Metrics Command."""
 
 from argparse import ArgumentParser, Namespace
 

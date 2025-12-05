@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""
-Feature Extractor - Extract meaningful features from normalized product descriptions
-"""
+"""Feature Extractor - Extract meaningful features from normalized product descriptions"""
 
 import re
-from typing import Dict, List, Set, Tuple, Optional
 from dataclasses import dataclass
+
 from utils.logging.logging_manager import LogManager
+
 from .product_normalizer import ProductNormalizer
 
 
@@ -19,32 +18,32 @@ class ProductFeatures:
     original_description: str
 
     # Text features
-    tokens: List[str]
-    bigrams: List[str]
-    trigrams: List[str]
+    tokens: list[str]
+    bigrams: list[str]
+    trigrams: list[str]
 
     # Semantic features
-    brand: Optional[str]
-    product_type: Optional[str]
+    brand: str | None
+    product_type: str | None
     category: str
-    variant: Optional[str]
+    variant: str | None
 
     # Structural features
     word_count: int
     char_count: int
-    first_word: Optional[str]
-    last_word: Optional[str]
+    first_word: str | None
+    last_word: str | None
 
     # Advanced features
-    numeric_tokens: List[str]
-    alphabetic_tokens: List[str]
-    mixed_tokens: List[str]
+    numeric_tokens: list[str]
+    alphabetic_tokens: list[str]
+    mixed_tokens: list[str]
 
     # Similarity keys for comparison
     core_key: str  # Most important words for matching
     variant_key: str  # Secondary words for variant detection
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization"""
         return {
             "normalized_description": self.normalized_description,
@@ -69,8 +68,7 @@ class ProductFeatures:
 
 
 class FeatureExtractor:
-    """
-    Extract comprehensive features from normalized product descriptions.
+    """Extract comprehensive features from normalized product descriptions.
 
     This class works with ProductNormalizer to create rich feature sets
     that enable sophisticated product matching and similarity detection.
@@ -208,8 +206,7 @@ class FeatureExtractor:
         }
 
     def extract(self, description: str) -> ProductFeatures:
-        """
-        Extract comprehensive features from a product description.
+        """Extract comprehensive features from a product description.
 
         Args:
             description: Raw product description
@@ -217,7 +214,6 @@ class FeatureExtractor:
         Returns:
             ProductFeatures object with all extracted features
         """
-
         if not description:
             raise ValueError("Description cannot be empty")
 
@@ -239,11 +235,7 @@ class FeatureExtractor:
         brand = str(brand) if brand is not None and brand != 0 else None
 
         product_type = basic_features.get("product_type")
-        product_type = (
-            str(product_type)
-            if product_type is not None and product_type != 0
-            else None
-        )
+        product_type = str(product_type) if product_type is not None and product_type != 0 else None
 
         category = basic_features.get("category", "other")
         category = str(category) if category is not None and category != 0 else "other"
@@ -285,9 +277,8 @@ class FeatureExtractor:
         self.logger.debug(f"Extracted features: {features.core_key}")
         return features
 
-    def _extract_tokens(self, normalized_text: str) -> List[str]:
+    def _extract_tokens(self, normalized_text: str) -> list[str]:
         """Extract individual tokens from normalized text"""
-
         if not normalized_text:
             return []
 
@@ -299,9 +290,8 @@ class FeatureExtractor:
 
         return tokens
 
-    def _extract_bigrams(self, tokens: List[str]) -> List[str]:
+    def _extract_bigrams(self, tokens: list[str]) -> list[str]:
         """Extract bigrams (2-word combinations) from tokens"""
-
         if len(tokens) < 2:
             return []
 
@@ -312,9 +302,8 @@ class FeatureExtractor:
 
         return bigrams
 
-    def _extract_trigrams(self, tokens: List[str]) -> List[str]:
+    def _extract_trigrams(self, tokens: list[str]) -> list[str]:
         """Extract trigrams (3-word combinations) from tokens"""
-
         if len(tokens) < 3:
             return []
 
@@ -325,32 +314,27 @@ class FeatureExtractor:
 
         return trigrams
 
-    def _extract_numeric_tokens(self, tokens: List[str]) -> List[str]:
+    def _extract_numeric_tokens(self, tokens: list[str]) -> list[str]:
         """Extract tokens that contain only numbers"""
-
         numeric_pattern = r"^\d+$"
         return [token for token in tokens if re.match(numeric_pattern, token)]
 
-    def _extract_alphabetic_tokens(self, tokens: List[str]) -> List[str]:
+    def _extract_alphabetic_tokens(self, tokens: list[str]) -> list[str]:
         """Extract tokens that contain only letters"""
-
         alphabetic_pattern = r"^[A-Za-z]+$"
         return [token for token in tokens if re.match(alphabetic_pattern, token)]
 
-    def _extract_mixed_tokens(self, tokens: List[str]) -> List[str]:
+    def _extract_mixed_tokens(self, tokens: list[str]) -> list[str]:
         """Extract tokens that contain both letters and numbers"""
-
         mixed_pattern = r"^.*[A-Za-z].*\d.*$|^.*\d.*[A-Za-z].*$"
         return [token for token in tokens if re.match(mixed_pattern, token)]
 
-    def _generate_core_key(self, tokens: List[str]) -> str:
-        """
-        Generate core similarity key using most important words.
+    def _generate_core_key(self, tokens: list[str]) -> str:
+        """Generate core similarity key using most important words.
 
         This key focuses on the essential product identification,
         ignoring variants and minor details.
         """
-
         if not tokens:
             return ""
 
@@ -371,14 +355,12 @@ class FeatureExtractor:
 
         return " ".join(core_words)
 
-    def _generate_variant_key(self, tokens: List[str]) -> str:
-        """
-        Generate variant key using words that indicate product variants.
+    def _generate_variant_key(self, tokens: list[str]) -> str:
+        """Generate variant key using words that indicate product variants.
 
         This key captures flavor, style, color, and other attributes
         that differentiate product variants.
         """
-
         if not tokens:
             return ""
 
@@ -394,9 +376,8 @@ class FeatureExtractor:
 
         return " ".join(variant_words)
 
-    def extract_batch(self, descriptions: List[str]) -> List[ProductFeatures]:
-        """
-        Extract features from a batch of descriptions.
+    def extract_batch(self, descriptions: list[str]) -> list[ProductFeatures]:
+        """Extract features from a batch of descriptions.
 
         Args:
             descriptions: List of product descriptions
@@ -404,7 +385,6 @@ class FeatureExtractor:
         Returns:
             List of ProductFeatures objects
         """
-
         self.logger.info(f"Extracting features from {len(descriptions)} descriptions")
 
         features_list = []
@@ -416,25 +396,18 @@ class FeatureExtractor:
                 features_list.append(features)
 
                 if (i + 1) % 100 == 0:
-                    self.logger.debug(
-                        f"Processed {i + 1}/{len(descriptions)} descriptions"
-                    )
+                    self.logger.debug(f"Processed {i + 1}/{len(descriptions)} descriptions")
 
             except Exception as e:
                 self.logger.error(f"Error processing description '{description}': {e}")
                 errors += 1
 
-        self.logger.info(
-            f"Feature extraction completed. Success: {len(features_list)}, Errors: {errors}"
-        )
+        self.logger.info(f"Feature extraction completed. Success: {len(features_list)}, Errors: {errors}")
 
         return features_list
 
-    def analyze_feature_distribution(
-        self, features_list: List[ProductFeatures]
-    ) -> Dict:
-        """
-        Analyze the distribution of extracted features.
+    def analyze_feature_distribution(self, features_list: list[ProductFeatures]) -> dict:
+        """Analyze the distribution of extracted features.
 
         Args:
             features_list: List of ProductFeatures objects
@@ -442,7 +415,6 @@ class FeatureExtractor:
         Returns:
             Analysis statistics
         """
-
         if not features_list:
             return {}
 
@@ -474,10 +446,9 @@ class FeatureExtractor:
 
         return analysis
 
-    def _calculate_distribution(self, items: List[str]) -> Dict[str, int]:
+    def _calculate_distribution(self, items: list[str]) -> dict[str, int]:
         """Calculate frequency distribution of items"""
-
-        distribution: Dict[str, int] = {}
+        distribution: dict[str, int] = {}
         for item in items:
             distribution[item] = distribution.get(item, 0) + 1
 
@@ -487,10 +458,9 @@ class FeatureExtractor:
         return dict(sorted_items)
 
     def find_potential_duplicates(
-        self, features_list: List[ProductFeatures]
-    ) -> List[Tuple[ProductFeatures, ProductFeatures, float]]:
-        """
-        Find potential duplicate products based on feature similarity.
+        self, features_list: list[ProductFeatures]
+    ) -> list[tuple[ProductFeatures, ProductFeatures, float]]:
+        """Find potential duplicate products based on feature similarity.
 
         Args:
             features_list: List of ProductFeatures objects
@@ -498,10 +468,7 @@ class FeatureExtractor:
         Returns:
             List of tuples (features1, features2, similarity_score)
         """
-
-        self.logger.info(
-            f"Searching for duplicates among {len(features_list)} products"
-        )
+        self.logger.info(f"Searching for duplicates among {len(features_list)} products")
 
         duplicates = []
         processed = 0
@@ -530,38 +497,26 @@ class FeatureExtractor:
 
         return duplicates
 
-    def _calculate_core_similarity(
-        self, features1: ProductFeatures, features2: ProductFeatures
-    ) -> float:
-        """
-        Calculate similarity between two ProductFeatures based on core keys.
+    def _calculate_core_similarity(self, features1: ProductFeatures, features2: ProductFeatures) -> float:
+        """Calculate similarity between two ProductFeatures based on core keys.
 
         This is a sophisticated similarity calculation that considers:
         - Core key overlap
         - Category matching
         - Brand matching (optional)
         """
-
         # If different categories, very low similarity
         if features1.category != features2.category:
             return 0.1
 
         # Core key similarity (most important)
-        core_similarity = self._jaccard_similarity(
-            set(features1.core_key.split()), set(features2.core_key.split())
-        )
+        core_similarity = self._jaccard_similarity(set(features1.core_key.split()), set(features2.core_key.split()))
 
         # Brand matching bonus
-        brand_bonus = (
-            0.1
-            if features1.brand == features2.brand and features1.brand is not None
-            else 0
-        )
+        brand_bonus = 0.1 if features1.brand == features2.brand and features1.brand is not None else 0
 
         # Token overlap similarity
-        token_similarity = self._jaccard_similarity(
-            set(features1.tokens), set(features2.tokens)
-        )
+        token_similarity = self._jaccard_similarity(set(features1.tokens), set(features2.tokens))
 
         # Weighted combination
         final_similarity = (
@@ -572,9 +527,8 @@ class FeatureExtractor:
 
         return min(final_similarity, 1.0)  # Cap at 1.0
 
-    def _jaccard_similarity(self, set1: Set[str], set2: Set[str]) -> float:
+    def _jaccard_similarity(self, set1: set[str], set2: set[str]) -> float:
         """Calculate Jaccard similarity between two sets"""
-
         if not set1 and not set2:
             return 1.0
 

@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional, Union
-
 from langdetect import detect_langs
 
 from utils.logging.logging_manager import LogManager
@@ -10,16 +8,12 @@ logger = LogManager.get_instance().get_logger("FeedbackSpecialist")
 
 
 class FeedbackSpecialist(OllamaAssistant):
-    """
-    A specialized assistant for generating professional feedback using OllamaAssistant.
+    """A specialized assistant for generating professional feedback using OllamaAssistant.
     Focuses on competency matrices and provides structured feedback with actionable insights.
     """
 
-    def __init__(
-        self, host: Optional[str] = None, model: Optional[str] = None, **kwargs
-    ):
-        """
-        Initialize the FeedbackSpecialist with customizable OllamaAssistant configurations.
+    def __init__(self, host: str | None = None, model: str | None = None, **kwargs):
+        """Initialize the FeedbackSpecialist with customizable OllamaAssistant configurations.
 
         Args:
             host: The host for the Ollama server (default is None).
@@ -37,9 +31,8 @@ class FeedbackSpecialist(OllamaAssistant):
 
         self.logger = logger
 
-    def _validate_competency_data(self, competency_data: Dict):
-        """
-        Validates the competency data structure.
+    def _validate_competency_data(self, competency_data: dict):
+        """Validates the competency data structure.
 
         Args:
             competency_data: Dictionary containing competency evaluations.
@@ -53,20 +46,17 @@ class FeedbackSpecialist(OllamaAssistant):
             if not isinstance(key, str):
                 raise ValueError(f"Key '{key}' in competency_data must be a string.")
             if not isinstance(value, list):
-                raise ValueError(
-                    f"Value for key '{key}' in competency_data must be a list."
-                )
+                raise ValueError(f"Value for key '{key}' in competency_data must be a list.")
 
     def _create_feedback_prompt(
         self,
         member_name: str,
-        stats: Dict,
-        team_stats: Dict,
-        competency_matrix: Dict,
-        feedback_text: Optional[str] = None,
+        stats: dict,
+        team_stats: dict,
+        competency_matrix: dict,
+        feedback_text: str | None = None,
     ) -> str:
-        """
-        Constructs a detailed prompt for feedback generation.
+        """Constructs a detailed prompt for feedback generation.
 
         Args:
             member_name (str): Name of the team member.
@@ -78,7 +68,6 @@ class FeedbackSpecialist(OllamaAssistant):
         Returns:
             str: A fully formatted prompt string for Ollama `generate()`.
         """
-
         team_summary = f"Team average level: {team_stats.average_level:.2f}\n"
         for category, details in team_stats.criteria_stats.items():
             team_summary += f"- {category}: Average {details['average']:.2f}, Max {details['highest']}\n"
@@ -89,14 +78,10 @@ class FeedbackSpecialist(OllamaAssistant):
             for indicator, levels in indicators[1].items():
                 competency_summary += f"  {indicator}:\n"
                 for level, details in levels["levels"].items():
-                    competency_summary += (
-                        f"    Level {level}: {details['description']}\n"
-                    )
+                    competency_summary += f"    Level {level}: {details['description']}\n"
                     suggested_evidence = details.get("suggested_evidence")
                     if suggested_evidence:
-                        competency_summary += (
-                            f"      Suggested Evidence: {suggested_evidence}\n"
-                        )
+                        competency_summary += f"      Suggested Evidence: {suggested_evidence}\n"
 
         prompt = f"""
 **System Directive**
@@ -145,13 +130,12 @@ void markdown formatting beyond section headers.
     def generate_feedback(
         self,
         member_name: str,
-        stats: Dict,
-        team_stats: Dict,
-        competency_matrix: Dict,
-        feedback_text: Optional[str] = None,
-    ) -> Dict[str, str]:
-        """
-        Generates structured feedback combining qualitative and quantitative data, considering \
+        stats: dict,
+        team_stats: dict,
+        competency_matrix: dict,
+        feedback_text: str | None = None,
+    ) -> dict[str, str]:
+        """Generates structured feedback combining qualitative and quantitative data, considering \
         competency matrix explanations.
 
         Args:
@@ -165,18 +149,14 @@ void markdown formatting beyond section headers.
             Dict[str, str]: Structured feedback report.
         """
         self.logger.info(f"Generating feedback for {member_name}.")
-        prompt = self._create_feedback_prompt(
-            member_name, stats, team_stats, competency_matrix, feedback_text
-        )
+        prompt = self._create_feedback_prompt(member_name, stats, team_stats, competency_matrix, feedback_text)
 
         try:
             feedback = self.generate_text(prompt)
             self.logger.debug(f"Generated feedback: {feedback}")
             return {"feedback": feedback}
         except Exception as e:
-            self.logger.error(
-                f"Error generating feedback for {member_name}: {e}", exc_info=True
-            )
+            self.logger.error(f"Error generating feedback for {member_name}: {e}", exc_info=True)
             return {"error": str(e)}
 
     def summarize_evidence(
@@ -184,13 +164,12 @@ void markdown formatting beyond section headers.
         evaluatee_name: str,
         criteria: str,
         indicator: str,
-        data: Dict[
+        data: dict[
             str,
-            Union[List[Dict[str, Union[int, str]]], float, Dict[str, float]],
+            list[dict[str, int | str]] | float | dict[str, float],
         ],
     ) -> str:
-        """
-        Summarizes evidence for a specific indicator within a criterion.
+        """Summarizes evidence for a specific indicator within a criterion.
 
         Args:
             evaluatee_name (str): The name of the individual being evaluated.
@@ -229,12 +208,9 @@ void markdown formatting beyond section headers.
         team_comparison = data.get("team_comparison")
 
         if not isinstance(evidence_list, list) or not all(
-            isinstance(item, dict) and "level" in item and "text" in item
-            for item in evidence_list
+            isinstance(item, dict) and "level" in item and "text" in item for item in evidence_list
         ):
-            raise ValueError(
-                "evidence_list must be a list of dictionaries containing 'level' and 'text'."
-            )
+            raise ValueError("evidence_list must be a list of dictionaries containing 'level' and 'text'.")
 
         if (
             not isinstance(average, (float, int))
@@ -246,10 +222,7 @@ void markdown formatting beyond section headers.
         if not isinstance(team_comparison, dict) or not all(
             key in team_comparison for key in ["average", "highest", "lowest"]
         ):
-            raise ValueError(
-                "team_comparison must be a dictionary containing 'average', 'highest', "
-                "and 'lowest'."
-            )
+            raise ValueError("team_comparison must be a dictionary containing 'average', 'highest', and 'lowest'.")
 
         if not evidence_list:
             self.logger.warning(f"No evidence provided for indicator: {indicator}")
@@ -257,13 +230,11 @@ void markdown formatting beyond section headers.
 
         # Preparing evidence text for summarization
         evidence_text = "\n".join(
-            f"Level {item['level']}: {item['text']} (justifying the assigned level)"
-            for item in evidence_list
+            f"Level {item['level']}: {item['text']} (justifying the assigned level)" for item in evidence_list
         )
 
         self.logger.info(
-            f"Summarizing evidence for {evaluatee_name} on indicator: {indicator} "
-            f"in criteria: {criteria}."
+            f"Summarizing evidence for {evaluatee_name} on indicator: {indicator} in criteria: {criteria}."
         )
 
         # Constructing prompt for summarization
@@ -299,9 +270,7 @@ void markdown formatting beyond section headers.
         try:
             # Generating summary using the assistant
             summary = self.generate_text(summary_messages)
-            self.logger.debug(
-                f"Evidence summary for {evaluatee_name} on {indicator}: {summary}"
-            )
+            self.logger.debug(f"Evidence summary for {evaluatee_name} on {indicator}: {summary}")
             return summary
         except Exception as e:
             self.logger.error(
@@ -311,9 +280,8 @@ void markdown formatting beyond section headers.
             )
             return f"Error summarizing evidence for {evaluatee_name}: {e}"
 
-    def analyze_matrix(self, competency_matrix: Dict[str, Dict]) -> Dict[str, str]:
-        """
-        Analyzes an entire competency matrix and generates a summary for each team member.
+    def analyze_matrix(self, competency_matrix: dict[str, dict]) -> dict[str, str]:
+        """Analyzes an entire competency matrix and generates a summary for each team member.
 
         Args:
             competency_matrix: A dictionary mapping team members to their competency data.
@@ -331,20 +299,15 @@ void markdown formatting beyond section headers.
         results = {}
         for member_name, data in competency_matrix.items():
             if not isinstance(member_name, str):
-                raise ValueError(
-                    "Each member_name in competency_matrix must be a string."
-                )
+                raise ValueError("Each member_name in competency_matrix must be a string.")
 
             self.logger.info(f"Processing feedback for {member_name}.")
             results[member_name] = self.generate_feedback(member_name, data)
         self.logger.info("Analysis of competency matrix completed.")
         return results
 
-    def translate_evidence(
-        self, evidence: str, expected_language_code: str = "en"
-    ) -> str:
-        """
-        Translates the given evidence to the expected language if necessary.
+    def translate_evidence(self, evidence: str, expected_language_code: str = "en") -> str:
+        """Translates the given evidence to the expected language if necessary.
 
         This method detects the language of the provided evidence and translates it to the
         expected language if the detected language is different. It supports translation to
@@ -367,9 +330,7 @@ void markdown formatting beyond section headers.
         if not isinstance(evidence, str):
             raise ValueError("evidence must be a string.")
 
-        if not isinstance(
-            expected_language_code, str
-        ) and expected_language_code not in (
+        if not isinstance(expected_language_code, str) and expected_language_code not in (
             "en",
             "es",
             "pt",

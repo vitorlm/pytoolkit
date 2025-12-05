@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""
-Hybrid Similarity Test Command - Test the new SBERT + Brazilian rules system
-"""
+"""Hybrid Similarity Test Command - Test the new SBERT + Brazilian rules system"""
 
 import json
 from argparse import ArgumentParser, Namespace
+
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
+
 from .similarity.enhanced_similarity_calculator import EnhancedSimilarityCalculator
 from .similarity.feature_extractor import FeatureExtractor
 
@@ -42,9 +42,7 @@ class HybridSimilarityTestCommand(BaseCommand):
             action="store_true",
             help="Compare traditional vs hybrid systems",
         )
-        parser.add_argument(
-            "--test-samples", action="store_true", help="Test with sample product pairs"
-        )
+        parser.add_argument("--test-samples", action="store_true", help="Test with sample product pairs")
         parser.add_argument(
             "--benchmark",
             action="store_true",
@@ -87,26 +85,18 @@ class HybridSimilarityTestCommand(BaseCommand):
             feature_extractor = FeatureExtractor()
 
             if args.test_samples:
-                HybridSimilarityTestCommand._test_sample_pairs(
-                    enhanced_calc, feature_extractor, logger
-                )
+                HybridSimilarityTestCommand._test_sample_pairs(enhanced_calc, feature_extractor, logger)
 
             if args.benchmark:
-                HybridSimilarityTestCommand._benchmark_with_training_data(
-                    enhanced_calc, feature_extractor, logger
-                )
+                HybridSimilarityTestCommand._benchmark_with_training_data(enhanced_calc, feature_extractor, logger)
 
             if args.compare_systems:
-                HybridSimilarityTestCommand._compare_systems(
-                    enhanced_calc, feature_extractor, logger, args.threshold
-                )
+                HybridSimilarityTestCommand._compare_systems(enhanced_calc, feature_extractor, logger, args.threshold)
 
             # Default action if no specific test requested
             if not any([args.test_samples, args.benchmark, args.compare_systems]):
                 logger.info("No specific test requested. Running sample test...")
-                HybridSimilarityTestCommand._test_sample_pairs(
-                    enhanced_calc, feature_extractor, logger
-                )
+                HybridSimilarityTestCommand._test_sample_pairs(enhanced_calc, feature_extractor, logger)
 
             logger.info("✅ Hybrid similarity test completed successfully")
 
@@ -121,7 +111,6 @@ class HybridSimilarityTestCommand(BaseCommand):
         logger,
     ):
         """Test with sample product pairs"""
-
         logger.info("🔬 Testing with sample product pairs")
 
         # Test pairs with expected results
@@ -170,9 +159,7 @@ class HybridSimilarityTestCommand(BaseCommand):
 
             print(f"\n{status} Produto 1: {product1}")
             print(f"   Produto 2: {product2}")
-            print(
-                f"   Esperado: {expected_text} | Predito: {predicted_text} | Score: {result.final_score:.3f}"
-            )
+            print(f"   Esperado: {expected_text} | Predito: {predicted_text} | Score: {result.final_score:.3f}")
             print(f"   Confiança: {result.confidence_score:.3f}")
 
             # Show detailed scores
@@ -209,12 +196,11 @@ class HybridSimilarityTestCommand(BaseCommand):
         logger,
     ):
         """Benchmark against clean training data"""
-
         logger.info("📊 Benchmarking against clean training data")
 
         try:
             # Load clean training data
-            with open("similarity_training_data.json", "r", encoding="utf-8") as f:
+            with open("similarity_training_data.json", encoding="utf-8") as f:
                 training_data = json.load(f)
 
             pairs = training_data["pairs"]
@@ -243,9 +229,7 @@ class HybridSimilarityTestCommand(BaseCommand):
                 result = enhanced_calc.calculate_similarity(features1, features2)
 
                 # Make prediction
-                predicted_similar = (
-                    result.final_score >= enhanced_calc.similarity_threshold
-                )
+                predicted_similar = result.final_score >= enhanced_calc.similarity_threshold
 
                 predictions.append(predicted_similar)
                 actuals.append(actual_similar)
@@ -254,24 +238,14 @@ class HybridSimilarityTestCommand(BaseCommand):
 
             # Calculate metrics
             tp = sum(1 for i in range(len(actuals)) if actuals[i] and predictions[i])
-            fp = sum(
-                1 for i in range(len(actuals)) if not actuals[i] and predictions[i]
-            )
-            tn = sum(
-                1 for i in range(len(actuals)) if not actuals[i] and not predictions[i]
-            )
-            fn = sum(
-                1 for i in range(len(actuals)) if actuals[i] and not predictions[i]
-            )
+            fp = sum(1 for i in range(len(actuals)) if not actuals[i] and predictions[i])
+            tn = sum(1 for i in range(len(actuals)) if not actuals[i] and not predictions[i])
+            fn = sum(1 for i in range(len(actuals)) if actuals[i] and not predictions[i])
 
             accuracy = (tp + tn) / len(actuals)
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0
             recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-            f1 = (
-                2 * (precision * recall) / (precision + recall)
-                if (precision + recall) > 0
-                else 0
-            )
+            f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
             avg_confidence = sum(confidences) / len(confidences)
             avg_score = sum(scores) / len(scores)
@@ -322,7 +296,6 @@ class HybridSimilarityTestCommand(BaseCommand):
         threshold: float,
     ):
         """Compare traditional vs hybrid systems"""
-
         logger.info("⚖️  Comparing traditional vs hybrid systems")
 
         # Test with both systems
@@ -346,12 +319,8 @@ class HybridSimilarityTestCommand(BaseCommand):
             result_hybrid = enhanced_calc.calculate_similarity(features1, features2)
 
             # Test with traditional only (create new calculator)
-            traditional_calc = EnhancedSimilarityCalculator(
-                similarity_threshold=threshold, use_hybrid=False
-            )
-            result_traditional = traditional_calc.calculate_similarity(
-                features1, features2
-            )
+            traditional_calc = EnhancedSimilarityCalculator(similarity_threshold=threshold, use_hybrid=False)
+            result_traditional = traditional_calc.calculate_similarity(features1, features2)
 
             print(f"\n📦 {product1}")
             print(f"📦 {product2}")

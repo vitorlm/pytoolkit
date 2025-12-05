@@ -1,5 +1,4 @@
-"""
-JIRA Issue Adherence Analysis Command
+"""JIRA Issue Adherence Analysis Command
 
 This command analyzes issue adherence by fetching issues that were resolved within an anchored
 window and evaluating their completion status against due dates.
@@ -42,8 +41,8 @@ ADHERENCE METRICS:
 from argparse import ArgumentParser, Namespace
 
 from domains.syngenta.jira.issue_adherence_service import IssueAdherenceService
-from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from domains.syngenta.jira.shared.parsers import ErrorHandler
+from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -199,8 +198,7 @@ class IssueAdherenceCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute issue adherence analysis.
+        """Main function to execute issue adherence analysis.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -706,22 +704,21 @@ class IssueAdherenceCommand(BaseCommand):
                 print("      • Continue current practices and monitoring")
                 print("      • Share best practices with other teams")
                 print("      • Focus on continuous improvement")
+        elif adherence_rate < 60:
+            print("   🚨 IMMEDIATE ACTIONS REQUIRED:")
+            print("      • Review project planning and estimation processes")
+            print("      • Implement more frequent milestone check-ins")
+            print("      • Consider workload balancing across team members")
+        elif adherence_rate < 80:
+            print("   ⚠️  IMPROVEMENT OPPORTUNITIES:")
+            print("      • Enhance due date visibility and tracking")
+            print("      • Implement early warning systems for at-risk issues")
+            print("      • Review resource allocation and capacity planning")
         else:
-            if adherence_rate < 60:
-                print("   🚨 IMMEDIATE ACTIONS REQUIRED:")
-                print("      • Review project planning and estimation processes")
-                print("      • Implement more frequent milestone check-ins")
-                print("      • Consider workload balancing across team members")
-            elif adherence_rate < 80:
-                print("   ⚠️  IMPROVEMENT OPPORTUNITIES:")
-                print("      • Enhance due date visibility and tracking")
-                print("      • Implement early warning systems for at-risk issues")
-                print("      • Review resource allocation and capacity planning")
-            else:
-                print("   ✅ MAINTAIN EXCELLENCE:")
-                print("      • Continue current practices and monitoring")
-                print("      • Share best practices with other teams")
-                print("      • Focus on continuous improvement")
+            print("   ✅ MAINTAIN EXCELLENCE:")
+            print("      • Continue current practices and monitoring")
+            print("      • Share best practices with other teams")
+            print("      • Focus on continuous improvement")
 
         print()
 

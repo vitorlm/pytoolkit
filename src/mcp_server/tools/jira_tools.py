@@ -1,20 +1,20 @@
 import json
 from typing import Any
-from pydantic import ValidationError
 
 from mcp.types import TextContent, Tool
+from pydantic import ValidationError
+
+from utils.logging.logging_manager import LogManager
 
 from ..adapters.jira_adapter import JiraAdapter
 from ..validators import MCPToolValidator
-from utils.logging.logging_manager import LogManager
 
 
 class JiraTools:
     """MCP Tools for JIRA integration via PyToolkit."""
 
     def __init__(self):
-        """
-        Initialize JIRA Tools MCP handler.
+        """Initialize JIRA Tools MCP handler.
 
         Sets up the JIRA adapter and logger for processing JIRA-related
         MCP tool requests.
@@ -29,9 +29,7 @@ class JiraTools:
         return [
             Tool(
                 name="jira_get_epic_monitoring",
-                description=(
-                    "Gets JIRA epic monitoring data with status, dates and identified issues"
-                ),
+                description=("Gets JIRA epic monitoring data with status, dates and identified issues"),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -200,9 +198,7 @@ class JiraTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executes specific JIRA tool with validation."""
         self.logger.info(f"Executing JIRA tool: {name} with args: {arguments}")
 
@@ -216,44 +212,31 @@ class JiraTools:
                 return self.validator.format_validation_error(e, name)
             except ValueError:
                 # Tool not found in validator
-                self.logger.debug(
-                    f"No validator for {name}, proceeding without validation"
-                )
+                self.logger.debug(f"No validator for {name}, proceeding without validation")
                 validated_args = None
 
             # Execute tool with validated arguments
             if name == "jira_get_epic_monitoring":
-                return await self._get_epic_monitoring(
-                    validated_args.model_dump() if validated_args else arguments
-                )
+                return await self._get_epic_monitoring(validated_args.model_dump() if validated_args else arguments)
             elif name == "jira_get_cycle_time_metrics":
-                return await self._get_cycle_time_metrics(
-                    validated_args.model_dump() if validated_args else arguments
-                )
+                return await self._get_cycle_time_metrics(validated_args.model_dump() if validated_args else arguments)
             elif name == "jira_get_team_velocity":
-                return await self._get_team_velocity(
-                    validated_args.model_dump() if validated_args else arguments
-                )
+                return await self._get_team_velocity(validated_args.model_dump() if validated_args else arguments)
             elif name == "jira_get_issue_adherence":
-                return await self._get_issue_adherence(
-                    arguments
-                )  # No validator model yet
+                return await self._get_issue_adherence(arguments)  # No validator model yet
             elif name == "jira_get_open_issues":
-                return await self._get_open_issues(
-                    validated_args.model_dump() if validated_args else arguments
-                )
+                return await self._get_open_issues(validated_args.model_dump() if validated_args else arguments)
             else:
                 error_msg = f"Unknown JIRA tool '{name}'"
                 self.logger.error(error_msg)
                 return [TextContent(type="text", text=f"Error: {error_msg}")]
         except Exception as e:
-            error_msg = f"Error executing JIRA tool '{name}': {str(e)}"
+            error_msg = f"Error executing JIRA tool '{name}': {e!s}"
             self.logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
     async def _get_epic_monitoring(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Execute epic monitoring analysis.
+        """Execute epic monitoring analysis.
 
         Retrieves and formats epic monitoring data including status, dates,
         and identified problems for the specified project.
@@ -269,9 +252,7 @@ class JiraTools:
         """
         project_key = args["project_key"]
         team = args.get("team")
-        self.logger.info(
-            f"Getting epic monitoring data for project: {project_key}, team: {team}"
-        )
+        self.logger.info(f"Getting epic monitoring data for project: {project_key}, team: {team}")
 
         try:
             if team:
@@ -285,12 +266,8 @@ class JiraTools:
                 "team": team,
                 "epic_monitoring": data,
                 "summary": {
-                    "total_epics": (
-                        len(data.get("epics", [])) if isinstance(data, dict) else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_epics": (len(data.get("epics", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -305,13 +282,12 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve epic monitoring data for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve epic monitoring data for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_cycle_time_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Execute cycle time analysis.
+        """Execute cycle time analysis.
 
         Analyzes cycle time metrics for issues in the specified project,
         providing insights into team performance and delivery efficiency.
@@ -333,23 +309,11 @@ class JiraTools:
         status_categories_str = args.get("status_categories")
 
         # Parse comma-separated strings into lists
-        issue_types = (
-            [t.strip() for t in issue_types_str.split(",")]
-            if issue_types_str
-            else ["Bug", "Story"]
-        )
-        priorities = (
-            [p.strip() for p in priorities_str.split(",")] if priorities_str else None
-        )
-        status_categories = (
-            [s.strip() for s in status_categories_str.split(",")]
-            if status_categories_str
-            else None
-        )
+        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
+        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
+        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
 
-        self.logger.info(
-            f"Getting cycle time metrics for {project_key}, period: {time_period}, team: {team}"
-        )
+        self.logger.info(f"Getting cycle time metrics for {project_key}, period: {time_period}, team: {team}")
 
         try:
             data = self.adapter.get_cycle_time_analysis(
@@ -368,12 +332,8 @@ class JiraTools:
                 "status_categories": status_categories,
                 "cycle_time_data": data,
                 "summary": {
-                    "total_issues_analyzed": (
-                        len(data.get("issues", [])) if isinstance(data, dict) else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_issues_analyzed": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -389,13 +349,12 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve cycle time metrics for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve cycle time metrics for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_team_velocity(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Execute team velocity analysis.
+        """Execute team velocity analysis.
 
         Analyzes team velocity based on historical sprint data, providing
         insights into team productivity and capacity planning.
@@ -411,9 +370,7 @@ class JiraTools:
         """
         project_key = args["project_key"]
         time_period = args.get("time_period", "last-6-months")
-        issue_types_str = args.get(
-            "issue_types", "Story,Task,Epic,Technical Debt,Improvement"
-        )
+        issue_types_str = args.get("issue_types", "Story,Task,Epic,Technical Debt,Improvement")
         aggregation = args.get("aggregation", "monthly")
         team = args.get("team")
 
@@ -424,9 +381,7 @@ class JiraTools:
             else ["Story", "Task", "Epic", "Technical Debt", "Improvement"]
         )
 
-        self.logger.info(
-            f"Getting team velocity for {project_key}, period: {time_period}, team: {team}"
-        )
+        self.logger.info(f"Getting team velocity for {project_key}, period: {time_period}, team: {team}")
 
         try:
             data = self.adapter.get_velocity_analysis(
@@ -446,9 +401,7 @@ class JiraTools:
                 "velocity_data": data,
                 "summary": {
                     "analysis_type": "team_velocity",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -463,13 +416,12 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve team velocity for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve team velocity for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_issue_adherence(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Execute issue adherence analysis.
+        """Execute issue adherence analysis.
 
         Analyzes how well the team adheres to due dates and delivery commitments,
         providing insights into planning accuracy and delivery reliability.
@@ -491,20 +443,10 @@ class JiraTools:
         include_no_due_date = args.get("include_no_due_date", False)
 
         # Parse comma-separated strings into lists
-        issue_types = (
-            [t.strip() for t in issue_types_str.split(",")]
-            if issue_types_str
-            else ["Bug", "Story"]
-        )
-        status_categories = (
-            [s.strip() for s in status_categories_str.split(",")]
-            if status_categories_str
-            else None
-        )
+        issue_types = [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Story"]
+        status_categories = [s.strip() for s in status_categories_str.split(",")] if status_categories_str else None
 
-        self.logger.info(
-            f"Getting issue adherence analysis for {project_key}, period: {time_period}, team: {team}"
-        )
+        self.logger.info(f"Getting issue adherence analysis for {project_key}, period: {time_period}, team: {team}")
 
         try:
             data = self.adapter.get_adherence_analysis(
@@ -524,9 +466,7 @@ class JiraTools:
                 "adherence_analysis": data,
                 "summary": {
                     "analysis_type": "issue_adherence",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -541,13 +481,12 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve issue adherence analysis for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve issue adherence analysis for {project_key}: {e!s}",
                 )
             ]
 
     async def _get_open_issues(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Execute open issues analysis.
+        """Execute open issues analysis.
 
         Retrieves and formats currently open issues in the project with optional filtering.
 
@@ -568,18 +507,12 @@ class JiraTools:
 
         # Parse comma-separated strings into lists
         issue_types = (
-            [t.strip() for t in issue_types_str.split(",")]
-            if issue_types_str
-            else ["Bug", "Support", "Story", "Task"]
+            [t.strip() for t in issue_types_str.split(",")] if issue_types_str else ["Bug", "Support", "Story", "Task"]
         )
         status_categories = (
-            [s.strip() for s in status_categories_str.split(",")]
-            if status_categories_str
-            else ["To Do", "In Progress"]
+            [s.strip() for s in status_categories_str.split(",")] if status_categories_str else ["To Do", "In Progress"]
         )
-        priorities = (
-            [p.strip() for p in priorities_str.split(",")] if priorities_str else None
-        )
+        priorities = [p.strip() for p in priorities_str.split(",")] if priorities_str else None
 
         self.logger.info(f"Getting open issues for {project_key}, team: {team}")
 
@@ -601,12 +534,8 @@ class JiraTools:
                 "open_issues_data": data,
                 "summary": {
                     "analysis_type": "open_issues",
-                    "total_open_issues": (
-                        len(data.get("issues", [])) if isinstance(data, dict) else "N/A"
-                    ),
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "total_open_issues": (len(data.get("issues", [])) if isinstance(data, dict) else "N/A"),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -621,6 +550,6 @@ class JiraTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve open issues for {project_key}: {str(e)}",
+                    text=f"Failed to retrieve open issues for {project_key}: {e!s}",
                 )
             ]

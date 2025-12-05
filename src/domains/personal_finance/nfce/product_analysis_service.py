@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
-"""
-Product Analysis Service - Analyze existing products for similarity patterns and duplicates
-"""
+"""Product Analysis Service - Analyze existing products for similarity patterns and duplicates"""
 
 import re
-from typing import List, Dict, Any, Optional
 from collections import Counter, defaultdict
 from datetime import datetime
+from typing import Any
 
-from utils.logging.logging_manager import LogManager
-from utils.data.json_manager import JSONManager
-from utils.file_manager import FileManager
 from domains.personal_finance.nfce.database.nfce_database_manager import (
     NFCeDatabaseManager,
 )
 from domains.personal_finance.nfce.similarity.product_matcher import ProductMatcher
+from utils.data.json_manager import JSONManager
+from utils.file_manager import FileManager
+from utils.logging.logging_manager import LogManager
 
 
 class ProductAnalysisService:
@@ -34,16 +32,15 @@ class ProductAnalysisService:
 
     def analyze_products(
         self,
-        cnpj_filter: Optional[str] = None,
-        category_filter: Optional[List[str]] = None,
+        cnpj_filter: str | None = None,
+        category_filter: list[str] | None = None,
         similarity_threshold: float = 0.8,
         min_frequency: int = 2,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
         detailed: bool = False,
         include_examples: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Perform comprehensive analysis of products in the database
+    ) -> dict[str, Any]:
+        """Perform comprehensive analysis of products in the database
 
         Args:
             cnpj_filter: Filter by specific establishment CNPJ
@@ -92,14 +89,10 @@ class ProductAnalysisService:
         analysis_results["basic_stats"] = self._analyze_basic_statistics(products)
 
         # Establishment analysis
-        analysis_results["establishment_analysis"] = self._analyze_by_establishment(
-            products
-        )
+        analysis_results["establishment_analysis"] = self._analyze_by_establishment(products)
 
         # Product name patterns
-        analysis_results["naming_patterns"] = self._analyze_naming_patterns(
-            products, min_frequency
-        )
+        analysis_results["naming_patterns"] = self._analyze_naming_patterns(products, min_frequency)
 
         # Potential duplicates
         analysis_results["potential_duplicates"] = self._find_potential_duplicates(
@@ -114,13 +107,11 @@ class ProductAnalysisService:
 
         if detailed:
             # Detailed statistics
-            analysis_results["detailed_stats"] = self._analyze_detailed_statistics(
-                products
-            )
+            analysis_results["detailed_stats"] = self._analyze_detailed_statistics(products)
 
             # Similarity distribution
-            analysis_results["similarity_distribution"] = (
-                self._analyze_similarity_distribution(products, similarity_threshold)
+            analysis_results["similarity_distribution"] = self._analyze_similarity_distribution(
+                products, similarity_threshold
             )
 
         self.logger.info("Product analysis completed")
@@ -128,13 +119,12 @@ class ProductAnalysisService:
 
     def analyze_products_with_similarity_engine(
         self,
-        cnpj_filter: Optional[str] = None,
+        cnpj_filter: str | None = None,
         similarity_threshold: float = 0.8,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
         detailed: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Perform advanced product analysis using the Phase 2 Similarity Engine
+    ) -> dict[str, Any]:
+        """Perform advanced product analysis using the Phase 2 Similarity Engine
 
         Args:
             cnpj_filter: Filter by specific establishment CNPJ
@@ -162,9 +152,7 @@ class ProductAnalysisService:
         matching_results = self.product_matcher.analyze_products(product_descriptions)
 
         # Get deduplication recommendations
-        recommendations = self.product_matcher.get_deduplication_recommendations(
-            product_descriptions
-        )
+        recommendations = self.product_matcher.get_deduplication_recommendations(product_descriptions)
 
         # Build comprehensive results
         analysis_results = {
@@ -189,23 +177,17 @@ class ProductAnalysisService:
                 "largest_group_size": matching_results.largest_group_size,
             },
             "deduplication_recommendations": recommendations,
-            "duplicate_groups_details": [
-                group.to_dict() for group in matching_results.duplicate_groups
-            ],
-            "similar_groups_details": [
-                group.to_dict() for group in matching_results.similar_groups
-            ],
+            "duplicate_groups_details": [group.to_dict() for group in matching_results.duplicate_groups],
+            "similar_groups_details": [group.to_dict() for group in matching_results.similar_groups],
         }
 
         # Add detailed analysis if requested
         if detailed:
-            analysis_results["detailed_analysis"] = (
-                self._add_detailed_similarity_analysis(products, matching_results)
-            )
+            analysis_results["detailed_analysis"] = self._add_detailed_similarity_analysis(products, matching_results)
 
         # Add establishment context
-        analysis_results["establishment_context"] = (
-            self._add_establishment_context_to_duplicates(products, matching_results)
+        analysis_results["establishment_context"] = self._add_establishment_context_to_duplicates(
+            products, matching_results
         )
 
         self.logger.info(
@@ -214,8 +196,8 @@ class ProductAnalysisService:
         return analysis_results
 
     def _load_products_from_database(
-        self, cnpj_filter: Optional[str] = None, sample_size: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, cnpj_filter: str | None = None, sample_size: int | None = None
+    ) -> list[dict[str, Any]]:
         """Load products from database with optional filtering"""
         try:
             conn = self.db_manager.db_manager.get_connection("nfce_db")
@@ -275,9 +257,7 @@ class ProductAnalysisService:
             self.logger.error(f"Error loading products from database: {e}")
             raise
 
-    def _filter_by_category(
-        self, products: List[Dict], categories: List[str]
-    ) -> List[Dict]:
+    def _filter_by_category(self, products: list[dict], categories: list[str]) -> list[dict]:
         """Filter products by detected categories"""
         category_keywords = {
             "beverages": [
@@ -473,7 +453,7 @@ class ProductAnalysisService:
 
         return filtered_products
 
-    def _analyze_basic_statistics(self, products: List[Dict]) -> Dict[str, Any]:
+    def _analyze_basic_statistics(self, products: list[dict]) -> dict[str, Any]:
         """Analyze basic product statistics"""
         total_products = len(products)
         unique_descriptions = len(set(p["description"] for p in products))
@@ -491,9 +471,7 @@ class ProductAnalysisService:
             "total_products": total_products,
             "unique_descriptions": unique_descriptions,
             "unique_establishments": unique_establishments,
-            "duplication_ratio": round(
-                (total_products - unique_descriptions) / total_products * 100, 2
-            )
+            "duplication_ratio": round((total_products - unique_descriptions) / total_products * 100, 2)
             if total_products > 0
             else 0,
             "average_occurrence_per_product": round(avg_occurrence, 2),
@@ -503,7 +481,7 @@ class ProductAnalysisService:
             else 0,
         }
 
-    def _analyze_by_establishment(self, products: List[Dict]) -> Dict[str, Any]:
+    def _analyze_by_establishment(self, products: list[dict]) -> dict[str, Any]:
         """Analyze products by establishment"""
         establishment_stats = {}
 
@@ -534,9 +512,7 @@ class ProductAnalysisService:
                 "state": stats["state"],
                 "total_products": total_count,
                 "unique_products": unique_count,
-                "duplication_ratio": round(
-                    (total_count - unique_count) / total_count * 100, 2
-                )
+                "duplication_ratio": round((total_count - unique_count) / total_count * 100, 2)
                 if total_count > 0
                 else 0,
             }
@@ -547,14 +523,10 @@ class ProductAnalysisService:
 
         summary = {
             "total_establishments": len(result),
-            "avg_products_per_establishment": round(
-                sum(establishment_counts) / len(establishment_counts), 2
-            )
+            "avg_products_per_establishment": round(sum(establishment_counts) / len(establishment_counts), 2)
             if establishment_counts
             else 0,
-            "avg_unique_products_per_establishment": round(
-                sum(unique_counts) / len(unique_counts), 2
-            )
+            "avg_unique_products_per_establishment": round(sum(unique_counts) / len(unique_counts), 2)
             if unique_counts
             else 0,
             "establishments": result,
@@ -562,9 +534,7 @@ class ProductAnalysisService:
 
         return summary
 
-    def _analyze_naming_patterns(
-        self, products: List[Dict], min_frequency: int
-    ) -> Dict[str, Any]:
+    def _analyze_naming_patterns(self, products: list[dict], min_frequency: int) -> dict[str, Any]:
         """Analyze product naming patterns"""
         descriptions = [p["description"] for p in products]
 
@@ -576,9 +546,7 @@ class ProductAnalysisService:
             all_words.extend(words)
 
         word_freq = Counter(all_words)
-        common_words = {
-            word: count for word, count in word_freq.items() if count >= min_frequency
-        }
+        common_words = {word: count for word, count in word_freq.items() if count >= min_frequency}
 
         # Common prefixes/suffixes
         prefixes = defaultdict(int)
@@ -596,9 +564,7 @@ class ProductAnalysisService:
         for word, count in word_freq.most_common(50):
             if len(word) > 2 and count >= min_frequency * 2:
                 # Check if word appears as first word frequently
-                first_word_count = sum(
-                    1 for desc in descriptions if desc.upper().startswith(word)
-                )
+                first_word_count = sum(1 for desc in descriptions if desc.upper().startswith(word))
                 if first_word_count >= min_frequency:
                     potential_brands.append(
                         {
@@ -626,10 +592,9 @@ class ProductAnalysisService:
         }
 
     def _find_potential_duplicates(
-        self, products: List[Dict], threshold: float, include_examples: bool
-    ) -> Dict[str, Any]:
+        self, products: list[dict], threshold: float, include_examples: bool
+    ) -> dict[str, Any]:
         """Find potential duplicate products using simple similarity"""
-
         # Group by normalized description for exact matches
         normalized_groups = defaultdict(list)
 
@@ -676,14 +641,11 @@ class ProductAnalysisService:
             "fuzzy_analysis": fuzzy_analysis,
             "summary": {
                 "potential_exact_duplicates": exact_matches,
-                "largest_duplicate_group": max(
-                    [g["product_count"] for g in duplicate_groups]
-                )
+                "largest_duplicate_group": max([g["product_count"] for g in duplicate_groups])
                 if duplicate_groups
                 else 0,
                 "avg_establishments_per_group": round(
-                    sum(g["establishment_count"] for g in duplicate_groups)
-                    / len(duplicate_groups),
+                    sum(g["establishment_count"] for g in duplicate_groups) / len(duplicate_groups),
                     2,
                 )
                 if duplicate_groups
@@ -706,11 +668,8 @@ class ProductAnalysisService:
 
         return normalized.strip()
 
-    def _analyze_fuzzy_similarities(
-        self, products: List[Dict], threshold: float
-    ) -> Dict[str, Any]:
+    def _analyze_fuzzy_similarities(self, products: list[dict], threshold: float) -> dict[str, Any]:
         """Basic fuzzy similarity analysis using string comparison"""
-
         # For Phase 1, use simple similarity measures
         similar_pairs = []
         descriptions = list(set(p["description"] for p in products))
@@ -738,9 +697,7 @@ class ProductAnalysisService:
             "analyzed_pairs": len(descriptions) * (len(descriptions) - 1) // 2,
             "similar_pairs_found": len(similar_pairs),
             "threshold_used": threshold,
-            "top_similar_pairs": sorted(
-                similar_pairs, key=lambda x: x["similarity"], reverse=True
-            )[:10],
+            "top_similar_pairs": sorted(similar_pairs, key=lambda x: x["similarity"], reverse=True)[:10],
         }
 
     def _simple_similarity(self, str1: str, str2: str) -> float:
@@ -759,7 +716,7 @@ class ProductAnalysisService:
 
         return len(intersection) / len(union) if union else 0.0
 
-    def _analyze_categories(self, products: List[Dict]) -> Dict[str, Any]:
+    def _analyze_categories(self, products: list[dict]) -> dict[str, Any]:
         """Auto-detect product categories based on keywords"""
         categories = {
             "beverages": [
@@ -959,22 +916,17 @@ class ProductAnalysisService:
         return {
             "category_distribution": dict(category_counts),
             "categorization_rate": round(
-                (
-                    sum(category_counts.values())
-                    - category_counts.get("uncategorized", 0)
-                )
+                (sum(category_counts.values()) - category_counts.get("uncategorized", 0))
                 / sum(category_counts.values())
                 * 100,
                 2,
             )
             if category_counts
             else 0,
-            "sample_products_by_category": {
-                cat: products[:5] for cat, products in categorized_products.items()
-            },
+            "sample_products_by_category": {cat: products[:5] for cat, products in categorized_products.items()},
         }
 
-    def _analyze_prices(self, products: List[Dict]) -> Dict[str, Any]:
+    def _analyze_prices(self, products: list[dict]) -> dict[str, Any]:
         """Analyze price patterns (placeholder for future price data)"""
         # Note: Current schema doesn't store price in products table
         # This is a placeholder for when price tracking is implemented
@@ -985,9 +937,8 @@ class ProductAnalysisService:
             "recommendation": "Consider adding price tracking to products for better analysis",
         }
 
-    def _analyze_detailed_statistics(self, products: List[Dict]) -> Dict[str, Any]:
+    def _analyze_detailed_statistics(self, products: list[dict]) -> dict[str, Any]:
         """Generate detailed statistics for in-depth analysis"""
-
         # Description length distribution
         lengths = [len(p["description"]) for p in products]
         length_distribution = Counter(lengths)
@@ -1004,9 +955,7 @@ class ProductAnalysisService:
             "product_code_statistics": {
                 "total_with_codes": len(codes),
                 "total_without_codes": len(products) - len(codes),
-                "avg_code_length": round(sum(code_lengths) / len(code_lengths), 2)
-                if code_lengths
-                else 0,
+                "avg_code_length": round(sum(code_lengths) / len(code_lengths), 2) if code_lengths else 0,
                 "unique_codes": len(set(codes)),
             },
             "temporal_distribution": {
@@ -1018,11 +967,8 @@ class ProductAnalysisService:
             },
         }
 
-    def _analyze_similarity_distribution(
-        self, products: List[Dict], threshold: float
-    ) -> Dict[str, Any]:
+    def _analyze_similarity_distribution(self, products: list[dict], threshold: float) -> dict[str, Any]:
         """Analyze distribution of similarity scores"""
-
         # This is a simplified version for Phase 1
         return {
             "note": "Detailed similarity distribution analysis will be implemented in Phase 2",
@@ -1034,7 +980,7 @@ class ProductAnalysisService:
             ],
         }
 
-    def save_analysis_results(self, results: Dict[str, Any], output_path: str) -> None:
+    def save_analysis_results(self, results: dict[str, Any], output_path: str) -> None:
         """Save analysis results to JSON file"""
         try:
             # Ensure output directory exists
@@ -1054,9 +1000,7 @@ class ProductAnalysisService:
         if isinstance(obj, datetime):
             return obj.isoformat()
         elif isinstance(obj, dict):
-            return {
-                key: self._make_json_serializable(value) for key, value in obj.items()
-            }
+            return {key: self._make_json_serializable(value) for key, value in obj.items()}
         elif isinstance(obj, list):
             return [self._make_json_serializable(item) for item in obj]
         elif hasattr(obj, "__dict__"):
@@ -1064,7 +1008,7 @@ class ProductAnalysisService:
         else:
             return obj
 
-    def print_analysis_summary(self, results: Dict[str, Any]) -> None:
+    def print_analysis_summary(self, results: dict[str, Any]) -> None:
         """Print analysis summary to console"""
         print("\n" + "=" * 70)
         print("NFCe Product Analysis Summary")
@@ -1080,16 +1024,12 @@ class ProductAnalysisService:
         # Establishment stats
         establishment = results.get("establishment_analysis", {})
         print(f"\nEstablishments: {establishment.get('total_establishments', 0)}")
-        print(
-            f"Avg Products per Establishment: {establishment.get('avg_products_per_establishment', 0)}"
-        )
+        print(f"Avg Products per Establishment: {establishment.get('avg_products_per_establishment', 0)}")
 
         # Potential duplicates
         duplicates = results.get("potential_duplicates", {})
         exact = duplicates.get("exact_matches", {})
-        print(
-            f"\nPotential Exact Duplicates: {exact.get('total_products_in_groups', 0)}"
-        )
+        print(f"\nPotential Exact Duplicates: {exact.get('total_products_in_groups', 0)}")
         print(f"Duplicate Groups Found: {exact.get('total_groups', 0)}")
 
         # Top duplicate groups
@@ -1106,27 +1046,18 @@ class ProductAnalysisService:
         cat_dist = categories.get("category_distribution", {})
         if cat_dist:
             print("\nProduct Categories:")
-            for category, count in sorted(
-                cat_dist.items(), key=lambda x: x[1], reverse=True
-            )[:5]:
+            for category, count in sorted(cat_dist.items(), key=lambda x: x[1], reverse=True)[:5]:
                 print(f"  {category.title()}: {count}")
 
         print("=" * 70)
-        print(
-            f"Analysis completed at: {results.get('metadata', {}).get('analysis_date', 'Unknown')}"
-        )
+        print(f"Analysis completed at: {results.get('metadata', {}).get('analysis_date', 'Unknown')}")
         print("=" * 70)
 
-    def _add_detailed_similarity_analysis(
-        self, products: List[Dict], matching_results
-    ) -> Dict[str, Any]:
+    def _add_detailed_similarity_analysis(self, products: list[dict], matching_results) -> dict[str, Any]:
         """Add detailed similarity analysis to results"""
-
         # Calculate similarity statistics
         all_similarities = []
-        for group in (
-            matching_results.duplicate_groups + matching_results.similar_groups
-        ):
+        for group in matching_results.duplicate_groups + matching_results.similar_groups:
             all_similarities.extend(group.similarity_scores)
 
         if not all_similarities:
@@ -1143,9 +1074,7 @@ class ProductAnalysisService:
                 for product in products:
                     if product["description"] == product_desc:
                         establishments.add(product.get("establishment_cnpj", "unknown"))
-                        establishment_distribution[
-                            product.get("establishment_cnpj", "unknown")
-                        ] += 1
+                        establishment_distribution[product.get("establishment_cnpj", "unknown")] += 1
                         break
 
             if len(establishments) > 1:
@@ -1166,11 +1095,8 @@ class ProductAnalysisService:
             },
         }
 
-    def _add_establishment_context_to_duplicates(
-        self, products: List[Dict], matching_results
-    ) -> Dict[str, Any]:
+    def _add_establishment_context_to_duplicates(self, products: list[dict], matching_results) -> dict[str, Any]:
         """Add establishment context to duplicate analysis"""
-
         # Use regular dict with type casting
         establishment_summary = {}
 
@@ -1188,13 +1114,9 @@ class ProductAnalysisService:
                 }
 
             establishment_summary[cnpj]["total_products"] += 1
-            establishment_summary[cnpj]["business_name"] = product.get(
-                "establishment_name", ""
-            )
+            establishment_summary[cnpj]["business_name"] = product.get("establishment_name", "")
             establishment_summary[cnpj]["city"] = product.get("establishment_city", "")
-            establishment_summary[cnpj]["state"] = product.get(
-                "establishment_state", ""
-            )
+            establishment_summary[cnpj]["state"] = product.get("establishment_state", "")
 
         # Count duplicates per establishment
         for group in matching_results.duplicate_groups:
@@ -1224,9 +1146,7 @@ class ProductAnalysisService:
 
         # Count establishments with duplicates
         establishments_with_duplicates = sum(
-            1
-            for _, data in establishment_summary.items()
-            if data["duplicate_products"] > 0
+            1 for _, data in establishment_summary.items() if data["duplicate_products"] > 0
         )
 
         return {
@@ -1245,9 +1165,8 @@ class ProductAnalysisService:
             ],
         }
 
-    def print_similarity_analysis_summary(self, results: Dict[str, Any]) -> None:
+    def print_similarity_analysis_summary(self, results: dict[str, Any]) -> None:
         """Print a formatted summary of similarity analysis results"""
-
         print("\n" + "=" * 70)
         print("🔍 SIMILARITY ENGINE ANALYSIS SUMMARY")
         print("=" * 70)
@@ -1264,9 +1183,7 @@ class ProductAnalysisService:
         print(f"Duplicate Groups: {similarity.get('duplicate_groups', 0)}")
         print(f"Similar Groups: {similarity.get('similar_groups', 0)}")
         print(f"Singleton Products: {similarity.get('singleton_products', 0)}")
-        print(
-            f"Deduplication Potential: {similarity.get('deduplication_ratio', 0):.1%}"
-        )
+        print(f"Deduplication Potential: {similarity.get('deduplication_ratio', 0):.1%}")
         print(f"Average Group Size: {similarity.get('avg_group_size', 0):.1f}")
         print(f"Largest Group: {similarity.get('largest_group_size', 0)} products")
 
@@ -1308,21 +1225,19 @@ class ProductAnalysisService:
 
     def analyze_products_with_similarity(
         self,
-        cnpj_filter: Optional[str] = None,
-        category_filter: Optional[List[str]] = None,
+        cnpj_filter: str | None = None,
+        category_filter: list[str] | None = None,
         similarity_threshold: float = 0.8,
         min_frequency: int = 2,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
         detailed: bool = False,
         include_examples: bool = False,
-    ) -> Dict[str, Any]:
-        """
-        Enhanced product analysis using the Phase 2 Similarity Engine
+    ) -> dict[str, Any]:
+        """Enhanced product analysis using the Phase 2 Similarity Engine
 
         This method combines traditional analysis with advanced similarity detection
         to provide comprehensive insights into product duplicates and patterns.
         """
-
         self.logger.info("Starting enhanced product analysis with Similarity Engine")
 
         # First run traditional analysis for baseline
@@ -1337,9 +1252,7 @@ class ProductAnalysisService:
         )
 
         # Get products from database for similarity analysis
-        products_data = self._get_products_for_similarity_analysis(
-            cnpj_filter=cnpj_filter, sample_size=sample_size
-        )
+        products_data = self._get_products_for_similarity_analysis(cnpj_filter=cnpj_filter, sample_size=sample_size)
 
         if not products_data:
             self.logger.warning("No products found for similarity analysis")
@@ -1351,9 +1264,7 @@ class ProductAnalysisService:
         similarity_results = self.product_matcher.analyze_products(products_data)
 
         # Generate deduplication recommendations
-        dedup_recommendations = self.product_matcher.get_deduplication_recommendations(
-            products_data
-        )
+        dedup_recommendations = self.product_matcher.get_deduplication_recommendations(products_data)
 
         # Combine results
         enhanced_results = {
@@ -1374,46 +1285,36 @@ class ProductAnalysisService:
             },
         }
 
-        self.logger.info(
-            f"Similarity Engine found {len(similarity_results.duplicate_groups)} duplicate groups"
-        )
+        self.logger.info(f"Similarity Engine found {len(similarity_results.duplicate_groups)} duplicate groups")
 
         return enhanced_results
 
     def analyze_similarity_only(
         self,
-        cnpj_filter: Optional[str] = None,
+        cnpj_filter: str | None = None,
         similarity_threshold: float = 0.8,
-        sample_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """
-        Run only similarity analysis using the Phase 2 Similarity Engine
+        sample_size: int | None = None,
+    ) -> dict[str, Any]:
+        """Run only similarity analysis using the Phase 2 Similarity Engine
 
         This method focuses exclusively on duplicate detection using advanced
         similarity algorithms without traditional pattern analysis.
         """
-
         self.logger.info("Starting similarity-only analysis")
 
         # Get products from database
-        products_data = self._get_products_for_similarity_analysis(
-            cnpj_filter=cnpj_filter, sample_size=sample_size
-        )
+        products_data = self._get_products_for_similarity_analysis(cnpj_filter=cnpj_filter, sample_size=sample_size)
 
         if not products_data:
             raise ValueError("No products found in database for analysis")
 
-        self.logger.info(
-            f"Analyzing {len(products_data)} products with Similarity Engine"
-        )
+        self.logger.info(f"Analyzing {len(products_data)} products with Similarity Engine")
 
         # Run similarity analysis
         similarity_results = self.product_matcher.analyze_products(products_data)
 
         # Generate recommendations
-        recommendations = self.product_matcher.get_deduplication_recommendations(
-            products_data
-        )
+        recommendations = self.product_matcher.get_deduplication_recommendations(products_data)
 
         # Build focused results
         results = {
@@ -1446,10 +1347,9 @@ class ProductAnalysisService:
         return results
 
     def _get_products_for_similarity_analysis(
-        self, cnpj_filter: Optional[str] = None, sample_size: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self, cnpj_filter: str | None = None, sample_size: int | None = None
+    ) -> list[dict[str, Any]]:
         """Get products from database formatted for similarity analysis"""
-
         try:
             conn = self.db_manager.db_manager.get_connection("nfce_db")
 
@@ -1500,18 +1400,15 @@ class ProductAnalysisService:
                     }
                 )
 
-            self.logger.info(
-                f"Retrieved {len(products_data)} products for similarity analysis"
-            )
+            self.logger.info(f"Retrieved {len(products_data)} products for similarity analysis")
             return products_data
 
         except Exception as e:
             self.logger.error(f"Error retrieving products for similarity analysis: {e}")
             raise
 
-    def _get_establishment_info(self, cnpj: str) -> Optional[Dict[str, Any]]:
+    def _get_establishment_info(self, cnpj: str) -> dict[str, Any] | None:
         """Get establishment information for context"""
-
         try:
             conn = self.db_manager.db_manager.get_connection("nfce_db")
 

@@ -3,16 +3,16 @@ from typing import Any
 
 from mcp.types import TextContent, Tool
 
-from ..adapters.linearb_adapter import LinearBAdapter
 from utils.logging.logging_manager import LogManager
+
+from ..adapters.linearb_adapter import LinearBAdapter
 
 
 class LinearBTools:
     """MCP Tools for LinearB integration via PyToolkit."""
 
     def __init__(self):
-        """
-        Initialize LinearB Tools MCP handler.
+        """Initialize LinearB Tools MCP handler.
 
         Sets up the LinearB adapter and logger for processing LinearB-related
         MCP tool requests including engineering metrics, team performance,
@@ -256,9 +256,7 @@ class LinearBTools:
             ),
         ]
 
-    async def execute_tool(
-        self, name: str, arguments: dict[str, Any]
-    ) -> list[TextContent]:
+    async def execute_tool(self, name: str, arguments: dict[str, Any]) -> list[TextContent]:
         """Executes specific LinearB tool."""
         self.logger.info(f"Executing LinearB tool: {name} with args: {arguments}")
 
@@ -278,13 +276,12 @@ class LinearBTools:
                 self.logger.error(error_msg)
                 return [TextContent(type="text", text=f"Error: {error_msg}")]
         except Exception as e:
-            error_msg = f"Error executing LinearB tool '{name}': {str(e)}"
+            error_msg = f"Error executing LinearB tool '{name}': {e!s}"
             self.logger.error(error_msg)
             return [TextContent(type="text", text=error_msg)]
 
     async def _get_engineering_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve engineering productivity metrics.
+        """Retrieve engineering productivity metrics.
 
         Gets comprehensive engineering metrics including cycle time, throughput,
         and team productivity indicators over a specified time range with filtering.
@@ -323,9 +320,7 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "engineering_metrics",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -340,13 +335,12 @@ class LinearBTools:
             return [
                 TextContent(
                     type="text",
-                    text=f"Failed to retrieve engineering metrics: {str(e)}",
+                    text=f"Failed to retrieve engineering metrics: {e!s}",
                 )
             ]
 
     async def _get_team_performance(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve team-specific performance analysis.
+        """Retrieve team-specific performance analysis.
 
         Gets detailed performance analysis for specific teams including
         velocity, quality metrics, and efficiency indicators with filtering options.
@@ -379,9 +373,7 @@ class LinearBTools:
                 "summary": {
                     "analysis_type": "team_performance",
                     "teams_analyzed": len(team_ids) if team_ids else "all",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -393,15 +385,10 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get team performance: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve team performance: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve team performance: {e!s}")]
 
     async def _get_pr_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve Pull Request metrics and review process data.
+        """Retrieve Pull Request metrics and review process data.
 
         Gets PR-specific metrics including review time, pickup time,
         and code review efficiency over a specified time range with filtering.
@@ -419,9 +406,7 @@ class LinearBTools:
         team_ids = args.get("team_ids")
         filter_type = args.get("filter_type", "team")
 
-        self.logger.info(
-            f"Getting PR metrics - range: {time_range}, teams: {team_ids}, filter: {filter_type}"
-        )
+        self.logger.info(f"Getting PR metrics - range: {time_range}, teams: {team_ids}, filter: {filter_type}")
 
         try:
             # Reuse engineering metrics for PR analysis
@@ -443,9 +428,7 @@ class LinearBTools:
                 "pr_metrics": pr_analysis,
                 "summary": {
                     "analysis_type": "pr_metrics",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -457,15 +440,10 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get PR metrics: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve PR metrics: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve PR metrics: {e!s}")]
 
     async def _get_deployment_metrics(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Retrieve deployment metrics and delivery performance data.
+        """Retrieve deployment metrics and delivery performance data.
 
         Gets deployment-specific metrics including frequency, success rates,
         and delivery pipeline performance over a specified time range with filtering.
@@ -513,9 +491,7 @@ class LinearBTools:
                 "deployment_metrics": deployment_analysis,
                 "summary": {
                     "analysis_type": "deployment_metrics",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -527,15 +503,10 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to get deployment metrics: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to retrieve deployment metrics: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to retrieve deployment metrics: {e!s}")]
 
     async def _export_report(self, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Export comprehensive performance reports from LinearB.
+        """Export comprehensive performance reports from LinearB.
 
         Exports comprehensive performance reports including review time,
         deploy metrics, PR analytics, and team productivity data.
@@ -583,9 +554,7 @@ class LinearBTools:
                 "report_data": data,
                 "summary": {
                     "analysis_type": "export_report",
-                    "timestamp": (
-                        data.get("timestamp") if isinstance(data, dict) else None
-                    ),
+                    "timestamp": (data.get("timestamp") if isinstance(data, dict) else None),
                 },
             }
 
@@ -597,8 +566,4 @@ class LinearBTools:
             ]
         except Exception as e:
             self.logger.error(f"Failed to export LinearB report: {e}")
-            return [
-                TextContent(
-                    type="text", text=f"Failed to export LinearB report: {str(e)}"
-                )
-            ]
+            return [TextContent(type="text", text=f"Failed to export LinearB report: {e!s}")]

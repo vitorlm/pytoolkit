@@ -1,4 +1,5 @@
 import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from the catalog domain .env file
@@ -9,9 +10,7 @@ class CatalogConfig:
     """Configuration class for Catalog domain operations."""
 
     # Cropwise API Configuration
-    CROPWISE_API_BASE_URL = os.getenv(
-        "CROPWISE_API_BASE_URL", "https://api.cropwise.com"
-    )
+    CROPWISE_API_BASE_URL = os.getenv("CROPWISE_API_BASE_URL", "https://api.cropwise.com")
     CROPWISE_API_KEY = os.getenv("CROPWISE_API_KEY")
 
     # Default values for operations
@@ -56,8 +55,6 @@ class CatalogConfig:
             missing_configs.append("CROPWISE_API_KEY")
 
         if missing_configs:
-            raise ValueError(
-                f"Missing required configuration: {', '.join(missing_configs)}"
-            )
+            raise ValueError(f"Missing required configuration: {', '.join(missing_configs)}")
 
         return True

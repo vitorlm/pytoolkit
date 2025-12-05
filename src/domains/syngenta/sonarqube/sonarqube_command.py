@@ -1,5 +1,4 @@
-"""
-SonarQube Data Command
+"""SonarQube Data Command
 
 This command provides access to SonarQube API data for code quality analysis with
 caching support for improved performance.
@@ -109,18 +108,16 @@ COMMON METRICS FOR CUSTOM ANALYSIS:
 
 import json
 from argparse import ArgumentParser, Namespace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from statistics import mean, median
-from typing import Optional
-
-from utils.command.base_command import BaseCommand
-from utils.env_loader import ensure_env_loaded
-from utils.logging.logging_manager import LogManager
 
 from domains.syngenta.sonarqube.sonarqube_service import SonarQubeService
 from domains.syngenta.sonarqube.summary.sonarqube_summary_manager import (
     SonarQubeSummaryManager,
 )
+from utils.command.base_command import BaseCommand
+from utils.env_loader import ensure_env_loaded
+from utils.logging.logging_manager import LogManager
 from utils.output_manager import OutputManager
 
 
@@ -153,10 +150,7 @@ class SonarQubeCommand(BaseCommand):
                 "batch-measures",
                 "list-projects",
             ],
-            help=(
-                "The operation to perform: projects, measures, issues, metrics, "
-                "batch-measures, or list-projects."
-            ),
+            help=("The operation to perform: projects, measures, issues, metrics, batch-measures, or list-projects."),
         )
         parser.add_argument(
             "--project-key",
@@ -202,8 +196,7 @@ class SonarQubeCommand(BaseCommand):
             "--severities",
             type=str,
             required=False,
-            help="Comma-separated list of issue severities to filter by "
-            + "(INFO,MINOR,MAJOR,CRITICAL,BLOCKER).",
+            help="Comma-separated list of issue severities to filter by " + "(INFO,MINOR,MAJOR,CRITICAL,BLOCKER).",
         )
         parser.add_argument(
             "--output-file",
@@ -245,8 +238,7 @@ class SonarQubeCommand(BaseCommand):
 
     @staticmethod
     def main(args: Namespace):
-        """
-        Main function to execute SonarQube operations.
+        """Main function to execute SonarQube operations.
 
         Args:
             args (Namespace): Command-line arguments.
@@ -297,9 +289,7 @@ class SonarQubeCommand(BaseCommand):
                     else:
                         print("✅ Detailed report saved in JSON format")
                 except Exception as format_error:
-                    _logger.error(
-                        f"Failed to save {args.output_format} report: {format_error}"
-                    )
+                    _logger.error(f"Failed to save {args.output_format} report: {format_error}")
 
             # Generate summary if result is available
             if result:
@@ -307,12 +297,8 @@ class SonarQubeCommand(BaseCommand):
                     summary_mode = getattr(args, "summary_output", "auto")
                     summary_manager = SonarQubeSummaryManager()
                     args.command_name = "sonarqube"
-                    output_path = (
-                        result.get("output_file") if isinstance(result, dict) else None
-                    )
-                    summary_path = summary_manager.emit_summary_compatible(
-                        result, summary_mode, output_path, args
-                    )
+                    output_path = result.get("output_file") if isinstance(result, dict) else None
+                    summary_path = summary_manager.emit_summary_compatible(result, summary_mode, output_path, args)
                     if summary_path:
                         print(f"[summary] wrote: {summary_path}")
                 except Exception as summary_error:
@@ -322,15 +308,11 @@ class SonarQubeCommand(BaseCommand):
             _logger.error(f"Failed to execute {operation} operation: {e}")
             # Enhanced error handling with SonarQube-specific context
             if "authentication" in str(e).lower() or "401" in str(e):
-                print(
-                    "❌ Authentication failed. Check SONARQUBE_TOKEN environment variable."
-                )
+                print("❌ Authentication failed. Check SONARQUBE_TOKEN environment variable.")
             elif "404" in str(e):
                 print("❌ Resource not found. Check project key or organization.")
             elif "organization" in str(e).lower():
-                print(
-                    "❌ Organization not found. Check SONARQUBE_ORGANIZATION environment variable."
-                )
+                print("❌ Organization not found. Check SONARQUBE_ORGANIZATION environment variable.")
             else:
                 print(f"❌ Unexpected error: {e}")
             exit(1)
@@ -351,9 +333,7 @@ class SonarQubeCommand(BaseCommand):
                 "generated_at": "auto-filled",
                 "organization": args.organization,
                 "use_project_list": args.use_project_list,
-                "total_projects": len(projects_data)
-                if isinstance(projects_data, list)
-                else 0,
+                "total_projects": len(projects_data) if isinstance(projects_data, list) else 0,
             },
             "output_file": args.output_file,
         }
@@ -410,9 +390,7 @@ class SonarQubeCommand(BaseCommand):
                 "generated_at": "auto-filled",
                 "project_key": args.project_key,
                 "severities": severities,
-                "total_issues": len(issues_data)
-                if isinstance(issues_data, list)
-                else 0,
+                "total_issues": len(issues_data) if isinstance(issues_data, list) else 0,
             },
             "output_file": args.output_file,
         }
@@ -427,9 +405,7 @@ class SonarQubeCommand(BaseCommand):
             "data": metrics_data,
             "metadata": {
                 "generated_at": "auto-filled",
-                "total_metrics": len(metrics_data)
-                if isinstance(metrics_data, list)
-                else 0,
+                "total_metrics": len(metrics_data) if isinstance(metrics_data, list) else 0,
             },
             "output_file": args.output_file,
         }
@@ -480,9 +456,7 @@ class SonarQubeCommand(BaseCommand):
 
         elif args.output_format == "md":
             markdown_content = SonarQubeCommand._generate_markdown_report(result, args)
-            output_path = OutputManager.save_markdown_report(
-                markdown_content, sub_dir, base_filename
-            )
+            output_path = OutputManager.save_markdown_report(markdown_content, sub_dir, base_filename)
             return output_path
 
         return ""
@@ -501,9 +475,7 @@ class SonarQubeCommand(BaseCommand):
         md_content = []
         md_content.append(f"# SonarQube {operation.title()} Report")
         md_content.append("")
-        md_content.append(
-            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+        md_content.append(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         md_content.append(f"**Operation:** {operation}")
 
         if metadata.get("organization"):
@@ -513,27 +485,17 @@ class SonarQubeCommand(BaseCommand):
 
         # Add operation-specific content
         if operation == "list-projects":
-            md_content.extend(
-                SonarQubeCommand._generate_projects_markdown(data, metadata)
-            )
+            md_content.extend(SonarQubeCommand._generate_projects_markdown(data, metadata))
         elif operation == "measures":
-            md_content.extend(
-                SonarQubeCommand._generate_measures_markdown(data, metadata)
-            )
+            md_content.extend(SonarQubeCommand._generate_measures_markdown(data, metadata))
         elif operation == "batch-measures":
-            md_content.extend(
-                SonarQubeCommand._generate_batch_measures_markdown(data, metadata)
-            )
+            md_content.extend(SonarQubeCommand._generate_batch_measures_markdown(data, metadata))
         elif operation == "issues":
-            md_content.extend(
-                SonarQubeCommand._generate_issues_markdown(data, metadata)
-            )
+            md_content.extend(SonarQubeCommand._generate_issues_markdown(data, metadata))
         else:
             md_content.append("## Results")
             md_content.append("```json")
-            md_content.append(
-                str(data)[:1000] + "..." if len(str(data)) > 1000 else str(data)
-            )
+            md_content.append(str(data)[:1000] + "..." if len(str(data)) > 1000 else str(data))
             md_content.append("```")
 
         return "\n".join(md_content)
@@ -593,9 +555,7 @@ class SonarQubeCommand(BaseCommand):
             if coverage != "N/A":
                 coverage = f"{coverage}%"
 
-            md.append(
-                f"| {name} | {key} | {alert_status} | {bugs} | {vulnerabilities} | {coverage} |"
-            )
+            md.append(f"| {name} | {key} | {alert_status} | {bugs} | {vulnerabilities} | {coverage} |")
 
         return md
 
@@ -695,7 +655,7 @@ class SonarQubeCommand(BaseCommand):
                 if "total" in value:
                     details = [f"total={value['total']}"]
                     for key in ["BLOCKER", "CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]:
-                        if key in value and value[key]:
+                        if value.get(key):
                             details.append(f"{key.lower()}={value[key]}")
                     return ", ".join(details)
                 return ", ".join(f"{k}={v}" for k, v in value.items())
@@ -722,7 +682,7 @@ class SonarQubeCommand(BaseCommand):
                 elif status_upper not in {"", "OK", "SUCCESS"}:
                     downgrade("🟠", f"Quality Gate: {alert_status}")
 
-            def to_number(value: object) -> Optional[float]:
+            def to_number(value: object) -> float | None:
                 if isinstance(value, (int, float)):
                     return float(value)
                 if isinstance(value, str):
@@ -732,11 +692,7 @@ class SonarQubeCommand(BaseCommand):
                         return None
                 return None
 
-            coverage_keys = [
-                key
-                for key in metric_order
-                if key and (key == "coverage" or key.endswith("coverage"))
-            ]
+            coverage_keys = [key for key in metric_order if key and (key == "coverage" or key.endswith("coverage"))]
             for key in coverage_keys:
                 coverage_value = to_number(metrics_map.get(key))
                 if coverage_value is None:
@@ -841,10 +797,7 @@ class SonarQubeCommand(BaseCommand):
 
         for row in project_rows:
             metrics_map = row["metrics"]
-            metric_values = [
-                format_metric(metric_key, metrics_map.get(metric_key))
-                for metric_key in metric_order
-            ]
+            metric_values = [format_metric(metric_key, metrics_map.get(metric_key)) for metric_key in metric_order]
             md.append(
                 "| "
                 + " | ".join(
@@ -914,9 +867,7 @@ class SonarQubeCommand(BaseCommand):
                 severity = issue.get("severity", "N/A")
                 status = issue.get("status", "N/A")
                 component = issue.get("component", "N/A")
-                md.append(
-                    f"| {key} | {issue_type} | {severity} | {status} | {component} |"
-                )
+                md.append(f"| {key} | {issue_type} | {severity} | {status} | {component} |")
 
             if len(data) > 50:
                 md.append(f"*... and {len(data) - 50} more issues*")
@@ -926,27 +877,22 @@ class SonarQubeCommand(BaseCommand):
     @staticmethod
     def _build_projects_report(projects: list, metadata: dict) -> str:
         """Generate a portfolio-style Markdown report for the SonarQube projects list."""
-
         projects = projects or []
         total_projects = len(projects)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         generated_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         organization = metadata.get("organization") or "Unknown"
         if organization == "Unknown" and projects:
             org_from_data = projects[0].get("organization")
             if org_from_data:
                 organization = org_from_data
-        scope = (
-            "Predefined project list"
-            if metadata.get("use_project_list")
-            else "Organization-wide scan"
-        )
+        scope = "Predefined project list" if metadata.get("use_project_list") else "Organization-wide scan"
 
         visibility_counts: dict[str, int] = {}
         analysis_records: list[dict[str, object]] = []
         project_rows: list[dict[str, object]] = []
 
-        def parse_last_analysis(value: Optional[str]) -> Optional[datetime]:
+        def parse_last_analysis(value: str | None) -> datetime | None:
             if not value:
                 return None
             for fmt in (
@@ -957,13 +903,13 @@ class SonarQubeCommand(BaseCommand):
                 try:
                     parsed = datetime.strptime(value, fmt)
                     if parsed.tzinfo is None:
-                        parsed = parsed.replace(tzinfo=timezone.utc)
-                    return parsed.astimezone(timezone.utc)
+                        parsed = parsed.replace(tzinfo=UTC)
+                    return parsed.astimezone(UTC)
                 except (ValueError, TypeError):
                     continue
             return None
 
-        def classify_freshness(days: Optional[float]) -> dict[str, str]:
+        def classify_freshness(days: float | None) -> dict[str, str]:
             if days is None:
                 return {
                     "emoji": "⚠️",
@@ -1021,23 +967,18 @@ class SonarQubeCommand(BaseCommand):
             freshness = classify_freshness(days_since)
             days_int = int(round(days_since)) if days_since is not None else None
             days_display = f"{days_int}d" if days_int is not None else "—"
-            last_analysis_display = (
-                parsed_analysis.strftime("%Y-%m-%d") if parsed_analysis else "—"
-            )
+            last_analysis_display = parsed_analysis.strftime("%Y-%m-%d") if parsed_analysis else "—"
 
             if days_since is None:
                 reason = "No analysis history available."
+            elif freshness["category"] == "healthy":
+                reason = f"Scan {days_int} days ago – within the 30-day freshness target."
+            elif freshness["category"] == "monitor":
+                reason = f"{days_int} days since last scan – schedule within the next month."
+            elif freshness["category"] == "risk":
+                reason = f"{days_int} days since last scan – approaching 90-day limit."
             else:
-                if freshness["category"] == "healthy":
-                    reason = f"Scan {days_int} days ago – within the 30-day freshness target."
-                elif freshness["category"] == "monitor":
-                    reason = f"{days_int} days since last scan – schedule within the next month."
-                elif freshness["category"] == "risk":
-                    reason = (
-                        f"{days_int} days since last scan – approaching 90-day limit."
-                    )
-                else:
-                    reason = f"{days_int} days since last scan – exceeds 90-day limit."
+                reason = f"{days_int} days since last scan – exceeds 90-day limit."
 
             name = project.get("name") or project.get("key") or "Unnamed project"
             key = project.get("key", "")
@@ -1066,16 +1007,8 @@ class SonarQubeCommand(BaseCommand):
         days_values = [record["days_since"] for record in analysis_records]
         avg_days = mean(days_values) if days_values else None
         median_days = median(days_values) if days_values else None
-        oldest_record = (
-            max(analysis_records, key=lambda record: record["days_since"])
-            if analysis_records
-            else None
-        )
-        newest_record = (
-            min(analysis_records, key=lambda record: record["days_since"])
-            if analysis_records
-            else None
-        )
+        oldest_record = max(analysis_records, key=lambda record: record["days_since"]) if analysis_records else None
+        newest_record = min(analysis_records, key=lambda record: record["days_since"]) if analysis_records else None
 
         category_counts = {"healthy": 0, "monitor": 0, "risk": 0, "critical": 0}
         for row in project_rows:
@@ -1086,11 +1019,7 @@ class SonarQubeCommand(BaseCommand):
         risk_count = category_counts["risk"]
         critical_count = category_counts["critical"]
         critical_with_history = len(
-            [
-                row
-                for row in project_rows
-                if row["category"] == "critical" and row["days_since"] is not None
-            ]
+            [row for row in project_rows if row["category"] == "critical" and row["days_since"] is not None]
         )
 
         coverage_ratio = records_count / total_projects if total_projects else 0.0
@@ -1109,9 +1038,7 @@ class SonarQubeCommand(BaseCommand):
         elif (risk_count + missing_analysis) / total_projects >= 0.25:
             status_emoji = "🟠"
             status_text = "At Risk – aging scans require attention"
-        elif (
-            fresh_ratio >= 0.65 and critical_with_history == 0 and missing_analysis == 0
-        ):
+        elif fresh_ratio >= 0.65 and critical_with_history == 0 and missing_analysis == 0:
             status_emoji = "🟢"
             status_text = "Healthy – portfolio scans up to date"
         else:
@@ -1140,27 +1067,19 @@ class SonarQubeCommand(BaseCommand):
         lines.append("")
         lines.append(f"**Status:** {status_text}")
         if total_projects:
-            lines.append(
-                f"**Healthy (≤30d):** {fresh_count} | Monitor (31-60d): {monitor_count}"
-            )
-            lines.append(
-                f"**At Risk (61-90d):** {risk_count} | Critical (>90d/missing): {critical_count}"
-            )
+            lines.append(f"**Healthy (≤30d):** {fresh_count} | Monitor (31-60d): {monitor_count}")
+            lines.append(f"**At Risk (61-90d):** {risk_count} | Critical (>90d/missing): {critical_count}")
         lines.append("")
 
         if total_projects:
             lines.append(f"- **Projects scanned ≤ 30 days:** {fresh_count}")
             lines.append(f"- **Projects overdue (> 90 days):** {critical_with_history}")
             if missing_analysis:
-                lines.append(
-                    f"- **Projects without analysis history:** {missing_analysis}"
-                )
+                lines.append(f"- **Projects without analysis history:** {missing_analysis}")
             if avg_days is not None:
                 lines.append(f"- **Average days since last scan:** {avg_days:.1f} days")
             if median_days is not None:
-                lines.append(
-                    f"- **Median days since last scan:** {median_days:.1f} days"
-                )
+                lines.append(f"- **Median days since last scan:** {median_days:.1f} days")
             if newest_record:
                 project = newest_record["project"]
                 lines.append(
@@ -1184,12 +1103,8 @@ class SonarQubeCommand(BaseCommand):
         lines.append("## 🗂️ Portfolio Overview")
         lines.append("")
         if project_rows_sorted:
-            lines.append(
-                "| Project | Last Analysis | Days Since | Status | Visibility | Attention |"
-            )
-            lines.append(
-                "|---------|---------------|------------|--------|------------|-----------|"
-            )
+            lines.append("| Project | Last Analysis | Days Since | Status | Visibility | Attention |")
+            lines.append("|---------|---------------|------------|--------|------------|-----------|")
             for row in project_rows_sorted:
                 status = f"{row['status_emoji']} {row['status_label']}"
                 lines.append(
@@ -1199,25 +1114,17 @@ class SonarQubeCommand(BaseCommand):
             lines.append("No projects were returned from SonarQube.")
         lines.append("")
 
-        critical_rows = [
-            row for row in project_rows_sorted if row["category"] == "critical"
-        ]
+        critical_rows = [row for row in project_rows_sorted if row["category"] == "critical"]
         risk_rows = [row for row in project_rows_sorted if row["category"] == "risk"]
-        monitor_rows = [
-            row for row in project_rows_sorted if row["category"] == "monitor"
-        ]
-        healthy_rows = [
-            row for row in project_rows_sorted if row["category"] == "healthy"
-        ]
+        monitor_rows = [row for row in project_rows_sorted if row["category"] == "monitor"]
+        healthy_rows = [row for row in project_rows_sorted if row["category"] == "healthy"]
 
         def emit_health_section(title: str, emoji: str, rows: list[dict[str, object]]):
             lines.append(f"### {emoji} {title}")
             lines.append("")
             if rows:
                 for row in rows:
-                    lines.append(
-                        f"- {row['display_name']} ({row['days_display']}) – {row['reason']}"
-                    )
+                    lines.append(f"- {row['display_name']} ({row['days_display']}) – {row['reason']}")
             else:
                 lines.append("- None")
             lines.append("")
@@ -1229,9 +1136,7 @@ class SonarQubeCommand(BaseCommand):
         emit_health_section("Monitor – Getting Stale", "🟡", monitor_rows)
         emit_health_section("Healthy – Up to Date", "🟢", healthy_rows[:10])
         if len(healthy_rows) > 10:
-            lines.append(
-                f"- … {len(healthy_rows) - 10} additional healthy projects not shown"
-            )
+            lines.append(f"- … {len(healthy_rows) - 10} additional healthy projects not shown")
             lines.append("")
 
         lines.append("## 🪟 Visibility Snapshot")
@@ -1239,9 +1144,7 @@ class SonarQubeCommand(BaseCommand):
         if total_projects and visibility_counts:
             lines.append("| Visibility | Projects | Share |")
             lines.append("|------------|----------|-------|")
-            for visibility, count in sorted(
-                visibility_counts.items(), key=lambda item: item[1], reverse=True
-            ):
+            for visibility, count in sorted(visibility_counts.items(), key=lambda item: item[1], reverse=True):
                 label = visibility.capitalize()
                 share = (count / total_projects) * 100
                 lines.append(f"| {label} | {count} | {share:.1f}% |")
@@ -1258,18 +1161,12 @@ class SonarQubeCommand(BaseCommand):
             )
         else:
             if critical_rows:
-                critical_names = ", ".join(
-                    row["display_name"] for row in critical_rows[:5]
-                )
+                critical_names = ", ".join(row["display_name"] for row in critical_rows[:5])
                 if len(critical_rows) > 5:
                     critical_names += ", …"
-                recommendations.append(
-                    f"- Trigger fresh analyses for critical repositories ({critical_names})."
-                )
+                recommendations.append(f"- Trigger fresh analyses for critical repositories ({critical_names}).")
             if risk_rows:
-                recommendations.append(
-                    "- Schedule quality gate runs this week for projects flagged as *At Risk*."
-                )
+                recommendations.append("- Schedule quality gate runs this week for projects flagged as *At Risk*.")
             if missing_analysis:
                 recommendations.append(
                     "- Investigate pipelines that never published results to SonarQube (missing history)."
@@ -1279,9 +1176,7 @@ class SonarQubeCommand(BaseCommand):
                     "- Increase automated scanning cadence so at least 60% of services stay within 30 days."
                 )
             if not recommendations:
-                recommendations.append(
-                    "- Maintain the current cadence and keep monitoring weekly checks."
-                )
+                recommendations.append("- Maintain the current cadence and keep monitoring weekly checks.")
 
         lines.extend(recommendations)
         lines.append("")
@@ -1289,21 +1184,13 @@ class SonarQubeCommand(BaseCommand):
         lines.append("## 📋 Data Quality & Methodology")
         lines.append("")
         lines.append(f"- **Data Source:** {scope} via SonarQube projects search API")
-        lines.append(
-            "- **Timestamp Basis:** `lastAnalysisDate` provided by SonarQube (normalized to UTC)"
-        )
-        lines.append(
-            "- **Health Buckets:** ≤30d (healthy), 31-60d (monitor), 61-90d (at risk), >90d (critical)"
-        )
-        lines.append(
-            "- **No History:** Projects without `lastAnalysisDate` are treated as critical attention items"
-        )
+        lines.append("- **Timestamp Basis:** `lastAnalysisDate` provided by SonarQube (normalized to UTC)")
+        lines.append("- **Health Buckets:** ≤30d (healthy), 31-60d (monitor), 61-90d (at risk), >90d (critical)")
+        lines.append("- **No History:** Projects without `lastAnalysisDate` are treated as critical attention items")
         lines.append("")
         lines.append("---")
         lines.append("")
-        lines.append(
-            f"*Report generated on {generated_at} using PyToolkit SonarQube Portfolio Analysis Service*"
-        )
+        lines.append(f"*Report generated on {generated_at} using PyToolkit SonarQube Portfolio Analysis Service*")
 
         return "\n".join(lines)
 
@@ -1403,9 +1290,7 @@ class SonarQubeCommand(BaseCommand):
                 except ValueError:
                     pass
 
-        print(
-            f"Quality Gates - PASS: {quality_gates['OK']}, FAIL: {quality_gates['ERROR']}"
-        )
+        print(f"Quality Gates - PASS: {quality_gates['OK']}, FAIL: {quality_gates['ERROR']}")
         print(f"Total Bugs: {total_bugs}")
         print(f"Total Vulnerabilities: {total_vulnerabilities}")
 
@@ -1436,9 +1321,7 @@ class SonarQubeCommand(BaseCommand):
                 if bugs and bugs.isdigit():
                     total_bugs += int(bugs)
 
-            print(
-                f"Quality Gates - PASS: {quality_gate_pass}, FAIL: {quality_gate_fail}"
-            )
+            print(f"Quality Gates - PASS: {quality_gate_pass}, FAIL: {quality_gate_fail}")
             print(f"Total Bugs: {total_bugs}")
 
     @staticmethod
@@ -1497,8 +1380,7 @@ class SonarQubeCommand(BaseCommand):
 
     @staticmethod
     def _get_projects_from_list(args: Namespace, service: SonarQubeService):
-        """
-        Get projects from predefined list with optional measures and optional filtering
+        """Get projects from predefined list with optional measures and optional filtering
         by project keys. Automatically generate output file if not provided.
         """
         metric_keys = None
@@ -1506,9 +1388,7 @@ class SonarQubeCommand(BaseCommand):
 
         # Parse project_keys if provided
         if args.project_keys:
-            project_keys = [
-                key.strip() for key in args.project_keys.split(",") if key.strip()
-            ]
+            project_keys = [key.strip() for key in args.project_keys.split(",") if key.strip()]
 
         # Auto-generate output file path if not provided and output format requires it
         output_file = args.output_file

@@ -1,9 +1,7 @@
-"""
-Pydantic models for LinearB MCP tools validation.
-"""
+"""Pydantic models for LinearB MCP tools validation."""
 
-from typing import Optional
 from enum import Enum
+
 from pydantic import Field, field_validator
 
 from .base import BaseMCPModel, OutputFileModel
@@ -44,7 +42,7 @@ class LinearBTeamsArgs(BaseMCPModel, OutputFileModel):
 class LinearBMetricsArgs(BaseMCPModel, OutputFileModel):
     """Arguments for LinearB metrics tool."""
 
-    teams: Optional[str] = Field(
+    teams: str | None = Field(
         None,
         description="Comma-separated list of team names or IDs to analyze (optional, all teams if not specified)",
     )
@@ -54,7 +52,7 @@ class LinearBMetricsArgs(BaseMCPModel, OutputFileModel):
         description="Time range for analysis: 'last-week', 'last-month', 'last-quarter', 'last-6-months'",
     )
 
-    metrics_type: Optional[str] = Field(
+    metrics_type: str | None = Field(
         None,
         description="Specific metrics type: 'delivery', 'quality', 'velocity', 'planning' (optional, all if not specified)",
     )
@@ -82,12 +80,12 @@ class LinearBExportArgs(BaseMCPModel, OutputFileModel):
         description="Export type: 'teams', 'metrics', 'reports'",
     )
 
-    teams: Optional[str] = Field(
+    teams: str | None = Field(
         None,
         description="Comma-separated list of team names to export (optional, all teams if not specified)",
     )
 
-    date_range: Optional[str] = Field(
+    date_range: str | None = Field(
         None,
         description="Custom date range in format 'YYYY-MM-DD to YYYY-MM-DD' (optional)",
     )
@@ -112,7 +110,5 @@ class LinearBExportArgs(BaseMCPModel, OutputFileModel):
         """Validate format type."""
         valid_formats = {"json", "csv"}
         if v not in valid_formats:
-            raise ValueError(
-                f"Invalid format_type: {v}. Valid options: {valid_formats}"
-            )
+            raise ValueError(f"Invalid format_type: {v}. Valid options: {valid_formats}")
         return v

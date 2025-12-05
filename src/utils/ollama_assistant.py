@@ -1,21 +1,16 @@
-from typing import List, Optional
-
 from ollama import Client, ResponseError
 
 from utils.logging.logging_manager import LogManager
 
 
 class OllamaAssistant:
-    """
-    A generic assistant using the Ollama language model for various text processing tasks.
+    """A generic assistant using the Ollama language model for various text processing tasks.
     Includes core methods for text generation, summarization, translation, and custom queries.
     Designed to be extensible for specialized assistants.
     """
 
     _logger = LogManager.get_instance().get_logger("OllamaAssistant")
-    LogManager.add_custom_handler(
-        logger_name="httpx", replace_existing=True, handler_id="ollama_httpx"
-    )
+    LogManager.add_custom_handler(logger_name="httpx", replace_existing=True, handler_id="ollama_httpx")
 
     def __init__(
         self,
@@ -23,8 +18,7 @@ class OllamaAssistant:
         model: str = "llama3.2",
         **kwargs,
     ):
-        """
-        Initializes the OllamaAssistant with specified parameters.
+        """Initializes the OllamaAssistant with specified parameters.
 
         Args:
             host (str): The address of the Ollama instance.
@@ -40,8 +34,7 @@ class OllamaAssistant:
         self.config = kwargs
 
     def _validate_model_configuration(self, host: str, model: str) -> None:
-        """
-        Validates the model configuration before initializing the assistant.
+        """Validates the model configuration before initializing the assistant.
 
         Args:
             host (str): The address of the Ollama instance.
@@ -56,8 +49,7 @@ class OllamaAssistant:
             raise ValueError("Model name must be a non-empty string.")
 
     def generate_text(self, prompt: str) -> str:
-        """
-        Generates text using the specified model and input messages.
+        """Generates text using the specified model and input messages.
 
         Args:
             messages (List[Dict[str, str]]): A list of messages in the format
@@ -72,9 +64,7 @@ class OllamaAssistant:
         """
         self._logger.info(f"Generating text with model {self.model}")
         try:
-            response = self.client.generate(
-                model=self.model, prompt=prompt, options=self.config
-            )
+            response = self.client.generate(model=self.model, prompt=prompt, options=self.config)
             self._logger.debug(f"Generated response: {response}")
             return response["response"]
         except ResponseError as e:
@@ -87,9 +77,8 @@ class OllamaAssistant:
             self._logger.error(f"Unexpected error in generate_text: {e}", exc_info=True)
             raise
 
-    def summarize_text(self, text: str, context: Optional[str] = None) -> str:
-        """
-        Summarizes the given text with optional context.
+    def summarize_text(self, text: str, context: str | None = None) -> str:
+        """Summarizes the given text with optional context.
 
         Args:
             text (str): The text to be summarized.
@@ -121,14 +110,11 @@ class OllamaAssistant:
             self._logger.error(f"Invalid input for summarization: {e}", exc_info=True)
             raise
         except Exception as e:
-            self._logger.error(
-                f"Unexpected error in summarize_text: {e}", exc_info=True
-            )
+            self._logger.error(f"Unexpected error in summarize_text: {e}", exc_info=True)
             raise
 
     def translate_text(self, text: str, target_language: str) -> str:
-        """
-        Translates the given text to the specified target language.
+        """Translates the given text to the specified target language.
 
         Args:
             text (str): The text to translate.
@@ -167,9 +153,8 @@ class OllamaAssistant:
             self._logger.error(f"Error in translate_text: {e}", exc_info=True)
             raise
 
-    def identify_languages(self, text: str) -> List[str]:
-        """
-        Identifies all languages present in the provided text.
+    def identify_languages(self, text: str) -> list[str]:
+        """Identifies all languages present in the provided text.
 
         Args:
             text (str): The text whose languages are to be identified.
@@ -201,12 +186,8 @@ class OllamaAssistant:
                 },
             ]
             response = self.generate_text(messages)
-            languages = response.split(
-                ","
-            )  # Split response assuming it's a comma-separated list
-            return [
-                lang.strip() for lang in languages
-            ]  # Clean whitespace around language names
+            languages = response.split(",")  # Split response assuming it's a comma-separated list
+            return [lang.strip() for lang in languages]  # Clean whitespace around language names
         except Exception as e:
             self._logger.error(f"Error in identify_languages: {e}", exc_info=True)
             raise
