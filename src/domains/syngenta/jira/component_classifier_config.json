@@ -1,0 +1,114 @@
+{
+    "classification_prompt_template": "You are a strict JIRA component classifier for agricultural software issues in the Cropwise ecosystem.\n\nChoose EXACTLY ONE component from this list:\n{component_list}\n\n{domain_rules}\n\nImportant Constraints:\n{constraints}\n\nAnalysis Process:\n1. Extract key domain terms from title and description\n2. Identify the primary entity/domain being discussed\n3. Apply rules in priority order\n4. Consider external sources/regulatory bodies mentioned\n5. Apply important constraints as overrides\n\nIssue Title: {title}\n\nIssue Description:\n{description}\n\nBefore responding, internally identify the strongest evidence terms and apply the priority rules above.\nRespond with ONLY the component name from the list above. Do not explain your reasoning.",
+    "components": [
+        {
+            "name": "Crop Protection Products",
+            "jira_component_id": "14486",
+            "priority": 1,
+            "indicators": [
+                "Crop protection products (pesticides, defensivos, herbicides, fungicides, insecticides, etc.)",
+                "Active ingredients, formulations, concentrations, chemical compounds",
+                "Product registrations, regulatory approvals, government/agency sources",
+                "MRL/LMR, pre-harvest intervals, re-entry intervals, safety intervals",
+                "Product labels, DFUs (Directions for Use), application instructions",
+                "Crop-pest combinations, dosage rates, application methods",
+                "External regulatory datasets (TUBE, HOMOLOGA, AGRIAN, EPA, MAPA)"
+            ],
+            "keywords": ["pesticide", "fungicide", "herbicide", "insecticide", "active ingredient", "DFU", "pre-harvest interval", "re-entry interval", "TUBE", "HOMOLOGA", "AGRIAN", "EPA", "MAPA", "crop protection", "defensivo", "formulation", "concentration"],
+            "notes": [
+                "If the synchronized entity is a product from a crop protection dataset, classify as this EVEN IF the issue is about syncing/ETL parameters",
+                "TUBE is a global crop protection database. Issues about TUBE product data belong here"
+            ],
+            "constraints": [
+                "DO NOT choose Generic Items when there is evidence of crop protection products",
+                "Pesticide-related regulatory data (EPA, MAPA, government registrations) = Crop Protection Products",
+                "Issues mentioning external crop protection sources (HOMOLOGA, AGRIAN, DEMETER) = Crop Protection Products"
+            ]
+        },
+        {
+            "name": "Seeds",
+            "jira_component_id": "14490",
+            "priority": 2,
+            "indicators": [
+                "Seed varieties, hybrids, commercial seed products",
+                "Seed registrations across different markets",
+                "Seed parameters, characteristics, agronomic data",
+                "Localized seed varieties for specific regions",
+                "Seed SKUs, packaging information, external integrations",
+                "Seed parameter sources (CTPS/GEVES, ARVALIS, AHDB, GOV/UK, etc.)"
+            ],
+            "keywords": ["seed", "variety", "hybrid", "SKU", "localized seed", "seed parameter", "CTPS", "ARVALIS", "AHDB", "seed registration", "seed characteristics"],
+            "notes": [],
+            "constraints": []
+        },
+        {
+            "name": "Fertilizer",
+            "jira_component_id": "14487",
+            "priority": 3,
+            "indicators": [
+                "Fertilizers, nutritional inputs, soil corrections",
+                "Nutrient composition (N, P, K, Ca, Mg, S, micronutrients)",
+                "Foliar feeding vs soil correction applications",
+                "Fertilizer registrations and regulatory compliance",
+                "Chemical groups, active ingredients in fertilizers",
+                "Density, physical form (SOLID/LIQUID)"
+            ],
+            "keywords": ["fertilizer", "nutrient", "nitrogen", "phosphorus", "potassium", "micronutrient", "foliar feeding", "soil correction", "nutrient composition", "N-P-K", "Ca", "Mg", "S"],
+            "notes": [],
+            "constraints": []
+        },
+        {
+            "name": "Crops",
+            "jira_component_id": "14489",
+            "priority": 4,
+            "indicators": [
+                "Crop entities, crop hierarchies (parent/subcrop relationships)",
+                "Crop EPPO codes, scientific names",
+                "Crop localization for specific countries/regions",
+                "Crop taxonomies, crop naming systems"
+            ],
+            "keywords": ["crop", "EPPO code", "scientific name", "crop hierarchy", "subcrop", "crop localization", "crop taxonomy", "crop naming"],
+            "notes": [
+                "If about growth stages/scales specifically, check Growth Scale and Stage component first"
+            ],
+            "constraints": [
+                "DO NOT choose Crops when the issue is specifically about growth stages/scales (choose Growth Scale and Stage instead)"
+            ]
+        },
+        {
+            "name": "Growth Scale and Stage",
+            "jira_component_id": "19346",
+            "priority": 5,
+            "indicators": [
+                "Growth scales (canonical or organization-specific)",
+                "Growth stages (EMERGENCE, VEGETATIVE, REPRODUCTIVE)",
+                "Stage types, phenological development, BBCH codes, Zadoks scales",
+                "Growth stage sequencing and validation"
+            ],
+            "keywords": ["growth scale", "growth stage", "emergence", "vegetative", "reproductive", "BBCH", "Zadoks", "phenological", "stage sequencing", "phenology"],
+            "notes": [
+                "Use this ONLY if the issue is specifically about growth stages/scales, not about the crop itself"
+            ],
+            "constraints": []
+        },
+        {
+            "name": "Generic Items",
+            "jira_component_id": "14488",
+            "priority": 6,
+            "indicators": [
+                "Generic agricultural resources (services, equipment parts, fuel, plant activators)",
+                "Item categories (SERVICE, PART, FUEL, ITEM, PLANT_ACTIVATOR, GENERIC_PRODUCT)",
+                "Units of measurement for non-specialized items"
+            ],
+            "keywords": ["generic item", "service", "equipment part", "fuel", "plant activator", "generic product"],
+            "notes": [
+                "Use ONLY if none of the above match and the domain is truly generic/unspecified",
+                "This is the fallback component when no specific domain indicators are found"
+            ],
+            "constraints": [
+                "DO NOT choose Generic Items when there is evidence of crop protection products, seeds, fertilizers, or specialized crop domains",
+                "DO NOT choose Generic Items when there is evidence of pesticide regulatory data or government/agency product updates"
+            ]
+        }
+    ]
+}

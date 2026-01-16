@@ -316,7 +316,9 @@ class JiraAssistant:
             bool: True if successful, False otherwise.
         """
         try:
-            payload = {"fields": {"components": [{"id": str(component_id)}]}}
+            # Use 'update' with 'set' operation as per JIRA API v3 documentation
+            # See: https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/#api-rest-api-3-issue-issueidorkey-put
+            payload = {"update": {"components": [{"set": [{"id": str(component_id)}]}]}}
 
             self._logger.info(f"Updating issue '{issue_key}' with component ID '{component_id}'")
             self.client.put(f"issue/{issue_key}", payload)
@@ -330,6 +332,34 @@ class JiraAssistant:
                 "Error updating issue components.",
                 issue_key=issue_key,
                 component_id=component_id,
+                error=str(e),
+            ) from e
+
+    def update_issue_component(self, issue_key: str, component_name: str) -> bool:
+        """Update an issue to replace all existing components with a single new component by name.
+
+        Args:
+            issue_key (str): The key of the issue to update.
+            component_name (str): The name of the component to set on the issue.
+
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        try:
+            payload = {"fields": {"components": [{"name": component_name}]}}
+
+            self._logger.info(f"Updating issue '{issue_key}' with component name '{component_name}'")
+            self.client.put(f"issue/{issue_key}", payload)
+
+            # PUT requests typically return None for successful updates
+            self._logger.info(f"Issue '{issue_key}' components updated successfully")
+            return True
+        except Exception as e:
+            self._logger.error(f"Error updating components for issue '{issue_key}': {e}")
+            raise JiraIssueComponentUpdateError(
+                "Error updating issue components.",
+                issue_key=issue_key,
+                component_id=component_name,
                 error=str(e),
             ) from e
 
@@ -558,6 +588,26 @@ class JiraAssistant:
         Args:
             jql_query (str): The JQL query to execute.
             fields (str): Fields to include in the response.
+            max_results (int): Maximum number of results to fetch.
+            expand_changelog (bool): Whether to include changelog data.
+
+        Returns:
+            List[Dict]: A list of issues.
+        """
+        return self.fetch_issues_by_jql(jql_query, fields, max_results, expand_changelog)
+
+    def fetch_issues_by_jql(
+        self,
+        jql_query: str,
+        fields: str = "*",
+        max_results: int = 100,
+        expand_changelog: bool = False,
+    ) -> list[dict]:
+        """Fetch issues from Jira using a JQL query (alias for fetch_issues).
+
+        Args:
+            jql_query (str): The JQL query to execute.
+            fields (str): Fields to include in the response (comma-separated string).
             max_results (int): Maximum number of results to fetch.
             expand_changelog (bool): Whether to include changelog data.
 

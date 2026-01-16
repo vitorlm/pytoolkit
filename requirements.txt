@@ -86,15 +86,8 @@ tzdata==2024.2
 urllib3==2.2.3
 websocket-client==1.8.0
 wsproto==1.2.0
-
-# Machine Learning and NLP dependencies for similarity improvements
-sentence-transformers==2.2.2
-torch==2.6.0
-transformers==4.30.2
-faiss-cpu==1.9.0.post1
-pyspellchecker==0.7.2
-scikit-learn==1.7.2
-nltk==3.8.1
-spacy==3.8.2
 datadog-api-client==2.26.0
 ruff>=0.14.0
+portkey-ai>=2.0.0
+openai>=1.0.0
+zai-sdk>=0.1.0

@@ -83,6 +83,28 @@ To run a specific command, such as copying agro operation data, use:
 python src/main.py ag_operation copy_data
 ```
 
+## JIRA Commands
+
+### Component Classifier
+
+Classify JIRA issues into components using LLM analysis.
+
+**Usage**:
+```bash
+python src/main.py syngenta jira classify-components \
+  --project-key CATALOG \
+  --source-component "Legacy System" \
+  --output output/classification.json \
+  --dry-run
+```
+
+**Configuration**:
+- Edit `src/domains/syngenta/jira/component_classifier_config.json` to define target components
+- Set `PORTKEY_API_KEY` and `PORTKEY_PROVIDER_SLUG` in `.env`
+- Configure `LLM_MODEL` (default: gpt-4o-mini)
+
+**Output**: JSON file with classification results and summary statistics
+
 ## Debugging with VS Code
 
 This project is set up to support debugging in Visual Studio Code. The `launch.json` file in the `.vscode` directory includes configurations for running the CLI with debugging capabilities.
