@@ -29,6 +29,24 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# ML/NLP stack - for advanced similarity and classification
+ml = [
+    "scikit-learn>=1.3.0",
+    "scipy>=1.11.0",
+    "sentence-transformers>=2.2.0",
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+]
+
+# LLM providers - for various AI integrations
+llm = [
+    "portkey-ai>=2.0.0",
+    "openai>=1.0.0",
+    "zai-sdk>=0.1.0",
+    "google-genai>=1.0.0",
+]
+
+# Development tools
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
@@ -36,6 +54,9 @@ dev = [
     "pytest-mock>=3.12.0",
     "ruff>=0.14.0",
 ]
+
+# All optional dependencies (for full development setup)
+all = ["pytoolkit[ml,llm,dev]"]
 
 [tool.ruff]
 line-length = 120
@@ -91,6 +112,11 @@ ignore-names = ["visit_*"]
 "src/config.py" = ["PLR0913"]
 "src/main.py" = ["D100"]
 "test_*.py" = ["D", "PLR2004", "N806", "F841", "PLR0915"]
+# E402 suppression for optional dependency pattern (industry standard - pandas, sklearn, torch)
+"src/domains/syngenta/jira/cycle_time_trend_service.py" = ["E402"]
+"src/domains/personal_finance/nfce/similarity/embedding_similarity.py" = ["E402"]
+"src/domains/personal_finance/nfce/similarity/advanced_embedding_engine.py" = ["E402"]
+"src/domains/personal_finance/nfce/similarity/hybrid_similarity_engine.py" = ["E402"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

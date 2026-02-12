@@ -1,17 +1,37 @@
 #!/usr/bin/env python3
-"""Supervised Similarity Trainer - Learn from user feedback to improve similarity detection"""
+"""Supervised Similarity Trainer - Learn from user feedback to improve similarity detection
+
+This module requires scikit-learn to be installed.
+Install with: pip install -e '.[ml]'
+"""
 
 import pickle
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import confusion_matrix, roc_auc_score
-from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.preprocessing import StandardScaler
+# Note: E402 suppressed via pyproject.toml per-file-ignores
+# for optional dependency pattern (industry standard - pandas, sklearn, torch)
+try:
+    import numpy as np
+    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import confusion_matrix, roc_auc_score
+    from sklearn.model_selection import cross_val_score, train_test_split
+    from sklearn.preprocessing import StandardScaler
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    # Set placeholders for type hints
+    np = None  # type: ignore
+    GradientBoostingClassifier = None  # type: ignore
+    RandomForestClassifier = None  # type: ignore
+    LogisticRegression = None  # type: ignore
+    confusion_matrix = None  # type: ignore
+    roc_auc_score = None  # type: ignore
+    cross_val_score = None  # type: ignore
+    train_test_split = None  # type: ignore
+    StandardScaler = None  # type: ignore
 
 from utils.data.json_manager import JSONManager
 from utils.logging.logging_manager import LogManager
@@ -64,6 +84,13 @@ class SupervisedSimilarityTrainer:
     """
 
     def __init__(self, data_dir: str = "data/similarity_training"):
+        if not SKLEARN_AVAILABLE:
+            raise ImportError(
+                "scikit-learn is required for SupervisedSimilarityTrainer.\n\n"
+                "Install with: pip install -e '.[ml]'\n\n"
+                "Documentation: https://github.com/user/PyToolkit#optional-dependencies"
+            )
+
         self.logger = LogManager.get_instance().get_logger("SupervisedSimilarityTrainer")
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)

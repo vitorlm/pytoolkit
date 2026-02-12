@@ -6,6 +6,7 @@ from argparse import ArgumentParser, _SubParsersAction
 from types import ModuleType
 
 from utils.command.base_command import BaseCommand
+from utils.command.optional_command import OptionalCommand
 from utils.file_manager import FileManager
 from utils.logging.logging_manager import LogManager
 
@@ -94,6 +95,12 @@ class CommandManager:
             for name, obj in module_members:
                 if issubclass(obj, BaseCommand) and obj is not BaseCommand:
                     self._logger.debug(f"Found command class: {name}")
+
+                    # Skip OptionalCommand if dependencies are not available
+                    if issubclass(obj, OptionalCommand):
+                        if not obj.can_register():
+                            self._logger.debug(f"Skipping optional command {name} due to missing dependencies")
+                            continue
 
                     # Validate compliance with BaseCommand
                     missing_methods = [

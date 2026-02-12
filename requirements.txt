@@ -1,3 +1,16 @@
+# ⚠️ DEPRECATION NOTICE ⚠️
+# This file is deprecated and will be removed in a future release.
+#
+# Please use pyproject.toml for dependency management instead:
+#
+#   Core installation:          pip install -e .
+#   With ML features:           pip install -e ".[ml]"
+#   With LLM providers:         pip install -e ".[llm]"
+#   Full development setup:     pip install -e ".[ml,llm,dev]"
+#
+# See docs/INSTALLATION.md for detailed installation options.
+# ----------------------------------------------------------------
+
 altair==5.5.0
 altair-data-server==0.4.1
 altair-saver==0.5.0

@@ -47,11 +47,23 @@ To set up the project, follow these steps:
    ```
 
 2. **Install Dependencies**:
-   Make sure to have Python 3.12 installed. Install required Python packages with:
+   Make sure to have Python 3.13 installed. PyToolkit supports modular dependency installation:
 
    ```sh
-   pip install -r requirements.txt
+   # Core installation (recommended for CI/production)
+   pip install -e .
+
+   # With ML/NLP features (similarity, classification)
+   pip install -e ".[ml]"
+
+   # With LLM providers (OpenAI, Gemini, Portkey, Zai)
+   pip install -e ".[llm]"
+
+   # Full development setup
+   pip install -e ".[ml,llm,dev]"
    ```
+
+   > **Note**: `requirements.txt` is deprecated. Use `pyproject.toml` extras instead.
 
 3. **Environment Configuration**:
    Create an `.env` file in the `src/domains/ag_operation` folder with the necessary environment variables for AWS credentials, DynamoDB table names, etc.
@@ -68,6 +80,22 @@ To set up the project, follow these steps:
    PRODUCT_TYPE_TABLE=your_product_table
    SUMMARIZED_AGRO_OP_TABLE=your_summarized_table
    ```
+
+### Optional Dependencies
+
+Some features require additional dependencies. If you see an error like:
+```
+OptionalDependencyError: Optional dependency 'sklearn' is not installed.
+
+Install with: pip install -e '.[ml]'
+```
+
+Install the required extras:
+- `[ml]` - scikit-learn, scipy, sentence-transformers, torch
+- `[llm]` - portkey-ai, openai, google-genai, zai-sdk
+- `[dev]` - pytest, ruff, and other development tools
+
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for detailed installation options.
 
 ## Running the CLI
 
