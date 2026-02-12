@@ -120,6 +120,14 @@ class Config:
         self._percentile_q1 = int(os.getenv("PERCENTILE_Q1", "25"))
         self._percentile_q3 = int(os.getenv("PERCENTILE_Q3", "75"))
 
+        # Slack Kudos integration
+        self._slack_bot_token = os.getenv("SLACK_BOT_TOKEN", "")
+        self._slack_kudos_channel = os.getenv("SLACK_KUDOS_CHANNEL", "global-kudos")
+        self._slack_kudos_enabled = os.getenv("SLACK_KUDOS_ENABLED", "true").lower() == "true"
+
+        # Val-You integration
+        self._valyou_enabled = os.getenv("VALYOU_ENABLED", "true").lower() == "true"
+
     # --- Properties for data extraction ---
     @property
     def row_planned_epics_assignment_start(self):
@@ -388,6 +396,26 @@ class Config:
     @property
     def percentile_q3(self):
         return self._percentile_q3
+
+    @property
+    def slack_bot_token(self) -> str:
+        """Slack bot/user token for API authentication."""
+        return self._slack_bot_token
+
+    @property
+    def slack_kudos_channel(self) -> str:
+        """Slack channel name for kudos (without # prefix)."""
+        return self._slack_kudos_channel
+
+    @property
+    def slack_kudos_enabled(self) -> bool:
+        """Whether the Slack kudos integration is enabled."""
+        return self._slack_kudos_enabled
+
+    @property
+    def valyou_enabled(self) -> bool:
+        """Whether the Val-You recognition integration is enabled."""
+        return self._valyou_enabled
 
     def get_ollama_config(self):
         """Returns a dictionary with all Ollama configuration parameters."""
