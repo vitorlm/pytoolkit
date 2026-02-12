@@ -46,8 +46,10 @@ class JiraAdapter(BaseAdapter):
     def initialize_service(self) -> dict[str, Any]:
         """Initialize all JIRA services from PyToolkit."""
         try:
+            # EpicMonitorService requires squad parameter, using default
+            # Individual instances will be created with specific squad when needed
             self._services = {
-                "epic_monitor": EpicMonitorService(),
+                "epic_monitor": None,  # Lazy initialization with squad parameter
                 "cycle_time": CycleTimeService(),
                 "velocity": IssueVelocityService(),
                 "adherence": IssueAdherenceService(),
@@ -74,30 +76,26 @@ class JiraAdapter(BaseAdapter):
 
         Args:
             project_key: JIRA project key
-            team: Team name (default: Catalog)
+            team: Team/squad name (default: "FarmOps")
 
         Returns:
             Epic monitoring data with problems identified
         """
 
         def _fetch_epic_data(**kwargs) -> dict[str, Any]:
-            epic_service = self.services["epic_monitor"]
+            # Create EpicMonitorService with the specified squad/team
+            squad_name = kwargs.get("team") or "FarmOps"
+            epic_service = EpicMonitorService(squad=squad_name)
 
-            # Get epics - currently the service only supports Catalog team
-            # TODO: Update EpicMonitorService to support team parameter
-            epics = epic_service.get_catalog_epics()
+            # Get epics for the specified squad
+            epics = epic_service.get_epics()
 
             # Analyze problems
             problematic_epics = epic_service.analyze_epic_problems(epics)
 
             return {
                 "project_key": project_key,
-                "team": team or "Catalog",  # Default to Catalog for now
-                "note": (
-                    "Epic monitoring currently supports only Catalog team. Team parameter will be ignored."
-                    if team and team != "Catalog"
-                    else None
-                ),
+                "squad": squad_name,
                 "total_epics": len(epics),
                 "problematic_epics_count": len(problematic_epics),
                 "epics": [
@@ -387,7 +385,7 @@ class JiraAdapter(BaseAdapter):
             # Epic monitoring (current state)
             try:
                 dashboard["metrics"]["epic_monitoring"] = self.get_epic_monitoring_data(
-                    project_key=project_key, team=team or "Catalog"
+                    project_key=project_key, team=team or "FarmOps"
                 )
             except Exception as e:
                 self.logger.warning(f"Epic monitoring failed: {e}")
@@ -432,8 +430,8 @@ class JiraAdapter(BaseAdapter):
         base_health = super().health_check()
 
         try:
-            # Test JIRA connectivity through one of the services
-            epic_service = self.services["epic_monitor"]
+            # Test JIRA connectivity - create a temporary EpicMonitorService instance
+            epic_service = EpicMonitorService(squad="FarmOps")
 
             # Try a simple JIRA operation
             test_result = epic_service.jira_assistant.fetch_project_issue_types("CWS")

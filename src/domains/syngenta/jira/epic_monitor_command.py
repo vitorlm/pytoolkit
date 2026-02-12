@@ -20,7 +20,7 @@ class EpicMonitorCommand(BaseCommand):
 
     @staticmethod
     def get_help() -> str:
-        return "This command monitors Catalog squad epics for various problems and sends notifications to Slack."
+        return "This command monitors squad epics for various problems and sends notifications to Slack."
 
     @staticmethod
     def get_arguments(parser: ArgumentParser):
@@ -31,6 +31,13 @@ class EpicMonitorCommand(BaseCommand):
             default=None,  # We'll handle the default in main()
             help="Slack webhook URL for notifications (defaults to SLACK_WEBHOOK_URL env var)",
         )
+        parser.add_argument(
+            "--squad",
+            type=str,
+            required=False,
+            default="FarmOps",
+            help="Squad name to monitor (default: 'FarmOps')",
+        )
 
     @staticmethod
     def main(args: Namespace):
@@ -40,8 +47,11 @@ class EpicMonitorCommand(BaseCommand):
         # Get slack webhook from args or environment variable
         slack_webhook = args.slack_webhook or os.getenv("SLACK_WEBHOOK_URL")
 
+        # Get squad from args or use default
+        squad = getattr(args, "squad", "FarmOps")
+
         # Initialize and run the epic monitoring service
-        epic_service = EpicCronService(slack_webhook)
+        epic_service = EpicCronService(slack_webhook, squad)
         success = epic_service.run_epic_check()
 
         # Get logger instance for this method

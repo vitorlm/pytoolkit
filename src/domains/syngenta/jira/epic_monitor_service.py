@@ -186,19 +186,25 @@ class EpicMonitorService:
 
     _logger = LogManager.get_instance().get_logger("EpicMonitorService")
 
-    def __init__(self):
-        """Initialize the service with JIRA assistant."""
-        self.jira_assistant = JiraAssistant()
+    def __init__(self, squad: str = "FarmOps"):
+        """Initialize the service with JIRA assistant.
 
-    def get_catalog_epics(self) -> list[EpicIssue]:
-        """Fetch epics for Catalog team that are not done and in current cycle.
-        JQL: type = Epic and statusCategory != Done and "Squad[Dropdown]" = "Catalog"
+        Args:
+            squad: Squad name to filter epics (e.g., "FarmOps", "Catalog")
+        """
+        self.jira_assistant = JiraAssistant()
+        self.squad = squad
+
+    def get_epics(self) -> list[EpicIssue]:
+        """Fetch epics for configured squad that are not done and in current cycle.
+
+        JQL: type = Epic and statusCategory != Done and "Squad[Dropdown]" = "{squad}"
         Order by priority
         """
         try:
-            jql_query = 'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "Catalog" ORDER BY priority'
+            jql_query = f'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "{self.squad}" ORDER BY priority'
 
-            self._logger.info("Fetching Catalog epics from JIRA")
+            self._logger.info(f"Fetching {self.squad} epics from JIRA")
             # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
             # Our fetch_issues method handles pagination automatically to get all results
             epic_data = self.jira_assistant.fetch_issues(
@@ -220,7 +226,7 @@ class EpicMonitorService:
 
         except Exception as e:
             self._logger.error(f"Error fetching epics: {e}", exc_info=True)
-            raise JiraManagerError("Failed to fetch Catalog epics", error=str(e))
+            raise JiraManagerError(f"Failed to fetch {self.squad} epics", error=str(e))
 
     def analyze_epic_problems(self, epics: list[EpicIssue]) -> list[EpicIssue]:
         """Analyze epics for problems based on the defined rules."""
@@ -296,18 +302,27 @@ class SlackNotificationService:
 
     _logger = LogManager.get_instance().get_logger("SlackNotificationService")
 
-    def __init__(self, webhook_url: str):
-        """Initialize with Slack assistant."""
+    def __init__(self, webhook_url: str, squad: str = "FarmOps"):
+        """Initialize with Slack assistant.
+
+        Args:
+            webhook_url: Slack webhook URL for notifications
+            squad: Squad name for notification messages
+        """
         self.assistant = SlackAssistant()
+        self.squad = squad
 
     def send_epic_problems_notification(
         self,
         problematic_epics: list[EpicIssue],
-        slack_token: str | None = None,
         recipient_id: str | None = None,
     ) -> bool:
         """Send a Slack notification about problematic epics using Block Kit.
         Works for channels or direct messages.
+
+        Args:
+            problematic_epics: List of epics with problems
+            recipient_id: Slack channel ID or user ID to send notification to
         """
         if not problematic_epics:
             self._logger.info("No problematic epics to report")
@@ -328,8 +343,9 @@ class SlackNotificationService:
             self._logger.error(f"Error sending Slack notification: {e}", exc_info=True)
             return False
 
-    def _format_epic_problems_blocks(self, problematic_epics: list[EpicIssue]) -> list[dict[str, Any]]:
+    def _format_epic_problems_blocks(self, problematic_epics: list[EpicIssue], squad: str | None = None) -> list[dict[str, Any]]:
         current_cycle = CycleDetector.get_current_cycle()
+        squad_name = squad or self.squad
         blocks = []
 
         # Header
@@ -349,7 +365,7 @@ class SlackNotificationService:
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": f"*{len(problematic_epics)}* epics need attention in *Catalog squad*:",
+                    "text": f"*{len(problematic_epics)}* epics need attention in *{squad_name} squad*:",
                 },
             }
         )
@@ -407,14 +423,20 @@ class EpicCronService:
 
     _logger = LogManager.get_instance().get_logger("EpicCronService")
 
-    def __init__(self, slack_webhook_url: str | None = None):
-        """Initialize the service with dependencies."""
-        self.epic_monitor = EpicMonitorService()
+    def __init__(self, slack_webhook_url: str | None = None, squad: str = "FarmOps"):
+        """Initialize the service with dependencies.
+
+        Args:
+            slack_webhook_url: Optional Slack webhook URL (defaults to SLACK_WEBHOOK_URL env var)
+            squad: Squad name to monitor (e.g., "FarmOps", "Catalog")
+        """
+        self.squad = squad
+        self.epic_monitor = EpicMonitorService(squad)
         # Use provided webhook or environment variable
         webhook_url = slack_webhook_url or os.getenv("SLACK_WEBHOOK_URL")
         if not webhook_url:
             raise ValueError("Slack webhook URL must be provided or set in SLACK_WEBHOOK_URL")
-        self.slack_service = SlackNotificationService(webhook_url)
+        self.slack_service = SlackNotificationService(webhook_url, squad)
 
     def run_epic_check(self) -> bool:
         """Main method to run the epic check process.
@@ -426,7 +448,7 @@ class EpicCronService:
             self._logger.info("Starting epic monitoring check")
 
             # 1. Get epics for current cycle
-            epics = self.epic_monitor.get_catalog_epics()
+            epics = self.epic_monitor.get_epics()
 
             # 2. Analyze for problems
             problematic_epics = self.epic_monitor.analyze_epic_problems(epics)

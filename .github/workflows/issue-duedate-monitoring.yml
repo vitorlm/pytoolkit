@@ -28,7 +28,7 @@ jobs:
 
     strategy:
       matrix:
-        squad: ["Catalog"]
+        squad: ["FarmOps"]
 
     steps:
       - name: Checkout repository
