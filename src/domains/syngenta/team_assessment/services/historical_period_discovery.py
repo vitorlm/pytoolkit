@@ -256,9 +256,11 @@ class HistoricalPeriodDiscovery:
 
             year = int(entry)
 
-            # Skip years before 2024 (old format/structure)
-            if year < 2024:
-                self.logger.debug(f"Skipping year {year} - only processing 2024 onwards")
+            # Skip years before 2024 (configurable minimum year for historical data)
+            # This allows processing of 2024, 2025, etc.
+            MIN_HISTORICAL_YEAR = 2024
+            if year < MIN_HISTORICAL_YEAR:
+                self.logger.debug(f"Skipping year {year} - only processing {MIN_HISTORICAL_YEAR} onwards")
                 continue
 
             # Scan for period directories within year (e.g., Nov, Jun)
@@ -301,6 +303,11 @@ class HistoricalPeriodDiscovery:
         Valid examples: Nov, Jun, May, Q1, Q2, etc.
         """
         name_lower = name.lower()
+
+        # Explicitly exclude known non-period sibling folders
+        EXCLUDED_FOLDER_NAMES = {"workday"}
+        if name_lower in EXCLUDED_FOLDER_NAMES:
+            return False
 
         # Check for month names
         if name_lower in self.PERIOD_MONTH_MAP:

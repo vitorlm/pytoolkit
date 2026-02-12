@@ -66,6 +66,12 @@ class FeedbackAnalyzer:
 
         for evaluatee in feedback.values():
             for evaluator_data in evaluatee.values():
+                # Extract and remove period metadata to avoid treating it as a criterion
+                if "_period_metadata" in evaluator_data:
+                    metadata = evaluator_data.pop("_period_metadata")
+                    if not team_stats.period_metadata:
+                        team_stats.period_metadata = metadata
+
                 for criterion, indicators in evaluator_data.items():
                     if criterion not in team_stats.criteria_stats.keys():
                         team_stats.criteria_stats[criterion] = {
@@ -163,6 +169,12 @@ class FeedbackAnalyzer:
             individual_stats = IndividualStatistics()
 
             for evaluator_data in evaluatee_data.values():
+                # Extract and remove period metadata to avoid treating it as a criterion
+                if "_period_metadata" in evaluator_data:
+                    metadata = evaluator_data.pop("_period_metadata")
+                    if not individual_stats.period_metadata:
+                        individual_stats.period_metadata = metadata
+
                 for criterion, indicators in evaluator_data.items():
                     if criterion not in individual_stats.criteria_stats:
                         individual_stats.criteria_stats[criterion] = {}

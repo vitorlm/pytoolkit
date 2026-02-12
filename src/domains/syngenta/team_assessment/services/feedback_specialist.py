@@ -70,7 +70,9 @@ class FeedbackSpecialist(OllamaAssistant):
         """
         team_summary = f"Team average level: {team_stats.average_level:.2f}\n"
         for category, details in team_stats.criteria_stats.items():
-            team_summary += f"- {category}: Average {details['average']:.2f}, Max {details['highest']}\n"
+            # Check for required keys to avoid issues with potential metadata
+            if isinstance(details, dict) and "average" in details:
+                team_summary += f"- {category}: Average {details['average']:.2f}, Max {details.get('highest', 'N/A')}\n"
 
         competency_summary = "Competency matrix details:\n"
         for criterion, indicators in competency_matrix:
