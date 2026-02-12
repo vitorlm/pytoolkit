@@ -2,7 +2,7 @@ import statistics
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from log_config import LogManager
 
@@ -41,12 +41,22 @@ class BaseStatistics(BaseModel):
 
     overall_levels: list[int] = Field(default_factory=list)
     criteria_stats: dict[str, Any] = Field(default_factory=dict)
+    period_metadata: dict[str, Any] = Field(default_factory=dict)
     average_level: float = 0.0
     weighted_average: float = 0.0
     highest_level: int = 0
     lowest_level: int = 0
     q1: float = 0.0
     q3: float = 0.0
+
+    @model_validator(mode="after")
+    def _migrate_period_metadata(self):
+        """Migrates _period_metadata from criteria_stats to period_metadata if present.
+        This provides backward compatibility with older cached data.
+        """
+        if "_period_metadata" in self.criteria_stats:
+            self.period_metadata = self.criteria_stats.pop("_period_metadata")
+        return self
 
     def finalize_statistics(self) -> None:
         """Finalizes statistical calculations for base-level data."""
