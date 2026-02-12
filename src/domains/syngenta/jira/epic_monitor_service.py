@@ -3,12 +3,11 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
-import requests
-
 from utils.data.json_manager import JSONManager
 from utils.jira.error import JiraManagerError
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
+from utils.slack import SlackAssistant
 
 
 class EpicIssue:
@@ -298,8 +297,8 @@ class SlackNotificationService:
     _logger = LogManager.get_instance().get_logger("SlackNotificationService")
 
     def __init__(self, webhook_url: str):
-        """Initialize with Slack webhook URL."""
-        self.webhook_url = webhook_url
+        """Initialize with Slack assistant."""
+        self.assistant = SlackAssistant()
 
     def send_epic_problems_notification(
         self,
@@ -314,45 +313,16 @@ class SlackNotificationService:
             self._logger.info("No problematic epics to report")
             return True
 
-        # Use environment variables if not provided
-        token = slack_token or os.getenv("SLACK_BOT_TOKEN")
-        channel = recipient_id or os.getenv("SLACK_CHANNEL_ID")
-
-        if not token:
-            self._logger.error("Slack token not provided and SLACK_BOT_TOKEN not set")
-            return False
-
-        if not channel:
-            self._logger.error("Slack channel not provided and SLACK_CHANNEL_ID not set")
-            return False
-
         blocks = self._format_epic_problems_blocks(problematic_epics)
 
         try:
-            payload = {
-                "channel": channel,
-                "blocks": blocks,
-                "text": f"{len(problematic_epics)} problematic epics detected.",
-            }
-
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {token}",
-            }
-
-            response = requests.post(
-                "https://slack.com/api/chat.postMessage",
-                json=payload,
-                headers=headers,
-                timeout=30,
+            self.assistant.send_message(
+                channel_id=recipient_id,
+                text=f"{len(problematic_epics)} problematic epics detected.",
+                blocks=blocks,
             )
-
-            if response.status_code == 200 and response.json().get("ok"):
-                self._logger.info(f"Successfully sent notification for {len(problematic_epics)} problematic epics")
-                return True
-            else:
-                self._logger.error(f"Failed to send Slack notification. Response: {response.text}")
-                return False
+            self._logger.info(f"Successfully sent notification for {len(problematic_epics)} problematic epics")
+            return True
 
         except Exception as e:
             self._logger.error(f"Error sending Slack notification: {e}", exc_info=True)

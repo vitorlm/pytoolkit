@@ -2,11 +2,10 @@ import os
 from datetime import date, datetime
 from typing import Any
 
-import requests
-
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
 from utils.logging.logging_manager import LogManager
+from utils.slack import SlackAssistant
 
 
 class IssueWithoutDueDate:
@@ -235,8 +234,8 @@ class SlackNotificationService:
     """Service for sending Slack notifications about issues without due dates."""
 
     def __init__(self, webhook_url: str | None):
-        """Initialize with Slack webhook URL."""
-        self.webhook_url = webhook_url
+        """Initialize with Slack assistant."""
+        self.assistant = SlackAssistant()
         self.logger = LogManager.get_instance().get_logger("SlackNotificationService")
 
     def send_issues_notification(
@@ -261,45 +260,16 @@ class SlackNotificationService:
             self.logger.info("No issues without due dates to report")
             return True
 
-        # Use environment variables if not provided
-        token = slack_token or os.getenv("SLACK_BOT_TOKEN")
-        channel = recipient_id or os.getenv("SLACK_CHANNEL_ID")
-
-        if not token:
-            self.logger.error("Slack token not provided and SLACK_BOT_TOKEN not set")
-            return False
-
-        if not channel:
-            self.logger.error("Slack channel not provided and SLACK_CHANNEL_ID not set")
-            return False
-
         blocks = self._format_issues_blocks(issues, squad)
 
         try:
-            payload = {
-                "channel": channel,
-                "blocks": blocks,
-                "text": f"{len(issues)} issues without due dates found in {squad} squad.",
-            }
-
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {token}",
-            }
-
-            response = requests.post(
-                "https://slack.com/api/chat.postMessage",
-                json=payload,
-                headers=headers,
-                timeout=30,
+            self.assistant.send_message(
+                channel_id=recipient_id,
+                text=f"{len(issues)} issues without due dates found in {squad} squad.",
+                blocks=blocks,
             )
-
-            if response.status_code == 200 and response.json().get("ok"):
-                self.logger.info(f"Successfully sent notification for {len(issues)} issues without due dates")
-                return True
-            else:
-                self.logger.error(f"Failed to send Slack notification. Response: {response.text}")
-                return False
+            self.logger.info(f"Successfully sent notification for {len(issues)} issues without due dates")
+            return True
 
         except Exception as e:
             self.logger.error(f"Error sending Slack notification: {e}", exc_info=True)
