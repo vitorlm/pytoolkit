@@ -254,6 +254,18 @@ class ChartMixin:
 
         ax.grid(color="gray", linestyle="--", linewidth=0.5, alpha=0.7)
 
+        # Add legend for series (Individual, Team Average, Historical Avg)
+        # Positioned at the bottom center to avoid overlapping with title or side legend
+        ax.legend(
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.05),
+            fontsize=10,
+            frameon=True,
+            fancybox=True,
+            shadow=True,
+            ncol=3,
+        )
+
         legend_text = "\n".join([f"{acronym}: {full_label}" for full_label, acronym in label_map.items()])
 
         max_chars_per_line = max(len(line) for line in legend_text.split("\n"))
@@ -279,3 +291,272 @@ class ChartMixin:
             plt,
             filename,
         )
+
+    def plot_diverging_bar_chart(
+        self,
+        labels: list[str],
+        values: list[float],
+        title: str | None = None,
+        filename: str = "diverging_bar_chart.png",
+        positive_color: str = "#2ecc71",
+        negative_color: str = "#e74c3c",
+        neutral_color: str = "#95a5a6",
+        xlabel: str = "Gap from Team Average",
+        group_labels: list[str] | None = None,
+        annotations: list[str] | None = None,
+        threshold: float = 0.1,
+    ) -> None:
+        """Generates a horizontal diverging bar chart with bars extending left/right from zero.
+
+        Args:
+            labels: Y-axis labels for each bar.
+            values: Numeric values determining bar direction and length.
+            title: Chart title.
+            filename: Output file name.
+            positive_color: Color for bars above threshold.
+            negative_color: Color for bars below negative threshold.
+            neutral_color: Color for bars within threshold.
+            xlabel: Label for the x-axis.
+            group_labels: If provided, criterion group name per label for separator lines.
+            annotations: If provided, text placed at end of each bar.
+            threshold: Absolute value below which bars are colored neutral.
+        """
+        self.logger.info("Generating diverging bar chart.")
+
+        n = len(labels)
+        colors = []
+        for v in values:
+            if v > threshold:
+                colors.append(positive_color)
+            elif v < -threshold:
+                colors.append(negative_color)
+            else:
+                colors.append(neutral_color)
+
+        _fig, ax = plt.subplots(figsize=(14, max(8, n * 0.55)))
+        y_positions = np.arange(n)
+
+        ax.barh(y_positions, values, color=colors, edgecolor="white", height=0.6)
+
+        # Draw group separators and headers
+        if group_labels:
+            current_group = None
+            for i, grp in enumerate(group_labels):
+                if grp != current_group:
+                    if current_group is not None:
+                        sep_y = i - 0.5
+                        ax.axhline(y=sep_y, color="gray", linestyle="--", linewidth=0.8, alpha=0.5)
+                    current_group = grp
+            # Add group name annotations on the right margin
+            current_group = None
+            group_positions: list[tuple[str, float, float]] = []
+            start_idx = 0
+            for i, grp in enumerate(group_labels):
+                if grp != current_group:
+                    if current_group is not None:
+                        group_positions.append((current_group, start_idx, i - 1))
+                    current_group = grp
+                    start_idx = i
+            if current_group is not None:
+                group_positions.append((current_group, start_idx, n - 1))
+
+            for grp_name, s, e in group_positions:
+                mid_y = (s + e) / 2.0
+                ax.annotate(
+                    grp_name,
+                    xy=(1.02, mid_y),
+                    xycoords=("axes fraction", "data"),
+                    fontsize=8,
+                    fontweight="bold",
+                    va="center",
+                    ha="left",
+                    color="#555555",
+                )
+
+        # Annotations at end of bars
+        if annotations:
+            for i, (val, ann) in enumerate(zip(values, annotations, strict=False)):
+                x_offset = 0.02 if val >= 0 else -0.02
+                ha = "left" if val >= 0 else "right"
+                ax.text(val + x_offset, i, ann, va="center", ha=ha, fontsize=8, color="#333333")
+
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(labels, fontsize=10)
+        ax.set_xlabel(xlabel, fontsize=12)
+        ax.axvline(x=0, color="black", linewidth=0.8)
+        ax.set_title(title or "Diverging Bar Chart", fontsize=14, fontweight="bold")
+        ax.grid(axis="x", linestyle="--", alpha=0.4)
+        ax.invert_yaxis()
+
+        plt.tight_layout()
+        self._save_plot(plt, filename)
+
+    def plot_dumbbell_chart(
+        self,
+        labels: list[str],
+        before_values: list[float],
+        after_values: list[float],
+        before_label: str = "Previous",
+        after_label: str = "Current",
+        title: str | None = None,
+        filename: str = "dumbbell_chart.png",
+        improve_color: str = "#2ecc71",
+        decline_color: str = "#e74c3c",
+        stable_color: str = "#95a5a6",
+        threshold: float = 0.1,
+        show_delta: bool = True,
+    ) -> None:
+        """Generates a horizontal dumbbell (dot) chart for before/after comparison.
+
+        Rows are sorted by delta descending (biggest improvements first — strengths-first).
+
+        Args:
+            labels: Row labels (criteria or indicators).
+            before_values: Values for the previous period.
+            after_values: Values for the current period.
+            before_label: Legend label for before dots.
+            after_label: Legend label for after dots.
+            title: Chart title.
+            filename: Output file name.
+            improve_color: Color for improved rows.
+            decline_color: Color for declined rows.
+            stable_color: Color for stable rows.
+            threshold: Absolute delta below which change is considered stable.
+            show_delta: Whether to annotate delta text on each row.
+        """
+        self.logger.info("Generating dumbbell chart.")
+
+        # Sort by delta descending (strengths first)
+        deltas = [a - b for a, b in zip(after_values, before_values, strict=False)]
+        sorted_indices = sorted(range(len(deltas)), key=lambda i: deltas[i], reverse=True)
+
+        sorted_labels = [labels[i] for i in sorted_indices]
+        sorted_before = [before_values[i] for i in sorted_indices]
+        sorted_after = [after_values[i] for i in sorted_indices]
+        sorted_deltas = [deltas[i] for i in sorted_indices]
+
+        n = len(sorted_labels)
+        _fig, ax = plt.subplots(figsize=(12, max(6, n * 0.7)))
+        y_positions = np.arange(n)
+
+        for i in range(n):
+            delta = sorted_deltas[i]
+            if delta > threshold:
+                color = improve_color
+            elif delta < -threshold:
+                color = decline_color
+            else:
+                color = stable_color
+
+            # Connecting line
+            ax.plot(
+                [sorted_before[i], sorted_after[i]],
+                [i, i],
+                color=color,
+                linewidth=2.5,
+                zorder=1,
+            )
+            # Before dot
+            ax.scatter(sorted_before[i], i, color=color, s=100, zorder=2, edgecolors="white", linewidths=0.5)
+            # After dot
+            ax.scatter(sorted_after[i], i, color=color, s=100, zorder=2, marker="D", edgecolors="white", linewidths=0.5)
+
+            # Delta annotation
+            if show_delta:
+                x_pos = max(sorted_before[i], sorted_after[i]) + 0.15
+                if abs(delta) < threshold:
+                    delta_text = "="
+                else:
+                    delta_text = f"{delta:+.2f}"
+                ax.text(x_pos, i, delta_text, va="center", ha="left", fontsize=9, fontweight="bold", color=color)
+
+        ax.set_yticks(y_positions)
+        ax.set_yticklabels(sorted_labels, fontsize=10)
+        ax.set_xlim(0, 5.5)
+        ax.set_xlabel("Score", fontsize=12)
+        ax.set_title(title or "Dumbbell Chart", fontsize=14, fontweight="bold")
+        ax.grid(axis="x", linestyle="--", alpha=0.4)
+        ax.invert_yaxis()
+
+        # Legend
+        ax.scatter([], [], color="gray", s=80, label=before_label)
+        ax.scatter([], [], color="gray", s=80, marker="D", label=after_label)
+        ax.legend(loc="lower right", fontsize=10)
+
+        plt.tight_layout()
+        self._save_plot(plt, filename)
+
+    def plot_donut_chart(
+        self,
+        labels: list[str],
+        sizes: list[float],
+        title: str | None = None,
+        filename: str = "donut_chart.png",
+        colors: list[str] | None = None,
+        center_text: str | None = None,
+        annotations: list[str] | None = None,
+    ) -> None:
+        """Generates a donut (ring) chart with optional center text and annotations.
+
+        Args:
+            labels: Wedge labels.
+            sizes: Wedge sizes (percentages or proportions).
+            title: Chart title.
+            filename: Output file name.
+            colors: List of colors for wedges. If None, uses a default palette.
+            center_text: Text rendered in the center of the donut.
+            annotations: Lines of text rendered below the chart as a key-metrics block.
+        """
+        self.logger.info("Generating donut chart.")
+
+        # Filter out zero-size entries
+        filtered = [(lbl, sz) for lbl, sz in zip(labels, sizes, strict=False) if sz > 0]
+        if not filtered:
+            self.logger.warning("All sizes are zero -- skipping donut chart.")
+            return
+        f_labels, f_sizes = zip(*filtered, strict=False)
+
+        if colors:
+            # Filter colors to match non-zero entries
+            f_colors = [colors[i] for i, sz in enumerate(sizes) if sz > 0]
+        else:
+            cmap = plt.get_cmap("Set2")
+            f_colors = [cmap(i % cmap.N) for i in range(len(f_labels))]
+
+        fig, ax = plt.subplots(figsize=(10, 10))
+
+        _wedges, _texts, autotexts = ax.pie(
+            f_sizes,
+            labels=f_labels,
+            autopct="%1.1f%%",
+            startangle=140,
+            colors=f_colors,
+            wedgeprops=dict(width=0.4, edgecolor="white"),
+            pctdistance=0.8,
+            textprops={"fontsize": 10},
+        )
+
+        for at in autotexts:
+            at.set_fontsize(9)
+            at.set_fontweight("bold")
+
+        if center_text:
+            ax.text(0, 0, center_text, ha="center", va="center", fontsize=14, fontweight="bold", color="#333333")
+
+        ax.set_title(title or "Donut Chart", fontsize=14, fontweight="bold", pad=20)
+
+        if annotations:
+            annotation_block = "\n".join(annotations)
+            fig.text(
+                0.5,
+                0.02,
+                annotation_block,
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                family="monospace",
+                bbox=dict(boxstyle="round,pad=0.5", fc="#f9f9f9", ec="#cccccc"),
+            )
+
+        plt.tight_layout()
+        self._save_plot(plt, filename)
