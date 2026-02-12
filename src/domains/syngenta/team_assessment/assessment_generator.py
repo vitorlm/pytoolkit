@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 
 import openpyxl
@@ -22,6 +23,9 @@ from .processors.members_task_processor import MembersTaskProcessor
 from .services.epic_enrichment_service import EpicEnrichmentService
 from .services.feedback_analyzer import FeedbackAnalyzer
 from .services.historical_period_discovery import HistoricalPeriodDiscovery
+from .services.kudos_service import KudosService
+from .services.valyou_service import ValYouService
+from .services.workday_service import WorkdayService
 
 
 class AssessmentGenerator:
@@ -35,23 +39,30 @@ class AssessmentGenerator:
     def __init__(
         self,
         competency_matrix_file: str,
-        feedback_folder: str,
+        feedback_folder: str | None,
         planning_file: str | None,
         output_path: str,
         ignored_member_list: str | None = None,
         enable_historical: bool = True,
+        member_slack_mapping: str | None = None,
+        enable_kudos: bool = True,
+        valyou_file: str | None = None,
     ):
         self.competency_matrix_file = competency_matrix_file
         self.feedback_folder = feedback_folder
         self.planning_file = planning_file
         self.output_path = output_path
         self.enable_historical = enable_historical
+        self.enable_kudos = enable_kudos
+        self.member_slack_mapping_file = member_slack_mapping
+        self.valyou_file = valyou_file
 
         # Initialize processors
         self.criteria_processor = CriteriaProcessor()
         if planning_file:
             self.task_processor = MembersTaskProcessor()
-        self.feedback_processor = FeedbackProcessor()
+        if feedback_folder:
+            self.feedback_processor = FeedbackProcessor()
         self.config = Config()
         self.feedback_analyzer = FeedbackAnalyzer()
         self.epic_enrichment_service = EpicEnrichmentService()
@@ -67,67 +78,145 @@ class AssessmentGenerator:
         self.historical_periods = []
         self.current_period = None
 
-        if self.enable_historical:
+        if self.enable_historical and self.feedback_folder:
             self._discover_periods()
+
+        # Initialize kudos service (if enabled and mapping exists)
+        # Must be after period discovery so current_period is available
+        self.kudos_service: KudosService | None = None
+        if self.enable_kudos and self.config.slack_kudos_enabled:
+            self._init_kudos_service()
+
+        # Initialize Val-You service (if CSV provided and enabled)
+        self.valyou_service: ValYouService | None = None
+        if self.valyou_file and self.config.valyou_enabled:
+            self.valyou_service = ValYouService()
+            self._logger.info(f"ValYouService initialized for file: {self.valyou_file}")
+
+        # Initialize Workday service
+        self.workday_service = WorkdayService()
+        self.workday_folder: str | None = None
 
     def run(self):
         """Executes the process to generate the assessment report."""
         self._logger.info("Starting assessment generation process.")
         self._validate_input_folders()
-        competency_matrix = self._load_competency_matrix()
+        self._detect_workday_folder()
+
+        # Process planning data if provided
         if self.planning_file:
             self._process_tasks()
             # Calculate productivity metrics after processing tasks
             self._calculate_productivity_metrics()
 
-        # Process feedback with historical data if enabled
-        if self.enable_historical and (self.current_period or self.historical_periods):
+        # Process feedback only if feedback_folder is provided
+        if self.feedback_folder:
+            # Load competency matrix (needed for feedback analysis)
+            competency_matrix = self._load_competency_matrix()
+
+            # Process feedback with historical data if enabled
+            if self.enable_historical and (self.current_period or self.historical_periods):
+                self._logger.info(
+                    f"Historical mode enabled. Current period: {self.current_period}, "
+                    f"Historical periods: {len(self.historical_periods)}"
+                )
+                feedback_with_history = self._process_feedback_with_history()
+                feedback = feedback_with_history["current"]["data"] if feedback_with_history["current"] else {}
+                historical_feedback = feedback_with_history["historical"]
+
+                self._logger.info(f"Processed {len(historical_feedback)} historical periods")
+                self._logger.info(f"Current period feedback has {len(feedback)} evaluatees")
+                # Store historical data for later use in evolution calculations
+                self.historical_feedback_data = historical_feedback
+            else:
+                self._logger.info("Historical mode disabled - processing current period only")
+                feedback = self._process_feedback()
+                self.historical_feedback_data = []
+
+            self._logger.info(f"Analyzing feedback for {len(feedback)} evaluatees")
+            self._update_members_with_feedback(feedback)
+
+            # Fetch kudos from Slack (after members are populated, before output)
+            self._fetch_kudos()
+            # Fetch Val-You recognitions (after members are populated, before output)
+            self._fetch_valyou_recognitions()
+            # Fetch Workday data (after members are populated, before output)
+            self._fetch_workday_data()
+
+            team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
             self._logger.info(
-                f"Historical mode enabled. Current period: {self.current_period}, "
-                f"Historical periods: {len(self.historical_periods)}"
+                f"Analysis complete. Team stats criteria: {len(team_stats.criteria_stats)}, Members: {len(members_stats)}"
             )
-            feedback_with_history = self._process_feedback_with_history()
-            feedback = feedback_with_history["current"]["data"] if feedback_with_history["current"] else {}
-            historical_feedback = feedback_with_history["historical"]
+            self._update_members_with_stats(members_stats)
 
-            self._logger.info(f"Processed {len(historical_feedback)} historical periods")
-            self._logger.info(f"Current period feedback has {len(feedback)} evaluatees")
-            # Store historical data for later use in evolution calculations
-            self.historical_feedback_data = historical_feedback
+            # Add historical context to member stats if available
+            if self.historical_feedback_data:
+                self._add_historical_context_to_stats(members_stats)
+
+            for member_name, member_data in members_stats.items():
+                if self._is_member_ignored(member_name):
+                    continue
+                # Calculate current period label
+                current_period_label = (
+                    f"{self.current_period.period_name}/{self.current_period.year}"
+                    if self.current_period
+                    else "Current"
+                )
+                # Retrieve raw feedback and productivity metrics from Member object
+                first_name = member_name.split(" ", 1)[0]
+                member_obj = self.members.get(first_name)
+                member_raw_feedback = None
+                member_productivity = None
+                if member_obj:
+                    member_raw_feedback = member_obj.feedback
+                    member_productivity = (
+                        (
+                            member_obj.productivity_metrics.model_dump()
+                            if hasattr(member_obj.productivity_metrics, "model_dump")
+                            else member_obj.productivity_metrics
+                        )
+                        if member_obj.productivity_metrics
+                        else None
+                    )
+
+                member_analyzer = MemberAnalyzer(
+                    member_name,
+                    member_data,
+                    team_stats,
+                    self.output_path,
+                    current_period_label=current_period_label,
+                    raw_feedback=member_raw_feedback,
+                    productivity_metrics=member_productivity,
+                )
+                member_analyzer.plot_all_charts()
+
+            # Pass historical data to team analyzer for temporal charts
+            historical_stats = getattr(self, "historical_team_stats", [])
+            current_period_label = (
+                f"{self.current_period.period_name}/{self.current_period.year}" if self.current_period else "Current"
+            )
+            team_analyzer = TeamAnalyzer(
+                team_stats,
+                self.output_path,
+                historical_stats=historical_stats,
+                current_period_label=current_period_label,
+            )
+            team_analyzer.plot_all_charts()
+
+            self._generate_output(team_stats)
         else:
-            self._logger.info("Historical mode disabled - processing current period only")
-            feedback = self._process_feedback()
-            self.historical_feedback_data = []
-
-        self._logger.info(f"Analyzing feedback for {len(feedback)} evaluatees")
-        self._update_members_with_feedback(feedback)
-        team_stats, members_stats = self.feedback_analyzer.analyze(competency_matrix, feedback)
-        self._logger.info(
-            f"Analysis complete. Team stats criteria: {len(team_stats.criteria_stats)}, Members: {len(members_stats)}"
-        )
-        self._update_members_with_stats(members_stats)
-
-        # Add historical context to member stats if available
-        if self.historical_feedback_data:
-            self._add_historical_context_to_stats(members_stats)
-
-        for member_name, member_data in members_stats.items():
-            if self._is_member_ignored(member_name):
-                continue
-            member_analyzer = MemberAnalyzer(member_name, member_data, team_stats, self.output_path)
-            member_analyzer.plot_all_charts()
-
-        # Pass historical data to team analyzer for temporal charts
-        historical_stats = getattr(self, "historical_team_stats", [])
-        current_period_label = (
-            f"{self.current_period.period_name}/{self.current_period.year}" if self.current_period else "Current"
-        )
-        team_analyzer = TeamAnalyzer(
-            team_stats, self.output_path, historical_stats=historical_stats, current_period_label=current_period_label
-        )
-        team_analyzer.plot_all_charts()
-
-        self._generate_output(team_stats)
+            self._logger.info("No feedback folder provided - skipping feedback analysis")
+            # Fetch kudos even without feedback (members come from planning)
+            self._fetch_kudos()
+            # Fetch Val-You recognitions even without feedback
+            self._fetch_valyou_recognitions()
+            # Fetch Workday data even without feedback
+            self._fetch_workday_data()
+            # Generate output with task data only (if available)
+            if self.planning_file:
+                self._generate_output_planning_only()
+            else:
+                self._logger.warning("No feedback folder or planning file provided - nothing to generate")
 
     def _discover_periods(self):
         """Discovers all evaluation periods (current + historical) from feedback folder."""
@@ -139,6 +228,165 @@ class AssessmentGenerator:
 
         self._logger.info(f"Current period: {self.current_period}")
         self._logger.info(f"Historical periods: {[str(p) for p in self.historical_periods]}")
+
+    def _init_kudos_service(self):
+        """Initializes the KudosService if configuration and mapping are available."""
+        # Resolve mapping file path
+        mapping_file = self.member_slack_mapping_file
+        if not mapping_file:
+            # Default to member_slack_mapping.json in the team_assessment directory
+            default_path = Path(__file__).parent / "member_slack_mapping.json"
+            mapping_file = str(default_path)
+
+        if not Path(mapping_file).exists():
+            self._logger.warning(f"Member-Slack mapping file not found: {mapping_file} — kudos integration disabled")
+            return
+
+        # Determine the assessment year
+        year = self._resolve_assessment_year()
+
+        try:
+            self.kudos_service = KudosService(
+                mapping_file=mapping_file,
+                channel=self.config.slack_kudos_channel,
+                year=year,
+                bot_token=self.config.slack_bot_token,
+            )
+            self._logger.info(f"KudosService initialized for year {year}")
+        except Exception as e:
+            self._logger.warning(f"Failed to initialize KudosService: {e} — kudos integration disabled")
+            self.kudos_service = None
+
+    def _resolve_assessment_year(self) -> int:
+        """Resolves the assessment year from current_period or defaults to current year.
+
+        Returns:
+            The assessment year as an integer.
+        """
+        if self.current_period and hasattr(self.current_period, "year"):
+            return int(self.current_period.year)
+        return datetime.now(tz=UTC).year
+
+    def _fetch_kudos(self):
+        """Fetches kudos for all members from Slack and updates their Member objects.
+
+        Requires that self.members is already populated (called after feedback processing).
+        """
+        if not self.kudos_service:
+            self._logger.debug("KudosService not available — skipping kudos fetch")
+            return
+
+        # Build full member names from current members
+        member_full_names: list[str] = []
+        for member in self.members.values():
+            if self._is_member_ignored(member.name):
+                continue
+            full_name = f"{member.name} {member.last_name}".strip() if member.last_name else member.name
+            member_full_names.append(full_name)
+
+        if not member_full_names:
+            self._logger.warning("No members available for kudos fetch")
+            return
+
+        self._logger.info(f"Fetching kudos for {len(member_full_names)} members...")
+        kudos_results = self.kudos_service.fetch_kudos_for_all_members(member_full_names)
+
+        # Update each Member object with kudos data
+        for full_name, member_kudos in kudos_results.items():
+            # Find member by first name (members dict is keyed by first name)
+            first_name = full_name.split(" ", 1)[0]
+            if first_name in self.members:
+                self.members[first_name].kudos = member_kudos
+                if member_kudos.total_count > 0:
+                    self._logger.info(
+                        f"  {full_name}: {member_kudos.total_count} kudos from {len(member_kudos.senders)} senders"
+                    )
+
+        total_kudos = sum(mk.total_count for mk in kudos_results.values())
+        self._logger.info(f"Kudos fetch complete: {total_kudos} total across {len(kudos_results)} members")
+
+    def _fetch_valyou_recognitions(self):
+        """Fetches Val-You recognitions and updates Member objects.
+
+        Requires that self.members is already populated.
+        """
+        if not self.valyou_service:
+            self._logger.debug("ValYouService not available — skipping Val-You fetch")
+            return
+
+        if not self.members:
+            self._logger.warning("No members available for Val-You recognition fetch")
+            return
+
+        # Filter out ignored members before sending to service
+        active_members = {k: v for k, v in self.members.items() if not self._is_member_ignored(v.name)}
+
+        try:
+            results = self.valyou_service.fetch_recognitions(self.valyou_file, active_members)
+        except Exception as e:
+            self._logger.error(f"Failed to fetch Val-You recognitions: {e}", exc_info=True)
+            return
+
+        # Update each Member object with Val-You data
+        for member_name, recognitions in results.items():
+            if member_name in self.members:
+                self.members[member_name].valyou_recognitions = recognitions
+                if recognitions.total_count > 0:
+                    self._logger.info(
+                        f"  {member_name}: {recognitions.total_count} Val-You recognitions "
+                        f"from {len(recognitions.senders)} senders"
+                    )
+
+        total = sum(r.total_count for r in results.values())
+        self._logger.info(f"Val-You fetch complete: {total} total across {len(results)} members")
+
+    def _detect_workday_folder(self):
+        """Detects the Workday folder relative to the feedback folder.
+
+        The Workday folder is expected to be a sibling of the month folder
+        at the YEAR level (e.g., .../2025/Workday).
+        """
+        if not self.feedback_folder:
+            return
+
+        feedback_path = Path(self.feedback_folder)
+        # Scan for 'Workday' folder in the parent (YEAR) directory
+        year_path = feedback_path.parent
+        workday_path = year_path / "Workday"
+
+        if workday_path.exists() and workday_path.is_dir():
+            self.workday_folder = str(workday_path)
+            self._logger.info(f"Detected Workday folder: {self.workday_folder}")
+        else:
+            self._logger.debug(f"Workday folder not found as sibling of: {self.feedback_folder}")
+
+    def _fetch_workday_data(self):
+        """Fetches Workday data and updates Member objects.
+
+        Requires that self.members is already populated.
+        """
+        if not self.workday_folder:
+            self._logger.debug("Workday folder not detected — skipping Workday fetch")
+            return
+
+        if not self.members:
+            self._logger.warning("No members available for Workday data fetch")
+            return
+
+        # Call service to process the folder
+        try:
+            results = self.workday_service.process_workday_folder(self.workday_folder, self.members)
+        except Exception as e:
+            self._logger.error(f"Failed to fetch Workday data: {e}", exc_info=True)
+            return
+
+        # Update each Member object with Workday data
+        for member_name, workday_data in results.items():
+            if member_name in self.members:
+                self.members[member_name].workday_data = workday_data
+                self._logger.info(f"  {member_name}: Workday data processed")
+
+        self._logger.info(f"Workday fetch complete: {len(results)} members processed")
 
     def _process_feedback_with_history(self):
         """Processes feedback from current and historical periods.
@@ -180,9 +428,12 @@ class AssessmentGenerator:
         """Validates the existence and structure of all input folders and files."""
         self._logger.debug("Validating input folders and files.")
 
-        # Validate feedback folder with specific structure requirements
-        self.period_discovery.validate_feedback_folder_structure(self.feedback_folder)
-        self._logger.info(f"Feedback folder validated: {self.feedback_folder}")
+        # Validate feedback folder with specific structure requirements (if provided)
+        if self.feedback_folder:
+            self.period_discovery.validate_feedback_folder_structure(self.feedback_folder)
+            self._logger.info(f"Feedback folder validated: {self.feedback_folder}")
+        else:
+            self._logger.info("No feedback folder provided - skipping feedback validation")
 
         # Validate competency matrix file
         self._validate_competency_matrix_file()
@@ -868,6 +1119,10 @@ class AssessmentGenerator:
                     health_check=None,
                 )
 
+            # Update last_name if member exists but has no last_name (e.g., created from planning)
+            if self.members[name].last_name is None and last_name:
+                self.members[name].last_name = last_name
+
             # Safely handle feedback updates
             if self.members[name].feedback is None:
                 self.members[name].feedback = {}
@@ -980,6 +1235,9 @@ class AssessmentGenerator:
                 "feedback_stats": member.feedback_stats,
                 "tasks_data": member.tasks_data,  # NEW: Separated task data
                 "productivity_metrics": member.productivity_metrics,
+                "kudos": member.kudos.model_dump() if member.kudos else None,
+                "valyou_recognitions": member.valyou_recognitions.model_dump() if member.valyou_recognitions else None,
+                "workday": member.workday_data.model_dump() if member.workday_data else None,
                 # REMOVED: "tasks" array (fully duplicated in tasks_data)
             }
             member_output_folder = os.path.join(members_output_path, member.name.split()[0])
@@ -992,6 +1250,37 @@ class AssessmentGenerator:
         JSONManager.write_json({"team": team_stats}, team_file_path)
 
         self._logger.info("Assessment report successfully generated.")
+
+    def _generate_output_planning_only(self):
+        """Generates output report with planning data only (no feedback)."""
+        self._logger.info(f"Generating planning-only output report at {self.output_path}")
+
+        # Create a directory for member outputs (same structure as full assessment)
+        members_output_path = os.path.join(self.output_path, "members")
+        FileManager.create_folder(members_output_path)
+
+        # Store each member's data in a separate file
+        for member in self.members.values():
+            if self._is_member_ignored(member.name):
+                continue
+
+            member_data = {
+                "name": member.name,
+                "last_name": member.last_name,
+                "tasks_data": member.tasks_data,  # Task data from planning
+                "productivity_metrics": member.productivity_metrics,  # Productivity metrics
+                "kudos": member.kudos.model_dump() if member.kudos else None,
+                "valyou_recognitions": member.valyou_recognitions.model_dump() if member.valyou_recognitions else None,
+                "workday": member.workday_data.model_dump() if member.workday_data else None,
+                # No feedback fields since we don't have feedback data
+            }
+            member_output_folder = os.path.join(members_output_path, member.name.split()[0])
+            FileManager.create_folder(member_output_folder)
+            member_file_path = os.path.join(member_output_folder, "planning_stats.json")
+            JSONManager.write_json(member_data, member_file_path)
+            self._logger.info(f"Planning output generated for {member.name}: {member_file_path}")
+
+        self._logger.info("Planning-only report successfully generated.")
 
     def _is_member_ignored(self, member_name):
         """Checks if a member is in the ignored member list.
