@@ -1,15 +1,23 @@
 import sys
 from argparse import ArgumentParser, Namespace
 
-from domains.syngenta.jira.component_classifier_service import ComponentClassifierService
-from utils.command.base_command import BaseCommand
+from utils.command.optional_command import OptionalCommand
 from utils.data.json_manager import JSONManager
+from utils.dependencies import is_available
 from utils.env_loader import ensure_env_loaded, load_domain_env
 from utils.logging.logging_manager import LogManager
 
 
-class ComponentClassifierCommand(BaseCommand):
-    """Command to classify JIRA issues into components using LLM."""
+class ComponentClassifierCommand(OptionalCommand):
+    """Command to classify JIRA issues into components using LLM.
+
+    This command requires LLM provider dependencies to be installed.
+    Install with: pip install -e '.[llm]'
+    """
+
+    # OptionalCommand configuration
+    REQUIRED_GROUP = "llm"
+    REQUIRED_MODULES = ["portkey"]  # At least one LLM provider must be available
 
     @staticmethod
     def get_name() -> str:
@@ -112,6 +120,9 @@ class ComponentClassifierCommand(BaseCommand):
             # Log LLM configuration being used
             logger.info(f"Using LLM provider: {args.llm_provider}")
             logger.info(f"Using LLM model: {args.llm_model}")
+
+            # Lazy import of ComponentClassifierService (requires LLM dependencies)
+            from domains.syngenta.jira.component_classifier_service import ComponentClassifierService
 
             # Execute service
             service = ComponentClassifierService(llm_provider=args.llm_provider, llm_model=args.llm_model)

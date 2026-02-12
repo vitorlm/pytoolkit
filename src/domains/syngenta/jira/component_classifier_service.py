@@ -1,12 +1,28 @@
+"""Service to classify JIRA issues into components using LLM.
+
+This service requires LLM provider dependencies to be installed.
+Install with: pip install -e '.[llm]'
+"""
+
 import os
 from argparse import Namespace
 from dataclasses import dataclass
 from typing import Any
 
+# Note: E402 suppressed via pyproject.toml per-file-ignores
+# for optional dependency pattern (industry standard - pandas, sklearn, torch)
+try:
+    from utils.llm.llm_client import LLMMessage, LLMRequest
+    from utils.llm.llm_factory import LLMFactory
+    LLM_AVAILABLE = True
+except ImportError:
+    LLM_AVAILABLE = False
+    LLMMessage = None  # type: ignore
+    LLMRequest = None  # type: ignore
+    LLMFactory = None  # type: ignore
+
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
-from utils.llm.llm_client import LLMMessage, LLMRequest
-from utils.llm.llm_factory import LLMFactory
 from utils.logging.logging_manager import LogManager
 
 
@@ -31,7 +47,17 @@ class ComponentClassifierService:
         Args:
             llm_provider: LLM provider name ('portkey', 'zai', etc.)
             llm_model: LLM model name (e.g., 'glm-4.7', 'openai/gpt-4o-mini')
+
+        Raises:
+            ImportError: If LLM dependencies are not installed
         """
+        if not LLM_AVAILABLE:
+            raise ImportError(
+                "LLM dependencies are required for ComponentClassifierService.\n\n"
+                "Install with: pip install -e '.[llm]'\n\n"
+                "Documentation: https://github.com/user/PyToolkit#optional-dependencies"
+            )
+
         self.logger = LogManager.get_instance().get_logger("ComponentClassifierService")
         self.jira_assistant = JiraAssistant(cache_expiration=60)
         self.llm_client = LLMFactory.create_client(llm_provider)

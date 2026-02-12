@@ -1,6 +1,19 @@
+"""Adapter for Syngenta AI Foundry Gateway (Portkey).
+
+This module requires portkey-ai to be installed.
+Install with: pip install -e '.[llm]'
+"""
+
 import os
 
-from portkey_ai import Portkey
+# Note: E402 suppressed via pyproject.toml per-file-ignores
+# for optional dependency pattern (industry standard - pandas, sklearn, torch)
+try:
+    from portkey_ai import Portkey
+    PORTKEY_AVAILABLE = True
+except ImportError:
+    PORTKEY_AVAILABLE = False
+    Portkey = None  # type: ignore
 
 from utils.llm.error import LLMClientError
 from utils.llm.llm_client import LLMClient, LLMRequest, LLMResponse
@@ -26,7 +39,17 @@ class PortkeyLLMAdapter(LLMClient):
 
         Args:
             api_key: Portkey API key (defaults to PORTKEY_API_KEY env)
+
+        Raises:
+            ValueError: If PORTKEY_API_KEY is not set or portkey-ai not installed
         """
+        if not PORTKEY_AVAILABLE:
+            raise ImportError(
+                "portkey-ai is required for PortkeyLLMAdapter.\n\n"
+                "Install with: pip install -e '.[llm]'\n\n"
+                "Documentation: https://github.com/user/PyToolkit#optional-dependencies"
+            )
+
         self.api_key = api_key or os.getenv("PORTKEY_API_KEY")
 
         if not self.api_key:

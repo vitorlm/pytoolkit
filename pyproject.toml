@@ -114,9 +114,14 @@ ignore-names = ["visit_*"]
 "test_*.py" = ["D", "PLR2004", "N806", "F841", "PLR0915"]
 # E402 suppression for optional dependency pattern (industry standard - pandas, sklearn, torch)
 "src/domains/syngenta/jira/cycle_time_trend_service.py" = ["E402"]
+"src/domains/syngenta/jira/component_classifier_service.py" = ["E402"]
 "src/domains/personal_finance/nfce/similarity/embedding_similarity.py" = ["E402"]
 "src/domains/personal_finance/nfce/similarity/advanced_embedding_engine.py" = ["E402"]
 "src/domains/personal_finance/nfce/similarity/hybrid_similarity_engine.py" = ["E402"]
+"src/domains/personal_finance/nfce/similarity/supervised_similarity_trainer.py" = ["E402"]
+"src/utils/llm/gemini_adapter.py" = ["E402"]
+"src/utils/llm/portkey_adapter.py" = ["E402"]
+"src/utils/llm/zai_adapter.py" = ["E402"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

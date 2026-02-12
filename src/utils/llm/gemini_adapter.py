@@ -1,8 +1,24 @@
+"""Adapter for Google Gemini API using official SDK.
+
+This module requires google-genai to be installed.
+Install with: pip install -e '.[llm]'
+"""
+
 import os
 
-from google import genai
-from google.genai.errors import APIError, ClientError
-from google.genai.types import GenerateContentResponse
+# Note: E402 suppressed via pyproject.toml per-file-ignores
+# for optional dependency pattern (industry standard - pandas, sklearn, torch)
+try:
+    from google import genai
+    from google.genai.errors import APIError, ClientError
+    from google.genai.types import GenerateContentResponse
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None  # type: ignore
+    APIError = None  # type: ignore
+    ClientError = None  # type: ignore
+    GenerateContentResponse = None  # type: ignore
 
 from utils.llm.error import LLMClientError
 from utils.llm.gemini_request_builder import GeminiRequestBuilder
@@ -40,8 +56,15 @@ class GeminiLLMAdapter(LLMClient):
             max_retries: Number of retry attempts on failure
 
         Raises:
-            ValueError: If GOOGLE_API_KEY is not set
+            ValueError: If GOOGLE_API_KEY is not set or google-genai not installed
         """
+        if not GEMINI_AVAILABLE:
+            raise ImportError(
+                "google-genai is required for GeminiLLMAdapter.\n\n"
+                "Install with: pip install -e '.[llm]'\n\n"
+                "Documentation: https://github.com/user/PyToolkit#optional-dependencies"
+            )
+
         self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
 
         if not self.api_key:

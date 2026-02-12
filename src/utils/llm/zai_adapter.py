@@ -1,7 +1,22 @@
+"""Adapter for z.ai API using official SDK.
+
+This module requires zai-sdk to be installed.
+Install with: pip install -e '.[llm]'
+"""
+
 import os
 
-from zai import ZaiClient
-from zai.core import APIStatusError, APITimeoutError
+# Note: E402 suppressed via pyproject.toml per-file-ignores
+# for optional dependency pattern (industry standard - pandas, sklearn, torch)
+try:
+    from zai import ZaiClient
+    from zai.core import APIStatusError, APITimeoutError
+    ZAI_AVAILABLE = True
+except ImportError:
+    ZAI_AVAILABLE = False
+    ZaiClient = None  # type: ignore
+    APIStatusError = None  # type: ignore
+    APITimeoutError = None  # type: ignore
 
 from utils.llm.error import LLMClientError
 from utils.llm.llm_client import LLMClient, LLMRequest, LLMResponse
@@ -30,7 +45,17 @@ class ZAILLMAdapter(LLMClient):
             api_key: z.ai API key (defaults to Z_AI_API_KEY or ZAI_API_KEY env)
             timeout: Request timeout in seconds
             max_retries: Number of retry attempts on failure
+
+        Raises:
+            ValueError: If Z_AI_API_KEY is not set or zai-sdk not installed
         """
+        if not ZAI_AVAILABLE:
+            raise ImportError(
+                "zai-sdk is required for ZAILLMAdapter.\n\n"
+                "Install with: pip install -e '.[llm]'\n\n"
+                "Documentation: https://github.com/user/PyToolkit#optional-dependencies"
+            )
+
         self.api_key = api_key or os.getenv("Z_AI_API_KEY") or os.getenv("ZAI_API_KEY")
 
         if not self.api_key:
