@@ -5,7 +5,10 @@ from pydantic import BaseModel, Field
 from .health_check import MemberHealthCheck
 from .indicators import Indicator
 from .issue import Issue
+from .kudos import MemberKudos
 from .statistics import IndividualStatistics
+from .valyou import MemberRecognitions
+from .workday import WorkdayData
 
 
 class Member(BaseModel):
@@ -20,6 +23,9 @@ class Member(BaseModel):
         health_check (Optional[MemberHealthCheck]): Health check data for the member.
         productivity_metrics (Optional[dict]): Productivity metrics from Planning + JIRA analysis.
         tasks_data (Optional[dict]): Raw task data separated from metrics (NEW).
+        kudos (Optional[MemberKudos]): Kudos received from Slack #global-kudos channel.
+        valyou_recognitions (Optional[MemberRecognitions]): Val-You recognitions received.
+        workday_data (Optional[WorkdayData]): Workday ratings and feedback (NEW).
     """
 
     name: str
@@ -30,6 +36,9 @@ class Member(BaseModel):
     health_check: MemberHealthCheck | None = None
     productivity_metrics: dict[str, Any] | None = None
     tasks_data: dict[str, Any] | None = None  # NEW: Separated task data
+    kudos: MemberKudos | None = None
+    valyou_recognitions: MemberRecognitions | None = None
+    workday_data: WorkdayData | None = None
 
     @classmethod
     def create(
@@ -42,6 +51,9 @@ class Member(BaseModel):
         health_check: MemberHealthCheck | None = None,
         productivity_metrics: dict[str, Any] | None = None,
         tasks_data: dict[str, Any] | None = None,
+        kudos: MemberKudos | None = None,
+        valyou_recognitions: MemberRecognitions | None = None,
+        workday_data: WorkdayData | None = None,
     ) -> "Member":
         """Factory method to create a Member instance with custom initialization logic.
 
@@ -54,6 +66,9 @@ class Member(BaseModel):
             health_check (Optional[MemberHealthCheck]): Health check data.
             productivity_metrics (Optional[dict]): Productivity metrics.
             tasks_data (Optional[dict]): Raw task data separated from metrics (NEW).
+            kudos (Optional[MemberKudos]): Kudos received from Slack.
+            valyou_recognitions (Optional[MemberRecognitions]): Val-You recognitions.
+            workday_data (Optional[WorkdayData]): Workday data (NEW).
 
         Returns:
             Member: A Member instance.
@@ -67,4 +82,7 @@ class Member(BaseModel):
             health_check=health_check,
             productivity_metrics=productivity_metrics,
             tasks_data=tasks_data,
+            kudos=kudos,
+            valyou_recognitions=valyou_recognitions,
+            workday_data=workday_data,
         )
