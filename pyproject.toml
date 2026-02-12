@@ -26,6 +26,10 @@ dependencies = [
     "altair>=5.0.0",
     "selenium>=4.15.0",
     "slack-sdk>=3.0.0",
+    "filelock>=3.0.0",
+    "requests>=2.0.0",
+    "beautifulsoup4>=4.0.0",
+    "boto3>=1.0.0",
 ]
 
 [project.optional-dependencies]
