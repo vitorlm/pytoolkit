@@ -5,24 +5,39 @@ This module requires scikit-learn to be installed.
 Install with: pip install -e '.[ml]'
 """
 
+from __future__ import annotations
+
 import pickle
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 # Note: E402 suppressed via pyproject.toml per-file-ignores
 # for optional dependency pattern (industry standard - pandas, sklearn, torch)
-try:
+if TYPE_CHECKING:
     import numpy as np
-    from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import confusion_matrix, roc_auc_score
-    from sklearn.model_selection import cross_val_score, train_test_split
-    from sklearn.preprocessing import StandardScaler
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
-    # Set placeholders for type hints
+else:
+    try:
+        import numpy as np
+        from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+        from sklearn.linear_model import LogisticRegression
+        from sklearn.metrics import confusion_matrix, roc_auc_score
+        from sklearn.model_selection import cross_val_score, train_test_split
+        from sklearn.preprocessing import StandardScaler
+        SKLEARN_AVAILABLE = True
+    except ImportError:
+        SKLEARN_AVAILABLE = False
+        # Set placeholders for runtime
+        np = None  # type: ignore
+        GradientBoostingClassifier = None  # type: ignore
+        RandomForestClassifier = None  # type: ignore
+        LogisticRegression = None  # type: ignore
+        confusion_matrix = None  # type: ignore
+        roc_auc_score = None  # type: ignore
+        cross_val_score = None  # type: ignore
+        train_test_split = None  # type: ignore
+        StandardScaler = None  # type: ignore
     np = None  # type: ignore
     GradientBoostingClassifier = None  # type: ignore
     RandomForestClassifier = None  # type: ignore

@@ -30,6 +30,9 @@ dependencies = [
     "requests>=2.0.0",
     "beautifulsoup4>=4.0.0",
     "boto3>=1.0.0",
+    "langdetect>=1.0.0",
+    "PyYAML>=6.0.0",
+    "datadog-api-client>=2.26.0",
 ]
 
 [project.optional-dependencies]
