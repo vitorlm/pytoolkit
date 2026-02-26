@@ -238,3 +238,9 @@ test_*.py
 *_test.py
 simple_*.py
 demo_*.py
+
+# Team Assessment standalone migration outputs
+_team_assessment_output/
+node_modules/
+runs/*
+!runs/.gitkeep

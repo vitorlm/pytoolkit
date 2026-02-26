@@ -11,6 +11,7 @@ import os
 try:
     from zai import ZaiClient
     from zai.core import APIStatusError, APITimeoutError
+
     ZAI_AVAILABLE = True
 except ImportError:
     ZAI_AVAILABLE = False

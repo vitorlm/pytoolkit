@@ -202,7 +202,9 @@ class EpicMonitorService:
         Order by priority
         """
         try:
-            jql_query = f'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "{self.squad}" ORDER BY priority'
+            jql_query = (
+                f'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "{self.squad}" ORDER BY priority'
+            )
 
             self._logger.info(f"Fetching {self.squad} epics from JIRA")
             # Fetch issues - JIRA limits maxResults to 100 when requesting custom fields
@@ -343,7 +345,9 @@ class SlackNotificationService:
             self._logger.error(f"Error sending Slack notification: {e}", exc_info=True)
             return False
 
-    def _format_epic_problems_blocks(self, problematic_epics: list[EpicIssue], squad: str | None = None) -> list[dict[str, Any]]:
+    def _format_epic_problems_blocks(
+        self, problematic_epics: list[EpicIssue], squad: str | None = None
+    ) -> list[dict[str, Any]]:
         current_cycle = CycleDetector.get_current_cycle()
         squad_name = squad or self.squad
         blocks = []

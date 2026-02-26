@@ -10,6 +10,7 @@ import os
 # for optional dependency pattern (industry standard - pandas, sklearn, torch)
 try:
     from portkey_ai import Portkey
+
     PORTKEY_AVAILABLE = True
 except ImportError:
     PORTKEY_AVAILABLE = False

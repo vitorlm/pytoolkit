@@ -12,6 +12,7 @@ try:
     from google import genai
     from google.genai.errors import APIError, ClientError
     from google.genai.types import GenerateContentResponse
+
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
