@@ -1,6 +1,6 @@
 import os
 
-from utils.dependencies import require_optional, OptionalDependencyError
+from utils.dependencies import require_optional
 from utils.llm.llm_client import LLMClient
 from utils.logging.logging_manager import LogManager
 

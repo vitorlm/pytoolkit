@@ -293,11 +293,11 @@ All tools are designed to support both **team-specific** and **tribe-wide** oper
 
 All tools now support the dual-mode operation pattern from `run_reports.sh`:
 
-**Team-Specific Mode** (Catalog team example):
+**Team-Specific Mode** (FarmOps team example):
 ```json
 {
   "project_key": "CWS",
-  "team": "Catalog",
+  "team": "FarmOps",
   "time_period": "last-week"
 }
 ```
@@ -353,7 +353,7 @@ Prompts provide sophisticated AI-driven analysis and reporting with full support
 
 - `generate_weekly_engineering_report` - Complete weekly report generation
   - **Parameters**: `project_key` (default: "CWS"), `team_name` (optional - defaults to tribe-wide), `include_comparison`, `output_format`
-  - **Team-Specific**: `{"project_key": "CWS", "team_name": "Catalog"}`
+  - **Team-Specific**: `{"project_key": "CWS", "team_name": "FarmOps"}`
   - **Tribe-Wide**: `{"project_key": "CWS"}` (no team_name = all teams)
 - `analyze_weekly_data_collection` - Data-driven insights from collections
   - **Parameters**: `focus_areas`, `include_recommendations`
@@ -424,7 +424,7 @@ Access the weekly complete engineering report resource for this week's data.
 
 **Weekly Report Generation:**
 ```
-Use the generate_weekly_engineering_report prompt to create this week's report for the CWS project and Catalog team.
+Use the generate_weekly_engineering_report prompt to create this week's report for the CWS project and FarmOps team.
 ```
 
 **Quarterly Analysis:**

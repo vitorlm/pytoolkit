@@ -1,9 +1,7 @@
 import os
 from argparse import ArgumentParser, Namespace
 
-from domains.syngenta.jira.issue_duedate_monitor_service import (
-    IssueDueDateMonitorService,
-)
+from domains.syngenta.jira.issue_duedate_monitor_service import IssueDueDateMonitorService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -33,7 +31,7 @@ class IssueDueDateMonitorCommand(BaseCommand):
             "--squad",
             type=str,
             required=True,
-            help="Squad name to monitor (e.g., 'Catalog', 'Recommendations')",
+            help="Squad name to monitor (e.g., 'FarmOps', 'Recommendations').",
         )
         parser.add_argument(
             "--project-key",

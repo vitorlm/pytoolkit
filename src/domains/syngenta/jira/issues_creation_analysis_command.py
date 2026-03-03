@@ -1,9 +1,7 @@
 from argparse import ArgumentParser, Namespace
 from datetime import date, datetime, timedelta
 
-from domains.syngenta.jira.issues_creation_analysis_service import (
-    IssuesCreationAnalysisService,
-)
+from domains.syngenta.jira.issues_creation_analysis_service import IssuesCreationAnalysisService
 from domains.syngenta.jira.shared.parsers import ErrorHandler
 from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from utils.command.base_command import BaseCommand
@@ -47,7 +45,7 @@ class IssuesCreationAnalysisCommand(BaseCommand):
 
         # Filter by team and issue types
         python src/main.py syngenta jira issues-creation-analysis --project-key "CWS" \
-            --window-days 180 --teams "Catalog,Platform" --issue-types "Bug,Story"
+            --window-days 180 --teams "FarmOps,Platform" --issue-types "Bug,Story"
 
         # Export to Markdown with summary
         python src/main.py syngenta jira issues-creation-analysis --project-key "CWS" \
@@ -101,7 +99,7 @@ class IssuesCreationAnalysisCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(

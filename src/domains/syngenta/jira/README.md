@@ -97,7 +97,7 @@ All commands are accessed via: `python src/main.py syngenta jira [command] [opti
 
 #### 9. **fill-missing-dates** - Date Management
 - **Purpose**: Fill missing dates in JIRA issues
-- **Usage**: `python src/main.py syngenta jira fill-missing-dates --project CWS --team_name Catalog`
+- **Usage**: `python src/main.py syngenta jira fill-missing-dates --project CWS --team_name FarmOps`
 - **Features**:
   - Automated date filling for completed epics
   - Date range filtering
@@ -141,19 +141,19 @@ All commands are accessed via: `python src/main.py syngenta jira [command] [opti
 python src/main.py syngenta jira open-issues --project-key CWS --issue-types "Bug,Story,Task"
 
 # 2. Analyze team performance over time (last 30 days)
-python src/main.py syngenta jira cycle-time --project-key CWS --end-date 2025-09-21 --window-days 30 --team Catalog
+python src/main.py syngenta jira cycle-time --project-key CWS --end-date 2025-09-21 --window-days 30 --team FarmOps
 
 # 3. Check SLA compliance and set recommendations  
 python src/main.py syngenta jira calculate-resolution-time --project-key CWS --time-period last-month --generate-charts
 
 # 4. Monitor due date adherence (last 2 weeks)
-python src/main.py syngenta jira issue-adherence --project-key CWS --end-date 2025-09-21 --window-days 14 --team Catalog
+python src/main.py syngenta jira issue-adherence --project-key CWS --end-date 2025-09-21 --window-days 14 --team FarmOps
 
 # 5. Analyze issue creation trends
 python src/main.py syngenta jira issues-creation-analysis --time-period last-2-months --aggregation weekly
 
 # 6. Track monthly issue velocity (created vs resolved)
-python src/main.py syngenta jira issue-velocity --project-key CWS --time-period last-6-months --team Catalog
+python src/main.py syngenta jira issue-velocity --project-key CWS --time-period last-6-months --team FarmOps
 ```
 
 ### Monthly Reporting Workflow

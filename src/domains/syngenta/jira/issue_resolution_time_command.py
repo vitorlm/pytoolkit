@@ -34,7 +34,7 @@ USAGE EXAMPLES:
 
 3. Filter by squad and fixversion:
    python src/main.py syngenta jira calculate-resolution-time --project-key "CWS"
-   --time-period "last-month" --squad "Catalog" --fixversion "Q1C1"
+   --time-period "last-month" --squad "FarmOps" --fixversion "Q1C1"
 
 4. Export results to CSV with enhanced statistics:
    python src/main.py syngenta jira calculate-resolution-time --project-key "CWS"
@@ -105,12 +105,8 @@ import os
 from argparse import ArgumentParser, Namespace
 from datetime import datetime
 
-from domains.syngenta.jira.issue_resolution_time_chart_service import (
-    IssueResolutionTimeChartService,
-)
-from domains.syngenta.jira.issue_resolution_time_service import (
-    IssueResolutionTimeService,
-)
+from domains.syngenta.jira.issue_resolution_time_chart_service import IssueResolutionTimeChartService
+from domains.syngenta.jira.issue_resolution_time_service import IssueResolutionTimeService
 from utils.command.base_command import BaseCommand
 from utils.env_loader import ensure_env_loaded
 from utils.logging.logging_manager import LogManager
@@ -164,7 +160,7 @@ class CalculateResolutionTimeCommand(BaseCommand):
             "--squad",
             type=str,
             required=False,
-            help="Filter by squad/team name (e.g., 'Catalog', 'Platform').",
+            help="Filter by squad/team name (e.g., 'FarmOps', 'Platform').",
         )
         parser.add_argument(
             "--fixversion",

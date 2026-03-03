@@ -12,7 +12,7 @@ USAGE EXAMPLES:
 
 2. Scorecard for a specific team and issue types:
    python src/main.py syngenta jira net-flow-calculation --project-key "CWS" \
-   --time-period "last-week" --team "Catalog" --issue-types "Story,Bug"
+   --time-period "last-week" --team "FarmOps" --issue-types "Story,Bug"
 
 3. Verbose output with issue details for the current week:
    python src/main.py syngenta jira net-flow-calculation --project-key "CWS" \
@@ -89,7 +89,7 @@ class NetFlowCalculationCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(

@@ -34,11 +34,11 @@ USAGE EXAMPLES:
 
 6. Analyze with team filter:
    python src/main.py syngenta jira cycle-time --project-key "CWS" \
-   --end-date "2025-09-21" --window-days 7 --team "Catalog"
+   --end-date "2025-09-21" --window-days 7 --team "FarmOps"
 
 7. Analyze with multiple teams (tribe):
    python src/main.py syngenta jira cycle-time --project-key "CWS" \
-   --end-date "2025-09-21" --window-days 7 --teams "Catalog,Platform"
+   --end-date "2025-09-21" --window-days 7 --teams "FarmOps,Platform"
 
 8. Export results to file:
    python src/main.py syngenta jira cycle-time --project-key "CWS" \
@@ -59,10 +59,7 @@ from argparse import ArgumentParser, Namespace
 
 from domains.syngenta.jira.cycle_time_formatter import CycleTimeFormatter
 from domains.syngenta.jira.cycle_time_service import CycleTimeService
-from domains.syngenta.jira.cycle_time_trend_service import (
-    CycleTimeTrendService,
-    TrendConfig,
-)
+from domains.syngenta.jira.cycle_time_trend_service import CycleTimeTrendService, TrendConfig
 from domains.syngenta.jira.shared.parsers import ErrorHandler
 from domains.syngenta.jira.summary.jira_summary_manager import JiraSummaryManager
 from utils.command.base_command import BaseCommand
@@ -131,7 +128,7 @@ class CycleTimeCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(

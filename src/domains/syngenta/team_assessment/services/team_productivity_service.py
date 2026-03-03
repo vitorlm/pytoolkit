@@ -1,4 +1,4 @@
-"""Team Productivity Service - Team-level JIRA analysis for catalog team.
+"""Team Productivity Service - Team-level JIRA analysis for FarmOps team.
 
 Created in Phase 3 to provide comprehensive team and squad-level productivity metrics.
 
@@ -82,10 +82,10 @@ class TeamProductivityService:
         Example:
             >>> service = TeamProductivityService()
             >>> metrics = service.calculate_team_metrics(
-            ...     "CWS Catalog",
+            ...     "CWS FarmOps",
             ...     date(2024, 10, 1),
             ...     date(2024, 12, 31),
-            ...     squad_name="Catalog Squad"
+            ...     squad_name="FarmOps Squad"
             ... )
         """
         self.logger.info("=" * 80)
@@ -434,7 +434,7 @@ class TeamProductivityService:
             ...     "CWS",
             ...     date(2024, 10, 1),
             ...     date(2024, 12, 31),
-            ...     ["Catalog Squad", "Search Squad"]
+            ...     ["FarmOps Squad", "Search Squad"]
             ... )
         """
         self.logger.info(f"Comparing {len(squad_names)} squads...")

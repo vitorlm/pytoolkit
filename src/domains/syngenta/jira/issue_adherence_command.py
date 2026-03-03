@@ -25,11 +25,11 @@ USAGE EXAMPLES (Anchor + Window):
 
 4. Analyze with team filter:
    python src/main.py syngenta jira issue-adherence --project-key "CWS" \
-   --end-date "2025-09-21" --window-days 7 --team "Catalog"
+   --end-date "2025-09-21" --window-days 7 --team "FarmOps"
 
 4b. Analyze with multiple teams (tribe):
    python src/main.py syngenta jira issue-adherence --project-key "CWS" \
-   --end-date "2025-09-21" --window-days 7 --teams "Catalog,Platform"
+   --end-date "2025-09-21" --window-days 7 --teams "FarmOps,Platform"
 
 ADHERENCE METRICS:
 - On-time: Issues completed on or before due date
@@ -107,7 +107,7 @@ class IssueAdherenceCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(

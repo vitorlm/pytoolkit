@@ -171,9 +171,9 @@ class WeeklyReportPromptHandler(BasePromptHandler):
         include_comparison = args.get("include_comparison", True)
         output_format = args.get("output_format", "markdown")
 
-        # Default to Catalog only if team_name is explicitly empty string, not if None
+        # Default to FarmOps only if team_name is explicitly empty string, not if None
         if team_name == "":
-            team_name = "Catalog"
+            team_name = "FarmOps"
 
         # Collect weekly data with cache
         weekly_data = self.cached_prompt_generation(

@@ -3,7 +3,6 @@ from argparse import ArgumentParser, Namespace
 
 from utils.command.optional_command import OptionalCommand
 from utils.data.json_manager import JSONManager
-from utils.dependencies import is_available
 from utils.env_loader import ensure_env_loaded, load_domain_env
 from utils.logging.logging_manager import LogManager
 

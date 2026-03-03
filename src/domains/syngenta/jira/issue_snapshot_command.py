@@ -19,12 +19,12 @@ USAGE EXAMPLES:
 
 2. Get stories from last 14 days with team filter:
    python src/main.py syngenta jira issue-snapshot --project-key "CWS" \
-   --issue-type "Story" --end-date "2025-10-27" --window-days 14 --team "Catalog"
+   --issue-type "Story" --end-date "2025-10-27" --window-days 14 --team "FarmOps"
 
 3. Get tasks from multiple teams with specific statuses:
    python src/main.py syngenta jira issue-snapshot --project-key "CWS" \
    --issue-type "Task" --end-date "2025-10-27" --window-days 7 \
-   --teams "Catalog,Platform" --status "Done,Closed"
+   --teams "FarmOps,Platform" --status "Done,Closed"
 
 4. Get issues with comments and export to JSON:
    python src/main.py syngenta jira issue-snapshot --project-key "CWS" \
@@ -117,7 +117,7 @@ class IssueSnapshotCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
 

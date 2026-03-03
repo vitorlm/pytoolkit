@@ -206,7 +206,7 @@ if [ "$TRIBE_MODE" = true ]; then
     echo "   📋 JIRA: Complete CWS project (no team filter)"
 else
     # Team-specific configuration
-    TEAM="${TEAM:-Catalog}"
+    TEAM="${TEAM:-FarmOps}"
     LINEARB_TEAM_ID="${LINEARB_TEAM_IDS:-41576}"
     REPORT_SCOPE="team"
     echo "📊 Mode: TEAM-SPECIFIC reporting"
@@ -721,12 +721,12 @@ fi
 # LinearB Report
 if [ "$TRIBE_MODE" = true ]; then
     echo "🚀 [$STEP/$TOTAL_STEPS] LinearB – Engineering Metrics (TRIBE PARENT TEAM)"
-    LINEARB_TIME_RANGE="$WEEK_BEFORE_MONDAY,$LAST_SUNDAY"
+    LINEARB_TIME_RANGE="$WEEK_BEFORE_START,$LAST_WEEK_END"
     echo "   ⏳ Period: $LINEARB_TIME_RANGE"
     echo "   👥 Tribe Team ID: $LINEARB_TEAM_ID (parent team)"
 else
     echo "🚀 [$STEP/$TOTAL_STEPS] LinearB – Engineering Metrics"
-    LINEARB_TIME_RANGE="$WEEK_BEFORE_MONDAY,$LAST_SUNDAY"
+    LINEARB_TIME_RANGE="$WEEK_BEFORE_START,$LAST_WEEK_END"
     echo "   ⏳ Period: $LINEARB_TIME_RANGE"
     echo "   👥 Team: $TEAM (ID: $LINEARB_TEAM_ID)"
 fi

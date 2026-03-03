@@ -118,29 +118,36 @@ class WeeklyReportService:
         # Bugs & Support Overview
         context["bugs_support"] = self._build_bugs_support_context(output_dir)
 
+        # Log missing data sources
+        expected_sources = ["jira", "sonarqube", "linearb"]
+        missing_sources = [s for s in expected_sources if s not in data]
+        if missing_sources:
+            self.logger.warning(f"Missing data sources (no data directory found): {', '.join(missing_sources)}")
+
         # Oldest Issues
-        context["oldest_issues"] = self._build_oldest_issues_context(data["jira"].get("open-issues", {}))
+        jira_data = data.get("jira", {})
+        context["oldest_issues"] = self._build_oldest_issues_context(jira_data.get("open-issues", {}))
 
         # Cycle Time
-        context["cycle_time"] = self._build_cycle_time_context(data["jira"].get("cycle-time-bugs-lastweek", {}))
+        context["cycle_time"] = self._build_cycle_time_context(jira_data.get("cycle-time-bugs-lastweek", {}))
 
         # Adherence
         adherence_data = self._build_adherence_context(
-            data["jira"].get("bugs-support-lastweek", {}),
-            data["jira"].get("bugs-support-weekbefore", {}),
+            jira_data.get("bugs-support-lastweek", {}),
+            jira_data.get("bugs-support-weekbefore", {}),
         )
         context["adherence"] = adherence_data
 
         # Tasks
-        context["tasks"] = self._build_tasks_context(data["jira"].get("tasks-2weeks", {}))
+        context["tasks"] = self._build_tasks_context(jira_data.get("tasks-2weeks", {}))
 
         # LinearB
-        linearb_data = self._build_linearb_context(data["linearb"].get("metrics", []))
+        linearb_data = self._build_linearb_context(data.get("linearb", {}).get("metrics", []))
         context["linearb_metrics"] = linearb_data["metrics"]
         context["linearb_summary"] = linearb_data["summary"]
 
         # SonarQube
-        sonar_data = self._build_sonar_context(data["sonarqube"].get("quality_metrics", {}))
+        sonar_data = self._build_sonar_context(data.get("sonarqube", {}).get("quality_metrics", {}))
         context["sonar_projects"] = sonar_data["projects"]
         context["sonar_summary"] = sonar_data["summary"]
 

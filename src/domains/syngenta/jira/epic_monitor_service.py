@@ -190,7 +190,7 @@ class EpicMonitorService:
         """Initialize the service with JIRA assistant.
 
         Args:
-            squad: Squad name to filter epics (e.g., "FarmOps", "Catalog")
+            squad: Squad name to filter epics (e.g., "FarmOps", "Recommendations")
         """
         self.jira_assistant = JiraAssistant()
         self.squad = squad
@@ -432,7 +432,7 @@ class EpicCronService:
 
         Args:
             slack_webhook_url: Optional Slack webhook URL (defaults to SLACK_WEBHOOK_URL env var)
-            squad: Squad name to monitor (e.g., "FarmOps", "Catalog")
+            squad: Squad name to monitor (e.g., "FarmOps", "Recommendations")
         """
         self.squad = squad
         self.epic_monitor = EpicMonitorService(squad)

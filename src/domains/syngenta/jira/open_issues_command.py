@@ -17,11 +17,11 @@ USAGE EXAMPLES:
 
 2. Get all open issues for a specific team:
    python src/main.py syngenta jira open-issues --project-key "CWS"
-   --issue-types "Story,Task,Bug" --team "Catalog"
+   --issue-types "Story,Task,Bug" --team "FarmOps"
 
 2b. Get all open issues for multiple teams:
    python src/main.py syngenta jira open-issues --project-key "CWS"
-   --issue-types "Story,Task,Bug" --teams "Catalog,Platform"
+   --issue-types "Story,Task,Bug" --teams "FarmOps,Platform"
 
 3. Get all open issues with custom status:
    python src/main.py syngenta jira open-issues --project-key "CWS"
@@ -88,7 +88,7 @@ class OpenIssuesCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(

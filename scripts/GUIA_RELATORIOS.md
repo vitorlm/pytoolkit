@@ -14,7 +14,7 @@ source .venv/bin/activate
 
 ### 2. Gerar Relatórios da Semana Atual
 
-**Relatórios por Time (exemplo: Catalog):**
+**Relatórios por Time (exemplo: FarmOps):**
 ```bash
 cd scripts
 ./run_reports.sh --config team
@@ -60,7 +60,7 @@ output/team_weekly_reports_20251202/consolidated/weekly-summary.md
 
 ### 🎯 Modo Time (Team)
 
-Relatórios gerados para um time específico (ex: Catalog):
+Relatórios gerados para um time específico (ex: FarmOps):
 
 **JIRA (12 arquivos):**
 - `team-bugs-support-2weeks.json` - Bugs e Suportes das últimas 2 semanas
@@ -98,7 +98,7 @@ Relatórios consolidados de toda a tribo Core Services:
 
 ```bash
 PROJECT_KEY="CWS"
-TEAM="Catalog"                    # Nome do seu time
+TEAM="FarmOps"                    # Nome do seu time
 LINEARB_TEAM_IDS="41576"          # ID do time no LinearB
 SONARQUBE_PROJECT_KEYS=""         # Projetos do time no SonarQube
 ```

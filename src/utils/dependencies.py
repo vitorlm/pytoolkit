@@ -6,8 +6,8 @@ dependencies across PyToolkit, replacing scattered try-except blocks.
 Pattern inspired by pandas.compat._optional and sklearn's import handling.
 """
 
+from functools import cache
 from importlib import import_module
-from functools import lru_cache
 from typing import Any
 
 
@@ -24,7 +24,7 @@ class OptionalDependencyError(ImportError):
         )
 
 
-@lru_cache(maxsize=None)
+@cache
 def require_optional(name: str, group: str = "ml") -> Any:
     """Import an optional dependency with clear error messaging.
 

@@ -18,11 +18,11 @@ USAGE EXAMPLES:
 
 2. Team-specific analysis:
    python src/main.py syngenta jira issue-velocity --project-key "CWS"
-   --time-period "last-year" --team "Catalog"
+   --time-period "last-year" --team "FarmOps"
 
 2b. Multiple teams (tribe):
    python src/main.py syngenta jira issue-velocity --project-key "CWS"
-   --time-period "last-year" --teams "Catalog,Platform"
+   --time-period "last-year" --teams "FarmOps,Platform"
 
 3. Multiple issue types analysis:
    python src/main.py syngenta jira issue-velocity --project-key "CWS"
@@ -114,7 +114,7 @@ class IssueVelocityCommand(BaseCommand):
             required=False,
             help=(
                 "Filter by one or more teams using Squad[Dropdown] field. "
-                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'Catalog,Platform')."
+                "You can repeat --team/--teams or pass a comma-separated list (e.g., 'FarmOps,Platform')."
             ),
         )
         parser.add_argument(
