@@ -1,6 +1,7 @@
 import os
 from datetime import date, datetime
 from typing import Any
+from urllib.parse import quote
 
 from utils.data.json_manager import JSONManager
 from utils.jira.jira_assistant import JiraAssistant
@@ -134,7 +135,7 @@ class IssueDueDateMonitorService:
             self.logger.info(f"Starting issue due date monitoring for squad '{squad}'{issue_types_msg}")
 
             # Fetch issues without due dates
-            issues_without_duedate = self._fetch_issues_without_duedate(squad, project_key, issue_types)
+            issues_without_duedate, jql_query = self._fetch_issues_without_duedate(squad, project_key, issue_types)
 
             if not issues_without_duedate:
                 self.logger.info(f"No issues without due dates found for squad '{squad}'{issue_types_msg}")
@@ -147,7 +148,9 @@ class IssueDueDateMonitorService:
 
             # Send notifications if not in dry run mode
             if not dry_run and self.slack_service:
-                notification_sent = self.slack_service.send_issues_notification(issues_without_duedate, squad)
+                notification_sent = self.slack_service.send_issues_notification(
+                    issues_without_duedate, squad, jql_query=jql_query
+                )
 
                 if notification_sent:
                     self.logger.info("Slack notification sent successfully")
@@ -167,16 +170,12 @@ class IssueDueDateMonitorService:
 
     def _fetch_issues_without_duedate(
         self, squad: str, project_key: str, issue_types: list[str] | None = None
-    ) -> list[IssueWithoutDueDate]:
+    ) -> tuple[list[IssueWithoutDueDate], str]:
         """Fetch issues that are in progress but don't have due dates.
 
-        Args:
-            squad (str): Squad name to filter
-            project_key (str): JIRA project key
-            issue_types (Optional[List[str]]): List of issue types to filter
-
         Returns:
-            List[IssueWithoutDueDate]: List of issues without due dates
+            Tuple of (list of issues, jql query used) — the jql is returned so
+            callers can build deep links back to the Jira Issue Navigator.
         """
         try:
             # Build JQL query to find issues in progress without due dates
@@ -210,7 +209,7 @@ class IssueDueDateMonitorService:
                 issue_obj = IssueWithoutDueDate(issue)
                 issues_without_duedate.append(issue_obj)
 
-            return issues_without_duedate
+            return issues_without_duedate, jql_query
 
         except Exception as e:
             self.logger.error(f"Error fetching issues without due dates: {e}", exc_info=True)
@@ -244,6 +243,7 @@ class SlackNotificationService:
         squad: str,
         slack_token: str | None = None,
         recipient_id: str | None = None,
+        jql_query: str | None = None,
     ) -> bool:
         """Send a Slack notification about issues without due dates.
 
@@ -252,6 +252,8 @@ class SlackNotificationService:
             squad: Squad name
             slack_token: Optional Slack bot token
             recipient_id: Optional recipient channel/user ID
+            jql_query: JQL used to fetch the issues, used to build a deep link to
+                the Jira Issue Navigator so the team can see the full list.
 
         Returns:
             bool: True if successful, False otherwise
@@ -260,7 +262,7 @@ class SlackNotificationService:
             self.logger.info("No issues without due dates to report")
             return True
 
-        blocks = self._format_issues_blocks(issues, squad)
+        blocks = self._format_issues_blocks(issues, squad, jql_query)
 
         try:
             self.assistant.send_message(
@@ -275,8 +277,12 @@ class SlackNotificationService:
             self.logger.error(f"Error sending Slack notification: {e}", exc_info=True)
             return False
 
-    def _format_issues_blocks(self, issues: list[IssueWithoutDueDate], squad: str) -> list[dict[str, Any]]:
+    def _format_issues_blocks(
+        self, issues: list[IssueWithoutDueDate], squad: str, jql_query: str | None = None
+    ) -> list[dict[str, Any]]:
         """Format issues into Slack Block Kit format."""
+        jira_base_url = (os.getenv("JIRA_URL") or "").rstrip("/")
+        jql_url = f"{jira_base_url}/issues/?jql={quote(jql_query)}" if jira_base_url and jql_query else None
         blocks = []
 
         # Header
@@ -336,8 +342,12 @@ class SlackNotificationService:
                         "text": {
                             "type": "mrkdwn",
                             "text": (
-                                f"• *<https://digital-product-engineering.atlassian.net/browse/{issue.key}|{issue.key}>*: "
-                                f"{issue.summary[:80]}{'...' if len(issue.summary) > 80 else ''}\n"
+                                (
+                                    f"• *<{jira_base_url}/browse/{issue.key}|{issue.key}>*: "
+                                    if jira_base_url
+                                    else f"• *{issue.key}*: "
+                                )
+                                + f"{issue.summary[:80]}{'...' if len(issue.summary) > 80 else ''}\n"
                                 f"  _{issue.issue_type}_ • _{issue.status}_ • "
                                 f"_{issue.days_in_progress} days in progress_{assignee_mention}"
                             ),
@@ -346,13 +356,15 @@ class SlackNotificationService:
                 )
 
             if len(priority_issues) > 5:
+                overflow_text = f"_... and {len(priority_issues) - 5} more {priority.lower()} priority issues"
+                if jql_url:
+                    overflow_text += f" — <{jql_url}|View all in Jira>_"
+                else:
+                    overflow_text += "_"
                 blocks.append(
                     {
                         "type": "section",
-                        "text": {
-                            "type": "mrkdwn",
-                            "text": f"_... and {len(priority_issues) - 5} more {priority.lower()} priority issues_",
-                        },
+                        "text": {"type": "mrkdwn", "text": overflow_text},
                     }
                 )
 
@@ -372,6 +384,20 @@ class SlackNotificationService:
                 },
             }
         )
+
+        if jql_url:
+            blocks.append(
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "🔗 Open full list in Jira"},
+                            "url": jql_url,
+                        }
+                    ],
+                }
+            )
 
         return blocks
 

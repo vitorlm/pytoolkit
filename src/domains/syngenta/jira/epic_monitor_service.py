@@ -405,6 +405,27 @@ class SlackNotificationService:
 
             blocks.append({"type": "divider"})
 
+        # Footer button: deep link to the Jira Issue Navigator with the same JQL used to fetch epics
+        jira_url = os.getenv("JIRA_URL")
+        if jira_url:
+            from urllib.parse import quote
+
+            jql_query = (
+                f'type = Epic AND statusCategory != Done AND "Squad[Dropdown]" = "{squad_name}" ORDER BY priority'
+            )
+            blocks.append(
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "🔗 Open full epic list in Jira"},
+                            "url": f"{jira_url.rstrip('/')}/issues/?jql={quote(jql_query)}",
+                        }
+                    ],
+                }
+            )
+
         # Context with timestamp (brief)
         blocks.append(
             {
