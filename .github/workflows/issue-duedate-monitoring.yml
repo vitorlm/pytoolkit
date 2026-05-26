@@ -9,7 +9,7 @@ on:
       squad:
         description: "Squad name to monitor"
         required: true
-        default: "Catalog"
+        default: "FarmOps"
         type: string
       issue_types:
         description: "Comma-separated list of issue types (e.g., 'Story,Task,Bug')"

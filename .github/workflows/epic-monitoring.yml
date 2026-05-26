@@ -6,11 +6,11 @@ on:
     - cron: "0 12 * * 1,3,5"
   workflow_dispatch:
     inputs:
-      force_run:
-        description: "Force run regardless of business hours"
+      squad:
+        description: "Squad name to monitor"
         required: false
-        default: false
-        type: boolean
+        default: "FarmOps"
+        type: string
 
 jobs:
   epic-monitoring:
@@ -69,9 +69,12 @@ jobs:
 
       - name: Run Epic Monitoring
         run: |
-          python -m main syngenta jira epic-monitor --slack-webhook="${{ secrets.SLACK_WEBHOOK_URL }}"
+          python -m main syngenta jira epic-monitor \
+            --squad "$SQUAD" \
+            --slack-webhook="${{ secrets.SLACK_WEBHOOK_URL }}"
         env:
           PYTHONPATH: ${{ github.workspace }}/src
+          SQUAD: ${{ github.event.inputs.squad || 'FarmOps' }}
 
       - name: Upload logs on failure
         if: failure()
