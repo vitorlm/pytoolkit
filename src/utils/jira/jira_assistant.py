@@ -630,11 +630,12 @@ class JiraAssistant:
                 )
                 cached_data = self._load_from_cache(cache_key)
                 if cached_data:
-                    self._logger.info(
-                        f"Loaded issues from cache for JQL: {jql_query} (next_page_token={next_page_token})"
-                    )
                     if isinstance(cached_data, dict):
                         current_issues = cached_data.get("issues", [])
+                        self._logger.info(
+                            f"Loaded {len(current_issues)} issues from cache for JQL: {jql_query} "
+                            f"(next_page_token={next_page_token})"
+                        )
                         issues.extend(current_issues)
 
                         # Check if there's a next page token for more results
@@ -647,6 +648,10 @@ class JiraAssistant:
                             break
 
                     elif isinstance(cached_data, list):
+                        self._logger.info(
+                            f"Loaded {len(cached_data)} issues from cache for JQL: {jql_query} "
+                            f"(next_page_token={next_page_token})"
+                        )
                         issues.extend(cached_data)
                         break
                     continue
@@ -671,9 +676,15 @@ class JiraAssistant:
                 if not response:
                     raise JiraQueryError("No response received from Jira API.", jql=jql_query)
 
-                self._save_to_cache(cache_key, response)
                 if isinstance(response, dict):
                     current_issues = response.get("issues", [])
+                    self._logger.info(
+                        f"Fetched {len(current_issues)} issues from API for JQL: {jql_query} "
+                        f"(next_page_token={next_page_token})"
+                    )
+                    # Skip caching empty pages to avoid masking transient/empty results
+                    if current_issues:
+                        self._save_to_cache(cache_key, response)
                     issues.extend(current_issues)
 
                     # Get next page token for pagination
@@ -686,6 +697,11 @@ class JiraAssistant:
                         break
 
                 elif isinstance(response, list):
+                    self._logger.info(
+                        f"Fetched {len(response)} issues from API (list form) for JQL: {jql_query}"
+                    )
+                    if response:
+                        self._save_to_cache(cache_key, response)
                     issues.extend(response)
                     break
 

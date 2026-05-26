@@ -64,7 +64,7 @@ jobs:
           EPIC_MONITOR_CHECK_INTERVAL_MINUTES=60
 
           # Cycle Configuration
-          YEAR_START_DATE=2025-01-06
+          YEAR_START_DATE=2026-01-05
           EOF
 
       - name: Run Epic Monitoring

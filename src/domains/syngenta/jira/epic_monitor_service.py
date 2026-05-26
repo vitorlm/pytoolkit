@@ -93,12 +93,11 @@ class CycleDetector:
     @classmethod
     def _get_year_start_date(cls) -> date:
         """Get the configured year start date from environment or use default."""
-        year_start_str = os.getenv("YEAR_START_DATE", "2025-01-06")
+        year_start_str = os.getenv("YEAR_START_DATE", "2026-01-05")
         try:
             return datetime.strptime(year_start_str, "%Y-%m-%d").date()
         except ValueError:
-            # Fallback to January 6, 2025 if invalid format
-            return date(2025, 1, 6)
+            return date(2026, 1, 5)
 
     @classmethod
     def _calculate_cycle_dates(cls, year_start: date) -> dict[str, dict[str, date]]:
