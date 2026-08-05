@@ -244,3 +244,8 @@ _team_assessment_output/
 node_modules/
 runs/*
 !runs/.gitkeep
+.agents/
+.claude/
+.github/agents/
+src/logs/*
+_bmad/
